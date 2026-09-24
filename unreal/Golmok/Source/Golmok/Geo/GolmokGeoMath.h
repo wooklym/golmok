@@ -26,11 +26,12 @@ namespace GolmokGeoMath
 	constexpr double WGS84_F = 1.0 / 298.257223563;
 	constexpr double WGS84_E2 = WGS84_F * (2.0 - WGS84_F);
 	constexpr double WGS84_B = WGS84_A * (1.0 - WGS84_F);
-	constexpr double PI = 3.14159265358979323846;
+	// Named Pi, not the upper-case spelling: Unreal defines that as a preprocessor macro in UnrealMathUtility.h.
+	constexpr double Pi = 3.14159265358979323846;
 	constexpr double ENU_TO_UE_SCALE = 100.0; // m -> cm
 
-	inline double DegToRad(double Deg) { return Deg * (PI / 180.0); }
-	inline double RadToDeg(double Rad) { return Rad * (180.0 / PI); }
+	inline double DegToRad(double Deg) { return Deg * (Pi / 180.0); }
+	inline double RadToDeg(double Rad) { return Rad * (180.0 / Pi); }
 
 	inline Mat4 Identity()
 	{
