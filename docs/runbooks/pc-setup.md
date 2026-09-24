@@ -143,4 +143,4 @@ golmok-basemap build --buildings "$D\vworld\AL_D010_11_20260909\AL_D010_11_20260
   - L_Dev(또는 새 레벨)에서 배경 건물과 지형이 보인다.
   - 파사드 창 패턴이 보인다.
   - 캐릭터가 배경 지면 위를 걸을 수 있다.
-  - fps와 스크린샷을 ROADMAP 1.2에 기록한다. 정사영상이 보이는 스크린샷은 법률 확인 전까지 저장소에 올리지 않는다(D-012).
+  - fps와 스크린샷을 ROADMAP 1.2에 기록한다(스크린샷은 960×540 JPEG로 `docs/images/`, Git LFS).

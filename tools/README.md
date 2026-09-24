@@ -90,7 +90,7 @@ golmok-basemap build --buildings D:\golmok_data\AL_D010_11_….shp `
 - `--geoid-offset`: 정표고→타원체고 보정(m). **UE 정적 임포트에는 영향 없음**, Cesium 타일과 맞출 때만 필요(서울 일대 약 +20m대 추정, 적용 전 확인).
 - UE로 가져오기(에디터 Python): `import golmok.basemap_import as b; b.run(r"D:\golmok_basemap\yeonnam")`(현재 레벨) 또는 `b.run(r"…\yeonnam", level="/Game/Golmok/Maps/L_Basemap_Yeonnam")`(새 레벨: 조명 + 지면 위 PlayerStart). 다시 실행하면 이전 배경 액터를 지우고 다시 놓는다.
   - 건물은 Nanite + `M_BasemapFacade`(층·창 패턴 절차적 머티리얼), 지형은 `M_BasemapTerrain` 인스턴스(정사영상). 축·단위 변환은 타일 경계상자로 자동 측정한다.
-  - 생성된 에셋(`Content/Golmok/Basemap/`, `L_Basemap_*`, `M_Basemap*`)은 커밋하지 않는다. 정사영상 파생물은 PC에만 둔다(D-012 국외 반출 확인 전).
+  - 생성된 에셋(`Content/Golmok/Basemap/`, `L_Basemap_*`, `M_Basemap*`)은 스크립트로 다시 만들 수 있어 커밋하지 않는다.
 
 **5) Zone manifest** (ROADMAP 1.4, 스펙 [docs/spec/zone-manifest.md](../docs/spec/zone-manifest.md))
 ```powershell
