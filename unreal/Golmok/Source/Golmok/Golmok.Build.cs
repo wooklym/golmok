@@ -21,6 +21,13 @@ public class Golmok : ModuleRules
 			"JsonUtilities"
 		});
 
+		PrivateDependencyModuleNames.AddRange(new string[]
+		{
+			// WP-05: RHIGetGPUFrameCycles() for the debug HUD's GPU ms (Debug/GolmokDebugSubsystem.cpp).
+			// Remove together with GOLMOK_GPU_TIME_SOURCE if the symbol moved.
+			"RHI"
+		});
+
 		// Editor-only automation tests (Tests/) start PIE through UnrealEd.
 		if (Target.bBuildEditor)
 		{

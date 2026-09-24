@@ -7,6 +7,7 @@
 
 class UBoxComponent;
 class UGolmokZoneSubsystem;
+class UMaterialInterface;
 class UStaticMesh;
 class UStaticMeshComponent;
 
@@ -109,6 +110,12 @@ public:
 
 	bool IsVisualVisible() const { return bVisualVisible; }
 
+	/**
+	 * WP-05 collision debug view: show the (normally hidden) collision meshes with WireMaterial on every slot (nullptr
+	 * restores the mesh materials), unhide the blocker boxes; placeholder boxes stay visible either way.
+	 */
+	void SetCollisionDebugVisible(bool bVisible, UMaterialInterface* WireMaterial);
+
 	/** Editor button: re-read the manifest from disk, then Unload + Load. Components are transient (not saved). */
 	UFUNCTION(CallInEditor, BlueprintCallable, Category = "Golmok|Zone")
 	void RebuildInEditor();
@@ -157,6 +164,9 @@ public:
 
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<AActor>> PortalActors;
+
+	/** AGolmokPortal actors spawned by the last Load() (empty while unloaded). */
+	const TArray<TObjectPtr<AActor>>& GetPortalActors() const { return PortalActors; }
 
 protected:
 	virtual void BeginPlay() override;

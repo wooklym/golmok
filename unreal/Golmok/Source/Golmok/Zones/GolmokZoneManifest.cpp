@@ -767,4 +767,9 @@ namespace GolmokZoneManifest
 											   : FString::Printf(TEXT("SM_%s_collision_%s"), *ZoneId, *ChunkId);
 		return FString::Printf(TEXT("%s/%s.%s"), *AssetFolder(ZoneId, Version), *Name, *Name);
 	}
+
+	FString SublevelPackagePath(const FString& ZoneId, int32 Version)
+	{
+		return FString::Printf(TEXT("%s/L_%s"), *AssetFolder(ZoneId, Version), *ZoneId);
+	}
 } // namespace GolmokZoneManifest

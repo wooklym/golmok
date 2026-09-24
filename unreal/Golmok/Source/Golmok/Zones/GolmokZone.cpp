@@ -11,7 +11,9 @@
 #include "Geo/GolmokGeo.h"
 #include "Geo/GolmokGeoMath.h"
 #include "Geo/GolmokGeoSubsystem.h"
+#include "Materials/MaterialInterface.h"
 #include "Misc/Paths.h"
+#include "Portals/GolmokPortal.h"
 #include "UObject/UObjectGlobals.h"
 #include "Zones/GolmokZoneSubsystem.h"
 
@@ -470,8 +472,41 @@ void AGolmokZone::UnloadInEditor()
 
 void AGolmokZone::SpawnPortals()
 {
-	// WP-05 replaces this with AGolmokPortal spawning; the manifest data is already parsed in Manifest.Portals.
-	UE_LOG(LogGolmok, Verbose, TEXT("Zone %s: %d portals parsed (spawning arrives with WP-05)"), *ZoneId, Manifest.Portals.Num());
+	// One transient AGolmokPortal per manifest portal (WP-05 design section 3-3). Deferred construction so the
+	// manifest fields are set before BeginPlay; no Params.Name (a reload would collide with the dying actor's name).
+	// Also runs in editor worlds (RebuildInEditor) so the placement can be checked; there BeginPlay never runs.
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		return;
+	}
+	DestroyPortals(); // re-entrancy safe
+	for (const FGolmokZonePortal& P : Manifest.Portals)
+	{
+		const FTransform T = GetPortalWorldTransform(P);
+		FActorSpawnParameters Params;
+		Params.Owner = this;
+		Params.ObjectFlags = EObjectFlags(Params.ObjectFlags | RF_Transient); // never saved, even from the editor world
+		Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+		Params.bDeferConstruction = true;
+		AGolmokPortal* Portal = World->SpawnActor<AGolmokPortal>(AGolmokPortal::StaticClass(), T, Params);
+		if (!Portal)
+		{
+			UE_LOG(LogGolmok, Warning, TEXT("Zone %s: portal %s could not be spawned"), *ZoneId, *P.Id);
+			continue;
+		}
+		Portal->Configure(*this, P);
+#if WITH_EDITOR
+		Portal->SetActorLabel(FString::Printf(TEXT("Portal_%s_%s"), *ZoneId, *P.Id));
+#endif
+		Portal->FinishSpawning(T);
+		PortalActors.Add(Portal);
+		const FVector Rel = GolmokGeo::EnuToUE(P.PositionEnu);
+		const FVector Loc = T.GetLocation();
+		UE_LOG(LogGolmok, Log, TEXT("Zone %s: portal %s -> %s rel (%.0f, %.0f, %.0f) cm yaw %.1f radius %.0f cm -> level (%.2f, %.2f, %.2f) [%s]"),
+			*ZoneId, *P.Id, *P.ToZone, Rel.X, Rel.Y, Rel.Z, -P.YawDeg, PortalRadiusCm(P), Loc.X, Loc.Y, Loc.Z,
+			IsInterior() ? TEXT("marker") : TEXT("entry"));
+	}
 }
 
 void AGolmokZone::DestroyPortals()
@@ -501,6 +536,38 @@ void AGolmokZone::SetVisualVisible(bool bVisible)
 		if (IsValid(Box))
 		{
 			Box->SetVisibility(bVisible, true);
+		}
+	}
+}
+
+void AGolmokZone::SetCollisionDebugVisible(bool bVisible, UMaterialInterface* WireMaterial)
+{
+	for (const TObjectPtr<UStaticMeshComponent>& Component : CollisionComponents)
+	{
+		if (!IsValid(Component))
+		{
+			continue;
+		}
+		Component->SetHiddenInGame(!bVisible);
+		const int32 NumMaterials = Component->GetNumMaterials();
+		for (int32 i = 0; i < NumMaterials; ++i)
+		{
+			Component->SetMaterial(i, bVisible ? WireMaterial : nullptr);
+		}
+	}
+	for (const TObjectPtr<UBoxComponent>& Box : BlockerComponents)
+	{
+		if (IsValid(Box))
+		{
+			Box->SetHiddenInGame(!bVisible);
+		}
+	}
+	for (const TObjectPtr<UBoxComponent>& Box : PlaceholderBoxes)
+	{
+		if (IsValid(Box))
+		{
+			// Placeholder wire boxes are drawn in game by default (MakeBoxComponent); never hide them here.
+			Box->SetHiddenInGame(false);
 		}
 	}
 }

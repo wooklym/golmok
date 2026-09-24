@@ -416,4 +416,7 @@ namespace GolmokZoneManifest
 
 	/** SM_<zone_id>_collision, or SM_<zone_id>_collision_<chunk_id> when ChunkId is not empty. */
 	GOLMOK_API FString CollisionAssetPath(const FString& ZoneId, int32 Version, const FString& ChunkId);
+
+	/** Interior sublevel package (spec §5, WP-05): /Game/Golmok/Zones/<zone_id>/v<version>/L_<zone_id> */
+	GOLMOK_API FString SublevelPackagePath(const FString& ZoneId, int32 Version);
 } // namespace GolmokZoneManifest

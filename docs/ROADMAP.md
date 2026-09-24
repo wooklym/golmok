@@ -119,8 +119,8 @@
 |---|---|
 | 3인칭 캐릭터(C++): 걷기, 뛰기, 점프, Enhanced Input, 카메라 붐(충돌 보정) | 키보드·마우스와 게임패드로 조작 |
 | 애니메이션: 기본은 UE 5.8 기본 캐릭터·애니메이션 세트(Motion Matching 등 5.8 제공 기능 평가) | 이동이 자연스럽다 |
-| 조명 프리셋: 시간대(아침·흐림·저녁) 전환, Lumen, 안개 | 시간대를 바꿔도 환경이 자연스럽다(D-010 결과에 따름) |
-| 디버그: 충돌 와이어프레임, 성능 HUD, 고정 카메라 경로 재생 | 스파이크와 회귀 측정에 재사용 |
+| 조명 프리셋: 시간대(아침·흐림·저녁) 전환, Lumen, 안개 — 🟡 코드 완료·PC 검증 대기(WP-05): 단일 소스 `Config/Golmok/lighting_presets.json`(4 시간대 + `interior` 오버레이), `Lighting/GolmokTimeOfDay`(2 s 보간, 키 1~4/F5, 콘솔 `golmok.tod`), `lighting.py`가 같은 JSON을 읽음 | 시간대를 바꿔도 환경이 자연스럽다(D-010 결과에 따름) |
+| 디버그: 충돌 와이어프레임, 성능 HUD, 고정 카메라 경로 재생 — 🟡 코드 완료·PC 검증 대기(WP-05): `Debug/GolmokDebugSubsystem`+`AGolmokHUD`(F1 HUD: fps 평균·1% low·Game/Render/GPU ms·Zone·프리셋·ENU 좌표, F2 충돌 표시, `golmok.path record/play --csv` → `golmok-perf`, `golmok.screenshot`), 통계·경로 JSON은 순수 헤더 `GolmokStatsMath.h`로 g++ 교차검증. 런북 `runbooks/pc-verify-wp05.md`(V-03) | 스파이크와 회귀 측정에 재사용 |
 
 ### 1.4 골목 Zone 통합
 - D-010 방식으로 **골목 전체**를 처리하고 청크로 나눈다.
@@ -137,7 +137,7 @@
 |---|---|
 | 소유자 서면 동의서 템플릿 작성 → 사용자가 서명을 받는다 — ✅ 초안 `outreach/interior-consent-form-draft.md` | 🤖 초안 / 👤 |
 | **촬영 가이드 #2(실내)** 작성 → 촬영 — ✅ 가이드 `capture/02-interior-capture-guide.md` | 🤖 / 👤 |
-| 실내 Zone 제작(D-010 방식), 문 포털, 실외↔실내 전환(레벨 스트리밍, 노출·조명 전환) | 🤖 |
+| 실내 Zone 제작(D-010 방식), 문 포털, 실외↔실내 전환(레벨 스트리밍, 노출·조명 전환) — 포털·전환은 🟡 코드 완료·PC 검증 대기(WP-05): `Portals/GolmokPortal`(manifest `portals[]`에서 자동 스폰, 반경 안 선로드, 문 평면 통과로 노출·안개 오버레이, 3 s 지연 언로드), 레벨 스트리밍 `LevelInstance`(기본)/`NamedStreamingLevel`(ini), 합성 실내 픽스처 `z_synthetic_001_interior` + `synthetic_zone.run(interior=True)` | 🤖 |
 | 완료 기준: 골목에서 문을 열고 들어가 실내를 돌아다니고 다시 나올 수 있다 | |
 
 ### 1.6 폴리시·성능·검수
