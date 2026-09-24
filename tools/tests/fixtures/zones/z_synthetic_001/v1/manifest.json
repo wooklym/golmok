@@ -1,0 +1,97 @@
+{
+  "schema_version": 1,
+  "zone_id": "z_synthetic_001",
+  "version": 1,
+  "kind": "exterior",
+  "parent_zone": null,
+  "origin": {
+    "lat": 37.562,
+    "lon": 126.925,
+    "height_ellipsoidal": 50.0
+  },
+  "origin_ecef": [-3041244.8025000524, 4046878.9766597343, 3867051.561014832],
+  "transform": [
+    -0.7994225996253806, 0.3662405942358524, -0.4762261378189653, -3041244.8025000524,
+    -0.6007690964157514, -0.4873436561220112, 0.6336976042478246, 4046878.9766597343,
+    0.0, 0.7926941326712345, 0.6096195633578366, 3867051.561014832,
+    0.0, 0.0, 0.0, 1.0
+  ],
+  "footprint_wgs84": {
+    "type": "Polygon",
+    "coordinates": [
+      [
+        [126.924773636, 37.561909901],
+        [126.925226364, 37.561909901],
+        [126.925226365, 37.562090099],
+        [126.924773635, 37.562090099],
+        [126.924773636, 37.561909901]
+      ]
+    ]
+  },
+  "replaces": {
+    "building_ids": ["SYNTH-0001", "SYNTH-0002"],
+    "terrain_clip": true
+  },
+  "layers": {
+    "visual": {
+      "format": "nanite_mesh",
+      "chunks": [
+        {
+          "id": "chunk_00",
+          "uri": "visual/chunk_00.glb",
+          "bbox_enu": [[-20.0, -10.0, 0.0], [-7.0, 10.0, 12.0]],
+          "tris": 20000
+        },
+        {
+          "id": "chunk_01",
+          "uri": "visual/chunk_01.glb",
+          "bbox_enu": [[-7.0, -10.0, 0.0], [7.0, 10.0, 12.0]],
+          "tris": 20000
+        },
+        {
+          "id": "chunk_02",
+          "uri": "visual/chunk_02.glb",
+          "bbox_enu": [[7.0, -10.0, 0.0], [20.0, 10.0, 12.0]],
+          "tris": 20000
+        }
+      ]
+    },
+    "collision": {
+      "format": "glb",
+      "uri": "collision.glb"
+    },
+    "blockers": {
+      "uri": "blockers.json"
+    }
+  },
+  "portals": [
+    {
+      "id": "door_1",
+      "to_zone": "z_synthetic_001_interior",
+      "pose_enu": {
+        "position": [5.0, 9.5, 0.0],
+        "yaw_deg": 90.0
+      },
+      "radius_m": 1.5,
+      "kind": "door"
+    }
+  ],
+  "priority": 10,
+  "quality": {
+    "icp_rmse_m": null,
+    "footprint_iou": null,
+    "reviewed_by": null,
+    "reviewed_at": null
+  },
+  "consent": {
+    "type": "public_street",
+    "record_id": null
+  },
+  "attribution": ["합성 테스트 데이터 (WP-02)"],
+  "sources": [
+    {
+      "capture_id": "synthetic",
+      "note": "테스트 픽스처, 실촬영 아님"
+    }
+  ]
+}

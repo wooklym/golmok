@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/wooklym/golmok/docs/spec/zone-blockers.schema.json",
+  "title": "Golmok Zone blockers file",
+  "description": "layers.blockers.uri. Rectangles in zone-local ENU (m) the player cannot pass. Spec: docs/spec/zone-manifest.md.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["planes"],
+  "properties": {
+    "planes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "center_enu", "normal_enu", "size_m", "kind"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9_]*$", "maxLength": 64 },
+          "center_enu": { "$ref": "#/$defs/vec3" },
+          "normal_enu": { "$ref": "#/$defs/vec3" },
+          "size_m": {
+            "description": "[width, height]. Height runs along zone up projected onto the plane (north for horizontal planes).",
+            "type": "array",
+            "items": { "type": "number", "exclusiveMinimum": 0 },
+            "minItems": 2,
+            "maxItems": 2
+          },
+          "kind": { "enum": ["glass", "no_entry"] }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "vec3": { "type": "array", "items": { "type": "number" }, "minItems": 3, "maxItems": 3 }
+  }
+}

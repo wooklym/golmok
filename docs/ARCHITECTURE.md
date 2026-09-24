@@ -61,6 +61,8 @@
 
 ### 3.2 Zone (촬영으로 만든 고품질 구역)
 
+> **확정 스펙은 [spec/zone-manifest.md](spec/zone-manifest.md)**(WP-02, schema_version 1). 아래 예시는 설계 당시 초안이다(포맷·필드 이름이 일부 다르다).
+
 ```jsonc
 // zones/<zone_id>/<version>/manifest.json
 {

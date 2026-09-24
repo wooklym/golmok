@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/wooklym/golmok/docs/spec/zone-index.schema.json",
+  "title": "Golmok Zone Index",
+  "description": "index/zones.json and index/cells/<z>_<x>_<y>.json. Spec: docs/spec/zone-manifest.md.",
+  "oneOf": [{ "$ref": "#/$defs/zones_file" }, { "$ref": "#/$defs/cell_file" }],
+  "$defs": {
+    "zone_id": { "type": "string", "pattern": "^z_[a-z0-9]+(_[a-z0-9]+)*$", "maxLength": 64 },
+    "zones_file": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "cell_zoom", "zones"],
+      "properties": {
+        "schema_version": { "const": 1 },
+        "cell_zoom": { "const": 16 },
+        "zones": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "version", "kind", "priority", "bbox_wgs84", "manifest"],
+            "properties": {
+              "id": { "$ref": "#/$defs/zone_id" },
+              "version": { "type": "integer", "minimum": 1 },
+              "kind": { "enum": ["exterior", "interior"] },
+              "priority": { "type": "integer" },
+              "bbox_wgs84": {
+                "description": "[west, south, east, north] degrees.",
+                "type": "array",
+                "items": { "type": "number" },
+                "minItems": 4,
+                "maxItems": 4
+              },
+              "manifest": { "description": "Relative to zones root: <id>/v<version>/manifest.json", "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "cell_file": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "z", "x", "y", "zones"],
+      "properties": {
+        "schema_version": { "const": 1 },
+        "z": { "const": 16 },
+        "x": { "type": "integer", "minimum": 0 },
+        "y": { "type": "integer", "minimum": 0 },
+        "zones": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "version"],
+            "properties": {
+              "id": { "$ref": "#/$defs/zone_id" },
+              "version": { "type": "integer", "minimum": 1 }
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -6,6 +6,7 @@
 | `golmok-frames <영상> <출력폴더>` | 영상에서 선명한 프레임만 추출(창마다 가장 선명한 1장). ffmpeg 필요 |
 | `golmok-blur <입력폴더> <출력폴더> --face-model … --lp-model …` | **얼굴·번호판 블러**(Meta EgoBlur, Apache-2.0). 재구성(RealityScan/Postshot)에는 **출력 폴더만** 쓴다 |
 | `golmok-perf <csv…> [--label …] [--markdown]` | Unreal CSV 프로파일(`CsvProfile Start/Stop`) 요약: 평균·1% low fps, Game/Render/GPU ms. 스파이크 비교표용 |
+| `golmok-zone init/validate/index build/exclude/transform/bump` | **Zone manifest**(스펙 [docs/spec/zone-manifest.md](../docs/spec/zone-manifest.md)): 새 zone 만들기, 검사, Zone Index, 베이스맵 제외 폴리곤, 좌표 변환, 새 버전 |
 | `golmok-basemap inspect/build …` | **배경 베이스맵**: 건물 SHP(GIS건물통합정보) + DEM + 정사영상 → LOD1 건물·지형 GLB 타일 + `manifest.json` + `tileset.json`(3D Tiles 1.1) |
 
 ## 설치 (Windows, 한 번만)
@@ -20,7 +21,7 @@ winget install OliverBetz.ExifTool
 cd golmok\tools
 py -3.12 -m venv .venv
 .\.venv\Scripts\Activate.ps1
-pip install -e ".[raw,heic,basemap,dev]"
+pip install -e ".[raw,heic,basemap,zone,dev]"
 ```
 
 블러까지 쓰려면 PyTorch를 추가로 설치한다. **RTX 50 시리즈(5060 등)는 CUDA 12.8 이상 빌드**가 필요하다.
@@ -83,9 +84,29 @@ golmok-basemap build --buildings D:\golmok_data\AL_D010_11_….shp `
 - UE로 가져오기(에디터 Python): `import golmok.basemap_import as b; b.run(r"D:\golmok_basemap\yeonnam")`
   - 건물은 Nanite + `M_BasemapFacade`(층·창 패턴 절차적 머티리얼), 지형은 정사영상 텍스처. 축·단위 변환은 타일 경계상자로 자동 측정한다.
 
+**5) Zone manifest** (ROADMAP 1.4, 스펙 [docs/spec/zone-manifest.md](../docs/spec/zone-manifest.md))
+```powershell
+# ① 새 zone: footprint(경위도 Polygon GeoJSON, QGIS 등으로 그림) + 원점(lat,lon,타원체고)
+golmok-zone init --id z_yeonnam_alley_001 --kind exterior --origin 37.5620,126.9250,50 `
+  --footprint D:\golmok_zones\fp_alley_001.geojson --capture alley01 --out D:\golmok_zones\zones\z_yeonnam_alley_001\v1
+# ② 검사 (--check-files: 청크·충돌·blockers 파일까지)
+golmok-zone validate D:\golmok_zones\zones\z_yeonnam_alley_001\v1\manifest.json --check-files
+# ③ Zone Index와 베이스맵 제외 폴리곤
+golmok-zone index build --zones-root D:\golmok_zones\zones --out D:\golmok_zones\index
+golmok-zone exclude --zones-root D:\golmok_zones\zones --out D:\golmok_zones\exclude.geojson --buffer-m 0.75
+golmok-basemap build … --exclude D:\golmok_zones\exclude.geojson
+# ④ 좌표 확인: zone-local 점 → ECEF·경위도·UE cm (--area-origin = 베이스맵 출력 manifest.json의 origin: lat,lon,height_ellipsoidal)
+golmok-zone transform D:\golmok_zones\zones\z_yeonnam_alley_001\v1\manifest.json --enu 10,0,0 --area-origin 37.5620,126.9250,62.4
+# ⑤ 게시된 버전은 고치지 않는다: 새 버전 폴더로 복사 후 수정
+golmok-zone bump D:\golmok_zones\zones\z_yeonnam_alley_001\v1\manifest.json
+```
+- 좌표: zone-local은 **ENU(x=동, y=북, z=위), m**. UE는 **X=동, Y=남, Z=위, cm** → `(100x, −100y, 100z)`.
+- `transform`은 zone-local → ECEF 4×4 **row-major**. 정합(WP-07)이 이 값을 고친다. 높이는 **타원체고**.
+- 합성 예제: `tests/fixtures/zones/z_synthetic_001/v1/manifest.json`(청크 3·충돌 1·blocker 1·포털 1).
+
 ## 검사 실행
 
-CI(`.github/workflows/ci.yml`)와 같은 검사다. 커밋 전에 `tools` 폴더에서 실행한다(`pip install -e ".[basemap,dev]"`에 ruff 포함).
+CI(`.github/workflows/ci.yml`)와 같은 검사다. 커밋 전에 `tools` 폴더에서 실행한다(`pip install -e ".[basemap,zone,dev]"`에 ruff 포함).
 
 ```powershell
 ruff check .            # 린트 (자동 수정: ruff check . --fix)
