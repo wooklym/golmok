@@ -488,14 +488,19 @@ def _move_player_start(zone):
 def open_or_create_level(level_path):
     """Open the map at level_path, or create it with the L_Dev lighting (sun, sky, fog, post-process)."""
     level_editor = unreal.get_editor_subsystem(unreal.LevelEditorSubsystem)
+    from . import setup_dev_level as dev  # imported here: its defaults touch unreal.Vector at import time
+
     if unreal.EditorAssetLibrary.does_asset_exist(level_path):
         if not level_editor.load_level(level_path):
             raise RuntimeError(f"synthetic_zone: could not open {level_path}")
+        # A run that failed between new_level() (which saves the empty map) and save_current_level() leaves
+        # the map without lights (V-03: AGolmokTimeOfDay warns "lighting targets missing"); rebuild them.
+        if not any(isinstance(a, unreal.DirectionalLight) for a in _actors().get_all_level_actors()):
+            dev._build_lighting()
+            unreal.log(f"synthetic_zone: {level_path} had no lighting; rebuilt the L_Dev lighting")
         return False
     if not level_editor.new_level(level_path):
         raise RuntimeError(f"synthetic_zone: could not create {level_path}")
-    from . import setup_dev_level as dev  # imported here: its defaults touch unreal.Vector at import time
-
     dev._build_lighting()
     unreal.log(f"synthetic_zone: created {level_path} with the L_Dev lighting")
     return True
