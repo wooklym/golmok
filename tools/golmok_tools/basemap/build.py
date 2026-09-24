@@ -7,6 +7,7 @@
 Output (--out):
     manifest.json   origin, tiles, sources/attribution (read by the Unreal import script)
     tileset.json    3D Tiles 1.1 (review viewer / Cesium), same GLB files
+    tileset_buildings.json / tileset_terrain.json   one layer each (viewer toggles)
     tiles/b_<ix>_<iy>.glb  buildings (TEXCOORD_0 wall/roof meters, TEXCOORD_1 = floor height, category)
     tiles/t_<ix>_<iy>.glb  terrain (orthophoto texture when --ortho is given)
 """
@@ -166,6 +167,15 @@ def build(args) -> dict:
         },
     }
     (out / "tileset.json").write_text(json.dumps(tileset, indent=1), encoding="utf-8")
+    # Per-layer tilesets so the review viewer can toggle buildings and terrain separately.
+    for layer, prefix in (("buildings", "tiles/b_"), ("terrain", "tiles/t_")):
+        kids = []
+        for c in children:
+            contents = [ct for ct in c["contents"] if ct["uri"].startswith(prefix)]
+            if contents:
+                kids.append({**c, "contents": contents})
+        layer_ts = {**tileset, "root": {**tileset["root"], "children": kids}}
+        (out / f"tileset_{layer}.json").write_text(json.dumps(layer_ts, indent=1), encoding="utf-8")
 
     n_est = sum(1 for b in buildings if b.estimated)
     manifest = {

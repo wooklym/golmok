@@ -6,6 +6,7 @@
 | `golmok-frames <영상> <출력폴더>` | 영상에서 선명한 프레임만 추출(창마다 가장 선명한 1장). ffmpeg 필요 |
 | `golmok-blur <입력폴더> <출력폴더> --face-model … --lp-model …` | **얼굴·번호판 블러**(Meta EgoBlur, Apache-2.0). 재구성(RealityScan/Postshot)에는 **출력 폴더만** 쓴다 |
 | `golmok-perf <csv…> [--label …] [--markdown]` | Unreal CSV 프로파일(`CsvProfile Start/Stop`) 요약: 평균·1% low fps, Game/Render/GPU ms. 스파이크 비교표용 |
+| `golmok-viewer <폴더>` | **검수 뷰어**(CesiumJS, 브라우저): 베이스맵 `tileset.json`과 Zone 타일셋을 로컬에서 띄운다. 레이어 토글, 와이어프레임, 타일 경계, ENU 좌표 읽기, 걷는 높이 시점 |
 | `golmok-basemap inspect/build …` | **배경 베이스맵**: 건물 SHP(GIS건물통합정보) + DEM + 정사영상 → LOD1 건물·지형 GLB 타일 + `manifest.json` + `tileset.json`(3D Tiles 1.1) |
 
 ## 설치 (Windows, 한 번만)
@@ -82,6 +83,16 @@ golmok-basemap build --buildings D:\golmok_data\AL_D010_11_….shp `
 - `--geoid-offset`: 정표고→타원체고 보정(m). **UE 정적 임포트에는 영향 없음**, Cesium 타일과 맞출 때만 필요(서울 일대 약 +20m대 추정, 적용 전 확인).
 - UE로 가져오기(에디터 Python): `import golmok.basemap_import as b; b.run(r"D:\golmok_basemap\yeonnam")`
   - 건물은 Nanite + `M_BasemapFacade`(층·창 패턴 절차적 머티리얼), 지형은 정사영상 텍스처. 축·단위 변환은 타일 경계상자로 자동 측정한다.
+
+**5) 검수 뷰어** (D-003: 웹 스택은 검수 용도)
+```powershell
+golmok-viewer D:\golmok_basemap\yeonnam          # 브라우저가 열린다. 인터넷이 없으면 아래 npm install 후 사용
+cd tools\viewer; npm install                      # Cesium을 로컬에 두고(오프라인), Playwright 스모크 테스트 준비
+npm test                                          # 합성 베이스맵으로 headless 렌더 검사 → test\out\smoke.png
+$env:GOLMOK_DATA="D:\golmok_basemap\yeonnam"; npm test   # 실데이터로 검사
+```
+- 화면에서 `/data/…/tileset.json` 경로를 입력해 Zone(splat 3D Tiles 포함, CesiumJS 1.139+ KHR_gaussian_splatting)을 추가할 수 있다.
+- ion 토큰은 쓰지 않는다. 데이터는 로컬 서버(127.0.0.1)에서만 읽는다(D-007).
 
 ## 테스트
 ```powershell
