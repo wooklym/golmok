@@ -10,6 +10,7 @@
 | `golmok-mesh inspect/reproject/chunk/collision/blockers` | **재구성 메시 후처리**: RealityScan OBJ → zone-local, 청크(UV·UDIM 보존), 충돌 메시, 유리·접근 금지 평면. 절차는 [recon-postprocess 런북](../docs/runbooks/recon-postprocess.md) |
 | `golmok-splat inspect/crop/clean/transform/tiles` | **3DGS PLY 후처리**: 자르기, 플로터 제거, 좌표 변환(SH 회전 포함), 로컬 3D Tiles(glTF `KHR_gaussian_splatting`) |
 | `golmok-viewer <폴더>` | **검수 뷰어**(CesiumJS, 브라우저): 베이스맵 `tileset.json`과 Zone 타일셋을 로컬에서 띄운다. 레이어 토글, 와이어프레임, 타일 경계, ENU 좌표 읽기, 걷는 높이 시점 |
+| `golmok-align run/compare/check-blur …` | **Zone 정합**(WP-07): GPS prior(Umeyama+RANSAC) → 벽면·지면 point-to-plane ICP(numpy/scipy) → manifest `transform`·`quality` 갱신, `align_report.md`. 렌더 스크린샷 블러 재검사. 런북 [docs/runbooks/align.md](../docs/runbooks/align.md) |
 | `golmok-basemap inspect/build …` | **배경 베이스맵**: 건물 SHP(GIS건물통합정보) + DEM + 정사영상 → LOD1 건물·지형 GLB 타일 + `manifest.json` + `tileset.json`(3D Tiles 1.1) |
 
 ## 설치 (Windows, 한 번만)
@@ -24,7 +25,7 @@ winget install OliverBetz.ExifTool
 cd golmok\tools
 py -3.12 -m venv .venv
 .\.venv\Scripts\Activate.ps1
-pip install -e ".[raw,heic,basemap,zone,dev]"
+pip install -e ".[raw,heic,basemap,zone,mesh,splat,align,dev]"
 ```
 
 블러까지 쓰려면 PyTorch를 추가로 설치한다. **RTX 50 시리즈(5060 등)는 CUDA 12.8 이상 빌드**가 필요하다.
@@ -135,7 +136,7 @@ $env:GOLMOK_DATA="D:\golmok_basemap\yeonnam"; npm test   # 실데이터로 검�
 
 ## 검사 실행
 
-CI(`.github/workflows/ci.yml`)와 같은 검사다. 커밋 전에 `tools` 폴더에서 실행한다(`pip install -e ".[basemap,zone,dev]"`에 ruff 포함).
+CI(`.github/workflows/ci.yml`)와 같은 검사다. 커밋 전에 `tools` 폴더에서 실행한다(`pip install -e ".[basemap,zone,align,dev]"`에 ruff 포함).
 
 ```powershell
 ruff check .            # 린트 (자동 수정: ruff check . --fix)
