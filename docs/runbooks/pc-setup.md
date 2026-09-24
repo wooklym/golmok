@@ -97,7 +97,7 @@ pytest
   - 전부 메인 1x인지
   - 48MP인지
   - GPS가 있는지
-  - **ProRAW 압축 형식**: `golmok-exif` 출력의 "ProRAW 압축" 줄이 `jpeg-lossless`여야 한다. `jpeg-xl`이면 지금 도구로는 현상할 수 없다(DECISIONS D-011 제안: 설정 > 카메라 > 포맷 > ProRAW 형식 = JPEG 무손실).
+  - **ProRAW 압축 형식**: `golmok-exif` 출력의 "ProRAW 압축" 줄이 `jpeg-lossless`여야 한다. `jpeg-xl`이면 지금 도구로는 현상할 수 없다. 사용자에게 설정 > 카메라 > 포맷 > ProRAW 형식 = **JPEG 무손실**(D-011, 가이드 #1 §4-A)로 다시 찍어 달라고 한다.
   - **DNG 현상이 성공하는지**: `blur_log.csv`에 decode_error가 없어야 한다.
 - DNG 현상에 실패하면 원인을 조사하고 대안을 구현한다. 예: 다른 현상 경로, HEIF Max 촬영으로 전환. 촬영 방식을 바꿔야 하면 사용자에게 제안한다.
 - 결과를 `docs/captures/INDEX.md`와 `docs/ROADMAP.md`(1.0c, 1.0d)에 기록한다. **사진 자체는 커밋하지 않는다.**

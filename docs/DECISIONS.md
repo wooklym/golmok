@@ -133,15 +133,15 @@
 ### D-010 | 예약 | — 환경 표현 방식 (스파이크 1.1 결과로 결정)
 
 ### D-011 | 승인 | 2026-09-24 — 촬영 장비: **iPhone 17 Pro**
-- **사진**: 기본 카메라 앱, **메인 1x(24mm), 48MP ProRAW Max**, AE/AF 잠금, 매크로 자동 전환 끔. 수동 셔터 앱은 RAW 해상도가 12MP로 제한되는 경우가 있어 해상도를 우선했다 [2차].
+- **사진**: 기본 카메라 앱, **메인 1x(24mm), 48MP ProRAW Max, ProRAW 형식 JPEG 무손실**, AE/AF 잠금, 매크로 자동 전환 끔. 수동 셔터 앱은 RAW 해상도가 12MP로 제한되는 경우가 있어 해상도를 우선했다 [2차].
 - **영상**: Blackmagic Camera 앱, 4K60, 셔터 1/250~1/500, ISO·WB·초점 고정, HEVC 10-bit.
 - 초광각과 망원은 쓰지 않는다.
 - **첫 촬영 전 리허설**(가이드 §4-C)로 셔터 속도를 확인한다. 흐린 아침에 셔터가 느리게 잡히면 설정을 다시 정한다.
 - PC 전송 시 "원본 유지" 설정을 확인한다.
-- **추가 제안(승인 대기, 2026-09-24)**: ProRAW 형식(설정 > 카메라 > 포맷 > ProRAW 형식)을 **JPEG 무손실**로 고정한다.
+- **추가(승인, 2026-09-24)**: ProRAW 형식(설정 > 카메라 > 포맷 > ProRAW 형식)을 **JPEG 무손실**로 고정한다. 가이드 #1 v3에 반영.
   - 이유: iPhone 16 Pro/17 Pro의 JPEG-XL ProRAW(무손실·손실)는 DNG 1.7이다. LibRaw 0.22는 이것을 **Adobe DNG SDK와 함께 빌드했을 때만** 현상한다([LibRaw 0.22 릴리스 노트](https://www.libraw.org/news/libraw-0-22-0-release)). 우리 `golmok-blur`가 쓰는 rawpy 0.27.1 휠은 SDK 없이 빌드됐다(PC에서 `rawpy.flags` 확인). JPEG 무손실은 기존 ProRAW 형식이라 현상된다.
   - 대가: 48MP 장당 약 75MB(JPEG-XL 무손실은 약 46MB, 손실은 약 20MB) [2차]. 1,300장이면 약 100GB로, 저장공간 계획(D-006)과 맞는다. 화질은 JPEG 무손실과 JPEG-XL 무손실이 같다(둘 다 무손실).
-  - 대안: JPEG-XL 무손실로 찍고 현상 경로를 추가한다(예: tifffile + imagecodecs로 JPEG-XL 타일 디코드 후 선형 DNG 현상, 또는 Adobe DNG Converter로 DNG 1.4 변환 — 약관 동의 필요). 실제 파일로 검증해야 하므로 리허설 후에 판단한다.
+  - 채택하지 않은 대안: JPEG-XL 무손실로 찍고 현상 경로를 추가한다(예: tifffile + imagecodecs로 JPEG-XL 타일 디코드 후 선형 DNG 현상, 또는 Adobe DNG Converter로 DNG 1.4 변환 — 약관 동의 필요). 저장공간이 병목이 되면 다시 검토한다.
 
 ### D-012 | 승인(기술 결정, 원칙 적용) | 2026-09-24 — 배경 베이스맵을 **UE 정적 메시(Nanite)로 임포트**한다
 - **내용**: `golmok-basemap`이 만든 GLB 타일을 UE 정적 메시로 임포트한다. 건물은 Nanite + 절차적 파사드 머티리얼, 지형은 정사영상 텍스처를 쓴다. Cesium3DTileset 런타임 스트리밍은 쓰지 않는다. 같은 출력에 `tileset.json`(3D Tiles 1.1)도 함께 만들어 두어, 웹 검수 뷰어와 Cesium에서도 쓸 수 있게 한다.

@@ -126,8 +126,8 @@ def render(summary: dict, min_shutter: float, max_list: int = 15) -> str:
     if s["raw_formats"]:
         lines.append("ProRAW 압축: " + ", ".join(f"{k} {v}" for k, v in sorted(s["raw_formats"].items())))
         if s["raw_formats"].get(compression_name(JPEG_XL)):
-            lines.append("  주의: JPEG-XL ProRAW는 지금의 golmok-blur(rawpy/LibRaw)로 현상할 수 없다."
-                         " 설정 > 카메라 > 포맷 > ProRAW 형식을 'JPEG 무손실'로 바꾸거나 JPEG-XL 현상 경로를 추가해야 한다(ROADMAP 1.0c)")
+            lines.append("  주의: JPEG-XL ProRAW는 golmok-blur(rawpy/LibRaw)로 현상할 수 없다."
+                         " 설정 > 카메라 > 포맷 > ProRAW 형식을 'JPEG 무손실'로 바꿔 다시 찍는다(D-011, 가이드 #1 §4-A)")
     lines.append(f"GPS 없음: {s['no_gps']}장" + ("  주의: 카메라 위치 권한 확인" if s["no_gps"] else ""))
     if s["first"] and s["last"]:
         minutes = (s["last"] - s["first"]).total_seconds() / 60
