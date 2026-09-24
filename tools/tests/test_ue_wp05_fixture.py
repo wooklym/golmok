@@ -75,6 +75,8 @@ AUTOMATION_TESTS = (
     "Golmok.Debug.HudStats",
     "Golmok.Portal.SpawnFromManifest",
     "Golmok.Portal.RoundTrip",
+    "Golmok.Portal.PawnSwap",
+    "Golmok.Portal.SharedInterior",
 )
 
 

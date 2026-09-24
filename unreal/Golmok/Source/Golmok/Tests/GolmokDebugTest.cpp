@@ -108,6 +108,12 @@ namespace GolmokDebugTest
 	public:
 		explicit FPathRoundTripScenario(FAutomationTestBase* InTest) : Test(InTest), CreatedAt(FPlatformTime::Seconds()) {}
 
+		/** The recorded file goes away on every exit (the latent command is destroyed with the test queue), not only on success. */
+		virtual ~FPathRoundTripScenario() override
+		{
+			DeleteRecordedFile();
+		}
+
 		virtual bool Update() override
 		{
 			UWorld* World = GEditor ? GEditor->PlayWorld.Get() : nullptr;
@@ -184,7 +190,7 @@ namespace GolmokDebugTest
 					Test->AddError(TEXT("the original character disappeared"));
 				}
 				Test->TestTrue(TEXT("path pawn destroyed (or pending kill)"), !PathPawn.IsValid() || PathPawn->IsPendingKillPending());
-				IFileManager::Get().Delete(*FilePath, /*RequireExists*/ false, /*EvenReadOnly*/ true, /*Quiet*/ true);
+				DeleteRecordedFile();
 				return Next(ERoundTripPhase::Done, Now);
 			}
 
@@ -248,6 +254,15 @@ namespace GolmokDebugTest
 			}
 			Test->AddError(FString::Printf(TEXT("%s (phase %d, %.1f s)"), What, static_cast<int32>(Phase), Elapsed));
 			return true;
+		}
+
+		void DeleteRecordedFile()
+		{
+			if (!FilePath.IsEmpty())
+			{
+				IFileManager::Get().Delete(*FilePath, /*RequireExists*/ false, /*EvenReadOnly*/ true, /*Quiet*/ true);
+				FilePath.Reset();
+			}
 		}
 
 		FAutomationTestBase* Test;

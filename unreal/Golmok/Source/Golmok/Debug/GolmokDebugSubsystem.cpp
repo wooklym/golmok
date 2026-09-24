@@ -985,21 +985,38 @@ bool UGolmokDebugSubsystem::TakeScreenshot(const FString& Tag, const FString& Na
 	IFileManager::Get().MakeDirectory(*Dir, /*Tree*/ true);
 	const FString FullPath = FPaths::Combine(Dir, File);
 
-	// Design section 11 #28: the same request the HighResShot console command makes, but with the exact file name.
-	// "HighResShot N filename=<path>" goes through FScreenshotRequest::RequestScreenshot(bAddFilenameSuffix = true),
-	// which appends a 5-digit counter (<name>00000.png) and so breaks the viewpoints.py "<name>.png" convention.
-	const UGameViewportClient* Viewport = World->GetGameViewport();
-	const FIntPoint ViewSize = (Viewport && Viewport->Viewport) ? Viewport->Viewport->GetSizeXY() : FIntPoint::ZeroValue;
+	// Design section 11 #28: the sequence UAutomationBlueprintFunctionLibrary::TakeHighResScreenshot uses (the API
+	// viewpoints.py calls, PC-verified to write exactly <name>.png): SetResolution() stores GScreenshotResolutionX/Y,
+	// SetFilename() the exact name, and FViewport::TakeHighResScreenShot() makes the game viewport's next Draw render
+	// the shot at that size (FViewport::HighResScreenshot). A bare FScreenshotRequest::RequestScreenshot() is only a
+	// viewport-size capture, and "HighResShot N filename=<path>" appends a 5-digit counter (<name>00000.png).
+	UGameViewportClient* Viewport = World->GetGameViewport();
+	FViewport* View = Viewport ? Viewport->Viewport : nullptr;
+	const FIntPoint ViewSize = View ? View->GetSizeXY() : FIntPoint::ZeroValue;
 	if (ViewSize.X > 0 && ViewSize.Y > 0)
 	{
-		GetHighResScreenshotConfig().SetResolution(ViewSize.X, ViewSize.Y, static_cast<float>(ScreenshotMultiplier));
-		FScreenshotRequest::RequestScreenshot(FullPath + TEXT(".png"), /*bInShowUI*/ false, /*bAddFilenameSuffix*/ false);
-		OutMessage = FString::Printf(TEXT("screenshot requested -> %s.png (%dx, written on the next frame)"), *FullPath, ScreenshotMultiplier);
-		return true;
+		FHighResScreenshotConfig& Config = GetHighResScreenshotConfig();
+		// SetResolution() refuses (and leaves the globals stale) when a side exceeds the max 2D texture size.
+		int32 Multiplier = ScreenshotMultiplier;
+		bool bSized = Config.SetResolution(ViewSize.X, ViewSize.Y, static_cast<float>(Multiplier));
+		if (!bSized && Multiplier > 1)
+		{
+			Multiplier = 1;
+			bSized = Config.SetResolution(ViewSize.X, ViewSize.Y, 1.f);
+		}
+		if (bSized)
+		{
+			Config.SetFilename(FullPath + TEXT(".png"));
+			View->TakeHighResScreenShot();
+			OutMessage = FString::Printf(TEXT("screenshot requested -> %s.png (%dx, written on the next frame)%s"), *FullPath, Multiplier,
+				Multiplier == ScreenshotMultiplier ? TEXT("") : TEXT(" [multiplier reduced: the requested size exceeds the max texture size]"));
+			return true;
+		}
 	}
 
-	// No sized game viewport (e.g. -nullrhi): the console command is the fallback. It is routed through the player so
-	// it reaches UGameViewportClient::Exec in PIE too; the engine then names the file <name>00000.png.
+	// No sized game viewport (e.g. -nullrhi) or no valid resolution: the console command is the fallback. It is routed
+	// through the player so it reaches UGameViewportClient::Exec in PIE too; the engine then names the file
+	// <name>00000.png.
 	ExecConsole(World, FString::Printf(TEXT("HighResShot %d filename=\"%s\""), ScreenshotMultiplier, *FullPath));
 	OutMessage = FString::Printf(TEXT("screenshot requested via HighResShot -> %s00000.png (no viewport size; written on the next frame)"), *FullPath);
 	return true;

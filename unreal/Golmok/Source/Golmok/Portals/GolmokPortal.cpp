@@ -231,6 +231,12 @@ void AGolmokPortal::Tick(float DeltaSeconds)
 		RefreshOverlap(Player);
 		return;
 	}
+	if (State == EGolmokPortalState::Idle || State == EGolmokPortalState::Leaving)
+	{
+		// Nothing is (or stays) loaded: no overlay toggles until the unload re-arms the debounce (LeaveInterior at
+		// the door) or the next BeginOverlap. Idle with a tracked overlap does not occur; this is a guard.
+		return;
+	}
 	const double Now = World->GetTimeSeconds();
 	if (Now - LastCrossingSeconds < static_cast<double>(MinCrossingIntervalSeconds))
 	{
@@ -276,6 +282,12 @@ void AGolmokPortal::OnPlayerPawnChanged(APawn* OldPawn, APawn* NewPawn)
 {
 	if (!IsValid(this) || IsActorBeingDestroyed() || !bIsEntry)
 	{
+		return;
+	}
+	if (!NewPawn)
+	{
+		// AController::UnPossess() inside Possess(): the (Old, New) broadcast follows synchronously. Acting on the
+		// nullptr would end the overlap as "inward" and hide the new pawn's side from the second broadcast.
 		return;
 	}
 	RefreshOverlap(NewPawn);
@@ -335,11 +347,9 @@ void AGolmokPortal::EndPlayerOverlap()
 		LastEvent = TEXT("left trigger inward");
 		return;
 	}
-	if (State == EGolmokPortalState::Active && World)
+	if (State == EGolmokPortalState::Active)
 	{
-		State = EGolmokPortalState::Leaving;
-		LastEvent = TEXT("left trigger outward");
-		World->GetTimerManager().SetTimer(UnloadTimer, this, &AGolmokPortal::OnUnloadDelayElapsed, TimerRate(UnloadDelaySeconds), false);
+		StartLeaving(TEXT("left trigger outward"));
 	}
 }
 
@@ -350,6 +360,18 @@ void AGolmokPortal::RefreshOverlap(APawn* Pawn)
 		return;
 	}
 	const bool bOverlaps = Pawn != nullptr && Trigger->IsOverlappingActor(Pawn);
+	// A pawn outside the box on the exterior side while we hold the interior (the hidden character outside after the
+	// path pawn walked into the room, whether or not that pawn was still tracked in the box; or the reverse swap)
+	// has left the door outward: overlay off, and the unload delay starts unless the overlap bookkeeping below does.
+	// Inside the box the plane check stays with Tick (hysteresis).
+	if (!bOverlaps && bPlayerInside && Pawn && SignedDistanceAlongForward(Pawn->GetActorLocation()) < 0.0)
+	{
+		SetInside(false);
+		if (!bPlayerOverlapping && State == EGolmokPortalState::Active)
+		{
+			StartLeaving(TEXT("player pawn outside after possession change"));
+		}
+	}
 	if (bPlayerOverlapping)
 	{
 		if (bOverlaps)
@@ -358,18 +380,50 @@ void AGolmokPortal::RefreshOverlap(APawn* Pawn)
 			OverlappingPawn = Pawn;
 			return;
 		}
-		// The new pawn is elsewhere (the hidden character outside while the path pawn was in the room): a pawn on
-		// the exterior side leaves the door outward, so the overlay goes off and the unload delay starts.
-		if (bPlayerInside && Pawn && SignedDistanceAlongForward(Pawn->GetActorLocation()) < 0.0)
-		{
-			SetInside(false);
-		}
 		EndPlayerOverlap();
 		return;
 	}
 	if (bOverlaps)
 	{
 		BeginPlayerOverlap(Pawn);
+	}
+}
+
+void AGolmokPortal::StartLeaving(const TCHAR* Event)
+{
+	UWorld* World = GetWorld();
+	if (!World || State != EGolmokPortalState::Active)
+	{
+		return;
+	}
+	State = EGolmokPortalState::Leaving;
+	LastEvent = Event;
+	World->GetTimerManager().SetTimer(UnloadTimer, this, &AGolmokPortal::OnUnloadDelayElapsed, TimerRate(UnloadDelaySeconds), false);
+}
+
+void AGolmokPortal::ReleaseSiblings()
+{
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		return;
+	}
+	for (TActorIterator<AGolmokPortal> It(World); It; ++It)
+	{
+		AGolmokPortal* Other = *It;
+		if (Other == this || !IsValid(Other) || Other->IsActorBeingDestroyed() || !Other->bIsEntry || Other->TargetZoneId != TargetZoneId)
+		{
+			continue;
+		}
+		// A sibling with the player in its box decides for itself (Tick / EndOverlap); one that only remembers the
+		// player walking in (entered by A, left by B) would keep its source and its Active state forever.
+		if (Other->bPlayerInside && !Other->bPlayerOverlapping)
+		{
+			UE_LOG(LogGolmok, Log, TEXT("Portal %s: released by portal %s (player left %s through another door)"), *Other->PortalId, *PortalId,
+				*TargetZoneId);
+			Other->SetInside(false);
+			Other->StartLeaving(TEXT("released: player left through another door"));
+		}
 	}
 }
 
@@ -428,20 +482,42 @@ void AGolmokPortal::OnUnloadDelayElapsed()
 	{
 		return;
 	}
+	UWorld* World = GetWorld();
 	FString StreamMsg;
 	StreamOut(StreamMsg);
-	FString ZoneMsg;
-	if (UGolmokZoneSubsystem* Subsystem = GetZoneSubsystem())
+	if (IsInteriorZoneInUse(World, TargetZoneId, this))
 	{
-		if (Subsystem->FindZone(TargetZoneId))
-		{
-			// The interior is not distance-managed, so the bBlocked flag RequestUnload sets is harmless.
-			Subsystem->RequestUnload(TargetZoneId, ZoneMsg);
-		}
+		// Two doors into one interior: the other portal (Active, or Leaving with its own timer) owns the unload; the
+		// sublevel was kept by StreamOut() for the same reason.
+		State = EGolmokPortalState::Idle;
+		LastEvent = TEXT("released; interior kept by another portal");
+		UE_LOG(LogGolmok, Log, TEXT("Portal %s: player left -> %s kept (another portal is active); %s"), *PortalId, *TargetZoneId, *StreamMsg);
 	}
-	State = EGolmokPortalState::Idle;
-	LastEvent = TEXT("unloaded");
-	UE_LOG(LogGolmok, Log, TEXT("Portal %s: player left -> unload %s; %s"), *PortalId, *TargetZoneId, *StreamMsg);
+	else
+	{
+		FString ZoneMsg;
+		if (UGolmokZoneSubsystem* Subsystem = GetZoneSubsystem())
+		{
+			if (Subsystem->FindZone(TargetZoneId))
+			{
+				// The interior is not distance-managed, so the bBlocked flag RequestUnload sets is harmless.
+				Subsystem->RequestUnload(TargetZoneId, ZoneMsg);
+			}
+		}
+		State = EGolmokPortalState::Idle;
+		LastEvent = TEXT("unloaded");
+		UE_LOG(LogGolmok, Log, TEXT("Portal %s: player left -> unload %s; %s"), *PortalId, *TargetZoneId, *StreamMsg);
+	}
+	if (bPlayerOverlapping && World)
+	{
+		// LeaveInterior() while the player stands in the trigger: Idle with a tracked overlap has no way back to
+		// Pending (BeginOverlap will not fire again), so re-arm the debounce; the interior returns after
+		// DebounceSeconds and Tick resumes the plane check.
+		State = EGolmokPortalState::Pending;
+		LastEvent = TEXT("unloaded; player still in trigger -> debounce re-armed");
+		World->GetTimerManager().SetTimer(DebounceTimer, this, &AGolmokPortal::OnDebounceElapsed, TimerRate(DebounceSeconds), false);
+		UE_LOG(LogGolmok, Log, TEXT("Portal %s: player still in the trigger -> reload in %.2f s"), *PortalId, DebounceSeconds);
+	}
 }
 
 bool AGolmokPortal::Activate(FString& OutMessage)
@@ -571,6 +647,8 @@ void AGolmokPortal::SetInside(bool bInside)
 	else
 	{
 		OnInteriorExited();
+		// Entered by another door of the same interior: that portal still holds its source and Active state.
+		ReleaseSiblings();
 	}
 }
 
@@ -635,16 +713,14 @@ bool AGolmokPortal::LeaveInterior(FString& OutMessage)
 	SetInside(false);
 	if (State == EGolmokPortalState::Active)
 	{
-		UWorld* World = GetWorld();
-		if (!World)
+		if (!GetWorld())
 		{
 			OutMessage = TEXT("no world");
 			return false;
 		}
-		State = EGolmokPortalState::Leaving;
-		LastEvent = TEXT("leave requested");
-		World->GetTimerManager().SetTimer(UnloadTimer, this, &AGolmokPortal::OnUnloadDelayElapsed, TimerRate(UnloadDelaySeconds), false);
-		OutMessage = FString::Printf(TEXT("portal %s leaving; %s unloads in %.1f s"), *PortalId, *TargetZoneId, UnloadDelaySeconds);
+		StartLeaving(TEXT("leave requested"));
+		OutMessage = FString::Printf(TEXT("portal %s leaving; %s unloads in %.1f s%s"), *PortalId, *TargetZoneId, UnloadDelaySeconds,
+			bPlayerOverlapping ? TEXT(" (player still in the trigger: reloads after the debounce)") : TEXT(""));
 	}
 	else
 	{

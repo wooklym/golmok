@@ -147,7 +147,11 @@ public:
 	/** Console / test entry: force Active (RequestLoad + stream in) and mark the player inside. Idempotent. */
 	bool EnterInterior(FString& OutMessage);
 
-	/** Console / test entry: mark the player outside and start the unload delay. Idempotent. */
+	/**
+	 * Console / test entry: mark the player outside and start the unload delay. Idempotent. Issued while the player
+	 * still stands in the trigger, the unload re-arms the debounce (Pending) instead of leaving an Idle portal with a
+	 * tracked overlap, so the interior comes back after DebounceSeconds.
+	 */
 	bool LeaveInterior(FString& OutMessage);
 
 	bool IsSublevelLoaded() const;
@@ -192,7 +196,12 @@ protected:
 	UFUNCTION()
 	void OnTriggerEndOverlap(UPrimitiveComponent* OverlappedComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex);
 
-	/** Player controller 0 possessed another pawn (path playback swaps character <-> AGolmokPathPawn): re-check the overlap. */
+	/**
+	 * Player controller 0 possessed another pawn (path playback swaps character <-> AGolmokPathPawn): re-check the
+	 * overlap. AController::Possess() first broadcasts (Old, nullptr) from its UnPossess() and then (Old, New) in the
+	 * same call; the nullptr broadcast is ignored (a pawn that really goes away ends the overlap through
+	 * OnTriggerEndOverlap).
+	 */
 	UFUNCTION()
 	void OnPlayerPawnChanged(APawn* OldPawn, APawn* NewPawn);
 
@@ -204,8 +213,23 @@ private:
 	void BeginPlayerOverlap(APawn* Pawn);
 	void EndPlayerOverlap();
 
-	/** Make the overlap state follow Pawn (the current player pawn): enter, leave or swap the tracked pawn in place. */
+	/**
+	 * Make the overlap state follow Pawn (the current player pawn): enter, leave or swap the tracked pawn in place.
+	 * A pawn that does not overlap and stands on the exterior side while bPlayerInside (the hidden character outside
+	 * after the path pawn walked into the room, or the reverse) drops the overlay and, when Active, starts the unload
+	 * delay, whether or not the previous pawn was still tracked in the box.
+	 */
 	void RefreshOverlap(APawn* Pawn);
+
+	/** Active -> Leaving with the unload timer (EndPlayerOverlap outward, LeaveInterior, RefreshOverlap, ReleaseSiblings). */
+	void StartLeaving(const TCHAR* Event);
+
+	/**
+	 * The player left this interior through this door: other entry portals into the same TargetZoneId that still hold
+	 * bPlayerInside without an overlap (the door the player came in by) drop their lighting source and start their
+	 * own unload delay, so every source is released and OnUnloadDelayElapsed() of the last one unloads the interior.
+	 */
+	void ReleaseSiblings();
 
 	/** Another entry portal (not Except) targeting ZoneId is Active / Leaving. */
 	static bool IsInteriorZoneInUse(UWorld* World, const FString& ZoneId, const AGolmokPortal* Except);
@@ -213,7 +237,11 @@ private:
 	/** Pending -> Active: RequestLoad + StreamIn (also when the pawn already left the box on the interior side). */
 	void OnDebounceElapsed();
 
-	/** Leaving -> Idle: StreamOut + RequestUnload. */
+	/**
+	 * Leaving -> Idle: StreamOut + RequestUnload, both skipped while another Active / Leaving portal targets the same
+	 * interior (the last one out unloads). With the player still in the trigger (LeaveInterior at the door) the portal
+	 * goes Pending with a fresh debounce instead of Idle.
+	 */
 	void OnUnloadDelayElapsed();
 
 	/** The load step shared by OnDebounceElapsed() and EnterInterior(): zone RequestLoad + sublevel StreamIn, State = Active. */

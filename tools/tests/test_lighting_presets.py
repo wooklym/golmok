@@ -190,27 +190,99 @@ def test_setup_dev_level_tags_the_lighting_actors():
     assert text.count('unreal.Name("GolmokLighting")') == 4  # Sun, SkyLight, HeightFog, PostProcess
 
 
-def _anonymous_namespace_functions(text: str) -> list[str]:
-    """Free function names at the top level of `namespace { ... }` blocks (one tab in, Allman braces)."""
+# Definitions that a unity build (one translation unit per module chunk) sees in one scope: whatever sits at
+# the top level of an unnamed `namespace { ... }` block (functions, console-command objects, constants) plus
+# column-0 `static` file-scope definitions. Signatures are single-line here (repository convention).
+_ANON_NAMESPACE_RE = re.compile(r"^namespace\s*(//.*)?$")
+_ANON_DECL_RE = re.compile(r"^\t(?:static |inline )*[A-Za-z_][\w:<>*&, ]*?[\s*&]([A-Za-z_]\w*)\s*\(")
+_ANON_CONST_RE = re.compile(r"^\t(?:static )?(?:constexpr |const )[\w:<>*&]+\s+([A-Za-z_]\w*)\s*(=|\[|;)")
+_FILE_STATIC_RE = re.compile(r"^static\s+[\w:<>*&, ]*?[\s*&]([A-Za-z_]\w*)\s*(\(|=|\[|;)")
+
+
+def _code_only(line: str) -> str:
+    """The line without string / char literals and comments, so braces inside them are not counted."""
+    stripped = re.sub(r'"(?:\\.|[^"\\])*"', '""', line)
+    stripped = re.sub(r"'(?:\\.|[^'\\])*'", "''", stripped)
+    stripped = re.sub(r"/\*.*?\*/", "", stripped)
+    return stripped.split("//")[0]
+
+
+def _unity_scope_definitions(text: str) -> list[str]:
+    """Names defined at the top level of anonymous namespaces and as column-0 file-scope statics."""
     names: list[str] = []
     in_anon = False
     depth = 0
-    decl = re.compile(r"^\t(?:static |inline )*[A-Za-z_][\w:<>*&, ]*?[\s*&]([A-Za-z_]\w*)\s*\(")
     for line in text.splitlines():
-        if re.match(r"^namespace\s*$", line):
-            in_anon, depth = True, -1
-            continue
+        code = _code_only(line)
         if not in_anon:
+            if _ANON_NAMESPACE_RE.match(line):
+                in_anon, depth = True, -1
+            elif m := _FILE_STATIC_RE.match(code):
+                names.append(m.group(1))
             continue
         if line.startswith("}"):
             in_anon = False
             continue
         if depth == 0 and not line.lstrip().startswith(("//", "*", "return", "using ")):
-            m = decl.match(line)
-            if m:
+            if m := _ANON_DECL_RE.match(code) or _ANON_CONST_RE.match(code):
                 names.append(m.group(1))
-        depth += line.count("{") - line.count("}")
+        depth += code.count("{") - code.count("}")
     return names
+
+
+# Shapes the scanner must catch (a miss here is a future redefinition error that this test would not see).
+_SCANNER_FIXTURE = """\
+#include "X.h"
+
+static const TCHAR* GFileScopeName = TEXT("x");
+static void FileScopeHelper(const TArray<FString>& Args, UWorld* World)
+{
+\tUE_LOG(LogX, Log, TEXT("{"));
+}
+
+namespace // helpers
+{
+\tconstexpr int32 MaxRows = 4;
+\tstatic const TCHAR* Msg = TEXT("{");
+\tbool Fail(FString& Out, const FString& What) // comment { with brace
+\t{
+\t\tconst TCHAR C = '{';
+\t\treturn false;
+\t}
+
+\tFAutoConsoleCommandWithWorldAndArgs GCmd(TEXT("x"), TEXT("y"),
+\t\tFConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&FileScopeHelper));
+} // namespace
+
+namespace Named
+{
+\tbool NotCollected(int X)
+\t{
+\t\treturn X > 0;
+\t}
+} // namespace Named
+
+void AThing::Method()
+{
+\tstatic const int32 NotFileScope = 1;
+}
+"""
+
+
+def test_unity_scope_scanner_catches_the_known_shapes():
+    assert _unity_scope_definitions(_SCANNER_FIXTURE) == [
+        "GFileScopeName",
+        "FileScopeHelper",
+        "MaxRows",
+        "Msg",
+        "Fail",
+        "GCmd",
+    ]
+    # The plain header and an unclosed brace in a literal before the function must not hide it either.
+    plain = _SCANNER_FIXTURE.replace("namespace // helpers", "namespace")
+    assert "Fail" in _unity_scope_definitions(plain)
+    literal_brace = 'namespace\n{\n\tconst TCHAR* S = TEXT("{");\n\tbool Fail(int X)\n\t{\n\t}\n}\n'
+    assert _unity_scope_definitions(literal_brace) == ["S", "Fail"]
 
 
 def test_anonymous_namespace_helpers_do_not_repeat_across_module_files():
@@ -219,9 +291,9 @@ def test_anonymous_namespace_helpers_do_not_repeat_across_module_files():
     # GolmokTimeOfDay.cpp keeps its JSON helpers in the named namespace GolmokLightingJson for that reason.
     owners: dict[str, set[str]] = {}
     for path in sorted((UE / "Source" / "Golmok").rglob("*.cpp")):
-        for name in _anonymous_namespace_functions(path.read_text(encoding="utf-8")):
+        for name in _unity_scope_definitions(path.read_text(encoding="utf-8")):
             owners.setdefault(name, set()).add(path.name)
     clashes = {name: sorted(files) for name, files in owners.items() if len(files) > 1}
-    assert not clashes, f"anonymous-namespace functions defined in more than one file: {clashes}"
+    assert not clashes, f"anonymous-namespace / file-scope definitions in more than one file: {clashes}"
     tod = TIME_OF_DAY_CPP.read_text(encoding="utf-8")
     assert "namespace GolmokLightingJson" in tod

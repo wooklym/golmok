@@ -178,8 +178,11 @@ public:
 
 	/**
 	 * High resolution screenshot (ScreenshotMultiplier x the viewport) into <Saved>/<ScreenshotFolder>/<tag>/<preset>/
-	 * <name>.png (name = timestamp when empty), exact file name as viewpoints.py writes it. Without a sized game
-	 * viewport it falls back to the HighResShot console command, whose file is <name>00000.png.
+	 * <name>.png (name = timestamp when empty), exact file name as viewpoints.py writes it: the high-res config gets
+	 * the resolution and file name and the game viewport's FViewport::TakeHighResScreenShot() renders it on its next
+	 * Draw (the same calls as UAutomationBlueprintFunctionLibrary::TakeHighResScreenshot). A multiplier the max texture
+	 * size cannot hold drops to 1x. Without a sized game viewport it falls back to the HighResShot console command,
+	 * whose file is <name>00000.png.
 	 */
 	bool TakeScreenshot(const FString& Tag, const FString& NameOrEmpty, FString& OutMessage);
 
