@@ -3,7 +3,7 @@
 | 문서 | 내용 |
 |---|---|
 | [ROADMAP.md](ROADMAP.md) | 진행 상황과 다음 단계 |
-| [DECISIONS.md](DECISIONS.md) | 결정 기록(D-001~D-011 승인. 남은 확인: PC 업그레이드 여부, 홈 Zone 선택) |
+| [DECISIONS.md](DECISIONS.md) | 결정 기록(D-001~D-012 승인. 남은 확인: PC 업그레이드 여부, 홈 Zone 선택) |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | 전체 아키텍처: 촬영 → 파이프라인 → 지리 타일 저장 → 클라이언트 스트리밍, 구역 교체 규칙 |
 | [research/01-basemap-data.md](research/01-basemap-data.md) | 서울 3D 베이스맵 데이터 소스 비교(S-Map, V-World, OSM, Google, Cesium 등) |
 | [research/02-reconstruction-pipeline.md](research/02-reconstruction-pipeline.md) | 포토그래메트리·3DGS 파이프라인, 라이선스, 시각·충돌 분리 설계 |
@@ -13,6 +13,10 @@
 | [research/07-ue5-toolchain.md](research/07-ue5-toolchain.md) | UE5 툴체인 검증: 버전, PC 사양, RealityScan, Postshot, splat 플러그인, 클라우드 |
 | [capture/01-alley-capture-guide.md](capture/01-alley-capture-guide.md) | 촬영 가이드 #1: 골목 |
 | [outreach/smap-inquiry-draft.md](outreach/smap-inquiry-draft.md) | 서울시 S-Map 문의 초안 |
+| [capture/02-interior-capture-guide.md](capture/02-interior-capture-guide.md) | 촬영 가이드 #2: 실내 |
+| [outreach/interior-consent-form-draft.md](outreach/interior-consent-form-draft.md) | 실내 촬영·게시 동의서 초안(변호사 검토 전) |
+| [captures/INDEX.md](captures/INDEX.md) | 촬영 목록(Zone 백로그) |
+| [runbooks/pc-setup.md](runbooks/pc-setup.md) | 사용자 PC 셋업·검증 런북(로컬 Claude 세션용) |
 
 과업 목록의 4번(전체 아키텍처)은 `ARCHITECTURE.md`로 따로 두었다.
 모든 조사 문서는 사실마다 확인 수준([확인]/[2차]/[미확인])과 출처 URL을 적어 두었다.
