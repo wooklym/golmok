@@ -3,7 +3,7 @@
 갱신 규칙: 각 세션이 시작·종료 시 자기 행을 고친다. 상태 기호:
 ⚪ 대기 · 🔵 진행 중 · 🟡 코드 완료·PC 검증 대기 · 🟢 완료 · 🔴 막힘 · ⏸ 보류
 
-마지막 갱신: 2026-09-25 (WP-04 세션 종료 🟡 · V-01·V-02 PC 세션)
+마지막 갱신: 2026-09-25 (WP-05 세션 시작 🔵)
 
 ## 트랙 1A — 클라우드 코드 (순차)
 
@@ -13,7 +13,7 @@
 | WP-02 | Zone 데이터 모델·CLI `golmok-zone` | 🟢 완료 | session_014zvy99LzAuVhnHYFtUYfVz (Opus) | 스펙 `docs/spec/zone-manifest.md`(필드·좌표·UE 매핑·수치 예제 표). transform은 **row-major**, UE Yaw = −yaw_deg, ENU→UE `diag(100,−100,100)`. 픽스처 `tools/tests/fixtures/zones/z_synthetic_001/v1/`(WP-04가 복사). 베이스맵 origin 높이는 `--geoid-offset` 없으면 정표고(WP-07 주의) |
 | WP-03 | 재구성 후처리 `golmok-mesh` / `golmok-splat` | 🟢 완료 | session_014zvy99LzAuVhnHYFtUYfVz (Opus) | 청크 = `visual/<id>.obj`+MTL(Z-up, UDIM 유지), 충돌·blocker GLB = glTF Y-up. open3d 제외(D-002). splat 3D Tiles = `KHR_gaussian_splatting`(검증기 0.6.1은 확장 속성 이름만 오류). PC 절차 `runbooks/recon-postprocess.md` — [미확인] 항목은 V-05에서 확인 **병합 전 적대적 리뷰(Fable 리뷰 6관점 → Opus 검증 → Opus 수정) 반영: 확정 결함 17건 수정, 테스트 180 passed. 청크 id 규약이 zone 원점 기준 절대 셀 `c_e000_n000`로 바뀜(WP-04·06 주의)** |
 | WP-04 | UE C++ 1: Geo·Zone | 🟡 코드 완료·PC 검증 대기 | session_01GGmw3pPHLp4Wk5Us9243AL (Fable 5.1 ultracode, 검증 Opus) | `Geo/`(순수 수학 헤더 + g++ 교차검증, 원점 액터, GeoSubsystem) · `Zones/`(manifest 파서, `AGolmokZone`, `UGolmokZoneSubsystem`) · `synthetic_zone.py` · 런북 `runbooks/pc-verify-wp04.md`(불확실 API 표 §6). PR #7. **PC(V-03)**: 빌드 → `z.run()` → PIE 체크 (1)~(6). WP-05 훅 `SpawnPortals/GetPortalWorldTransform/RequestLoad`, WP-06은 `synthetic_zone.find_or_spawn_*` 재사용. Zone Index 기반 발견은 미구현(레벨 배치 액터만) |
-| WP-05 | UE C++ 2: 포털·조명·디버그 | ⚪ 대기 | | |
+| WP-05 | UE C++ 2: 포털·조명·디버그 | 🔵 진행 중 | session_01W4S1qYJPhQaziYbJMvAXMo (Fable 5.1 ultracode, 검증 Opus) | 시작 2026-09-25. 설계 패널 → 구현(Lighting→Portals→Debug→Player) → 적대적 리뷰 → 런북 `runbooks/pc-verify-wp05.md` |
 | WP-06 | UE Python 에디터 자동화 2차 | ⚪ 대기 | | |
 | WP-07 | 정합·검수 `golmok-align` | 🟢 완료(합성 검증) | session_01Cgm7f6oD6xSMpZ5jszj8Xi (Fable 5.1) | `golmok-align run/compare/check-blur`. GPS prior(level Umeyama+RANSAC) → 벽 ICP(dof 4/6) → 지면 ICP(수직만) → manifest transform/origin/quality 갱신 + align_report.md. open3d 대신 numpy/scipy(리눅스 CI에 libEGL 없음). 합성: 2°·1.4 m 교란을 3 cm 이내 복원. **실 Zone 검증은 V-05.** collision.glb 축 규약은 `--mesh-axes`로 맞춘다(WP-03 결정 대기) |
 | WP-08 | (선택) 웹 검수 뷰어 | 🟢 완료 | session_01Cgm7f6oD6xSMpZ5jszj8Xi (Fable 5.1) | `golmok-viewer`(CesiumJS 1.145, ion 없음) + `tools/viewer` + Playwright 스모크(`npm test`, 합성 베이스맵 18타일). Zone manifest 오버레이(footprint·청크 bbox·포털·blockers, `?zone=…/manifest.json`) 포함. 충돌 메시 표시는 WP-03 산출물 나오면 추가 |
