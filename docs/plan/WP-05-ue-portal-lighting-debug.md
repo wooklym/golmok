@@ -932,6 +932,11 @@ Python 검증: (a) 헤더 순수성(`#include "` 없음, `<>` ⊆ 허용 7개, `
 - `Golmok.Portal.SharedInterior`는 Pending 형제 연기 분기를 자동으로 검증하지 않는다(런북 §5 수동).
 - `bAsyncLoad`(WP-04 TODO), Zone Index 발견 경로, splat 시각 형식(D-010)은 그대로 미구현.
 
+**통합 리뷰(오케스트레이터, Opus 읽기 전용 리뷰 → 직접 수정, 병합 전)**
+- 수정: ① MSVC C4458 — `AGolmokPortal::FindPortal`·`UnloadInteriorAfterEndPlay`의 매개변수 `PortalId`가 멤버를 가림(정적 멤버 함수라 g++/clang은 경고하지 않아 클라우드 교차검증이 못 잡음) → `InPortalId`. ② PIE에서 엔진 `BaseInput.ini`의 `DebugExecBindings`(F1 wireframe·F2 unlit·F5 shader complexity·F9 shot)가 Golmok 키와 같이 실행됨 → `Config/DefaultInput.ini` `[/Script/Engine.PlayerInput]` `!DebugExecBindings=ClearArray`(+F3/F4 유지), 런북 §3·§11 #65. ③ `synthetic_zone.run(interior=True)`가 서브레벨 저장 뒤 L_ZoneTest를 디스크에서 다시 열어 실외 zone의 트랜지언트 컴포넌트·`door_1` 포털이 사라짐(런북 §2 확인 항목 불일치) → 끝에 실외 zone `rebuild_in_editor()`, 런북 §2 기대 로그.
+- PC에서 확인할 메모(런북에 반영): §5 ① `root:` 줄은 PIE 시작 시 EnsureManifest에서 먼저 찍힘; `L_<id>_inst` 고정 인스턴스 이름 재사용 시 RoundTrip cycle 2 실패 가능(§11 #66); WP-04 런북 (3) x=+5 m 문 앞 Warning은 무해; `lighting.py` `_first`는 `GolmokLighting` 태그를 보지 않음(레벨당 클래스별 액터 1개인 동안은 동일); `GolmokDebugSubsystem.h`의 비반영 멤버 중괄호 초기화(`Ring{2048}`)는 UHT가 거부하면 `Initialize()`로.
+- 깨끗함: Build.cs(`RHI`만 추가), `LogGolmok` 단일 정의, 콘솔 명령 12개 고유, `generated.h` 마지막 include, ini 키 = UPROPERTY(Config), 프리셋 JSON·Python·C++ 스키마 일치, `RegisterZone`/`Evaluate()` 규약, 순수 헤더 g++13·clang `-Wshadow-all -Wconversion` 무경고, 실내 manifest 두 사본 동일·`golmok-zone validate --strict` 통과, 자동화 테스트 11개(`Golmok.*`, L_ZoneTest 없으면 skip).
+
 **WP-06에 알릴 것**
 - 실내 서브레벨 규약: 패키지 `/Game/Golmok/Zones/<zone_id>/v<version>/L_<zone_id>`(`GolmokZoneManifest::SublevelPackagePath`), **레벨 좌표로 저작**(두 스트리밍 경로 모두 항등 트랜스폼), 서브레벨 안에 `AGolmokZone`·PostProcessVolume·DirectionalLight를 두지 않는다. `interior_setup.py`는 `synthetic_zone._spawn_interior_sublevel`/`sublevel_path`/`register_interior_sublevel` 패턴을 재사용하면 된다(기본 경로 `LevelInstance`는 등록 불필요).
 - 포털은 manifest `portals[]`에서 C++가 스폰하므로 Python은 포털을 배치하지 않는다. 실내 manifest의 되돌아가는 포털(`door_out`)은 같은 점·반대 yaw여야 한다(`test_ue_interior_fixture.py`의 왕복 검사 방식).

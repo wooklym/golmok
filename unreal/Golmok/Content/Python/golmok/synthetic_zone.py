@@ -611,6 +611,9 @@ def run(geo_origin="area", move_player_start=True, import_assets=True, level=ZON
     unreal.get_editor_subsystem(unreal.LevelEditorSubsystem).save_current_level()
     if interior:
         _build_interior(_saved_dir(), import_assets, mapping, level or _current_level_path())
+        # _spawn_interior_sublevel reopened the persistent level from disk: the exterior zone's components and
+        # its door_1 portal are transient (not saved), so rebuild them for the editor checks (runbook §2).
+        find_or_spawn_zone(manifest["zone_id"], manifest["version"]).rebuild_in_editor()
     unreal.log(
         "synthetic_zone: done. PIE checklist: docs/runbooks/pc-verify-wp04.md "
         "(golmok.zone.list, golmok.geo.selftest, walk north into the glass opening at x=-12 m)"

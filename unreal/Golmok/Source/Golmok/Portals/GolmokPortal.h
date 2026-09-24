@@ -166,7 +166,7 @@ public:
 	UBoxComponent* GetTrigger() const { return Trigger; }
 
 	/** First portal with this id (entry portals preferred over markers). */
-	static AGolmokPortal* FindPortal(UWorld* World, const FString& PortalId);
+	static AGolmokPortal* FindPortal(UWorld* World, const FString& InPortalId);
 
 	/** One Describe() line per portal (golmok.portal list). */
 	static FString DescribeAll(UWorld* World);
@@ -251,7 +251,7 @@ private:
 	 * the next tick): skipped when another entry portal targeting ZoneId is Active / Leaving, retried after RetrySeconds
 	 * while one is Pending (a re-loaded exterior's fresh portal with the player already in its box), else unloads.
 	 */
-	static void UnloadInteriorAfterEndPlay(UGolmokZoneSubsystem* Subsystem, const FString& ZoneId, const FString& PortalId, float RetrySeconds);
+	static void UnloadInteriorAfterEndPlay(UGolmokZoneSubsystem* Subsystem, const FString& ZoneId, const FString& InPortalId, float RetrySeconds);
 
 	/** Pending -> Active: RequestLoad + StreamIn (also when the pawn already left the box on the interior side). */
 	void OnDebounceElapsed();

@@ -80,6 +80,8 @@ LogGolmok: Zone z_synthetic_001_interior v1 unloaded
 synthetic_zone: sublevel actor Interior_Light at ... (level coordinates)
 synthetic_zone: sublevel actor Interior_Marker at ... (level coordinates)
 synthetic_zone: interior ready — sublevel /Game/Golmok/Zones/z_synthetic_001_interior/v1/L_z_synthetic_001_interior (level coordinates), zone actor Zone_z_synthetic_001_interior (unloaded until door_1)
+LogGolmok: Zone z_synthetic_001: portal door_1 -> z_synthetic_001_interior rel (500, -950, 0) cm yaw -90.0 radius 150 cm -> level (18170.57, -23148.01, 999.32) [entry]      (서브레벨 저장 뒤 L_ZoneTest를 디스크에서 다시 열었으므로 실외 zone을 다시 빌드 — 트랜지언트 컴포넌트·door_1 포털 복원)
+LogGolmok: Zone z_synthetic_001 v1 loaded in x ms: chunks 3/3 (0 wire boxes), collision 1/1, blockers 1/1, portals 1 (WP-05)
 synthetic_zone: done. PIE checklist: docs/runbooks/pc-verify-wp04.md (...) and docs/runbooks/pc-verify-wp05.md (walk north through the door at x=+5 m)
 ```
 - [ ] `door_1`(entry)과 `door_out`(marker)의 `level (…)`이 **같은 점** (18170.57, −23148.01, 999.32)이고 yaw는 −90.0 / 90.0(반대 방향).
@@ -98,6 +100,7 @@ LogGolmok: TimeOfDay: presets loaded (5) from <Project>/Config/Golmok/lighting_p
 ```
 - [ ] 위 3줄이 있고, `TimeOfDay: lighting targets missing …` **경고가 없다**(L_ZoneTest의 태양·하늘·안개·PPV가 잡혔다는 뜻. 경고가 나면 L_ZoneTest가 WP-05 이전에 만들어져 태그가 없는 것 — 클래스별 첫 액터로 폴백하므로 4개 모두 있으면 경고 없이 동작해야 한다).
 - [ ] 시작 화면은 **레벨 저작 조명 그대로**(`InitialPreset=` 비움). HUD(F1)의 `tod:` 줄이 `tod: (level)`.
+- [ ] 엔진 기본 디버그 키(`BaseInput.ini` `DebugExecBindings`: F1 wireframe, F2 unlit, F5 shader complexity, F9 `shot showui`)는 `Config/DefaultInput.ini`의 `!DebugExecBindings=ClearArray`로 제거했다(F3 lit·F4 detail lighting만 다시 추가). PIE에서 F1/F2/F5/F9를 눌렀을 때 **뷰모드가 바뀌거나 스크린샷이 찍히면** ini가 적용되지 않은 것 — F3으로 lit 복귀 후 §11 #65.
 - [ ] 키 **1/2/3/4** = `overcast_morning / clear_noon / golden_evening / night`. 키마다 약 2 s 동안 태양이 회전·밝기가 보간되고 HUD `tod:` 줄이 `tod: (level) -> overcast_morning 45%`처럼 진행률을 보인다(설계와 다름: 설계 §4-8의 `(-> clear_noon 45%)` 괄호 표기가 아니라 `from -> to NN%`). 끝나면 `tod: overcast_morning`.
 - [ ] **4(night)**: 전환 끝에 태양 꺼짐(`lux 0` → `SetVisibility(false)`), 볼류메트릭 안개 켜짐, 노출 +1.5 EV로 밝아짐.
 - [ ] 전환 중 다른 키 → 현재 보간값에서 다시 출발(튐 없음). HUD가 `night -> clear_noon 30%`로 바뀐다.
@@ -136,7 +139,7 @@ HUD를 켠 채 슬래브 위에서 **문(x = +5 m, 파사드 북쪽 끝; PlayerS
 기대 로그 **순서**(코드 기준 — 설계 §10-5와 다른 두 곳을 표시):
 ```
 ① (트리거 진입 0.25 s 뒤)  실내 zone 로드 로그가 먼저:
-   LogGolmok: Zone z_synthetic_001_interior v1 root: ...
+   LogGolmok: Zone z_synthetic_001_interior v1 root: ...      (이 줄은 PIE 시작 시 첫 Evaluate()의 EnsureManifest()에서 이미 찍혀 있고 트리거 뒤에는 다시 나오지 않을 수 있다)
    LogGolmok: Zone z_synthetic_001_interior: chunk room bbox center -> level (...)
    LogGolmok: Zone z_synthetic_001_interior: portal door_out -> z_synthetic_001 rel (0, 350, 0) cm yaw 90.0 radius 150 cm -> level (18170.57, -23148.01, 999.32) [marker]
    LogGolmok: Zone z_synthetic_001_interior v1 loaded in x ms: chunks 1/1 (0 wire boxes), collision 1/1, blockers 0/0, portals 1 (WP-05)
@@ -294,6 +297,8 @@ golmok.screenshot wp05 door     → golmok.screenshot: screenshot requested -> <
 | 62 | GolmokPortal/DebugSubsystem | `UWorld::bIsTearingDown`(public), `AActor::IsActorBeingDestroyed()` | 접근 권한 | `World->IsPendingKillPending()` / `!IsValid(this)`만 |
 | 63 | Tests | `UWorld::SpawnActorDeferred<AGolmokZone>(Class, FTransform)` + `FinishSpawning`, `TWeakObjectPtr::Get(bool bEvenIfPendingKill)`, `AActor::IsPendingKillPending()` | 템플릿 오버로드·인자 | `SpawnActor` + `FActorSpawnParameters::bDeferConstruction`; `Get()` + `IsValid()` 검사 |
 | 64 | Tests(PawnSwap·SharedInterior) | `AController::Possess(APawn*)`를 테스트에서 직접 호출, `ADefaultPawn` 스폰(`GameFramework/DefaultPawn.h`), `AActor::SetActorLocation(Loc, false, nullptr, ETeleportType::TeleportPhysics)` 4인자, `SpawnActor<AGolmokPortal>` + `bDeferConstruction` + public 필드 복사 후 `FinishSpawning` | 헤더·오버로드·`Possess`가 `OnPossessedPawnChanged`를 즉시 브로드캐스트하는지 | `SetActorLocation(Loc)` 1인자; `ADefaultPawn` → `APawn` 파생 임의 폰(`ASpectatorPawn`); 브로드캐스트가 지연되면 단언을 `FWaitLatentCommand(0.1)` 뒤로 |
+| 65 | Config/DefaultInput.ini | `[/Script/Engine.PlayerInput]` `!DebugExecBindings=ClearArray` + `+DebugExecBindings=(Key=F3,Command="viewmode lit")` | `!`(배열 비움)이 `BaseInput.ini` 항목에 적용되는지, `FKeyBind` 직렬화 형식 | `!` 대신 PC의 `Engine/Config/BaseInput.ini`에서 F1/F2/F5/F9 줄을 **그대로 복사**해 `-DebugExecBindings=(…)`로 제거; 그것도 안 되면 `GolmokPlayerController.cpp`의 `MapKey`를 F6/F7/F8/F11로 옮기고 런북·HUD `keys:` 줄 갱신 |
+| 66 | GolmokLevelStreaming | `LoadLevelInstance(…, OptionalLevelNameOverride = "L_<id>_inst")` 고정 인스턴스 이름 재사용 | `Golmok.Portal.RoundTrip` cycle 2에서 `LoadLevelInstance failed`(이전 인스턴스 패키지가 아직 GC되지 않음) | 이름 오버라이드를 빈 문자열로(엔진이 고유 이름 생성; `Find()`는 `PackageNameToLoad`로 대조하므로 그대로 동작) |
 
 ## 12. 결과 기록
 | 항목 | 결과 | 메모 |
