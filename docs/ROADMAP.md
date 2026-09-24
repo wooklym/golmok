@@ -120,6 +120,7 @@
 - 충돌: RealityScan 메시를 단순화하고 계단·턱을 정리한다. 유리·쇼윈도는 blocker로 막는다.
 - 정합: `golmok-align`(WP-07 ✅ 합성 검증, 실 Zone은 V-05)으로 GPS prior → 벽·지면 ICP → manifest 갱신 → CesiumGlobeAnchor로 배치, 배경 LOD1과 육안 검증.
 - 이음새 처리: 배경과의 경계 블렌드, 골목 끝 "출구" 방향의 원경 처리.
+- 재구성 후처리 도구 — ✅ `golmok-mesh`(청크·충돌·blocker)·`golmok-splat`(정리·3D Tiles), 절차 `runbooks/recon-postprocess.md`(WP-03).
 - Zone 데이터 계약 — ✅ `spec/zone-manifest.md`(manifest·Index 스키마, 좌표·UE 매핑 규약) + `golmok-zone` CLI(WP-02). 배경 제외는 `golmok-zone exclude` → `golmok-basemap --exclude`.
 - 완료 기준: 골목 전 구간을 걷고 뛰는 동안 끼임, 떨림, 구멍이 없고, 품질 목표 fps를 달성한다.
 

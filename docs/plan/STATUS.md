@@ -3,7 +3,7 @@
 갱신 규칙: 각 세션이 시작·종료 시 자기 행을 고친다. 상태 기호:
 ⚪ 대기 · 🔵 진행 중 · 🟡 코드 완료·PC 검증 대기 · 🟢 완료 · 🔴 막힘 · ⏸ 보류
 
-마지막 갱신: 2026-09-25 (V-01·V-02 PC 세션)
+마지막 갱신: 2026-09-25 (V-01·V-02 PC 세션 · WP-04 세션)
 
 ## 트랙 1A — 클라우드 코드 (순차)
 
@@ -11,8 +11,8 @@
 |---|---|---|---|---|
 | WP-01 | 저장소 기반·CI | 🟢 완료 | session_01QwUxcoWCFmtiJhq3ZWByEJ (Opus) | CI 초록(ubuntu 3.11/3.12, windows 3.12, repo-check, tiles-validate). 커밋 전 `cd tools && ruff check . && ruff format --check . && pytest -q && python scripts/check_repo.py` |
 | WP-02 | Zone 데이터 모델·CLI `golmok-zone` | 🟢 완료 | session_014zvy99LzAuVhnHYFtUYfVz (Opus) | 스펙 `docs/spec/zone-manifest.md`(필드·좌표·UE 매핑·수치 예제 표). transform은 **row-major**, UE Yaw = −yaw_deg, ENU→UE `diag(100,−100,100)`. 픽스처 `tools/tests/fixtures/zones/z_synthetic_001/v1/`(WP-04가 복사). 베이스맵 origin 높이는 `--geoid-offset` 없으면 정표고(WP-07 주의) |
-| WP-03 | 재구성 후처리 `golmok-mesh` / `golmok-splat` | ⚪ 대기 | | |
-| WP-04 | UE C++ 1: Geo·Zone | ⚪ 대기 | | |
+| WP-03 | 재구성 후처리 `golmok-mesh` / `golmok-splat` | 🟢 완료 | session_014zvy99LzAuVhnHYFtUYfVz (Opus) | 청크 = `visual/<id>.obj`+MTL(Z-up, UDIM 유지), 충돌·blocker GLB = glTF Y-up. open3d 제외(D-002). splat 3D Tiles = `KHR_gaussian_splatting`(검증기 0.6.1은 확장 속성 이름만 오류). PC 절차 `runbooks/recon-postprocess.md` — [미확인] 항목은 V-05에서 확인 **병합 전 적대적 리뷰(Fable 리뷰 6관점 → Opus 검증 → Opus 수정) 반영: 확정 결함 17건 수정, 테스트 180 passed. 청크 id 규약이 zone 원점 기준 절대 셀 `c_e000_n000`로 바뀜(WP-04·06 주의)** |
+| WP-04 | UE C++ 1: Geo·Zone | ⚪ 대기 | (재배정: Fable 5.1 ultracode 세션) | Opus 세션(session_014zvy99LzAuVhnHYFtUYfVz)이 착수했으나 모델 정책(DEVELOPMENT-PLAN §7.4)에 따라 중단. Fable 5.1 ultracode 세션이 처음부터 수행 |
 | WP-05 | UE C++ 2: 포털·조명·디버그 | ⚪ 대기 | | |
 | WP-06 | UE Python 에디터 자동화 2차 | ⚪ 대기 | | |
 | WP-07 | 정합·검수 `golmok-align` | 🟢 완료(합성 검증) | session_01Cgm7f6oD6xSMpZ5jszj8Xi (Fable 5.1) | `golmok-align run/compare/check-blur`. GPS prior(level Umeyama+RANSAC) → 벽 ICP(dof 4/6) → 지면 ICP(수직만) → manifest transform/origin/quality 갱신 + align_report.md. open3d 대신 numpy/scipy(리눅스 CI에 libEGL 없음). 합성: 2°·1.4 m 교란을 3 cm 이내 복원. **실 Zone 검증은 V-05.** collision.glb 축 규약은 `--mesh-axes`로 맞춘다(WP-03 결정 대기) |
@@ -51,5 +51,6 @@
 | 2026-09-24 | session_01QwUxcoWCFmtiJhq3ZWByEJ | Opus | WP-01 | 🟢 CI·check_repo·ruff. Actions 실행 36007213938/36007216880 success |
 | 2026-09-24 | session_014zvy99LzAuVhnHYFtUYfVz | Opus | WP-02 | 🟢 zone 스펙·스키마·`golmok-zone`·테스트 80개(전체 116 passed) |
 | 2026-09-24 | session_01Cgm7f6oD6xSMpZ5jszj8Xi | Fable 5.1 | PR #1·#2 병합(main), WP-08 검수 뷰어, PC 작업 카드 2건 | PR #3 (`claude/golmok-phase-0-research-4kloq6`). 전체 119 passed |
+| 2026-09-24 | session_014zvy99LzAuVhnHYFtUYfVz | Opus | WP-03 | 🟢 golmok-mesh·golmok-splat·런북, 테스트 30개(전체 144 passed) |
 | 2026-09-24 | PC 로컬 세션 (trusting-varahamihira) | Opus 5.5 | V-02 베이스맵 실데이터 | 🟢 SHP 컬럼 매핑·연남동 빌드·UE 임포트·보행·fps. georef-ortho, M_BasemapTerrain, UE 5.8 CustomInput 수정. 전체 123 passed |
 | 2026-09-24 | PC 세션(Claude Desktop, 사용자 PC) | Opus 5.5 | V-01 PC 셋업·UE 검증, JPEG-XL ProRAW 발견 → D-011 JPEG 무손실, 스파이크 도구 에디터 검증 | 🔵 `claude/golmok-phase-0-research-4kloq6`에 커밋(사용자 push 대기). 전체 125 passed, check_repo OK |
