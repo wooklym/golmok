@@ -1,6 +1,11 @@
 # Golmok — notes for Claude sessions
 
-Read `docs/ROADMAP.md` and `docs/DECISIONS.md` first; they are the source of truth. Docs are in Korean.
+Read `docs/ROADMAP.md` and `docs/DECISIONS.md` first; they are the source of truth. Then `docs/DEVELOPMENT-PLAN.md` (how the work is split and verified) and `docs/plan/STATUS.md` (current state). Docs are in Korean.
+
+## Work-package sessions
+- Phase 1 cloud work is done as work packages `docs/plan/WP-*.md`, one session each, in order, on branch `claude/hopeful-allen-f0a0jb` (see DEVELOPMENT-PLAN §7).
+- A session marks its WP in `docs/plan/STATUS.md` on start and end, fills the WP doc's "결과" section, and leaves a PC verification runbook (`docs/runbooks/pc-verify-<wp>.md`) when the output needs the Unreal editor.
+- Cloud sessions cannot build UE or reach real captures. UE code is "🟡 코드 완료·PC 검증 대기" until the PC session passes the runbook.
 
 ## Rules from the owner
 - Research and design before code; get approval for anything that costs money or picks a stack/data source.

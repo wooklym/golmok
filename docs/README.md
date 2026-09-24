@@ -2,6 +2,9 @@
 
 | 문서 | 내용 |
 |---|---|
+| [DEVELOPMENT-PLAN.md](DEVELOPMENT-PLAN.md) | **개발 전체 과정 설계**: 비전·마일스톤·실행 주체·작업 패키지(WP)·검증 게이트·세션 프로토콜·리스크·일정 |
+| [plan/STATUS.md](plan/STATUS.md) | 진행 상태 보드(WP·PC 검증·사용자 작업). 세션마다 갱신 |
+| [plan/WP-01…08](plan/) | 작업 패키지 상세 스펙(산출물·완료 기준·주의·결과) |
 | [ROADMAP.md](ROADMAP.md) | 진행 상황과 다음 단계 |
 | [DECISIONS.md](DECISIONS.md) | 결정 기록(D-001~D-012 승인. 남은 확인: PC 업그레이드 여부, 홈 Zone 선택) |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | 전체 아키텍처: 촬영 → 파이프라인 → 지리 타일 저장 → 클라이언트 스트리밍, 구역 교체 규칙 |

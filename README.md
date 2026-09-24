@@ -2,7 +2,7 @@
 
 실제 서울 골목을 사진·영상으로 찍어 3D로 재구성하고, 그 안을 걷고 뛰며 건물 내부까지 들어가 볼 수 있는 게임.
 
-- 설계·결정·로드맵: [`docs/`](docs/README.md) (시작점: [ROADMAP](docs/ROADMAP.md), [DECISIONS](docs/DECISIONS.md))
+- 설계·결정·로드맵: [`docs/`](docs/README.md) (시작점: [ROADMAP](docs/ROADMAP.md), [DECISIONS](docs/DECISIONS.md), [개발 전체 과정](docs/DEVELOPMENT-PLAN.md), [진행 상태](docs/plan/STATUS.md))
 - 엔진: Unreal Engine 5.8 (C++ + Unreal Python), 고사양 Windows PC
 - 촬영 가이드: [`docs/capture/01-alley-capture-guide.md`](docs/capture/01-alley-capture-guide.md)
 

@@ -3,6 +3,8 @@
 마지막 갱신: 2026-09-24
 최우선 원칙: **게임 퀄리티**(DECISIONS.md 참고)
 
+> **실행 계획**: Phase 1을 작업 패키지(WP-01~08)·PC 검증(V-01~06)·사용자 작업(C-01~06)으로 풀어 쓴 문서가 [`DEVELOPMENT-PLAN.md`](DEVELOPMENT-PLAN.md)이고, 현재 상태는 [`plan/STATUS.md`](plan/STATUS.md)에 있다. 아래 1.x 단계와 WP의 대응은 DEVELOPMENT-PLAN §5.1 표를 본다.
+
 ## Phase 0 — 조사 및 설계 ✅ 완료
 
 | # | 항목 | 산출물 | 상태 |
