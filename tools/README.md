@@ -5,6 +5,7 @@
 | `golmok-exif <폴더>` | 촬영 사진 EXIF 점검: 셔터 속도, 사용 렌즈(메인 1x 여부), 해상도(48MP), GPS, 촬영 시간. **리허설과 촬영 직후에 실행** |
 | `golmok-frames <영상> <출력폴더>` | 영상에서 선명한 프레임만 추출(창마다 가장 선명한 1장). ffmpeg 필요 |
 | `golmok-blur <입력폴더> <출력폴더> --face-model … --lp-model …` | **얼굴·번호판 블러**(Meta EgoBlur, Apache-2.0). 재구성(RealityScan/Postshot)에는 **출력 폴더만** 쓴다 |
+| `golmok-basemap inspect/build …` | **배경 베이스맵**: 건물 SHP(GIS건물통합정보) + DEM + 정사영상 → LOD1 건물·지형 GLB 타일 + `manifest.json` + `tileset.json`(3D Tiles 1.1) |
 
 ## 설치 (Windows, 한 번만)
 
@@ -18,7 +19,7 @@ winget install OliverBetz.ExifTool
 cd golmok\tools
 py -3.12 -m venv .venv
 .\.venv\Scripts\Activate.ps1
-pip install -e ".[raw,heic,dev]"
+pip install -e ".[raw,heic,basemap,dev]"
 ```
 
 블러까지 쓰려면 PyTorch를 추가로 설치한다. **RTX 50 시리즈(5060 등)는 CUDA 12.8 이상 빌드**가 필요하다.
@@ -64,6 +65,22 @@ golmok-blur D:\golmok_capture\…\frames D:\golmok_capture\…\frames_blurred `
 - **미리보기를 훑어 누락을 확인**한다. 검출 누락은 0이 될 수 없다(05 문서).
 - DNG(ProRAW)는 16-bit TIFF로 현상해 저장한다. **아이폰 ProRAW 일부 형식은 rawpy(LibRaw)가 못 열 수 있다** → 그 경우 `blur_log.csv`에 `decode_error`로 남는다. 리허설 사진으로 먼저 확인하고, 실패하면 알려줘(대안: HEIF Max 촬영 또는 다른 현상 경로).
 - `--detect-max-side`(기본 4032): 검출만 축소 이미지로 하고 블러는 원본 해상도에 적용한다. 멀리 있는 작은 얼굴이 걱정되면 `0`(원본)으로 — 느려진다.
+
+**4) 배경 베이스맵** (ROADMAP 1.2)
+```powershell
+# ① 필드 확인: 높이/층수/용도/ID가 어느 컬럼인지 본다 (컬럼명은 파일 버전마다 다를 수 있어 코드에 고정하지 않음)
+golmok-basemap inspect --buildings D:\golmok_data\AL_D010_11_….shp
+# ② 빌드 (연남동 예: 중심 반경 1km, 250m 타일)
+golmok-basemap build --buildings D:\golmok_data\AL_D010_11_….shp `
+  --height-field <높이필드> --floors-field <지상층수필드> --usage-field <용도명필드> --id-field <건물ID필드> `
+  --dem "D:\golmok_data\dem\*.img" --ortho "D:\golmok_data\ortho\*.tif" `
+  --center 37.5620,126.9250 --radius 1000 --out D:\golmok_basemap\yeonnam
+```
+- 좌표계는 SHP의 `.prj`에서 읽는다. 없으면 `--src-crs EPSG:5174` 등. DEM/정사영상에 좌표계가 없으면 `--raster-crs`.
+- `--exclude zone.geojson`(경위도 폴리곤): 실촬영 플레이 구역 안의 배경 건물을 빼고 만든다.
+- `--geoid-offset`: 정표고→타원체고 보정(m). **UE 정적 임포트에는 영향 없음**, Cesium 타일과 맞출 때만 필요(서울 일대 약 +20m대 추정, 적용 전 확인).
+- UE로 가져오기(에디터 Python): `import golmok.basemap_import as b; b.run(r"D:\golmok_basemap\yeonnam")`
+  - 건물은 Nanite + `M_BasemapFacade`(층·창 패턴 절차적 머티리얼), 지형은 정사영상 텍스처. 축·단위 변환은 타일 경계상자로 자동 측정한다.
 
 ## 테스트
 ```powershell

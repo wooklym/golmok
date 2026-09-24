@@ -18,12 +18,14 @@ dependencies = [
 blur = ["torch", "torchvision"]
 raw = ["rawpy"]
 heic = ["pillow", "pillow-heif"]
-dev = ["pytest", "pillow", "piexif"]
+basemap = ["pyshp>=2.3", "pyproj>=3.6", "shapely>=2.0", "mapbox-earcut>=1.0", "rasterio>=1.3"]
+dev = ["pytest", "pillow", "piexif", "pygltflib"]
 
 [project.scripts]
 golmok-exif = "golmok_tools.exif_report:main"
 golmok-frames = "golmok_tools.extract_frames:main"
 golmok-blur = "golmok_tools.privacy.blur:main"
+golmok-basemap = "golmok_tools.basemap.build:main"
 
 [tool.setuptools.packages.find]
 include = ["golmok_tools*"]

@@ -98,3 +98,26 @@ pytest
 ### 4. 보고
 - 단계별 결과, 고친 것, 남은 사용자 작업을 짧게 정리해 사용자에게 알린다.
 - 다음 단계(1.0f 촬영, 1.2 베이스맵 빌더)로 넘어갈 준비가 됐는지도 함께 알린다.
+
+### 5. 배경 베이스맵 (ROADMAP 1.2)
+**사용자 작업** (로그인 필요)
+- **GIS건물통합정보**: V-World(vworld.kr) → 데이터 → GIS건물통합정보 → **서울특별시** SHP 다운로드
+  - 공공데이터포털 안내: https://www.data.go.kr/data/15083092/fileData.do
+- **DEM 5m, 정사영상**: 국토정보플랫폼(map.ngii.go.kr)에서 파일럿 지역(연남동 일대 반경 1~2km)을 덮는 도엽을 받는다.
+  - 신청 절차나 공개제한 표시가 있으면 Claude가 사용자에게 알리고 멈춘다. 약관 동의는 사용자가 한다.
+
+**Claude 작업**
+1. `pip install -e ".[basemap]"` → `pytest`
+2. `golmok-basemap inspect --buildings <shp>`로 필드를 확인한다.
+   - 높이, 지상층수, 용도명, 건물ID 컬럼을 표본 값으로 판단한다(높이는 m 단위, 대부분 3~60).
+   - 판단 근거를 `docs/DECISIONS.md` D-012에 기록한다.
+3. `golmok-basemap build … --center 37.5620,126.9250 --radius 1000 --out D:\golmok_basemap\yeonnam`
+   - 홈 Zone이 정해지면 그 중심으로 다시 빌드한다.
+4. UE 에디터 Python에서 `import golmok.basemap_import as b; b.run(r"D:\golmok_basemap\yeonnam")`
+   - 로그에 `glTF import mapping … fit error`가 작아야 한다(수 cm 이하).
+   - 북쪽이 UE −Y 방향인지 확인한다: 정사영상의 도로와 건물이 실제 지도와 같은 방향이어야 한다.
+5. 완료 기준:
+   - L_Dev(또는 새 레벨)에서 배경 건물과 지형이 보인다.
+   - 파사드 창 패턴이 보인다.
+   - 캐릭터가 배경 지면 위를 걸을 수 있다.
+   - fps와 스크린샷을 ROADMAP 1.2에 기록한다.
