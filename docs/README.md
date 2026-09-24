@@ -3,7 +3,7 @@
 | 문서 | 내용 |
 |---|---|
 | [ROADMAP.md](ROADMAP.md) | 진행 상황과 다음 단계 |
-| [DECISIONS.md](DECISIONS.md) | 결정 기록(D-001~D-011 승인. 남은 확인: PC 사양, 홈 Zone 선택) |
+| [DECISIONS.md](DECISIONS.md) | 결정 기록(D-001~D-011 승인. 남은 확인: PC 업그레이드 여부, 홈 Zone 선택) |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | 전체 아키텍처: 촬영 → 파이프라인 → 지리 타일 저장 → 클라이언트 스트리밍, 구역 교체 규칙 |
 | [research/01-basemap-data.md](research/01-basemap-data.md) | 서울 3D 베이스맵 데이터 소스 비교(S-Map, V-World, OSM, Google, Cesium 등) |
 | [research/02-reconstruction-pipeline.md](research/02-reconstruction-pipeline.md) | 포토그래메트리·3DGS 파이프라인, 라이선스, 시각·충돌 분리 설계 |
