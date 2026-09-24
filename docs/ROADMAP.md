@@ -82,24 +82,31 @@
 - `docs/research/08-spike-results.md`(템플릿 작성됨. 비교 스크린샷과 수치)
 - **D-010: 환경 표현 방식 확정**
 
-### 1.2 베이스맵(배경) 빌더 — 🟢 실데이터 빌드·UE 임포트 검증 완료 (2026-09-24). **DEM은 90 m 임시** — 5 m 출처 결정 필요(D-012)
+### 1.2 베이스맵(배경) 빌더 — 🟢 실데이터 빌드·UE 임포트 검증 완료 (2026-09-24), **5 m DEM(수치지형도) 반영 (2026-09-25)**
 
 | 작업 | 담당 | 상태 / 완료 기준 |
 |---|---|---|
 | `golmok-basemap`: GIS건물통합정보 SHP + NGII DEM·정사영상 → LOD1 건물(층고·용도·색조 정점 데이터)·지형(정사영상 텍스처) GLB 타일 + manifest + 3D Tiles 1.1 tileset | 🤖 | ✅ 합성 데이터 테스트 통과, 3d-tiles-validator 오류 0·경고 0 |
-| 데이터 다운로드: V-World(건물), 국토정보플랫폼(DEM·정사영상) | 👤 로그인·신청서 | ✅ 서울 SHP `AL_D010_11_20260909`(기준일 2026-09-09), 공개DEM `37608`(2025, **90 m**), 정사영상 2025 25 cm `37608077`·`37608078`. 절차는 runbook §5 |
+| 데이터 다운로드: V-World(건물), 국토정보플랫폼(DEM·정사영상) | 👤 로그인·신청서 | ✅ 서울 SHP `AL_D010_11_20260909`(기준일 2026-09-09), 수치지형도 1:5,000 Ver2.0 6도엽(2025, 등고선·표고점 → 5 m DEM), 공개DEM `37608`(90 m, 가장자리 채움용), 정사영상 2025 25 cm `37608077`·`37608078`. 절차는 runbook §5 |
 | 실제 SHP 필드 확인(`inspect`) → 빌드 | 🤖 (PC 세션) | ✅ 높이 A16, 지상층수 A26, 용도명 A9, ID A1(근거 D-012). 연남동 반경 1 km: **건물 9,447동**(높이 추정 4,258동 = A16 결측 → 층수×3.2 m), 250 m 타일 64개, 10초 |
 | **정사영상 좌표 보정** `golmok-basemap georef-ortho` | 🤖 | ✅ NGII 2025 정사영상 TIFF에 좌표 정보가 없음 → 도엽번호로 배치 + 건물 윤곽 매칭(peak 0.26/0.29) + 인접 도엽 겹침 정렬(1.000). 절대 ~1 m, 도엽 간 이음새 0 |
+| **5 m DEM** `golmok-basemap contour-dem` | 🤖 | ✅ 수치지형도 등고선·표고점 → TIN → 5 m GeoTIFF(EPSG:5186). 표고점 10% 제외 검증 중앙 0.63 m / RMSE 2.1 m. 지형 5~101 m(궁동산·와우산·성미산이 보임). 근거 D-012 |
 | UE 임포트 `basemap_import.py`: Nanite, 복합 충돌, 축·단위 자동 측정, CesiumGeoreference 원점 | 🤖 | ✅ `fit error 18.7`(128메시 합계, cm) → 사실상 0, M=diag(1,−1,1) = **북쪽 −Y** 확인(정사영상 도로·경의선숲길·홍제천 방향이 지도와 같음). 새 레벨 `L_Basemap_Yeonnam`(`run(…, level=…)`: 조명·지면 PlayerStart 자동) |
 | **절차적 파사드 머티리얼** `M_BasemapFacade`(층별 창, 상가 1층, 업무 커튼월, 옥상) — Python으로 생성 | 🤖 | ✅ 창·층 띠·상가 1층 패턴 보임(스크린샷 아래). "박스 느낌" 판단은 👤 리뷰 |
 | 지형 머티리얼 `M_BasemapTerrain`(정사영상 파라미터, Nanite 사용 플래그) | 🤖 | ✅ glTF 기본 머티리얼(플러그인 `MI_Default_Opaque`)은 Nanite 플래그가 없어 패키징 시 깨질 수 있어 교체 |
-| 캐릭터 보행 | 🤖 | ✅ PIE 스크립트 보행: 7초 동안 10.7 m 이동, `is_moving_on_ground` True. 지면 충돌 추적 13×13 격자 166/169(나머지 3개는 타일 경계선 정확히 위의 광선) |
-| 성능 (RTX 5060, `-game -RenderOffscreen`, PlayerStart 거리 시점, `golmok-perf`) | 🤖 | 1080p **평균 169 fps, 1% low 137**(GPU 5.6 ms, Render 7.3 ms). 1440p 168/130(GPU ms가 거의 같아 해상도 적용 여부 재확인 필요). 에디터 PIE는 ~120 fps(에디터 상한) |
+| 캐릭터 보행 | 🤖 | ✅ PIE 스크립트 보행: 7초 동안 10.7 m 이동, `is_moving_on_ground` True. 지면 충돌 추적 13×13 격자 169/169, 타일 경계 3 cm 옆 597/597. 지형은 Nanite 끔(Nanite fallback 충돌이 경계에 틈을 냄, D-012) |
+| 성능 (RTX 5060, `-game -RenderOffscreen`, PlayerStart 거리 시점, `golmok-perf`) | 🤖 | 1080p **평균 169 fps, 1% low 141**(GPU 5.4 ms, Render 7.4 ms; 5 m DEM·지형 Nanite 끔). 90 m DEM 때 169/137. 1440p는 GPU ms가 거의 같아 해상도 적용 여부 재확인 필요. 에디터 PIE는 ~120 fps(에디터 상한) |
 | 원경 안개·대기·조명 프리셋 | 🤖 | 1.3 조명 프리셋과 함께. 현재 기본 안개로 원경이 뿌옇고 지면이 청록빛 — 룩 개발 필요 |
 | **검수 뷰어** `golmok-viewer`(CesiumJS): 레이어 토글, 와이어프레임, ENU 좌표, headless 스모크 테스트 | 🤖 | ✅ 합성 베이스맵 렌더 확인(18타일, 오류 0). 1.6의 검수 도구를 앞당겨 완료 |
 | 플레이 구역 안 배경 제거 | 🤖 | `--exclude zone.geojson`으로 빌드 단계에서 제외(D-012) |
 
-- 스크린샷(에디터 PIE, 기본 조명·안개): 북쪽 위 정사 / 사선 / 골목 파사드. 원본 1920×1080과 개관·보행 후 컷은 PC의 `%USERPROFILE%\golmok_data\review\basemap_yeonnam_2026-09-24\`
+- 5 m DEM(2026-09-25): 개관(북쪽을 봄, 뒤 언덕이 궁동산) / 사선 / DEM 음영기복도
+
+  ![5 m DEM 개관, 북쪽을 봄](images/basemap-yeonnam-2026-09-25-dem5m/overview-north.jpg)
+  ![5 m DEM 사선](images/basemap-yeonnam-2026-09-25-dem5m/oblique.jpg)
+  ![수치지형도로 만든 5 m DEM 음영기복도(북쪽 위, ±1.3 km)](images/basemap-yeonnam-2026-09-25-dem5m/dem-5m-hillshade.jpg)
+
+- 90 m DEM 때(2026-09-24) 스크린샷(에디터 PIE, 기본 조명·안개): 북쪽 위 정사 / 사선 / 골목 파사드. 원본 1920×1080과 개관·보행 후 컷은 PC의 `%USERPROFILE%\golmok_data\review\basemap_yeonnam_2026-09-24\`
 
   ![연남동 베이스맵, 위에서 본 모습(북쪽이 위)](images/basemap-yeonnam-2026-09-24/topdown-north-up.jpg)
   ![사선에서 본 LOD1 건물과 파사드](images/basemap-yeonnam-2026-09-24/oblique.jpg)
