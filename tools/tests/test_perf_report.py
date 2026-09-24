@@ -27,6 +27,33 @@ def test_summary_skips_warmup_and_computes_fps(tmp_path):
     assert "| a |" in to_markdown([s])
 
 
+def test_long_loading_frame_is_dropped_as_warmup(tmp_path):
+    # Boot captures (-csvCaptureFrames) start with the map load as one multi-second frame.
+    write_csv(tmp_path / "boot.csv", [7500.0] + [10.0] * 1000)
+    s = summarize(read_csv(tmp_path / "boot.csv"), "boot", skip_seconds=2.0)
+    assert s.frames == 1000
+    assert s.fps_avg == pytest.approx(100.0)
+    assert s.fps_1pct_low <= s.fps_avg
+
+
+def test_ue58_layout_with_events_column_and_huge_fields(tmp_path):
+    # UE 5.8 captures: EVENTS first column, event text in some rows, a trailing header row and a
+    # metadata row; event fields can exceed the csv module's default 128 KiB field limit.
+    header = ["EVENTS", "FrameTime", "GameThreadTime", "RenderThreadTime", "GPUTime"]
+    rows = [",".join(header)]
+    for i in range(600):
+        event = '"' + "x" * 200_000 + '"' if i == 5 else ""
+        rows.append(f"{event},10.0,4.0,5.0,8.0")
+    rows.append(",".join(header))
+    rows.append("[HasHeaderRowAtEnd],1,[EventTimestamps],1,[platform],Windows")
+    (tmp_path / "ue.csv").write_text("\n".join(rows), encoding="utf-8")
+    cols = read_csv(tmp_path / "ue.csv")
+    assert len(cols["frame"]) == 600
+    s = summarize(cols, "ue", skip_seconds=0.0)
+    assert s.fps_avg == pytest.approx(100.0)
+    assert s.gpu_ms == pytest.approx(8.0)
+
+
 def test_missing_frame_column(tmp_path):
     (tmp_path / "b.csv").write_text("Foo,Bar\n1,2\n", encoding="utf-8")
     with pytest.raises(ValueError):
