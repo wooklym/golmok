@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <title>Golmok 검수 뷰어</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+  <div id="cesiumContainer"></div>
+  <aside id="panel">
+    <h1>Golmok 검수 뷰어</h1>
+    <section>
+      <h2>레이어</h2>
+      <div id="layers"></div>
+      <form id="addForm">
+        <input id="addUrl" type="text" placeholder="/data/…/tileset.json 또는 …/manifest.json" spellcheck="false">
+        <button type="submit">추가</button>
+      </form>
+    </section>
+    <section>
+      <h2>보기</h2>
+      <label><input type="checkbox" id="wire"> 와이어프레임</label>
+      <label><input type="checkbox" id="bounds"> 타일 경계</label>
+      <label><input type="checkbox" id="stats"> 통계</label>
+      <div class="row">
+        <button id="viewTop">위에서</button>
+        <button id="viewWalk">걷는 높이</button>
+        <button id="viewHome">전체</button>
+      </div>
+    </section>
+    <section>
+      <h2>위치</h2>
+      <pre id="readout">-</pre>
+    </section>
+    <section id="statsBox" hidden>
+      <h2>타일</h2>
+      <pre id="statsText">-</pre>
+    </section>
+    <p id="status">로딩…</p>
+  </aside>
+  <script>
+    // Prefer the locally served Cesium build (offline), fall back to the CDN.
+    (function () {
+      var local = '/cesium/';
+      var cdn = 'https://cdn.jsdelivr.net/npm/cesium@1.145.0/Build/Cesium/';
+      function load(base) {
+        window.CESIUM_BASE_URL = base;
+        var css = document.createElement('link');
+        css.rel = 'stylesheet'; css.href = base + 'Widgets/widgets.css';
+        document.head.appendChild(css);
+        var s = document.createElement('script');
+        s.src = base + 'Cesium.js';
+        s.onload = function () { var a = document.createElement('script'); a.src = './app.js'; document.body.appendChild(a); };
+        s.onerror = function () { if (base === local) load(cdn); else document.getElementById('status').textContent = 'Cesium 로드 실패'; };
+        document.head.appendChild(s);
+      }
+      fetch(local + 'Cesium.js', { method: 'HEAD' }).then(function (r) { load(r.ok ? local : cdn); }).catch(function () { load(cdn); });
+    })();
+  </script>
+</body>
+</html>

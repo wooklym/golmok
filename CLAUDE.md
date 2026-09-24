@@ -25,4 +25,5 @@ Read `docs/ROADMAP.md` and `docs/DECISIONS.md` first; they are the source of tru
 - UE (Windows PowerShell): `.\tools\ue\build.ps1`, `.\tools\ue\open-editor.ps1`, `.\tools\ue\package.ps1`
 - Dev level (editor Python): `import golmok.setup_dev_level as s; s.run()`
 - Basemap: `golmok-basemap inspect|build …`, then editor `import golmok.basemap_import as b; b.run(r"<out>")`
+- Review viewer: `golmok-viewer <basemap folder>`; `cd tools/viewer && npm install && npm test` (headless smoke)
 - Look-dev/spike: `golmok.lighting.apply("overcast_morning")`, `golmok.viewpoints.save/capture`, `golmok-perf <csv>`

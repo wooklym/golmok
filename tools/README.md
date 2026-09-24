@@ -6,7 +6,11 @@
 | `golmok-frames <영상> <출력폴더>` | 영상에서 선명한 프레임만 추출(창마다 가장 선명한 1장). ffmpeg 필요 |
 | `golmok-blur <입력폴더> <출력폴더> --face-model … --lp-model …` | **얼굴·번호판 블러**(Meta EgoBlur, Apache-2.0). 재구성(RealityScan/Postshot)에는 **출력 폴더만** 쓴다 |
 | `golmok-perf <csv…> [--label …] [--markdown]` | Unreal CSV 프로파일(`CsvProfile Start/Stop`) 요약: 평균·1% low fps, Game/Render/GPU ms. 스파이크 비교표용 |
+<<<<<<< HEAD
+| `golmok-viewer <폴더>` | **검수 뷰어**(CesiumJS, 브라우저): 베이스맵 `tileset.json`과 Zone 타일셋을 로컬에서 띄운다. 레이어 토글, 와이어프레임, 타일 경계, ENU 좌표 읽기, 걷는 높이 시점 |
+=======
 | `golmok-zone init/validate/index build/exclude/transform/bump` | **Zone manifest**(스펙 [docs/spec/zone-manifest.md](../docs/spec/zone-manifest.md)): 새 zone 만들기, 검사, Zone Index, 베이스맵 제외 폴리곤, 좌표 변환, 새 버전 |
+>>>>>>> origin/main
 | `golmok-basemap inspect/build …` | **배경 베이스맵**: 건물 SHP(GIS건물통합정보) + DEM + 정사영상 → LOD1 건물·지형 GLB 타일 + `manifest.json` + `tileset.json`(3D Tiles 1.1) |
 
 ## 설치 (Windows, 한 번만)
@@ -103,6 +107,18 @@ golmok-zone bump D:\golmok_zones\zones\z_yeonnam_alley_001\v1\manifest.json
 - 좌표: zone-local은 **ENU(x=동, y=북, z=위), m**. UE는 **X=동, Y=남, Z=위, cm** → `(100x, −100y, 100z)`.
 - `transform`은 zone-local → ECEF 4×4 **row-major**. 정합(WP-07)이 이 값을 고친다. 높이는 **타원체고**.
 - 합성 예제: `tests/fixtures/zones/z_synthetic_001/v1/manifest.json`(청크 3·충돌 1·blocker 1·포털 1).
+
+**6) 검수 뷰어** (D-003: 웹 스택은 검수 용도)
+```powershell
+golmok-viewer D:\golmok_basemap\yeonnam          # 브라우저가 열린다. 인터넷이 없으면 아래 npm install 후 사용
+cd tools\viewer; npm install                      # Cesium을 로컬에 두고(오프라인), Playwright 스모크 테스트 준비
+npm test                                          # 합성 베이스맵으로 headless 렌더 검사 → test\out\smoke.png
+$env:GOLMOK_DATA="D:\golmok_basemap\yeonnam"; npm test   # 실데이터로 검사
+```
+- 화면에서 `/data/…/tileset.json`(3D Tiles, splat 포함)이나 `/data/…/manifest.json`(Zone)을 입력해 추가할 수 있다. URL로는 `?zone=/data/zones/<id>/v1/manifest.json`.
+- Zone 오버레이: footprint(노랑), 원점·라벨, 청크 bbox(하늘), 포털 위치·진입 방향(분홍), blockers 평면(유리 = 민트, no_entry = 빨강). 이름을 클릭하면 그 Zone으로 이동.
+- ion 토큰은 쓰지 않는다. 데이터는 로컬 서버(127.0.0.1)에서만 읽는다(D-007).
+
 
 ## 검사 실행
 

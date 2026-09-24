@@ -29,6 +29,7 @@ golmok-blur = "golmok_tools.privacy.blur:main"
 golmok-basemap = "golmok_tools.basemap.build:main"
 golmok-perf = "golmok_tools.perf_report:main"
 golmok-zone = "golmok_tools.zone.cli:main"
+golmok-viewer = "golmok_tools.viewer_server:main"
 
 [tool.setuptools.packages.find]
 include = ["golmok_tools*"]

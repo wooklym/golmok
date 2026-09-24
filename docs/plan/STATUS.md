@@ -16,7 +16,7 @@
 | WP-05 | UE C++ 2: 포털·조명·디버그 | ⚪ 대기 | | |
 | WP-06 | UE Python 에디터 자동화 2차 | ⚪ 대기 | | |
 | WP-07 | 정합·검수 `golmok-align` | ⚪ 대기 | | |
-| WP-08 | (선택) 웹 검수 뷰어 | ⏸ 보류 | | ROADMAP 1.6 "선택". 사용자가 켤 때 시작 |
+| WP-08 | (선택) 웹 검수 뷰어 | 🟢 완료 | session_01Cgm7f6oD6xSMpZ5jszj8Xi (Fable 5.1) | `golmok-viewer`(CesiumJS 1.145, ion 없음) + `tools/viewer` + Playwright 스모크(`npm test`, 합성 베이스맵 18타일). Zone manifest 오버레이(footprint·청크 bbox·포털·blockers, `?zone=…/manifest.json`) 포함. 충돌 메시 표시는 WP-03 산출물 나오면 추가 |
 
 ## 트랙 1B — PC 검증 (PC Claude 세션)
 
@@ -49,3 +49,4 @@
 | 2026-09-24 | session_01NM6uvZaVMgq5SUSaduHD1Z | Fable 5.1 | 개발 전체 과정 설계, WP 문서, 오케스트레이션 | PR #2 |
 | 2026-09-24 | session_01QwUxcoWCFmtiJhq3ZWByEJ | Opus | WP-01 | 🟢 CI·check_repo·ruff. Actions 실행 36007213938/36007216880 success |
 | 2026-09-24 | session_014zvy99LzAuVhnHYFtUYfVz | Opus | WP-02 | 🟢 zone 스펙·스키마·`golmok-zone`·테스트 80개(전체 116 passed) |
+| 2026-09-24 | session_01Cgm7f6oD6xSMpZ5jszj8Xi | Fable 5.1 | PR #1·#2 병합(main), WP-08 검수 뷰어, PC 작업 카드 2건 | PR #3 (`claude/golmok-phase-0-research-4kloq6`). 전체 119 passed |
