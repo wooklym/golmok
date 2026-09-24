@@ -7,6 +7,8 @@
 | `golmok-blur <입력폴더> <출력폴더> --face-model … --lp-model …` | **얼굴·번호판 블러**(Meta EgoBlur, Apache-2.0). 재구성(RealityScan/Postshot)에는 **출력 폴더만** 쓴다 |
 | `golmok-perf <csv…> [--label …] [--markdown]` | Unreal CSV 프로파일(`CsvProfile Start/Stop`) 요약: 평균·1% low fps, Game/Render/GPU ms. 스파이크 비교표용 |
 | `golmok-zone init/validate/index build/exclude/transform/bump` | **Zone manifest**(스펙 [docs/spec/zone-manifest.md](../docs/spec/zone-manifest.md)): 새 zone 만들기, 검사, Zone Index, 베이스맵 제외 폴리곤, 좌표 변환, 새 버전 |
+| `golmok-mesh inspect/reproject/chunk/collision/blockers` | **재구성 메시 후처리**: RealityScan OBJ → zone-local, 청크(UV·UDIM 보존), 충돌 메시, 유리·접근 금지 평면. 절차는 [recon-postprocess 런북](../docs/runbooks/recon-postprocess.md) |
+| `golmok-splat inspect/crop/clean/transform/tiles` | **3DGS PLY 후처리**: 자르기, 플로터 제거, 좌표 변환(SH 회전 포함), 로컬 3D Tiles(glTF `KHR_gaussian_splatting`) |
 | `golmok-basemap inspect/build …` | **배경 베이스맵**: 건물 SHP(GIS건물통합정보) + DEM + 정사영상 → LOD1 건물·지형 GLB 타일 + `manifest.json` + `tileset.json`(3D Tiles 1.1) |
 
 ## 설치 (Windows, 한 번만)
@@ -21,7 +23,7 @@ winget install OliverBetz.ExifTool
 cd golmok\tools
 py -3.12 -m venv .venv
 .\.venv\Scripts\Activate.ps1
-pip install -e ".[raw,heic,basemap,zone,dev]"
+pip install -e ".[raw,heic,basemap,zone,mesh,splat,dev]"
 ```
 
 블러까지 쓰려면 PyTorch를 추가로 설치한다. **RTX 50 시리즈(5060 등)는 CUDA 12.8 이상 빌드**가 필요하다.
@@ -104,9 +106,23 @@ golmok-zone bump D:\golmok_zones\zones\z_yeonnam_alley_001\v1\manifest.json
 - `transform`은 zone-local → ECEF 4×4 **row-major**. 정합(WP-07)이 이 값을 고친다. 높이는 **타원체고**.
 - 합성 예제: `tests/fixtures/zones/z_synthetic_001/v1/manifest.json`(청크 3·충돌 1·blocker 1·포털 1).
 
+**6) 재구성 후처리** (RealityScan·Postshot 결과 → Zone 폴더, 전체 절차는 [런북](../docs/runbooks/recon-postprocess.md))
+```powershell
+$Z = "D:\golmok_zones\zones\z_yeonnam_alley_001\v1"
+golmok-mesh reproject D:\recon\alley01.obj --src-crs EPSG:5186 --manifest $Z\manifest.json --out D:\recon\local\alley01.obj
+golmok-mesh chunk D:\recon\local\alley01.obj --size 15 --out $Z\visual --manifest $Z\manifest.json
+golmok-mesh collision D:\recon\local\alley01.obj --out $Z\collision.glb --per-chunk $Z\visual --manifest $Z\manifest.json
+golmok-mesh blockers add $Z\blockers.json --center 12,4.8,1.4 --normal 0,-1,0 --size 3,2.4 --kind glass
+golmok-mesh blockers build $Z\blockers.json --manifest $Z\manifest.json
+golmok-splat clean D:\recon\alley01.ply --min-opacity 0.02 --out $Z\splat.ply
+golmok-splat tiles $Z\splat.ply --out $Z\splat_tiles --manifest $Z\manifest.json
+```
+- 청크는 **OBJ+MTL**(UDIM UV와 원본 8K 텍스처 경로 유지). 충돌·blocker GLB는 glTF Y-up(`golmok-basemap`과 같은 규약).
+- open3d는 쓰지 않는다(Linux 휠이 libEGL을 요구하고 웹 스택을 끌고 옴). 바닥 평면 RANSAC은 numpy로 구현.
+
 ## 검사 실행
 
-CI(`.github/workflows/ci.yml`)와 같은 검사다. 커밋 전에 `tools` 폴더에서 실행한다(`pip install -e ".[basemap,zone,dev]"`에 ruff 포함).
+CI(`.github/workflows/ci.yml`)와 같은 검사다. 커밋 전에 `tools` 폴더에서 실행한다(`pip install -e ".[basemap,zone,mesh,splat,dev]"`에 ruff 포함).
 
 ```powershell
 ruff check .            # 린트 (자동 수정: ruff check . --fix)
@@ -116,4 +132,5 @@ python scripts/check_repo.py   # 저장소 점검: uproject·ini·json 파싱, �
 ```
 
 - CI는 ubuntu(Python 3.11/3.12)와 windows(3.12)에서 위 검사를 돌리고, 선택 잡으로 합성 베이스맵을 `3d-tiles-validator`로 검증한다(실패해도 전체 실패 아님).
+- `GOLMOK_TILES_VALIDATOR=1`(Node 필요)이면 `tests/test_splat.py`가 splat 타일셋을 `3d-tiles-validator`로 검사한다. 검증기 0.6.1은 `KHR_gaussian_splatting`을 몰라 속성 이름 오류를 내므로 그 오류만 허용한다.
 - `GOLMOK_BASEMAP_OUT=<폴더>`를 주고 `pytest tests/test_basemap.py`를 실행하면 합성 베이스맵 출력이 그 폴더에 남는다.

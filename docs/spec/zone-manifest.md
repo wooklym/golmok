@@ -164,6 +164,7 @@ area 원점(= CesiumGeoreference 원점) (37.5600, 126.9230, h=40). `M = inv(T_a
 | 시각 청크 에셋 | `/Game/Golmok/Zones/<zone_id>/v<version>/SM_<chunk_id>` |
 | 충돌 에셋 | `/Game/Golmok/Zones/<zone_id>/v<version>/SM_<zone_id>_collision` (collision.chunks가 있으면 `SM_<zone_id>_collision_<chunk_id>`) |
 | 실내 서브레벨 | `/Game/Golmok/Zones/<zone_id>/v<version>/L_<zone_id>` |
+| 파일 형식(WP-03) | 시각 청크 `visual/<chunk_id>.obj` + MTL(zone-local m, **Z-up**, UDIM UV 그대로, 텍스처는 원본 경로 참조). 충돌·blocker GLB는 **glTF Y-up** `(동, 위, −북)` — `golmok-basemap`과 같다. 청크별 충돌은 `collision/<chunk_id>.glb`. `blockers.glb`는 `blockers.json`에서 만든 파생물(노드 이름 = plane id, `extras.kind`) |
 | 메시 정점 | 임포트 후 zone-local을 `S = diag(100,−100,100)`로 바꾼 값(cm, X=동, Y=남, Z=위). 임포터의 축 변환은 가정하지 말고 bbox로 측정한다(`basemap_import.py`와 같은 방식) |
 | zone 루트 actor 변환 | `S · M · S⁻¹` (M = zone-local → area ENU). 회전 = `D R D`(D = diag(1,−1,1), det +1), 위치 = `S t` cm. `golmok-zone transform --json`의 `ue_actor_matrix` |
 | 포털 | 위치 `S · position`, UE Yaw = `−yaw_deg`, 반경 cm = `100 · radius_m` |

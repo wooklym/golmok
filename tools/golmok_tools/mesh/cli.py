@@ -22,7 +22,7 @@ import numpy as np
 from . import blockers as bl
 from . import chunk as ch
 from . import collision as col
-from .objio import read_mesh, stats
+from .objio import read_mesh, stats, write_obj
 
 
 def _vec(text: str, n: int, what: str) -> list[float]:
@@ -69,6 +69,45 @@ def centerline_local(geojson_path: Path, manifest: dict) -> np.ndarray:
     m = zt.from_row_major(manifest["transform"])
     ecef = np.array([zt.geodetic_to_ecef(lat, lon, h) for lon, lat, *_ in data["coordinates"]])
     return zt.ecef_to_enu(m, ecef)[:, :2]
+
+
+def reproject_to_zone(v: np.ndarray, src_crs: str, manifest: dict, height_offset: float = 0.0) -> np.ndarray:
+    """(E, N, h) in a projected or geographic CRS -> zone-local ENU m. h + height_offset = ellipsoidal."""
+    from pyproj import CRS, Transformer
+
+    from golmok_tools.zone import transform as zt
+
+    to_ll = Transformer.from_crs(CRS.from_user_input(src_crs), CRS.from_epsg(4326), always_xy=True)
+    to_ecef = Transformer.from_crs(CRS.from_epsg(4979), CRS.from_epsg(4978), always_xy=True)
+    lon, lat = to_ll.transform(v[:, 0], v[:, 1])
+    x, y, z = to_ecef.transform(lon, lat, v[:, 2] + height_offset)
+    return zt.ecef_to_enu(zt.from_row_major(manifest["transform"]), np.column_stack([x, y, z]))
+
+
+def cmd_reproject(args) -> int:
+    mesh = read_mesh(args.input, up="z")
+    manifest = _load_manifest(args.manifest)
+    src = mesh.v
+    mesh.v = reproject_to_zone(src, args.src_crs, manifest, args.height_offset)
+    if mesh.vn is not None:
+        # normals: rotation part of the (nearly constant) local Jacobian at the mesh center
+        c = src.mean(axis=0)
+        probe = reproject_to_zone(np.vstack([c, c + np.eye(3)]), args.src_crs, manifest, args.height_offset)
+        u, _, vt = np.linalg.svd((probe[1:] - probe[0]).T)
+        mesh.vn = mesh.vn @ (u @ vt).T
+    lo, hi = mesh.bounds()
+    mtl = " ".join(p.name for p in mesh.mtllibs) or None
+    out = Path(args.out)
+    for lib in mesh.mtllibs:
+        if lib.is_file() and lib.parent.resolve() != out.parent.resolve():
+            from .objio import rewrite_mtl
+
+            rewrite_mtl(lib, out.parent / lib.name)
+    write_obj(mesh, out, mtl, header=f"golmok-mesh reproject from {args.src_crs}")
+    print(f"zone-local 범위(m) {np.round(lo, 2).tolist()} ~ {np.round(hi, 2).tolist()} → {out}")
+    if np.abs(np.concatenate([lo, hi])[:2]).max() > 2000:
+        print("WARN  zone 원점에서 2 km 넘게 떨어져 있다 — --src-crs나 manifest가 맞는지 확인")
+    return 0
 
 
 def cmd_inspect(args) -> int:
@@ -220,6 +259,16 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--up", choices=["y", "z"], help=up_help)
     p.add_argument("--json", action="store_true")
     p.set_defaults(func=cmd_inspect)
+
+    p = sub.add_parser("reproject", help="투영 좌표(예: EPSG:5186)로 내보낸 OBJ → zone-local (UV 보존)")
+    p.add_argument("input", type=Path)
+    p.add_argument("--src-crs", required=True, help="내보낸 좌표계, 예: EPSG:5186")
+    p.add_argument("--manifest", required=True, type=Path, help="zone manifest.json (transform)")
+    p.add_argument(
+        "--height-offset", type=float, default=0.0, help="높이 + 이 값 = 타원체고(m). 해발이면 지오이드고"
+    )
+    p.add_argument("--out", required=True, type=Path)
+    p.set_defaults(func=cmd_reproject)
 
     p = sub.add_parser("chunk", help="청크 분할(OBJ+MTL, UV·머티리얼·UDIM 보존)")
     p.add_argument("input", type=Path)

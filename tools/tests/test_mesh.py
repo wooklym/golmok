@@ -206,3 +206,25 @@ def test_inspect_cli(tmp_path, capsys):
     assert s["udim_tiles"] == [1001, 1002] and s["materials"] == ["ground", "facade"]
     assert s["faces"] == synthetic_alley().n_faces
     assert stats(Mesh(v=np.zeros((0, 3)), f_v=np.zeros((0, 3), np.int64)))["faces"] == 0
+
+
+def test_reproject_from_projected_crs_to_zone_local(tmp_path):
+    from pyproj import Transformer
+    from zone_util import make_zone
+
+    from golmok_tools.zone import transform as zt
+
+    manifest, d = make_zone(tmp_path / "zones", "z_a_001", h=50.0)
+    local = np.array([[0.0, 0.0, 0.0], [10.0, 5.0, 2.0], [-20.0, 8.0, 1.5]])
+    ecef = zt.enu_to_ecef(zt.from_row_major(d["transform"]), local)
+    lon, lat, h = Transformer.from_crs(4978, 4979, always_xy=True).transform(*ecef.T)
+    e, n = Transformer.from_crs(4326, 5186, always_xy=True).transform(lon, lat)
+    src = np.column_stack([e, n, h - 23.0])  # "orthometric" heights, geoid offset 23 m
+    mesh = Mesh(v=src, f_v=np.array([[0, 1, 2]]), vt=np.array([[0.1, 0.1], [1.5, 0.2], [0.2, 0.9]]))
+    mesh.f_vt = mesh.f_v.copy()
+    write_obj(mesh, tmp_path / "in.obj")
+    args = ["reproject", str(tmp_path / "in.obj"), "--src-crs", "EPSG:5186", "--manifest", str(manifest)]
+    assert main([*args, "--height-offset", "23", "--out", str(tmp_path / "out.obj")]) == 0
+    out = read_obj(tmp_path / "out.obj")
+    assert np.abs(out.v - local).max() < 1e-5  # OBJ keeps 1e-6 m
+    assert np.allclose(out.vt, mesh.vt, atol=1e-7)
