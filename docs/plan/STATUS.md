@@ -3,7 +3,7 @@
 갱신 규칙: 각 세션이 시작·종료 시 자기 행을 고친다. 상태 기호:
 ⚪ 대기 · 🔵 진행 중 · 🟡 코드 완료·PC 검증 대기 · 🟢 완료 · 🔴 막힘 · ⏸ 보류
 
-마지막 갱신: 2026-09-25 (WP-05 세션 시작 🔵)
+마지막 갱신: 2026-09-25 (WP-05 세션 종료 🟡)
 
 ## 트랙 1A — 클라우드 코드 (순차)
 
@@ -24,7 +24,7 @@
 |---|---|---|---|
 | V-01 | PC 셋업·L_Dev·리허설 점검 (`runbooks/pc-setup.md` §0~4) | 🔵 진행 중 | §0~2 🟢(2026-09-24): UE 5.8.3·VS 2026 빌드 무수정 통과, L_Dev·마네킹 PIE, 자동 테스트 `Golmok.Player.Movement`(`tools/ue/test.ps1`) 통과, pytest·CUDA OK. 결과 ROADMAP 1.0a~1.0d. §3 리허설은 C-01 사진과 EgoBlur 모델(사용자 라이선스 동의) 대기. **push는 이 PC의 GitHub 로그인 필요**(사용자). 클라우드 인계(WP-06 필독): ① `viewpoints.capture`가 스크린샷을 빠뜨리거나 **다른 시점 이름으로 저장**하던 버그 수정(파일 기록 대기, missing 보고, 게임 뷰). 단 **에디터 창이 백그라운드에 오래 있으면 뷰포트를 그리지 않아 스크린샷이 안 나온다**("백그라운드 CPU 절약" 꺼도 같음) → `spike_runner`의 무인 캡처는 PIE/`-game`의 `HighResShot`으로 설계할 것. ② `golmok-perf`가 실제 5.8 CSV에서 죽던 문제(긴 필드)와 맵 로딩 프레임이 평균에 섞이던 문제 수정, `-game` CSV 위치는 `%LOCALAPPDATA%\UnrealEngine\5.8\Saved\Profiling\CSV`. 기준선(빈 L_Dev 1080p 158 fps / 1440p 128 fps)은 `research/08`. ③ `golmok.lighting` 4개 프리셋 에디터 검증 ✅. ④ `check_repo.py`에 병합 충돌 표시 검사 추가 |
 | V-02 | 베이스맵 실데이터 (`pc-setup.md` §5) | 🟢 완료 | 연남동 반경 1 km: 건물 9,447동, 64타일, **5 m DEM**(수치지형도 등고선·표고점, `contour-dem`). UE `L_Basemap_Yeonnam`: fit error ≈0, 북쪽 −Y, 파사드 패턴, PIE 보행 OK, 1080p 169 fps(1% low 141), 충돌 추적 169/169(지형 Nanite 끔). 신규 `golmok-basemap georef-ortho`(좌표 없는 NGII 정사영상), `M_BasemapTerrain`. 결과·근거: ROADMAP 1.2, D-012 |
-| V-03 | WP-04/05 빌드·PIE 검증 | ⚪ 대기 | WP-04 런북 준비됨(`runbooks/pc-verify-wp04.md`); WP-05 뒤 함께 실행 |
+| V-03 | WP-04/05 빌드·PIE 검증 | ⚪ 대기 | 런북 2개 준비됨: `runbooks/pc-verify-wp04.md` → `runbooks/pc-verify-wp05.md`(순서대로; WP-05 런북 §2는 WP-04 §2의 `z.run()` 결과를 전제). 헤드리스 `test.ps1 -Filter Golmok. -SetupDevLevel`로 자동화 테스트 11개(WP-01 1 + WP-05 10) 먼저 |
 | V-04 | WP-06 에디터 Python 검증 | ⚪ 대기 | |
 | V-05 | 재구성·후처리·스파이크 1.1 | ⚪ 대기 | C-02 필요 |
 | V-06 | Zone 통합·튜닝·패키징 | ⚪ 대기 | D-010 이후 |
