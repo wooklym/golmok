@@ -17,6 +17,21 @@
 3. PIE나 패키지 빌드에서 `CsvProfile Start` → 경로를 걷는다 → `CsvProfile Stop` → `golmok-perf <csv> --label "a 1440p" --markdown`
 4. 아래 표를 채우고, 스크린샷은 비교 이미지로 묶어 첨부한다. 용량이 크면 링크만 남긴다.
 
+## 기준선 — 빈 L_Dev (2026-09-24, PC 세션)
+스파이크 수치와 비교할 바닥값이다. 사진 콘텐츠 없이 엔진 설정(Lumen·VSM·Nanite·TSR)만의 비용을 잰다.
+
+- 기기: 사용자 PC(Ryzen 5 7500F, 32GB, RTX 5060 8GB, 드라이버 591.86), UE 5.8.3, DX12 SM6.
+- 방법: `UnrealEditor.exe Golmok.uproject /Game/Golmok/Maps/L_Dev -game -RenderOffscreen -ResX=… -ResY=… -ForceRes -csvCaptureFrames=3000 -ExitAfterCsvProfiling` → `golmok-perf`(시작 2초 제외). 창 없이 렌더하므로 백그라운드 제한을 받지 않는다. CSV 메타데이터 `systemresolution`으로 해상도를 확인했다.
+- 설정[확인: 로그]: TSR(`r.AntiAliasingMethod=4`), 화면 비율 기본(`r.ScreenPercentage.Default.Desktop.Mode=1`), 동적 해상도 끔, VSync 끔.
+- 장면: 캐릭터가 PlayerStart에 서 있고 골목 쪽을 본다(이동 없음).
+
+| 구성 | 프레임 | 평균 fps | 1% low fps | 프레임 p50 ms | p99 ms | Game ms | Render ms | GPU ms |
+|---|---|---|---|---|---|---|---|---|
+| L_Dev 1920×1080 | 2999 | 158.5 | 133.0 | 6.26 | 7.52 | 1.75 | 6.98 | 5.99 |
+| L_Dev 2560×1440 | 2999 | 127.6 | 111.0 | 7.79 | 9.01 | 1.75 | 8.57 | 7.50 |
+
+- 1080p에서는 렌더 스레드(CPU 6코어)가 GPU보다 느리다. 무거운 장면에서는 GPU(VRAM 8GB)가 먼저 병목이 될 것으로 예상한다[추정].
+
 ## 결과
 
 ### 시각 품질 (1~5점, 사용자와 함께 채점)
