@@ -35,9 +35,12 @@
 ```
 zones/<zone_id>/v<version>/          ← 불변. 고치려면 golmok-zone bump로 새 version
   manifest.json
-  visual/<chunk_id>.glb …            ← layers.visual.chunks[].uri (manifest 폴더 기준 상대경로)
-  collision.glb
-  blockers.json
+  visual/<chunk_id>.obj …            ← layers.visual.chunks[].uri (manifest 폴더 기준 상대경로). WP-03: OBJ + MTL
+  visual/<이름>.mtl, visual/chunk_manifest.json   ← WP-03 부산물(원본 UDIM 텍스처 경로, 청크별 bbox·tri·UDIM)
+  collision.glb                      ← layers.collision.uri
+  collision/<chunk_id>.glb …         ← layers.collision.chunks[].uri (선택)
+  blockers.json                      ← layers.blockers.uri (정본)
+  blockers.glb                       ← blockers.json에서 만든 파생물(UE 충돌용)
 index/zones.json                     ← golmok-zone index build
 index/cells/16_<x>_<y>.json
 ```
@@ -164,6 +167,7 @@ area 원점(= CesiumGeoreference 원점) (37.5600, 126.9230, h=40). `M = inv(T_a
 | 시각 청크 에셋 | `/Game/Golmok/Zones/<zone_id>/v<version>/SM_<chunk_id>` |
 | 충돌 에셋 | `/Game/Golmok/Zones/<zone_id>/v<version>/SM_<zone_id>_collision` (collision.chunks가 있으면 `SM_<zone_id>_collision_<chunk_id>`) |
 | 실내 서브레벨 | `/Game/Golmok/Zones/<zone_id>/v<version>/L_<zone_id>` |
+| 파일 형식(WP-03) | 시각 청크 `visual/<chunk_id>.obj` + MTL(zone-local m, **Z-up**, UDIM UV 그대로, 텍스처는 원본 경로 참조). 충돌·blocker GLB는 **glTF Y-up** `(동, 위, −북)` — `golmok-basemap`과 같다. 청크별 충돌은 `collision/<chunk_id>.glb`. `blockers.glb`는 `blockers.json`에서 만든 파생물(plane마다 노드·메시 하나, 노드·메시 이름 = plane id, `kind`는 **메시**의 `extras.kind`. 정본은 `blockers.json`) |
 | 메시 정점 | 임포트 후 zone-local을 `S = diag(100,−100,100)`로 바꾼 값(cm, X=동, Y=남, Z=위). 임포터의 축 변환은 가정하지 말고 bbox로 측정한다(`basemap_import.py`와 같은 방식) |
 | zone 루트 actor 변환 | `S · M · S⁻¹` (M = zone-local → area ENU). 회전 = `D R D`(D = diag(1,−1,1), det +1), 위치 = `S t` cm. `golmok-zone transform --json`의 `ue_actor_matrix` |
 | 포털 | 위치 `S · position`, UE Yaw = `−yaw_deg`, 반경 cm = `100 · radius_m` |

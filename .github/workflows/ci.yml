@@ -41,7 +41,7 @@ jobs:
           cache: pip
           cache-dependency-path: tools/pyproject.toml
       - name: Install
-        run: python -m pip install -e ".[basemap,zone,align,dev]"
+        run: python -m pip install -e ".[basemap,zone,mesh,splat,align,dev]"
       - name: ruff check
         run: ruff check .
       - name: ruff format --check
@@ -78,8 +78,13 @@ jobs:
         env:
           GOLMOK_BASEMAP_OUT: ${{ runner.temp }}/basemap
         run: |
-          python -m pip install -e ".[basemap,dev]"
+          python -m pip install -e ".[basemap,zone,splat,dev]"
           pytest -q tests/test_basemap.py
+      - name: Splat tileset (KHR_gaussian_splatting) through 3d-tiles-validator
+        working-directory: tools
+        env:
+          GOLMOK_TILES_VALIDATOR: "1"
+        run: pytest -q tests/test_splat.py -k validator
       - name: 3d-tiles-validator
         run: |
           npx --yes 3d-tiles-validator@0.6.1 --tilesetFile "$RUNNER_TEMP/basemap/tileset.json" | tee validator.log

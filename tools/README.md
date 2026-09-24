@@ -7,6 +7,8 @@
 | `golmok-blur <입력폴더> <출력폴더> --face-model … --lp-model …` | **얼굴·번호판 블러**(Meta EgoBlur, Apache-2.0). 재구성(RealityScan/Postshot)에는 **출력 폴더만** 쓴다 |
 | `golmok-perf <csv…> [--label …] [--markdown]` | Unreal CSV 프로파일(`CsvProfile Start/Stop`) 요약: 평균·1% low fps, Game/Render/GPU ms. 스파이크 비교표용 |
 | `golmok-zone init/validate/index build/exclude/transform/bump` | **Zone manifest**(스펙 [docs/spec/zone-manifest.md](../docs/spec/zone-manifest.md)): 새 zone 만들기, 검사, Zone Index, 베이스맵 제외 폴리곤, 좌표 변환, 새 버전 |
+| `golmok-mesh inspect/reproject/chunk/collision/blockers` | **재구성 메시 후처리**: RealityScan OBJ → zone-local, 청크(UV·UDIM 보존), 충돌 메시, 유리·접근 금지 평면. 절차는 [recon-postprocess 런북](../docs/runbooks/recon-postprocess.md) |
+| `golmok-splat inspect/crop/clean/transform/tiles` | **3DGS PLY 후처리**: 자르기, 플로터 제거, 좌표 변환(SH 회전 포함), 로컬 3D Tiles(glTF `KHR_gaussian_splatting`) |
 | `golmok-viewer <폴더>` | **검수 뷰어**(CesiumJS, 브라우저): 베이스맵 `tileset.json`과 Zone 타일셋을 로컬에서 띄운다. 레이어 토글, 와이어프레임, 타일 경계, ENU 좌표 읽기, 걷는 높이 시점 |
 | `golmok-align run/compare/check-blur …` | **Zone 정합**(WP-07): GPS prior(Umeyama+RANSAC) → 벽면·지면 point-to-plane ICP(numpy/scipy) → manifest `transform`·`quality` 갱신, `align_report.md`. 렌더 스크린샷 블러 재검사. 런북 [docs/runbooks/align.md](../docs/runbooks/align.md) |
 | `golmok-basemap inspect/build …` | **배경 베이스맵**: 건물 SHP(GIS건물통합정보) + DEM + 정사영상 → LOD1 건물·지형 GLB 타일 + `manifest.json` + `tileset.json`(3D Tiles 1.1) |
@@ -23,7 +25,7 @@ winget install OliverBetz.ExifTool
 cd golmok\tools
 py -3.12 -m venv .venv
 .\.venv\Scripts\Activate.ps1
-pip install -e ".[raw,heic,basemap,zone,align,dev]"
+pip install -e ".[raw,heic,basemap,zone,mesh,splat,align,dev]"
 ```
 
 블러까지 쓰려면 PyTorch를 추가로 설치한다. **RTX 50 시리즈(5060 등)는 CUDA 12.8 이상 빌드**가 필요하다.
@@ -112,7 +114,25 @@ golmok-zone bump D:\golmok_zones\zones\z_yeonnam_alley_001\v1\manifest.json
 - `transform`은 zone-local → ECEF 4×4 **row-major**. 정합(WP-07)이 이 값을 고친다. 높이는 **타원체고**.
 - 합성 예제: `tests/fixtures/zones/z_synthetic_001/v1/manifest.json`(청크 3·충돌 1·blocker 1·포털 1).
 
-**6) 검수 뷰어** (D-003: 웹 스택은 검수 용도)
+**6) 재구성 후처리** (RealityScan·Postshot 결과 → Zone 폴더, 전체 절차는 [런북](../docs/runbooks/recon-postprocess.md))
+```powershell
+$Z = "D:\golmok_zones\zones\z_yeonnam_alley_001\v1"
+golmok-mesh reproject D:\recon\alley01.obj --src-crs EPSG:5186 --manifest $Z\manifest.json --out D:\recon\local\alley01.obj
+# 나눠 내보낸 조각은 한 번에 넘긴다(같은 폴더로 합침). 나중에 조각을 더하면 --append, 다시 만들면 --overwrite
+golmok-mesh chunk D:\recon\local\alley01_a.obj D:\recon\local\alley01_b.obj --size 15 --out $Z\visual --manifest $Z\manifest.json
+golmok-mesh collision D:\recon\local\alley01_a.obj D:\recon\local\alley01_b.obj --out $Z\collision.glb --per-chunk $Z\visual --manifest $Z\manifest.json
+golmok-mesh blockers add $Z\blockers.json --center 12,4.8,1.4 --normal 0,-1,0 --size 3,2.4 --kind glass
+golmok-mesh blockers build $Z\blockers.json --manifest $Z\manifest.json
+golmok-splat clean D:\recon\alley01.ply --min-opacity 0.02 --out $Z\splat.ply
+golmok-splat tiles $Z\splat.ply --out $Z\splat_tiles --manifest $Z\manifest.json
+```
+- 청크는 **OBJ+MTL**(UDIM UV와 원본 8K 텍스처 경로 유지). 충돌·blocker GLB는 glTF Y-up(`golmok-basemap`과 같은 규약).
+- 청크 id는 zone 원점 기준 절대 셀: `c_e000_n000` = 동쪽 0~15 m·북쪽 0~15 m, `c_w001_s002` = 서쪽 첫 칸·남쪽 셋째 칸. 조각이 달라도 같은 셀은 같은 id(한 셀에 두 조각이면 `_2`). 청크가 이미 있는 폴더에 `--append`/`--overwrite` 없이 쓰면 거부한다.
+- MTL·텍스처가 없으면 `WARN`을 내고 `chunk_manifest.json`의 `missing`에 적는다(청크에 머티리얼이 없는 채로 UE에 들어가지 않게).
+- `golmok-splat tiles`의 `COLOR_0`는 기본 `--color0 display`(0.5 + C0·f_dc, Cesium 호환). `linear`는 README 문구대로 sRGB 디코드(Cesium에선 어둡게 보임).
+- open3d는 쓰지 않는다(Linux 휠이 libEGL을 요구하고 웹 스택을 끌고 옴). 바닥 평면 RANSAC은 numpy로 구현.
+
+**7) 검수 뷰어** (D-003: 웹 스택은 검수 용도)
 ```powershell
 golmok-viewer D:\golmok_basemap\yeonnam          # 브라우저가 열린다. 인터넷이 없으면 아래 npm install 후 사용
 cd tools\viewer; npm install                      # Cesium을 로컬에 두고(오프라인), Playwright 스모크 테스트 준비

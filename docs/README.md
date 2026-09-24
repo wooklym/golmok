@@ -21,6 +21,7 @@
 | [capture/02-interior-capture-guide.md](capture/02-interior-capture-guide.md) | 촬영 가이드 #2: 실내 |
 | [outreach/interior-consent-form-draft.md](outreach/interior-consent-form-draft.md) | 실내 촬영·게시 동의서 초안(변호사 검토 전) |
 | [captures/INDEX.md](captures/INDEX.md) | 촬영 목록(Zone 백로그) |
+| [runbooks/recon-postprocess.md](runbooks/recon-postprocess.md) | RealityScan·Postshot 결과 → Zone 폴더(청크·충돌·blocker·splat 3D Tiles) 후처리 절차 |
 | [runbooks/pc-setup.md](runbooks/pc-setup.md) | 사용자 PC 셋업·검증 런북(로컬 Claude 세션용) |
 
 과업 목록의 4번(전체 아키텍처)은 `ARCHITECTURE.md`로 따로 두었다.

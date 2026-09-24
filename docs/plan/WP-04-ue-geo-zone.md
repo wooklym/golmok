@@ -1,6 +1,6 @@
 # WP-04 — UE C++ 런타임 1: Geo·Zone
 
-상태: ⚪ 대기 · 담당: 클라우드 Claude 세션 · 의존: WP-02 · 검증: **G2(PC 빌드·PIE, `runbooks/pc-verify-wp04.md`)**
+상태: ⚪ 대기(Opus 세션의 착수는 모델 정책에 따라 중단·재배정) · 담당: 클라우드 Claude 세션(**Fable 5.1 ultracode**, 모델 정책 DEVELOPMENT-PLAN §7.4) · 의존: WP-02 · 검증: **G2(PC 빌드·PIE, `runbooks/pc-verify-wp04.md`)**
 
 ## 목표
 Zone manifest를 읽어 청크 메시·충돌·blocker를 올바른 위치에 배치하고, 거리·우선순위 규칙으로 로드/언로드하며, 겹치는 배경 베이스맵을 숨기는 **런타임 핵심**을 C++로 만든다. 이 세션은 UE를 빌드할 수 없으므로 **보수적인 API + 상세한 PC 검증 런북**이 완료 조건이다.
