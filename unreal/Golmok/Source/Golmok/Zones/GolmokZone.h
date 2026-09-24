@@ -170,11 +170,11 @@ protected:
 	virtual int32 BuildCollisionLayer();
 	virtual int32 BuildBlockers();
 
-	/** Name for a new runtime component: Base, or Base__<n> while a destroyed predecessor still exists (pre-GC). */
+	/** Name for a new runtime component: Base, or Base__<n> if that name is still taken (duplicate ids in a manifest). */
 	FName UniqueComponentName(const FName& Base) const;
-	UStaticMeshComponent* MakeMeshComponent(const FName& Name, UStaticMesh* Mesh, bool bVisual);
+	UStaticMeshComponent* MakeMeshComponent(const FName& Name, UStaticMesh* Mesh, bool bVisual, const FString& Tag);
 	UBoxComponent* MakeBoxComponent(const FName& Name, const FVector& RelativeLocation, const FRotator& RelativeRotation,
-		const FVector& Extent, bool bCollide, const FColor& Color);
+		const FVector& Extent, bool bCollide, const FColor& Color, const FString& Tag);
 	static UStaticMesh* LoadMeshAsset(const FString& ObjectPath);
 
 private:
@@ -186,16 +186,18 @@ private:
 	UPROPERTY(VisibleAnywhere, Category = "Golmok|Zone")
 	TObjectPtr<USceneComponent> Root;
 
-	UPROPERTY(Transient)
+	// VisibleAnywhere so the runtime-created (native, transient) components show up in the details panel for the
+	// PC verifier; each component also carries its manifest id as a component tag.
+	UPROPERTY(VisibleAnywhere, Transient, Category = "Golmok|Zone|State")
 	TArray<TObjectPtr<UStaticMeshComponent>> ChunkComponents;
 
-	UPROPERTY(Transient)
+	UPROPERTY(VisibleAnywhere, Transient, Category = "Golmok|Zone|State")
 	TArray<TObjectPtr<UStaticMeshComponent>> CollisionComponents;
 
-	UPROPERTY(Transient)
+	UPROPERTY(VisibleAnywhere, Transient, Category = "Golmok|Zone|State")
 	TArray<TObjectPtr<UBoxComponent>> PlaceholderBoxes;
 
-	UPROPERTY(Transient)
+	UPROPERTY(VisibleAnywhere, Transient, Category = "Golmok|Zone|State")
 	TArray<TObjectPtr<UBoxComponent>> BlockerComponents;
 
 	TArray<FVector2D> FootprintUE;

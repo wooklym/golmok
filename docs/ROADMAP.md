@@ -119,6 +119,7 @@
 - 이음새 처리: 배경과의 경계 블렌드, 골목 끝 "출구" 방향의 원경 처리.
 - 재구성 후처리 도구 — ✅ `golmok-mesh`(청크·충돌·blocker)·`golmok-splat`(정리·3D Tiles), 절차 `runbooks/recon-postprocess.md`(WP-03).
 - Zone 데이터 계약 — ✅ `spec/zone-manifest.md`(manifest·Index 스키마, 좌표·UE 매핑 규약) + `golmok-zone` CLI(WP-02). 배경 제외는 `golmok-zone exclude` → `golmok-basemap --exclude`.
+- UE 런타임 Geo·Zone — 🟡 코드 완료·PC 검증 대기(WP-04): `Geo/`(ENU↔UE 변환, 원점 액터), `Zones/`(manifest 로더, 거리 로드/언로드, priority, 태그 기반 베이스맵 숨김). 검증 런북 `runbooks/pc-verify-wp04.md`(V-03).
 - 완료 기준: 골목 전 구간을 걷고 뛰는 동안 끼임, 떨림, 구멍이 없고, 품질 목표 fps를 달성한다.
 
 ### 1.5 실내 1곳

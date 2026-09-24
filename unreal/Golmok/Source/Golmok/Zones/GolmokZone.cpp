@@ -328,7 +328,7 @@ int32 AGolmokZone::BuildVisualLayer()
 		UStaticMesh* Mesh = bMeshFormat ? LoadMeshAsset(AssetPath) : nullptr;
 		if (Mesh)
 		{
-			if (UStaticMeshComponent* Component = MakeMeshComponent(MakeComponentName(TEXT("Chunk"), Chunk.Id), Mesh, /*bVisual*/ true))
+			if (UStaticMeshComponent* Component = MakeMeshComponent(MakeComponentName(TEXT("Chunk"), Chunk.Id), Mesh, /*bVisual*/ true, Chunk.Id))
 			{
 				ChunkComponents.Add(Component);
 				++Loaded;
@@ -360,7 +360,7 @@ int32 AGolmokZone::BuildVisualLayer()
 		{
 			const FBox Box = GolmokGeo::EnuBoxToUE(Chunk.BboxMinEnu, Chunk.BboxMaxEnu);
 			if (UBoxComponent* Proxy = MakeBoxComponent(MakeComponentName(TEXT("Missing"), Chunk.Id), Box.GetCenter(), FRotator::ZeroRotator,
-					Box.GetExtent(), /*bCollide*/ false, FColor::Orange))
+					Box.GetExtent(), /*bCollide*/ false, FColor::Orange, Chunk.Id))
 			{
 				PlaceholderBoxes.Add(Proxy);
 			}
@@ -388,7 +388,7 @@ int32 AGolmokZone::BuildCollisionLayer()
 		if (UStaticMesh* Mesh = LoadMeshAsset(AssetPath))
 		{
 			const FName Name = Id.IsEmpty() ? FName(TEXT("Collision")) : MakeComponentName(TEXT("Collision"), Id);
-			if (UStaticMeshComponent* Component = MakeMeshComponent(Name, Mesh, /*bVisual*/ false))
+			if (UStaticMeshComponent* Component = MakeMeshComponent(Name, Mesh, /*bVisual*/ false, Id.IsEmpty() ? TEXT("collision") : Id))
 			{
 				CollisionComponents.Add(Component);
 				++Loaded;
@@ -419,7 +419,7 @@ int32 AGolmokZone::BuildBlockers()
 		const FVector Extent(BlockerThicknessCm * 0.5, Plane.SizeM.X * 50.0, Plane.SizeM.Y * 50.0);
 		const FColor Color = (Plane.Kind == EGolmokBlockerKind::Glass) ? FColor::Cyan : FColor::Red;
 		const FVector RelCenter = GolmokGeo::EnuToUE(Plane.CenterEnu);
-		if (UBoxComponent* Blocker = MakeBoxComponent(MakeComponentName(TEXT("Blocker"), Plane.Id), RelCenter, Rotation, Extent, /*bCollide*/ true, Color))
+		if (UBoxComponent* Blocker = MakeBoxComponent(MakeComponentName(TEXT("Blocker"), Plane.Id), RelCenter, Rotation, Extent, /*bCollide*/ true, Color, Plane.Id))
 		{
 			BlockerComponents.Add(Blocker);
 			++Built;
@@ -529,8 +529,8 @@ void AGolmokZone::SetCollisionEnabled(bool bEnabled)
 
 FName AGolmokZone::UniqueComponentName(const FName& Base) const
 {
-	// A component destroyed by Unload() a moment ago may still exist until the next GC; MakeUniqueObjectName would
-	// rewrite ids that end in _<digits> (glass_1 -> glass_2), so add our own suffix instead.
+	// Destroyed components are renamed to TRASH_* (see DestroyOwnedComponents), so the exact name is normally free.
+	// MakeUniqueObjectName would rewrite ids that end in _<digits> (glass_1 -> glass_2), so add our own suffix instead.
 	UObject* Outer = const_cast<AGolmokZone*>(this);
 	if (!StaticFindObjectFast(nullptr, Outer, Base))
 	{
@@ -547,7 +547,7 @@ FName AGolmokZone::UniqueComponentName(const FName& Base) const
 	return NAME_None; // NewObject picks a name
 }
 
-UStaticMeshComponent* AGolmokZone::MakeMeshComponent(const FName& Name, UStaticMesh* Mesh, bool bVisual)
+UStaticMeshComponent* AGolmokZone::MakeMeshComponent(const FName& Name, UStaticMesh* Mesh, bool bVisual, const FString& Tag)
 {
 	if (!Mesh || !Root)
 	{
@@ -558,6 +558,7 @@ UStaticMeshComponent* AGolmokZone::MakeMeshComponent(const FName& Name, UStaticM
 	{
 		return nullptr;
 	}
+	Component->ComponentTags.Add(FName(*Tag));
 	Component->SetMobility(EComponentMobility::Stationary);
 	Component->SetupAttachment(Root);
 	Component->SetRelativeTransform(FTransform::Identity);
@@ -583,7 +584,7 @@ UStaticMeshComponent* AGolmokZone::MakeMeshComponent(const FName& Name, UStaticM
 }
 
 UBoxComponent* AGolmokZone::MakeBoxComponent(const FName& Name, const FVector& RelativeLocation, const FRotator& RelativeRotation,
-	const FVector& Extent, bool bCollide, const FColor& Color)
+	const FVector& Extent, bool bCollide, const FColor& Color, const FString& Tag)
 {
 	if (!Root)
 	{
@@ -594,6 +595,7 @@ UBoxComponent* AGolmokZone::MakeBoxComponent(const FName& Name, const FVector& R
 	{
 		return nullptr;
 	}
+	Box->ComponentTags.Add(FName(*Tag));
 	Box->SetMobility(EComponentMobility::Stationary);
 	Box->SetupAttachment(Root);
 	Box->SetRelativeLocationAndRotation(RelativeLocation, RelativeRotation);
@@ -624,12 +626,16 @@ UBoxComponent* AGolmokZone::MakeBoxComponent(const FName& Name, const FVector& R
 
 void AGolmokZone::DestroyOwnedComponents()
 {
-	auto DestroyAll = [](auto& Components) {
+	// Same pattern as AActor::DestroyConstructedComponents: rename the dead component out of the way so the next
+	// Load() can reuse the exact name (Chunk_<id>, Blocker_<id>) before the garbage collector runs.
+	auto DestroyAll = [this](auto& Components) {
 		for (auto& Component : Components)
 		{
 			if (IsValid(Component))
 			{
 				Component->DestroyComponent();
+				const FName Trash = MakeUniqueObjectName(this, Component->GetClass(), TEXT("TRASH_Golmok"));
+				Component->Rename(*Trash.ToString(), this, REN_DontCreateRedirectors | REN_DoNotDirty | REN_NonTransactional | REN_ForceNoResetLoaders);
 			}
 		}
 		Components.Empty();

@@ -46,7 +46,7 @@ synthetic_zone: PlayerStart moved to ...
 - [ ] 콘텐츠 브라우저 `/Game/Golmok/Zones/z_synthetic_001/v1/`에 `SM_chunk_00`, `SM_chunk_01`, `SM_chunk_02`, `SM_z_synthetic_001_collision` 4개.
 - [ ] 아웃라이너 `Golmok/GeoOrigin`(위치 0,0,0, Latitude 37.56, Longitude 126.923, HeightEllipsoidal 40), `Golmok/Zones/Zone_z_synthetic_001`, `Golmok/Zone_Ground`(400 m 지면, 슬래브보다 20 cm 아래), `Golmok/BasemapDummy/BM_dummy_inside`·`BM_dummy_outside`.
 - [ ] 뷰포트: 레벨 원점에서 동쪽 176.7 m·남쪽 222 m·위 10 m에 파사드 벽 3조각(각 13~14 m 폭, 12 m 높이, 두께 0.2 m)이 동서로 이어져 있고, 서쪽 조각(chunk_00)에 문 크기 구멍(폭 3 m, 높이 2.5 m)이 있다. 벽 남쪽에 44×24 m 충돌 슬래브(회색, 에디터에서는 보임).
-- [ ] `Zone_z_synthetic_001` 디테일: State = Loaded, LastError 비어 있음, Manifest.Priority 10, Manifest.Portals 1개(door_1).
+- [ ] `Zone_z_synthetic_001` 디테일: State = Loaded, LastError 비어 있음, MissingAssetCount 0, Manifest.Priority 10, Manifest.Portals 1개(door_1), ChunkComponents 3(`Chunk_chunk_00..02`), CollisionComponents 1(`Collision`), BlockerComponents 1(`Blocker_glass_1`, 컴포넌트 태그 `glass_1`).
 
 수치 대조(스펙 `docs/spec/zone-manifest.md` §4 표 C, 원점 37.5600/126.9230/40). 런타임 생성 컴포넌트는 디테일 패널에 나오지 않으므로 **위 로그 줄**과 비교한다:
 | 항목 | 기대값(레벨 UE cm) | 어디서 |
@@ -109,7 +109,7 @@ golmok.zone.list
 | 17 | synthetic_zone.py | `unreal.GolmokGeoOrigin`, `unreal.GolmokZone`, `set_editor_property("zone_id")`, `zone.rebuild_in_editor()` | Python 이름 노출(BlueprintCallable) | `zone.call_method("RebuildInEditor")`; 속성 이름은 `dir(zone)`으로 확인 |
 | 18 | synthetic_zone.py | `unreal.Paths.project_content_dir()/project_saved_dir()`, `EditorAssetLibrary.delete_directory` | 안정 | `unreal.SystemLibrary.get_project_content_directory()` |
 | 19 | GolmokZone | 루트 Movable + 자식 Stationary 조합(런타임 `SetActorTransform` 허용, Static 자식은 비Static 부모에 붙일 수 없음) | 런타임 로그 "AttachTo … Aborting" 또는 "Mobility … has to be Movable" | 자식도 Movable로(VSM 캐시 비용 증가) 또는 원점 액터를 먼저 배치해 에디터에서 위치 확정 후 루트 Static |
-| 20 | GolmokZone | `MakeUniqueObjectName(this, Class, BaseName)` + `NewObject(Outer, Name, RF_Transient)` | 안정 | `NewObject<…>(this)` (이름 자동) |
+| 20 | GolmokZone | `StaticFindObjectFast(nullptr, this, Name)`, `UObject::Rename(*Name, this, REN_DontCreateRedirectors \| REN_DoNotDirty \| REN_NonTransactional \| REN_ForceNoResetLoaders)`(언로드한 컴포넌트를 `TRASH_Golmok_*`로 개명) | 플래그 이름 | Rename 줄 삭제(이름이 `__<n>` 접미사를 얻을 뿐 동작 동일) |
 | 21 | GolmokZoneSubsystem | `FWorldDelegates::LevelAddedToWorld / LevelRemovedFromWorld` (`AddUObject`, `(ULevel*, UWorld*)`) | 시그니처·존재 | 바인드 두 줄 삭제 후 `DefaultGame.ini`의 `BasemapRescanSeconds=10` |
 | 22 | GolmokZoneManifest | `FRegexPattern`/`FRegexMatcher` (`Internationalization/Regex.h`, zone_id 검사) | 안정(Core) | 수동 문자 검사로 교체 |
 | 23 | GolmokZoneManifest | `TJsonWriterFactory<TCHAR, TCondensedJsonPrintPolicy<TCHAR>>::Create(&String)` + `FJsonSerializer::Serialize(Obj, Writer)` (quality 추가 키 보존) | 안정 | `ExtraJson` 채우는 블록 삭제 |

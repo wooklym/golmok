@@ -1,6 +1,6 @@
 # WP-04 — UE C++ 런타임 1: Geo·Zone
 
-상태: ⚪ 대기(Opus 세션의 착수는 모델 정책에 따라 중단·재배정) · 담당: 클라우드 Claude 세션(**Fable 5.1 ultracode**, 모델 정책 DEVELOPMENT-PLAN §7.4) · 의존: WP-02 · 검증: **G2(PC 빌드·PIE, `runbooks/pc-verify-wp04.md`)**
+상태: 🟡 코드 완료·PC 검증 대기 (2026-09-24, session_01GGmw3pPHLp4Wk5Us9243AL) · 담당: 클라우드 Claude 세션(**Fable 5.1 ultracode**, 모델 정책 DEVELOPMENT-PLAN §7.4) · 의존: WP-02 · 검증: **G2(PC 빌드·PIE, [runbooks/pc-verify-wp04.md](../runbooks/pc-verify-wp04.md))**
 
 ## 목표
 Zone manifest를 읽어 청크 메시·충돌·blocker를 올바른 위치에 배치하고, 거리·우선순위 규칙으로 로드/언로드하며, 겹치는 배경 베이스맵을 숨기는 **런타임 핵심**을 C++로 만든다. 이 세션은 UE를 빌드할 수 없으므로 **보수적인 API + 상세한 PC 검증 런북**이 완료 조건이다.
@@ -263,7 +263,7 @@ private:
   bool bManifestLoaded = false;  bool bVisualVisible = true;  bool bCollisionOn = true;  bool bWarnedAsync = false;
 };
 ```
-런타임 컴포넌트: `NewObject<>(this, MakeUniqueObjectName(this, Class, Name), RF_Transient)` → `SetMobility(Stationary)` → `SetupAttachment(Root)` → 설정 → `RegisterComponent()`. 에디터에서도 `AddInstanceComponent` 안 함(레벨에 저장하지 않고 항상 manifest에서 재생성). 이름 `Chunk_<id>`, `Collision`/`Collision_<id>`, `Blocker_<id>`, `Missing_<id>`.
+런타임 컴포넌트: `NewObject<>(this, UniqueComponentName(Name), RF_Transient)`(정확한 이름 `Chunk_<id>`·`Blocker_<id>`; 언로드 시 죽은 컴포넌트는 `TRASH_Golmok_*`로 개명해 이름을 비운다 — `AActor::DestroyConstructedComponents`와 같은 방식. 컴포넌트 태그 = manifest id) → `SetMobility(Stationary)` → `SetupAttachment(Root)` → 설정 → `RegisterComponent()`. 에디터에서도 `AddInstanceComponent` 안 함(레벨에 저장하지 않고 항상 manifest에서 재생성). 이름 `Chunk_<id>`, `Collision`/`Collision_<id>`, `Blocker_<id>`, `Missing_<id>`.
 
 #### 3-6 `Zones/GolmokZoneSubsystem.h`
 ```cpp
@@ -417,7 +417,7 @@ BlockerThicknessCm=10
 | 12 | GolmokZone | `UCollisionProfile::BlockAll_ProfileName / NoCollision_ProfileName` | 안정 | `SetCollisionProfileName(TEXT("BlockAll"))` |
 | 13 | GolmokZone | `SetupAttachment(Root)` → `RegisterComponent()` (런타임 NewObject) | 경고 가능 | `RegisterComponent()` 후 `AttachToComponent(Root, KeepRelativeTransform)` |
 | 14 | GolmokZone | 루트 Movable + 자식 Stationary | "Mobility … has to be Movable" 로그 | 자식도 Movable(VSM 캐시 비용↑) |
-| 15 | GolmokZone | `MakeUniqueObjectName(this, Class, Base)` + `NewObject(Outer, Name, RF_Transient)` | 안정 | `NewObject<>(this)`(이름 자동) |
+| 15 | GolmokZone | `StaticFindObjectFast(nullptr, this, Name)`, `UObject::Rename(*Name, this, REN_DontCreateRedirectors \| REN_DoNotDirty \| REN_NonTransactional \| REN_ForceNoResetLoaders)`(죽은 컴포넌트 TRASH 개명) | 플래그 이름 | Rename 줄 삭제(이름이 `__<n>` 접미사를 얻을 뿐 동작 동일) |
 | 16 | GolmokZone | `UFUNCTION(CallInEditor, BlueprintCallable)` 조합 | 허용 | `BlueprintCallable` 제거, Python은 `call_method("RebuildInEditor")` |
 | 17 | GolmokZone | `bAffectDistanceFieldLighting` 직접 대입 | public UPROPERTY | 줄 삭제 |
 | 18 | GolmokGeo | `FMatrix::ToQuat()` | 안정 | `FQuat(Rot)` 또는 `Rot.Rotator().Quaternion()` |
@@ -447,4 +447,40 @@ BlockerThicknessCm=10
 10. **quality 추가 키**: 문자열(`ExtraJson`) 보존만, 구조화하지 않는다.
 
 ## 결과
-(세션이 작성)
+세션: session_01GGmw3pPHLp4Wk5Us9243AL (Fable 5.1 ultracode; 검증 단계 회의론자는 사용자 지시로 Opus) · 2026-09-24 · 상태 **🟡 코드 완료·PC 검증 대기** (G2 `runbooks/pc-verify-wp04.md`, V-03)
+
+**진행 방식(ultracode)** — ① 설계 패널: 안정성·성능·스펙 충실 3안(Fable) → 심판 채점(스펙안 34/40 승, 결함 목록) → 종합 → 위 "설계 (확정)" 절. ② 구현(Geo → Zones, 공용 헤더 `GolmokGeoMath.h` 먼저 확정·g++ 테스트로 고정). ③ 적대적 리뷰: UE 5.8 API / 리플렉션·빌드 / 수학·규약 / 스펙·런북 4관점(Fable) → 원시 소견 20건 → 소견마다 회의론자 2명(Opus, 엔진 사실 관점 + 코드 맥락 관점)이 반박 시도 → **확정 6·반박 14**(반박 14 중 12는 1차 수정 커밋 뒤 "이미 고쳐짐", 실질 반박은 A6·D5 2건). 확정 6건은 모두 반영: A1 컴포넌트 이름 훼손(`MakeUniqueObjectName`이 `glass_1`→`glass_2`; 정확한 이름 + 죽은 컴포넌트 TRASH 개명 + 컴포넌트 태그), A2 런타임 컴포넌트가 디테일 패널에 안 보임(배열 `VisibleAnywhere` + 배치 로그 추가), A3 런북 로그 문자열(`blockers 1/1`), A4 언로드 테스트 거리(원점 기준 −50 m), A5 설계 시그니처 불일치(설계 문구를 코드에 맞춤: `FTransform GetPortalWorldTransform(...) const`, `int32 Build*()`), D7 결과·STATUS(이 절). 세션 자체 점검으로 잡은 것: UE `PI` 매크로 충돌(`Pi`로 개명), Static 루트는 게임 월드에서 이동 불가(루트 Movable·자식 Stationary), `FTimerHandle` include, 원점 없는 레벨의 `LonLatToLevelUE` 폴백 오류(false 반환으로 변경), blocker 축 임계값을 Python 기준(`|h|<1e-6`)에 맞춤, exterior 쌍만 겹침 판정, L_Dev 바닥이 zone까지 안 닿음(`Zone_Ground` 평면).
+
+**한 것** (`unreal/Golmok/`)
+- `Source/Golmok/Geo/GolmokGeoMath.h` — 순수 double 수학(UE 비의존). `tools/tests/test_ue_geo_math.py`가 g++로 컴파일해 `golmok_tools.zone.transform`·스펙 §4 표 A/B/C·shapely와 교차검증(1e-6 m, 13 테스트).
+- `Geo/GolmokGeo`(FMatrix/FTransform 래퍼, `RunSpecSelfTest`), `Geo/GolmokGeoOrigin`(기본값 = 스펙 area 원점), `Geo/GolmokGeoSubsystem`(`ZoneLocalToWorld` = S·M·S⁻¹, 원점 없으면 zone 원점 폴백 + 경고 1회, 콘솔 `golmok.geo.selftest`).
+- `Zones/GolmokZoneManifest`(스펙 §3 1:1 USTRUCT·enum, `FJsonSerializer` 수동 파서: 필수 필드·rigid·uri·zone_id·consent 검사, 경로 함수), `Zones/GolmokZone`(Load/Unload, 청크·충돌·blocker 트랜지언트 컴포넌트, 에셋 없으면 와이어 박스, footprint 캐시, `RebuildInEditor`, WP-05 훅), `Zones/GolmokZoneSubsystem`(FTimerManager 0.5 s, bbox 사전검사 → footprint 거리 히스테리시스, priority→version 겹침, 태그 베이스맵 숨김·복원, 콘솔 `golmok.zone.list/load/unload/refresh/radius`).
+- `Golmok.Build.cs`(Json, JsonUtilities), `Config/DefaultGame.ini`(UFS 스테이징, `[/Script/Golmok.GolmokZoneSubsystem]` 11키, `[/Script/Golmok.GolmokZone]` 3키), `Content/Golmok/Zones/z_synthetic_001/v1/`(WP-02 픽스처 사본), `Content/Python/golmok/synthetic_zone.py`(GLB 2-pass 임포트로 파사드 벽 3청크(문 구멍 = glass_1) + 충돌 슬래브, GeoOrigin/Zone FindOrSpawn, 더미 베이스맵 큐브 2개, 지면, PlayerStart 이동), `basemap_import.py`에 `GolmokBasemap`/`GolmokBasemapTerrain`/`tile:<id>` 태그 한 줄(WP-06 항목 5를 앞당김).
+- 테스트: `test_ue_geo_math.py`(13), `test_ue_zone_fixture.py`(22: 픽스처 동일성·스키마·에셋 이름·ini 키 = UPROPERTY(Config)·Build.cs·헤더/소스 규약·순수 헤더), `test_ue_python_synthetic_zone.py`(3, 가짜 `unreal`). 런북 `docs/runbooks/pc-verify-wp04.md`.
+
+**코드 리뷰 체크리스트**
+- (a) UPROPERTY 타입: `double`, `TArray<double>`, `FVector`(=FVector3d), `FVector2D`, `FString`, `int32`, `bool`, `TArray<USTRUCT>`, `TObjectPtr`, `TWeakObjectPtr`(USTRUCT 안), `UENUM(enum class : uint8)` 3종 — 모두 리플렉션 가능. 한 UPROPERTY에 선언자 하나. 리뷰어(b)·회의론자 확인.
+- (b) double↔float: 설정값 `LoadRadiusM` 등은 float(UPROPERTY Config), 비교는 double 거리와 암시 승격(float→double, 손실 없음). `BlockerThicknessCm`은 double. Mat4 ↔ FMatrix/FVector은 double 그대로(UE5 LWC). `int32` ← JSON double은 `static_cast<int32>`. Python 진입점(`FCString::Atof`)만 float.
+- (c) `#if WITH_EDITOR`: `AGolmokGeoOrigin::PostEditChangeProperty`, `AGolmokZone::PostEditChangeProperty`. `RebuildInEditor`는 `CallInEditor` UFUNCTION이라 모든 빌드에 존재(본문은 런타임 코드만 사용).
+- (d) 로그 카테고리: Geo/Zones 모두 `LogGolmok`(테스트가 `LogTemp` 금지 확인).
+- (e) nullptr/IsValid: `GetWorld()`·서브시스템·`NewObject` 결과·`TWeakObjectPtr::Get()`·`IsValid(Component)`·JSON 포인터(`Found && Found->IsValid()`)·`TArray` 인덱스 접근 전 `Num()` 검사.
+- (f) Tick 비용: Tick 없음. `FTimerManager` 0.5 s(`UpdateIntervalSeconds`, 최소 0.1). 폴리곤 거리는 bbox 사전검사를 통과한 zone만, point-in-polygon·폴리곤 겹침은 로드/언로드 이벤트 때만, 베이스맵 액터 스캔은 BeginPlay·서브레벨 변경·콘솔·(선택) 주기 때만.
+
+**테스트 로그(클라우드)**: `ruff check .` All checks passed · `ruff format --check .` 68 files already formatted · `pytest -q` **218 passed, 2 skipped, 189 warnings in 12.06s** · `check_repo.py` OK. CI(GitHub Actions `ci.yml`): 첫 push(90a0d69) success(ubuntu 3.11/3.12, windows 3.12, repo-check, tiles-validate); 최종 커밋 결과는 PR #7 체크 참조.
+
+**불확실 API**: 공식 문서 사이트는 이 컨테이너에서 열리지 않았다(API 페이지는 스크립트 렌더링으로 본문 없음, 레거시 미러 403). 확신 없는 호출 24건과 대안을 런북 §6 표(0~24)와 설계 §11에 적었다. 리뷰어(a)·(b)는 엔진 헤더 기억으로 시그니처를 확인했고 이의는 위 확정 목록뿐이었다.
+
+**판단한 것(스펙과 다른 점, 되돌리기 쉬움)**
+- `ZoneLocalToWorld`는 `FMatrix44d` 대신 manifest 그대로의 `TArray<double>`(row-major)과 `GolmokGeoMath::Mat4`를 받는다(UE FMatrix는 행벡터 규약이라 혼동 방지).
+- 루트 Movable + 자식 Stationary(게임 월드에서 BeginPlay 후 이동 허용). 겹침 패자는 시각만 끔(옵션 `bSuppressLoserCollision`), 베이스맵은 승자만 숨김. 큐브 픽스처 경로(`bDevFitChunkToBBox`)는 넣지 않음. manifest 폴더/파일 불일치는 Error.
+- `basemap_import.py` 태그 추가는 WP-06 범위였지만 한 줄이라 여기서 했다(PC에서 베이스맵을 다시 임포트하기 전까지 기존 레벨 액터에는 태그가 없음 — 런북 §3 (5)는 더미 큐브로 검증).
+
+**남은 것**
+- PC 검증 V-03(런북 §1~§5). 컴파일 에러는 런북 §6 표로 고치고 `WP-04: PC fix` 커밋.
+- Zone Index(`index/cells`)에서 zone을 발견해 스폰하는 경로(ARCHITECTURE §4-1)는 미구현 — 현재는 레벨에 배치된 `AGolmokZone`만 관리. 실 Zone이 2개 이상 생기면(V-06) 추가.
+- `bAsyncLoad`(FStreamableManager, 설계 §4-4 TODO), splat 시각 형식(D-010 뒤), `replaces.building_ids` 단위 숨김(태그 `tile:<id>`만 준비).
+
+**WP-05·06에 알릴 것**
+- WP-05: `AGolmokZone::SpawnPortals()/DestroyPortals()`(virtual, `PortalActors` 배열), `Manifest.Portals`, `GetPortalWorldTransform(portal)`(S·position, Yaw −yaw_deg, × 루트), `PortalRadiusCm`. 실내 zone 로드는 `UGolmokZoneSubsystem::RequestLoad(id, bPin)`/`RequestUnload`(interior는 거리 자동 관리 제외, 부모가 언로드되면 정리됨). HUD용 `UGolmokGeoSubsystem::LevelUEToLonLat`. `AGolmokZone::SetVisualVisible/SetCollisionEnabled`는 스파이크 레이어 토글.
+- WP-06: `zone_import.py`는 `synthetic_zone.py`의 `find_or_spawn_geo_origin`·`find_or_spawn_zone`·`pretransform_box`(임포터 매핑 상쇄)를 재사용하면 된다. Python 이름: `zone_id`, `version`, `rebuild_in_editor()`, `load()`, `unload()`. 청크 정점은 임포트 후 UE cm(zone-local)이어야 하며 액터 변환은 C++가 manifest에서 계산한다(Python은 배치하지 않음). GeoOrigin 값은 베이스맵 manifest `origin`(타원체고 주의, 스펙 §1).
+
