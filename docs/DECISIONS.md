@@ -19,6 +19,7 @@
 - 새 의존성을 추가할 때는 LICENSE 원문을 확인하고 이 문서에 기록한다.
 - 상용 툴(RealityScan, Postshot, 서드파티 UE 플러그인)은 **EULA와 배포 조건**을 확인하고 기록한다.
 - 로컬 데이터 도구 `golmok-zone`(WP-02, `zone` extra — 게임 패키지에는 들어가지 않음): **jsonschema** 4.26 — MIT, 의존 **referencing**·**jsonschema-specifications**·**rpds-py** — MIT(모두 Julian Berman), **attrs** — MIT [확인: 각 wheel의 `*.dist-info/licenses/` 원문, https://github.com/python-jsonschema/jsonschema/blob/main/COPYING]. `basemap`과 같이 쓰는 **pyproj** 3.7 — MIT(동봉 PROJ — MIT/X 계열), **shapely** 2.1 — BSD-3-Clause(동봉 GEOS — **LGPL-2.1**, 동적 라이브러리로 링크돼 도구로 쓰는 데 제약 없음. 게임에 동봉하지 않는다) [확인: wheel 동봉 LICENSE·LICENSE_proj·LICENSE_GEOS 원문]. 2026-09-24 확인.
+- 로컬 정합 도구 `golmok-align`(WP-07, `align` extra — 게임 패키지에는 들어가지 않음): **trimesh** 5.1 — MIT [확인: wheel 동봉 LICENSE.md 원문, https://github.com/mikedh/trimesh/blob/main/LICENSE.md], **scipy** 1.17 — BSD-3-Clause [확인: wheel 동봉 LICENSE.txt, https://github.com/scipy/scipy/blob/main/LICENSE.txt]. **open3d(MIT)는 쓰지 않는다**: 리눅스 CI 러너에 libEGL이 없어 import가 실패하므로 ICP를 numpy/scipy로 직접 구현했다. 2026-09-24 확인.
 - 개발·CI 전용 도구(제품에 포함되지 않음, WP-01): **ruff** — MIT [확인: https://github.com/astral-sh/ruff/blob/main/LICENSE], **3d-tiles-validator**(CesiumGS, `npx`로 CI에서만 실행) — Apache-2.0 [확인: https://github.com/CesiumGS/3d-tiles-validator/blob/main/LICENSE.md]. 2026-09-24 원문 확인.
 
 ### D-003 | 승인 | 2026-09-24 — 엔진: **Unreal Engine 5 + Cesium for Unreal**
