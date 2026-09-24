@@ -340,6 +340,22 @@ def _measure_mapping(work_dir):
     return scale, m
 
 
+def _move_asset(asset, dst):
+    """Move `asset` to the object path `dst` (/Game/.../Name), replacing an existing asset there."""
+    src = asset.get_path_name().split(".")[0]
+    if src == dst:
+        return asset
+    lib = unreal.EditorAssetLibrary
+    if lib.does_asset_exist(dst) and not lib.delete_asset(dst):
+        raise RuntimeError(f"synthetic_zone: could not replace {dst}")
+    if not lib.rename_asset(src, dst):
+        raise RuntimeError(f"synthetic_zone: could not move {src} -> {dst}")
+    moved = lib.load_asset(dst)
+    if moved is None:
+        raise RuntimeError(f"synthetic_zone: {dst} missing after move")
+    return moved
+
+
 def _import_geometry(geometry, folder, work_dir, scale, m):
     """Write every {name: boxes} of `geometry` as a GLB (pre-transformed for the measured importer mapping),
     import it as <folder>/<name>, verify the UE bounds, and make *_collision meshes complex-as-simple."""
@@ -348,8 +364,14 @@ def _import_geometry(geometry, folder, work_dir, scale, m):
         path = os.path.join(work_dir, f"{name}.glb")
         with open(path, "wb") as f:
             f.write(boxes_glb(written, name))
-        mesh = bm._import_glb(path, folder)
+        # UE 5.8 Interchange lays glTF imports out as <dest>/<source name>/StaticMeshes/<name> (V-03 finding);
+        # AGolmokZone loads the flat convention path <folder>/SM_<name> (spec §5), so import into a scratch
+        # subfolder and move the mesh there (same pattern as _measure_mapping's _probe folder).
+        scratch = f"{folder}/_import"
         expected_path = f"{folder}/{name}"
+        mesh = _move_asset(bm._import_glb(path, scratch), expected_path)
+        if unreal.EditorAssetLibrary.does_directory_exist(scratch):
+            unreal.EditorAssetLibrary.delete_directory(scratch)
         if mesh.get_path_name().split(".")[0] != expected_path:
             raise RuntimeError(
                 f"{name}: imported as {mesh.get_path_name()}, but AGolmokZone loads {expected_path}"
