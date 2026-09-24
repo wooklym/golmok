@@ -181,8 +181,8 @@ protected:
 	/**
 	 * Timers cleared. An entry portal always drops its lighting source (ExitInterior(PortalId) is a no-op when the
 	 * source is absent); while Active / Leaving it also streams the sublevel out and, unless the world is tearing down,
-	 * schedules RequestUnload(TargetZoneId) for the next tick (off the Evaluate() stack; skipped when another Active /
-	 * Leaving portal targets the same interior).
+	 * schedules UnloadInteriorAfterEndPlay() for the next tick (off the Evaluate() stack; skipped when another Active /
+	 * Leaving portal targets the same interior, retried after DebounceSeconds while one is Pending).
 	 */
 	virtual void EndPlay(const EEndPlayReason::Type Reason) override;
 
@@ -231,16 +231,36 @@ private:
 	 */
 	void ReleaseSiblings();
 
+	/** Any entry portal (not Except) targeting ZoneId that is valid, not being destroyed, and passes Pred. */
+	static bool AnyEntryPortal(UWorld* World, const FString& ZoneId, const AGolmokPortal* Except, TFunctionRef<bool(const AGolmokPortal&)> Pred);
+
 	/** Another entry portal (not Except) targeting ZoneId is Active / Leaving. */
 	static bool IsInteriorZoneInUse(UWorld* World, const FString& ZoneId, const AGolmokPortal* Except);
+
+	/**
+	 * Another entry portal (not Except) targeting ZoneId is Pending: the player stands in its box with the debounce
+	 * running, so within DebounceSeconds it either Activates (the interior stays in use) or goes Idle. Unloading the
+	 * interior in that window would have the sibling reload it right after (load/unload thrash); the unload waits.
+	 * Pending itself never counts as "in use": a Pending portal the player leaves goes Idle without unloading, which
+	 * would pin the interior forever.
+	 */
+	static bool HasPendingSibling(UWorld* World, const FString& ZoneId, const AGolmokPortal* Except);
+
+	/**
+	 * The RequestUnload(ZoneId) an entry portal owed when it was destroyed while Active / Leaving (EndPlay defers it to
+	 * the next tick): skipped when another entry portal targeting ZoneId is Active / Leaving, retried after RetrySeconds
+	 * while one is Pending (a re-loaded exterior's fresh portal with the player already in its box), else unloads.
+	 */
+	static void UnloadInteriorAfterEndPlay(UGolmokZoneSubsystem* Subsystem, const FString& ZoneId, const FString& PortalId, float RetrySeconds);
 
 	/** Pending -> Active: RequestLoad + StreamIn (also when the pawn already left the box on the interior side). */
 	void OnDebounceElapsed();
 
 	/**
 	 * Leaving -> Idle: StreamOut + RequestUnload, both skipped while another Active / Leaving portal targets the same
-	 * interior (the last one out unloads). With the player still in the trigger (LeaveInterior at the door) the portal
-	 * goes Pending with a fresh debounce instead of Idle.
+	 * interior (the last one out unloads). While another portal is Pending the portal stays Leaving and re-arms its
+	 * unload timer for DebounceSeconds (the sibling decides first). With the player still in the trigger (LeaveInterior
+	 * at the door) the portal goes Pending with a fresh debounce instead of Idle.
 	 */
 	void OnUnloadDelayElapsed();
 

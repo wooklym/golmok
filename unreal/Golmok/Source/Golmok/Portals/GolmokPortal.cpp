@@ -178,17 +178,9 @@ void AGolmokPortal::EndPlay(const EEndPlayReason::Type Reason)
 			UGolmokZoneSubsystem* Subsystem = GetZoneSubsystem();
 			if (bWorldAlive && Subsystem && Subsystem->FindZone(TargetZoneId))
 			{
-				auto UnloadInterior = [Subsystem, ZoneId = TargetZoneId, Portal = PortalId]()
+				auto UnloadInterior = [Subsystem, ZoneId = TargetZoneId, Portal = PortalId, Retry = DebounceSeconds + 0.05f]()
 				{
-					if (IsInteriorZoneInUse(Subsystem->GetWorld(), ZoneId, nullptr))
-					{
-						UE_LOG(LogGolmok, Log, TEXT("Portal %s: gone; %s kept (another portal is active)"), *Portal, *ZoneId);
-						return;
-					}
-					// The interior is not distance-managed, so the bBlocked flag RequestUnload sets is harmless.
-					FString ZoneMsg;
-					Subsystem->RequestUnload(ZoneId, ZoneMsg);
-					UE_LOG(LogGolmok, Log, TEXT("Portal %s: gone -> %s"), *Portal, *ZoneMsg);
+					UnloadInteriorAfterEndPlay(Subsystem, ZoneId, Portal, Retry);
 				};
 				World->GetTimerManager().SetTimerForNextTick(FTimerDelegate::CreateWeakLambda(Subsystem, MoveTemp(UnloadInterior)));
 				Msg += TEXT("; zone unload scheduled");
@@ -437,7 +429,7 @@ bool AGolmokPortal::IsPlayerPawn(const AActor* Other) const
 	return Player != nullptr && Player == Other;
 }
 
-bool AGolmokPortal::IsInteriorZoneInUse(UWorld* World, const FString& ZoneId, const AGolmokPortal* Except)
+bool AGolmokPortal::AnyEntryPortal(UWorld* World, const FString& ZoneId, const AGolmokPortal* Except, TFunctionRef<bool(const AGolmokPortal&)> Pred)
 {
 	if (!World)
 	{
@@ -446,16 +438,60 @@ bool AGolmokPortal::IsInteriorZoneInUse(UWorld* World, const FString& ZoneId, co
 	for (TActorIterator<AGolmokPortal> It(World); It; ++It)
 	{
 		const AGolmokPortal* Other = *It;
-		if (Other == Except || !IsValid(Other) || Other->IsActorBeingDestroyed() || !Other->bIsEntry)
+		if (Other == Except || !IsValid(Other) || Other->IsActorBeingDestroyed() || !Other->bIsEntry || Other->TargetZoneId != ZoneId)
 		{
 			continue;
 		}
-		if (Other->TargetZoneId == ZoneId && (Other->State == EGolmokPortalState::Active || Other->State == EGolmokPortalState::Leaving))
+		if (Pred(*Other))
 		{
 			return true;
 		}
 	}
 	return false;
+}
+
+bool AGolmokPortal::IsInteriorZoneInUse(UWorld* World, const FString& ZoneId, const AGolmokPortal* Except)
+{
+	return AnyEntryPortal(World, ZoneId, Except, [](const AGolmokPortal& Other)
+	{
+		return Other.State == EGolmokPortalState::Active || Other.State == EGolmokPortalState::Leaving;
+	});
+}
+
+bool AGolmokPortal::HasPendingSibling(UWorld* World, const FString& ZoneId, const AGolmokPortal* Except)
+{
+	return AnyEntryPortal(World, ZoneId, Except, [](const AGolmokPortal& Other) { return Other.State == EGolmokPortalState::Pending; });
+}
+
+void AGolmokPortal::UnloadInteriorAfterEndPlay(UGolmokZoneSubsystem* Subsystem, const FString& ZoneId, const FString& PortalId, float RetrySeconds)
+{
+	UWorld* World = Subsystem ? Subsystem->GetWorld() : nullptr;
+	if (!World)
+	{
+		return;
+	}
+	if (IsInteriorZoneInUse(World, ZoneId, nullptr))
+	{
+		UE_LOG(LogGolmok, Log, TEXT("Portal %s: gone; %s kept (another portal is active)"), *PortalId, *ZoneId);
+		return;
+	}
+	if (HasPendingSibling(World, ZoneId, nullptr))
+	{
+		// The re-loaded exterior's fresh portal (or another door) has the player in its box and its debounce running:
+		// it Activates or goes Idle within DebounceSeconds. Ask again after that instead of unloading under it.
+		UE_LOG(LogGolmok, Log, TEXT("Portal %s: gone; unload of %s postponed %.2f s (another portal is pending)"), *PortalId, *ZoneId, RetrySeconds);
+		auto RetryUnload = [Subsystem, ZoneId, PortalId, RetrySeconds]()
+		{
+			UnloadInteriorAfterEndPlay(Subsystem, ZoneId, PortalId, RetrySeconds);
+		};
+		FTimerHandle Retry;
+		World->GetTimerManager().SetTimer(Retry, FTimerDelegate::CreateWeakLambda(Subsystem, MoveTemp(RetryUnload)), TimerRate(RetrySeconds), false);
+		return;
+	}
+	// The interior is not distance-managed, so the bBlocked flag RequestUnload sets is harmless.
+	FString ZoneMsg;
+	Subsystem->RequestUnload(ZoneId, ZoneMsg);
+	UE_LOG(LogGolmok, Log, TEXT("Portal %s: gone -> %s"), *PortalId, *ZoneMsg);
 }
 
 // ---- timers ----------------------------------------------------------------------------------------------------
@@ -483,6 +519,17 @@ void AGolmokPortal::OnUnloadDelayElapsed()
 		return;
 	}
 	UWorld* World = GetWorld();
+	if (World && HasPendingSibling(World, TargetZoneId, this))
+	{
+		// Another door into the same interior has the player in its box with its debounce running. It either Activates
+		// (then the check below keeps the interior) or goes Idle (then the next check unloads) within DebounceSeconds;
+		// unloading now would have it reload the interior right after, the thrash UnloadDelaySeconds exists to prevent.
+		LastEvent = TEXT("unload postponed; another portal is pending");
+		World->GetTimerManager().SetTimer(UnloadTimer, this, &AGolmokPortal::OnUnloadDelayElapsed, TimerRate(DebounceSeconds + 0.05f), false);
+		UE_LOG(LogGolmok, Log, TEXT("Portal %s: unload of %s postponed %.2f s (another portal is pending)"), *PortalId, *TargetZoneId,
+			DebounceSeconds + 0.05f);
+		return;
+	}
 	FString StreamMsg;
 	StreamOut(StreamMsg);
 	if (IsInteriorZoneInUse(World, TargetZoneId, this))
