@@ -269,6 +269,11 @@ def run(folder, area_name=None, level=None):
         actor.set_actor_scale3d(scale3d)
         actor.set_actor_label(f"BM_{kind}_{tile['id']}")
         actor.set_folder_path(f"Basemap/{area}")
+        # WP-04: UGolmokZoneSubsystem hides tagged basemap actors under loaded zones (terrain only if terrain_clip).
+        tags = [unreal.Name("GolmokBasemap"), unreal.Name(f"tile:{tile['id']}")]
+        if kind == "terrain":
+            tags.append(unreal.Name("GolmokBasemapTerrain"))
+        actor.set_editor_property("tags", tags)
 
     _set_georeference(manifest["origin"])
     if level:

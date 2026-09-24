@@ -15,7 +15,10 @@ public class Golmok : ModuleRules
 			"CoreUObject",
 			"Engine",
 			"InputCore",
-			"EnhancedInput"
+			"EnhancedInput",
+			// WP-04: zone manifest / blockers JSON parsing (FJsonSerializer, FJsonObjectConverter)
+			"Json",
+			"JsonUtilities"
 		});
 
 		// Editor-only automation tests (Tests/) start PIE through UnrealEd.
