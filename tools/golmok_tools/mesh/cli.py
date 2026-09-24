@@ -1,8 +1,8 @@
 """golmok-mesh: RealityScan mesh -> zone chunks, collision, blockers (docs/runbooks/recon-postprocess.md).
 
 golmok-mesh inspect alley.obj
-golmok-mesh chunk alley.obj --size 15 --out zones/z_…/v1/visual --manifest zones/z_…/v1/manifest.json
-golmok-mesh collision alley.obj --out zones/z_…/v1/collision.glb --manifest zones/z_…/v1/manifest.json
+golmok-mesh chunk a.obj [b.obj …] --size 15 --out zones/z_…/v1/visual --manifest zones/z_…/v1/manifest.json
+golmok-mesh collision a.obj [b.obj …] --out zones/z_…/v1/collision.glb --manifest zones/z_…/v1/manifest.json
 golmok-mesh blockers add zones/z_…/v1/blockers.json --center 3,9.8,1.5 --normal 0,-1,0 \\
         --size 3,2.4 --kind glass
 golmok-mesh blockers build zones/z_…/v1/blockers.json --manifest zones/z_…/v1/manifest.json
@@ -22,7 +22,7 @@ import numpy as np
 from . import blockers as bl
 from . import chunk as ch
 from . import collision as col
-from .objio import read_mesh, stats, write_obj
+from .objio import Mesh, read_mesh, stats, write_obj
 
 
 def _vec(text: str, n: int, what: str) -> list[float]:
@@ -85,6 +85,8 @@ def reproject_to_zone(v: np.ndarray, src_crs: str, manifest: dict, height_offset
 
 
 def cmd_reproject(args) -> int:
+    from .objio import rewrite_mtl, texture_exists
+
     mesh = read_mesh(args.input, up="z")
     manifest = _load_manifest(args.manifest)
     src = mesh.v
@@ -96,14 +98,20 @@ def cmd_reproject(args) -> int:
         u, _, vt = np.linalg.svd((probe[1:] - probe[0]).T)
         mesh.vn = mesh.vn @ (u @ vt).T
     lo, hi = mesh.bounds()
-    mtl = " ".join(p.name for p in mesh.mtllibs) or None
     out = Path(args.out)
+    names = []
     for lib in mesh.mtllibs:
-        if lib.is_file() and lib.parent.resolve() != out.parent.resolve():
-            from .objio import rewrite_mtl
-
-            rewrite_mtl(lib, out.parent / lib.name)
-    write_obj(mesh, out, mtl, header=f"golmok-mesh reproject from {args.src_crs}")
+        if not lib.is_file():
+            print(f"WARN  MTL 없음: {lib} — 결과 OBJ에 머티리얼·텍스처가 없다")
+            continue
+        name = lib.name.replace(" ", "_")
+        names.append(name)
+        if lib.resolve() != (out.parent / name).resolve():
+            tex = rewrite_mtl(lib, out.parent / name)
+            for t in tex:
+                if not texture_exists(t):
+                    print(f"WARN  텍스처 없음: {t}")
+    write_obj(mesh, out, " ".join(names) or None, header=f"golmok-mesh reproject from {args.src_crs}")
     print(f"zone-local 범위(m) {np.round(lo, 2).tolist()} ~ {np.round(hi, 2).tolist()} → {out}")
     if np.abs(np.concatenate([lo, hi])[:2]).max() > 2000:
         print("WARN  zone 원점에서 2 km 넘게 떨어져 있다 — --src-crs나 manifest가 맞는지 확인")
@@ -128,27 +136,52 @@ def cmd_inspect(args) -> int:
 
 
 def cmd_chunk(args) -> int:
-    mesh = read_mesh(args.input, up=args.up)
+    mode = "append" if args.append else "overwrite" if args.overwrite else "new"
     manifest_doc = _load_manifest(args.manifest) if args.manifest else None
-    if args.along:
-        if manifest_doc is None:
-            print("ERROR --along은 경위도 중심선을 zone-local로 바꾸려고 --manifest가 필요하다")
-            return 2
-        chunks = ch.polyline_chunks(mesh, centerline_local(args.along, manifest_doc), args.size)
-    else:
-        chunks = ch.grid_chunks(mesh, args.size)
-    doc = ch.write_chunks(mesh, chunks, args.out, source=str(args.input))
-    path = ch.save_chunk_manifest(doc, args.out)
-    for e in doc["chunks"]:
-        print(f"{e['id']}: {e['tris']:,} tris, UDIM {e['udim_tiles'] or '-'}")
-    print(f"청크 {len(doc['chunks'])}개, 총 {doc['total_tris']:,} tris → {args.out} ({path.name})")
-    big = [e["id"] for e in doc["chunks"] if e["tris"] > args.warn_tris]
-    if big:
-        print(f"WARN  {args.warn_tris:,} tris 초과 청크: {big} (--size를 줄이는 것을 고려)")
+    if args.along and manifest_doc is None:
+        print("ERROR --along은 경위도 중심선을 zone-local로 바꾸려고 --manifest가 필요하다")
+        return 2
+    line = centerline_local(args.along, manifest_doc) if args.along else None
+    doc = ch.prepare_out_dir(args.out, mode)
+    for inp in args.input:  # export parts one at a time (memory), all into the same folder
+        mesh = read_mesh(inp, up=args.up)
+        chunks = (
+            ch.polyline_chunks(mesh, line, args.size) if line is not None else ch.grid_chunks(mesh, args.size)
+        )
+        before = {e["id"] for e in (doc or {}).get("chunks", [])}
+        doc = ch.write_chunks(mesh, chunks, args.out, source=str(inp), existing=doc)
+        del mesh
+        path = ch.save_chunk_manifest(doc, args.out)
+        new = [e for e in doc["chunks"] if e["id"] not in before]
+        for e in new:
+            print(f"{e['id']}: {e['tris']:,} tris, UDIM {e['udim_tiles'] or '-'}")
+        print(f"{inp.name}: 청크 {len(new)}개, {sum(e['tris'] for e in new):,} tris → {args.out}")
+        big = [e["id"] for e in new if e["tris"] > args.warn_tris]
+        if big:
+            print(f"WARN  {args.warn_tris:,} tris 초과 청크: {big} (--size를 줄이는 것을 고려)")
+    print(f"폴더 합계: 청크 {len(doc['chunks'])}개, 총 {doc['total_tris']:,} tris ({path.name})")
+    for lib in doc["missing"]["mtl"]:
+        print(f"WARN  MTL 없음: {lib} — 청크에 머티리얼·텍스처가 없다")
+    for tex in doc["missing"]["textures"]:
+        print(f"WARN  텍스처 없음: {tex}")
     if args.manifest:
         ch.update_zone_manifest(args.manifest, doc, args.out)
         print(f"manifest 갱신: layers.visual.chunks ({args.manifest})")
     return 0
+
+
+def _read_parts(paths: list[Path], up: str | None) -> Mesh:
+    """One mesh from several export parts (positions only: collision ignores UVs and materials)."""
+    if len(paths) == 1:
+        return read_mesh(paths[0], up=up)
+    vs, fs, off = [], [], 0
+    for p in paths:
+        m = read_mesh(p, up=up)
+        vs.append(m.v)
+        fs.append(m.f_v + off)
+        off += len(m.v)
+        del m
+    return Mesh(v=np.vstack(vs), f_v=np.vstack(fs))
 
 
 def _collision_one(mesh, args):
@@ -156,6 +189,7 @@ def _collision_one(mesh, args):
         mesh,
         min_component_m2=args.min_component_m2,
         fill=args.fill_holes,
+        max_hole_m=args.max_hole_m,
         snap=args.snap_ground,
         snap_cell=args.snap_cell,
         snap_tol=args.snap_tol,
@@ -175,7 +209,7 @@ def _print_report(rep: col.CollisionReport, label: str) -> None:
 
 def cmd_collision(args) -> int:
     out = Path(args.out)
-    v, f, report = _collision_one(read_mesh(args.input, up=args.up), args)
+    v, f, report = _collision_one(_read_parts(args.input, args.up), args)
     _print_report(report, "collision")
     out.parent.mkdir(parents=True, exist_ok=True)
     col.write_collision_glb(out, v, f)
@@ -271,17 +305,24 @@ def build_parser() -> argparse.ArgumentParser:
     p.set_defaults(func=cmd_reproject)
 
     p = sub.add_parser("chunk", help="청크 분할(OBJ+MTL, UV·머티리얼·UDIM 보존)")
-    p.add_argument("input", type=Path)
+    p.add_argument(
+        "input", type=Path, nargs="+", help="OBJ/GLB. 여러 개면 나눠 내보낸 조각들(한 폴더로 합침)"
+    )
     p.add_argument("--out", required=True, type=Path, help="청크 폴더(보통 zones/<id>/v<N>/visual)")
     p.add_argument("--size", type=float, default=15.0, help="격자 한 변 또는 중심선 구간 길이(m)")
     p.add_argument("--along", type=Path, help="골목 중심선 GeoJSON LineString(경위도) — 구간 분할")
     p.add_argument("--manifest", type=Path, help="zone manifest.json: layers.visual.chunks 갱신")
     p.add_argument("--warn-tris", type=int, default=15_000_000, help="청크당 tri 경고 기준")
     p.add_argument("--up", choices=["y", "z"], help=up_help)
+    g = p.add_mutually_exclusive_group()
+    g.add_argument(
+        "--append", action="store_true", help="청크가 이미 있는 폴더에 조각을 더함(같은 셀은 _2 …)"
+    )
+    g.add_argument("--overwrite", action="store_true", help="폴더의 기존 청크를 지우고 다시 만듦")
     p.set_defaults(func=cmd_chunk)
 
     p = sub.add_parser("collision", help="충돌 메시 GLB")
-    p.add_argument("input", type=Path)
+    p.add_argument("input", type=Path, nargs="+", help="OBJ/GLB. 여러 개면 나눠 내보낸 조각들을 합쳐 하나로")
     p.add_argument("--out", required=True, type=Path, help="collision.glb")
     p.add_argument(
         "--per-chunk",
@@ -289,7 +330,8 @@ def build_parser() -> argparse.ArgumentParser:
         help="chunk 결과 폴더: 완성된 충돌 메시를 청크 영역별 collision/<id>.glb로도 나눔",
     )
     p.add_argument("--min-component-m2", type=float, default=1.0, help="이보다 작은 연결요소 제거")
-    p.add_argument("--fill-holes", action="store_true")
+    p.add_argument("--fill-holes", action="store_true", help="둘레가 --max-hole-m 이하인 구멍을 메움")
+    p.add_argument("--max-hole-m", type=float, default=20.0, help="메울 구멍의 최대 둘레(m)")
     p.add_argument("--snap-ground", action=argparse.BooleanOptionalAction, default=True)
     p.add_argument("--snap-cell", type=float, default=10.0, help="바닥 평면을 맞추는 수평 셀 크기(m)")
     p.add_argument("--snap-tol", type=float, default=0.05, help="평면에서 이 거리 안의 정점만 투영(m)")

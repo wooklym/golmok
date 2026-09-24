@@ -8,8 +8,14 @@ glTF attributes follow the ratified extension README
     KHR_gaussian_splatting:OPACITY             SCALAR float, linear [0, 1] (sigmoid of the PLY value)
     KHR_gaussian_splatting:SH_DEGREE_0_COEF_0  VEC3 float (PLY f_dc, no bias/constant applied)
     KHR_gaussian_splatting:SH_DEGREE_l_COEF_n  VEC3 float, n = 0..2l in m order -l..l
-    COLOR_0                                    VEC4 float, linear fallback color (optional in the spec)
+    COLOR_0                                    VEC4 float, rgb + alpha = opacity (see below)
 primitive mode POINTS (0), extension object {"kernel": "ellipse", "colorSpace": ...}.
+
+COLOR_0 (--color0): "display" (default) writes clip(0.5 + C0·f_dc) without decoding, exactly what
+cesium-native's SPZ decoder puts in COLOR_0 (decodeSpz.cpp) — Cesium for Unreal (spike b) takes COLOR_0
+as the degree-0 colour and adds SH degrees 1–3 to it in the same space, ignoring SH_DEGREE_0_COEF_0.
+"linear" follows the README's fallback wording (sRGB-decoded for srgb_rec709_display); in Cesium it
+renders darker (0.5 grey -> 0.214). `colorSpace` is written as given in both cases.
 
 Axes: the tileset is Z-up zone-local ENU (root.transform = zone -> ECEF when a manifest is given); glTF
 content is Y-up, so positions, rotations and SH are rotated by (x, y, z) -> (x, z, -y) like golmok-basemap.
@@ -17,7 +23,8 @@ content is Y-up, so positions, rotations and SH are rotated by (x, y, z) -> (x, 
 LOD: an octree splits until a node holds ≤ max_splats; inner nodes carry a subsample (probability ∝
 opacity × area) of their subtree for distant viewing (refine REPLACE). Kept splats are enlarged by
 (n/k)^lod_scale_exp (capped at 3) so the sparse parent still covers the surface — a heuristic to tune
-in the spike, 0 disables it.
+in the spike, 0 disables it. Every tile box encloses the 3σ extent of its (enlarged) content and its
+children's boxes.
 """
 
 from __future__ import annotations
@@ -44,6 +51,7 @@ class Node:
     geometric_error: float = 0.0
     children: list[Node] = field(default_factory=list)
     content_count: int = 0
+    scale_factor: float = 1.0  # LOD enlargement of this node's content (inner nodes)
 
 
 def srgb_to_linear(c: np.ndarray) -> np.ndarray:
@@ -57,9 +65,17 @@ def _gltf_splats(d: np.ndarray) -> np.ndarray:
     return ops.transform(d, m)
 
 
-def write_splat_glb(d: np.ndarray, path: str | Path, color_space: str = "srgb_rec709_display") -> Path:
+COLOR0_MODES = ("display", "linear")
+
+
+def write_splat_glb(
+    d: np.ndarray, path: str | Path, color_space: str = "srgb_rec709_display", color0: str = "display"
+) -> Path:
     """One POINTS primitive with KHR_gaussian_splatting attributes. `d` is in ENU (Z-up); written Y-up."""
     from golmok_tools.basemap.gltf import ARRAY_BUFFER, FLOAT, _Buffer
+
+    if color0 not in COLOR0_MODES:
+        raise ValueError(f"color0 must be one of {COLOR0_MODES}, got {color0!r}")
 
     g = _gltf_splats(d)
     buf = _Buffer()
@@ -83,8 +99,8 @@ def write_splat_glb(d: np.ndarray, path: str | Path, color_space: str = "srgb_re
                 np.ascontiguousarray(rest[:, i, :]).astype(np.float32), FLOAT, "VEC3", ARRAY_BUFFER
             )
             i += 1
-    rgb = dc * ops.C0 + 0.5
-    if color_space.startswith("srgb"):
+    rgb = np.clip(dc * ops.C0 + 0.5, 0.0, 1.0)
+    if color0 == "linear" and color_space.startswith("srgb"):
         rgb = srgb_to_linear(rgb)
     rgba = np.column_stack([np.clip(rgb, 0, 1), ply.opacities(g)]).astype(np.float32)
     attrs["COLOR_0"] = buf.add_accessor(rgba, FLOAT, "VEC4", ARRAY_BUFFER)
@@ -135,10 +151,21 @@ def _extent_bounds(p: np.ndarray, radius: np.ndarray) -> tuple[np.ndarray, np.nd
     return (p - radius[:, None]).min(axis=0), (p + radius[:, None]).max(axis=0)
 
 
+def lod_factor(total: int, kept: int, lod_scale_exp: float) -> float:
+    """Enlargement of an inner node's kept splats: (total / kept)^exp, capped at 3; 1 when disabled."""
+    if not lod_scale_exp:
+        return 1.0
+    return min(3.0, (total / max(kept, 1)) ** lod_scale_exp)
+
+
 def build_octree(
-    d: np.ndarray, max_splats: int = 500_000, max_depth: int = 10, seed: int = 0
+    d: np.ndarray, max_splats: int = 500_000, max_depth: int = 10, seed: int = 0, lod_scale_exp: float = 0.5
 ) -> tuple[Node, np.ndarray]:
-    """Octree over splat centers. Returns (root, per-splat LOD scale factor array for inner nodes)."""
+    """Octree over splat centers. Returns (root, per-splat 3σ radius).
+
+    Boxes: leaves = 3σ extent of their splats; inner nodes = union of the subtree's extent, the children's
+    boxes and the 3σ extent of the kept subsample enlarged by lod_factor (written that way by write_tileset).
+    """
     rng = np.random.default_rng(seed)
     p = ply.positions(d)
     radius = 3.0 * ply.scales(d).max(axis=1)  # 3σ cut-off of the ellipse kernel
@@ -166,6 +193,10 @@ def build_octree(
         w = weight[idx] + 1e-12
         node.idx = rng.choice(idx, size=max_splats, replace=False, p=w / w.sum())
         node.content_count = len(node.idx)
+        node.scale_factor = lod_factor(len(idx), len(node.idx), lod_scale_exp)
+        klo, khi = _extent_bounds(p[node.idx], radius[node.idx] * node.scale_factor)
+        node.lo = np.min([node.lo, klo, *(c.lo for c in node.children)], axis=0)
+        node.hi = np.max([node.hi, khi, *(c.hi for c in node.children)], axis=0)
         return node
 
     idx = np.arange(len(d))
@@ -174,10 +205,6 @@ def build_octree(
     root = make("r", idx, lo, lo + side, 0)  # cubic cells
     _assign_errors(root)
     return root, radius
-
-
-def _subtree_count(node: Node) -> int:
-    return node.content_count if not node.children else sum(_subtree_count(c) for c in node.children)
 
 
 def _assign_errors(node: Node) -> float:
@@ -207,24 +234,23 @@ def write_tileset(
     lod_scale_exp: float = 0.5,
     color_space: str = "srgb_rec709_display",
     seed: int = 0,
+    color0: str = "display",
 ) -> dict:
     """Write tileset.json + tiles/<address>.glb. root_transform: 4x4 zone-local -> ECEF (matrix form)."""
     out = Path(out_dir)
     (out / "tiles").mkdir(parents=True, exist_ok=True)
-    root, _ = build_octree(d, max_splats=max_splats, seed=seed)
+    root, _ = build_octree(d, max_splats=max_splats, seed=seed, lod_scale_exp=lod_scale_exp)
     n_files = 0
 
     def emit(node: Node) -> dict:
         nonlocal n_files
         content = d[node.idx]
-        if node.children and lod_scale_exp:
-            total = _subtree_count(node)
-            factor = min(3.0, (total / max(len(node.idx), 1)) ** lod_scale_exp)
+        if node.children and node.scale_factor != 1.0:
             content = content.copy()
             for i in range(3):
-                content[f"scale_{i}"] = content[f"scale_{i}"] + math.log(factor)
+                content[f"scale_{i}"] = content[f"scale_{i}"] + math.log(node.scale_factor)
         uri = f"tiles/{node.address}.glb"
-        write_splat_glb(content, out / uri, color_space=color_space)
+        write_splat_glb(content, out / uri, color_space=color_space, color0=color0)
         n_files += 1
         tile = {
             "boundingVolume": {"box": _box(node.lo, node.hi)},

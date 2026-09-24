@@ -1,8 +1,8 @@
 """Collision mesh from a reconstructed mesh (research/02 §3: separate visual and collision layers).
 
-Steps: drop small connected components -> (optional) fill small holes -> snap near-ground vertices onto
-RANSAC ground planes fitted per horizontal cell (alleys slope, so one global plane is not enough) ->
-quadric decimation (fast-simplification, MIT) -> GLB (glTF Y-up, same convention as golmok-basemap).
+Steps: drop small connected components -> (optional) fill holes up to a perimeter -> snap near-ground
+vertices onto RANSAC ground planes fitted per horizontal cell (alleys slope, so one global plane is not
+enough) -> quadric decimation (fast-simplification, MIT) -> GLB (glTF Y-up, as golmok-basemap).
 
 open3d is not used: its Linux wheel needs libEGL and pulls in a web stack; plane RANSAC is a few lines of
 numpy. Everything here works on position indices only; UVs are irrelevant for collision.
@@ -18,6 +18,10 @@ import numpy as np
 from .objio import Mesh
 
 UP_COS = math.cos(math.radians(15))  # ground plane normal within 15° of +z
+# A cell's ground inliers must spread at least this much across their minor axis (std, m): rejects a
+# line of points (the foot of a wall at a cell edge) but keeps a 1 m strip of a narrow alley.
+MIN_GROUND_SPREAD_M = 0.2
+GROUND_COLUMN_M = 0.5  # ground candidates: near the lowest point of each column of this size
 
 
 @dataclass
@@ -72,14 +76,51 @@ def remove_small_components(v, f, min_area_m2: float) -> tuple[np.ndarray, np.nd
     return v[used], inv.reshape(f.shape), n_removed
 
 
-def fill_holes(v, f) -> tuple[np.ndarray, np.ndarray, int]:
-    """Close small holes with trimesh (fan fill of boundary loops it can resolve)."""
-    import trimesh
+def fill_holes(v, f, max_hole_m: float = 20.0) -> tuple[np.ndarray, np.ndarray, int]:
+    """Close boundary loops whose perimeter is ≤ max_hole_m with a fan around the loop's centroid.
 
-    tm = trimesh.Trimesh(vertices=v, faces=f, process=False)
-    before = len(tm.faces)
-    trimesh.repair.fill_holes(tm)
-    return np.asarray(tm.vertices), np.asarray(tm.faces), len(tm.faces) - before
+    The mesh's outer boundary is longer and stays open. Only simple loops (each vertex on exactly one
+    incoming and one outgoing boundary edge) are filled; new faces keep the neighbours' winding.
+    numpy + scipy only (trimesh's fill_holes needs networkx and closes only 3- and 4-edge holes).
+    """
+    from scipy.sparse import coo_matrix
+    from scipy.sparse.csgraph import connected_components
+
+    if not len(f):
+        return v, f, 0
+    he = f[:, [0, 1, 1, 2, 2, 0]].reshape(-1, 2)  # directed half-edges a -> b, face on the left
+    _, inv, counts = np.unique(np.sort(he, axis=1), axis=0, return_inverse=True, return_counts=True)
+    bnd = he[counts[inv.reshape(-1)] == 1]
+    if not len(bnd):
+        return v, f, 0
+    nodes, bi = np.unique(bnd, return_inverse=True)
+    bi = bi.reshape(-1, 2)
+    n = len(nodes)
+    g = coo_matrix((np.ones(len(bi)), (bi[:, 0], bi[:, 1])), shape=(n, n))
+    n_comp, lab = connected_components(g, directed=False)
+    out_deg = np.bincount(bi[:, 0], minlength=n)
+    in_deg = np.bincount(bi[:, 1], minlength=n)
+    simple = np.ones(n_comp, bool)
+    simple[np.unique(lab[(out_deg != 1) | (in_deg != 1)])] = False
+    length = np.linalg.norm(v[bnd[:, 1]] - v[bnd[:, 0]], axis=1)
+    perimeter = np.bincount(lab[bi[:, 0]], weights=length, minlength=n_comp)
+    nxt = np.full(n, -1)
+    nxt[bi[:, 0]] = bi[:, 1]
+    first = np.full(n_comp, -1)
+    first[lab[::-1]] = np.arange(n)[::-1]
+    new_v, new_f = [], []
+    for c in np.nonzero(simple & (perimeter <= max_hole_m))[0]:
+        loop = [first[c]]
+        while nxt[loop[-1]] != loop[0]:
+            loop.append(nxt[loop[-1]])
+        ids = nodes[loop]
+        center = len(v) + len(new_v)
+        new_v.append(v[ids].mean(axis=0))
+        # the boundary runs a -> b along the existing faces; the fill runs b -> a
+        new_f += [[center, ids[(i + 1) % len(ids)], ids[i]] for i in range(len(ids))]
+    if not new_f:
+        return v, f, 0
+    return np.vstack([v, new_v]), np.vstack([f, np.asarray(new_f, dtype=f.dtype)]), len(new_f)
 
 
 def ransac_plane(
@@ -138,16 +179,24 @@ def snap_ground(v, cell: float, tol: float, seed: int = 0) -> tuple[np.ndarray, 
     planes, snapped = [], 0
     for k in range(len(uniq)):
         sel = order[bounds[k] : bounds[k + 1]]
-        # candidates: the lower part of the cell (ground, not walls/roofs)
+        # candidates: points near the lowest point of their 0.5 m column (ground, not the walls above it).
+        # A share of the cell (e.g. its lower half) would be mostly wall in a narrow alley with tall walls.
         pts = v[sel]
-        low = pts[:, 2] <= np.percentile(pts[:, 2], 50) + tol
+        col_id = np.unique(
+            np.floor(pts[:, :2] / GROUND_COLUMN_M).astype(np.int64), axis=0, return_inverse=True
+        )[1]
+        col_id = col_id.reshape(-1)
+        zmin = np.full(col_id.max() + 1, np.inf)
+        np.minimum.at(zmin, col_id, pts[:, 2])
+        low = pts[:, 2] <= zmin[col_id] + max(3 * tol, 0.1)
         fit = ransac_plane(pts[low], tol, rng=rng)
         if fit is None:
             continue
         n, d, inl = fit
-        # skip degenerate fits: inliers must cover an area (not a line of points at the cell edge)
+        # skip degenerate fits: inliers must cover an area (not a line of points at the cell edge).
+        # The floor is absolute, not a fraction of the cell: alleys can be 2 m wide whatever --snap-cell is.
         xy = pts[low][inl][:, :2]
-        if len(xy) < 10 or np.sqrt(max(np.linalg.eigvalsh(np.cov(xy.T))[0], 0.0)) < 0.1 * cell:
+        if len(xy) < 10 or np.sqrt(max(np.linalg.eigvalsh(np.cov(xy.T))[0], 0.0)) < MIN_GROUND_SPREAD_M:
             continue
         dist = pts @ n + d
         near = np.abs(dist) < tol
@@ -193,6 +242,7 @@ def build_collision(
     mesh: Mesh,
     min_component_m2: float = 1.0,
     fill: bool = False,
+    max_hole_m: float = 20.0,
     snap: bool = True,
     snap_cell: float = 10.0,
     snap_tol: float = 0.05,
@@ -204,7 +254,7 @@ def build_collision(
     v, f, rep.removed_components = remove_small_components(v, f, min_component_m2)
     rep.removed_faces = rep.input_faces - len(f)
     if fill:
-        v, f, rep.filled_faces = fill_holes(v, f)
+        v, f, rep.filled_faces = fill_holes(v, f, max_hole_m)
     if snap:
         v, rep.snapped_vertices, rep.ground_planes = snap_ground(v, snap_cell, snap_tol)
     v, f = decimate(v, f, target_tris=target_tris, ratio=ratio)

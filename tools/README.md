@@ -118,14 +118,18 @@ golmok-zone bump D:\golmok_zones\zones\z_yeonnam_alley_001\v1\manifest.json
 ```powershell
 $Z = "D:\golmok_zones\zones\z_yeonnam_alley_001\v1"
 golmok-mesh reproject D:\recon\alley01.obj --src-crs EPSG:5186 --manifest $Z\manifest.json --out D:\recon\local\alley01.obj
-golmok-mesh chunk D:\recon\local\alley01.obj --size 15 --out $Z\visual --manifest $Z\manifest.json
-golmok-mesh collision D:\recon\local\alley01.obj --out $Z\collision.glb --per-chunk $Z\visual --manifest $Z\manifest.json
+# 나눠 내보낸 조각은 한 번에 넘긴다(같은 폴더로 합침). 나중에 조각을 더하면 --append, 다시 만들면 --overwrite
+golmok-mesh chunk D:\recon\local\alley01_a.obj D:\recon\local\alley01_b.obj --size 15 --out $Z\visual --manifest $Z\manifest.json
+golmok-mesh collision D:\recon\local\alley01_a.obj D:\recon\local\alley01_b.obj --out $Z\collision.glb --per-chunk $Z\visual --manifest $Z\manifest.json
 golmok-mesh blockers add $Z\blockers.json --center 12,4.8,1.4 --normal 0,-1,0 --size 3,2.4 --kind glass
 golmok-mesh blockers build $Z\blockers.json --manifest $Z\manifest.json
 golmok-splat clean D:\recon\alley01.ply --min-opacity 0.02 --out $Z\splat.ply
 golmok-splat tiles $Z\splat.ply --out $Z\splat_tiles --manifest $Z\manifest.json
 ```
 - 청크는 **OBJ+MTL**(UDIM UV와 원본 8K 텍스처 경로 유지). 충돌·blocker GLB는 glTF Y-up(`golmok-basemap`과 같은 규약).
+- 청크 id는 zone 원점 기준 절대 셀: `c_e000_n000` = 동쪽 0~15 m·북쪽 0~15 m, `c_w001_s002` = 서쪽 첫 칸·남쪽 셋째 칸. 조각이 달라도 같은 셀은 같은 id(한 셀에 두 조각이면 `_2`). 청크가 이미 있는 폴더에 `--append`/`--overwrite` 없이 쓰면 거부한다.
+- MTL·텍스처가 없으면 `WARN`을 내고 `chunk_manifest.json`의 `missing`에 적는다(청크에 머티리얼이 없는 채로 UE에 들어가지 않게).
+- `golmok-splat tiles`의 `COLOR_0`는 기본 `--color0 display`(0.5 + C0·f_dc, Cesium 호환). `linear`는 README 문구대로 sRGB 디코드(Cesium에선 어둡게 보임).
 - open3d는 쓰지 않는다(Linux 휠이 libEGL을 요구하고 웹 스택을 끌고 옴). 바닥 평면 RANSAC은 numpy로 구현.
 
 **7) 검수 뷰어** (D-003: 웹 스택은 검수 용도)

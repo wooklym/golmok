@@ -38,7 +38,9 @@ def footprint_local(manifest: dict) -> np.ndarray:
     poly = zm.footprint_polygon(manifest["footprint_wgs84"])
     h = manifest["origin"]["height_ellipsoidal"]
     m = zt.from_row_major(manifest["transform"])
-    ecef = np.array([zt.geodetic_to_ecef(lat, lon, h) for lon, lat in poly.exterior.coords])
+    ecef = np.array(
+        [zt.geodetic_to_ecef(lat, lon, h) for lon, lat, *_ in poly.exterior.coords]
+    )  # [lon, lat, alt?]
     return zt.ecef_to_enu(m, ecef)[:, :2]
 
 
@@ -111,6 +113,7 @@ def cmd_tiles(args) -> int:
         root_transform=root_transform,
         lod_scale_exp=args.lod_scale_exp,
         color_space=args.color_space,
+        color0=args.color0,
     )
     print(f"splat {rep['splats']:,} → 타일 {rep['tiles']}개(깊이 {rep['depth']}) → {rep['tileset']}")
     return 0
@@ -144,7 +147,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("transform", help="4x4(행 우선) 적용: 위치·회전·크기·SH")
     p.add_argument("input", type=Path)
-    p.add_argument("--matrix", required=True, help="16개, row-major (회전×균일 스케일 + 이동)")
+    p.add_argument(
+        "--matrix", required=True, help="16개, row-major (회전×균일 스케일 + 이동, 마지막 행 0,0,0,1)"
+    )
     p.add_argument("--out", required=True, type=Path)
     p.set_defaults(func=cmd_transform)
 
@@ -156,6 +161,12 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--lod-scale-exp", type=float, default=0.5, help="부모 타일 splat 확대 지수(0=끔)")
     p.add_argument(
         "--color-space", choices=["srgb_rec709_display", "lin_rec709_display"], default="srgb_rec709_display"
+    )
+    p.add_argument(
+        "--color0",
+        choices=["display", "linear"],
+        default="display",
+        help="COLOR_0: display = 0.5+C0·f_dc 그대로(Cesium 호환, 기본), linear = sRGB 디코드(README 문구)",
     )
     p.set_defaults(func=cmd_tiles)
     return ap

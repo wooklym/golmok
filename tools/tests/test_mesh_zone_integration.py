@@ -81,6 +81,14 @@ def test_mesh_pipeline_produces_a_valid_zone(tmp_path):
     cm = json.loads((vdir / "visual" / "chunk_manifest.json").read_text(encoding="utf-8"))
     assert sum(c["tris"] for c in cm["chunks"]) == sum(c["tris"] for c in chunks)
 
+    import trimesh
+
+    def tris(path):
+        return sum(len(g.faces) for g in trimesh.load(path, force="scene").geometry.values())
+
+    per_chunk = [tris(vdir / c["uri"]) for c in d["layers"]["collision"]["chunks"]]
+    assert all(per_chunk) and sum(per_chunk) == tris(vdir / "collision.glb")
+
 
 def test_chunk_outside_zone_folder_is_refused(tmp_path):
     src = write_synthetic_obj(tmp_path / "recon")

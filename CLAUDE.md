@@ -22,7 +22,7 @@ Read `docs/ROADMAP.md` and `docs/DECISIONS.md` first; they are the source of tru
 - Privacy (docs/research/05): every image is blurred with `golmok-blur` before RealityScan/Postshot.
 
 ## Commands
-- Python tools: `cd tools && pip install -e ".[dev]" && pytest`
+- Python tools: `cd tools && pip install -e ".[basemap,zone,mesh,splat,align,dev]" && ruff check . && ruff format --check . && pytest -q && python scripts/check_repo.py` (same checks as CI)
 - UE (Windows PowerShell): `.\tools\ue\build.ps1`, `.\tools\ue\open-editor.ps1`, `.\tools\ue\package.ps1`
 - Dev level (editor Python): `import golmok.setup_dev_level as s; s.run()`
 - Basemap: `golmok-basemap inspect|build …`, then editor `import golmok.basemap_import as b; b.run(r"<out>")`

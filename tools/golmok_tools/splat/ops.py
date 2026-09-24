@@ -129,14 +129,20 @@ def quat_to_matrix(q: np.ndarray) -> np.ndarray:
 
 def decompose(m: np.ndarray) -> tuple[np.ndarray, float, np.ndarray]:
     """4x4 -> (rotation, uniform scale, translation). Rejects shear, non-uniform scale and mirroring."""
-    a = np.asarray(m, dtype=np.float64)[:3, :3]
+    m = np.asarray(m, dtype=np.float64)
+    if m.shape != (4, 4) or not np.allclose(m[3], [0.0, 0.0, 0.0, 1.0]):
+        raise ValueError(
+            "4x4 matrix last row must be 0 0 0 1 (row-major, translation in the last column; "
+            f"a column-major paste puts it in the last row): {m[3] if m.shape == (4, 4) else m.shape}"
+        )
+    a = m[:3, :3]
     s = np.linalg.norm(a, axis=0)
     if not np.allclose(s, s[0], rtol=1e-6):
         raise ValueError(f"only uniform scale is supported (column norms {s})")
     r = a / s[0]
     if not np.allclose(r.T @ r, np.eye(3), atol=1e-6) or np.linalg.det(r) < 0:
         raise ValueError("matrix must be rotation * uniform scale (no shear or mirror)")
-    return r, float(s[0]), np.asarray(m, dtype=np.float64)[:3, 3]
+    return r, float(s[0]), m[:3, 3]
 
 
 def transform(d: np.ndarray, m: np.ndarray) -> np.ndarray:

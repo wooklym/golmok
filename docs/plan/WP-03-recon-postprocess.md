@@ -69,6 +69,24 @@ RealityScan(메시)과 Postshot(splat) 출력을 **UE와 스파이크가 바로 
 - SPZ 압축 확장은 범위 밖(WP 스펙대로).
 
 **다음 WP에 알릴 것**
-- WP-04/06: 청크는 `visual/<id>.obj`(Z-up, zone-local m) + MTL(원본 UDIM 텍스처 상대경로). UE 임포트 축 변환은 bbox로 측정(basemap_import 방식). 충돌 `collision.glb`/`collision/<id>.glb`와 `blockers.glb`는 glTF Y-up(동, 위, −북). blocker GLB 노드 이름 = plane id, `extras.kind` = glass|no_entry.
+- WP-04/06: 청크는 `visual/<id>.obj`(Z-up, zone-local m) + MTL(원본 UDIM 텍스처 상대경로). UE 임포트 축 변환은 bbox로 측정(basemap_import 방식). 충돌 `collision.glb`/`collision/<id>.glb`와 `blockers.glb`는 glTF Y-up(동, 위, −북). blocker GLB 노드·메시 이름 = plane id, `kind`(glass|no_entry)는 **메시** `extras.kind`(정본은 `blockers.json`). 청크 id는 zone 원점 기준 절대 셀 `c_e000_n000`(리뷰 수정 참고).
 - WP-07: `golmok-mesh reproject`가 투영 좌표 → zone-local을 이미 한다. 정합은 그 결과(또는 청크)에 ICP를 걸고 `transform`만 고친다.
 
+**리뷰 수정(2026-09-24)** — 리뷰에서 확인된 결함, 코드는 회귀 테스트를 먼저 써서 실패를 확인한 뒤 고침(`test_mesh.py`·`test_splat.py` 끝 "review fixes")
+- 조각 병합: `chunk` id를 zone 원점 기준 절대 셀(`c_e000_n000`, 음수는 `w`/`s`)로 바꾸고, `chunk`·`collision`이 입력 여러 개를 받으며, `chunk --append`(같은 셀은 `_2`)/`--overwrite` 추가, 청크가 있는 폴더에 그냥 쓰면 거부(두 번째 조각이 첫 조각을 덮어쓰던 문제).
+- 바닥 스냅: 퇴화 판정을 셀 크기 비례(0.1×cell)에서 절대값(inlier 단축 표준편차 0.2 m)으로, 후보를 셀 하위 50%에서 0.5 m 기둥별 최저점 근처로 바꿔 2~4 m 골목에서도 스냅(전에는 0개).
+- `--fill-holes`: trimesh(networkx 필요, 미선언이라 크래시·3/4각 구멍만)를 numpy+scipy 경계 루프 채움으로 교체(둘레 `--max-hole-m 20` 이하, 가운데 점 부채꼴, 감김 유지). 의존성 추가 없음.
+- 메모리: `read_obj`를 `_BATCH` 줄 단위로 배열화해 최대 메모리 약 1.1 KB/tri → 약 0.2 KB/tri(400만 tri 0.8 GB). 런북 §0·objio 문서를 실측값(읽기·chunk·collision)과 조각 2천만 tri 권장으로 고침.
+- MTL: 공백 있는 `mtllib`/텍스처 경로 처리(옵션 인자를 알고 나머지를 파일 이름으로), 출력 MTL 이름의 공백은 `_`, 없는 MTL·텍스처는 `WARN` + `chunk_manifest.json`의 `missing`.
+- 텍스처가 다른 드라이브면 MTL에 절대경로로 적음(전엔 relpath ValueError로 중단). 런북 §3에 주의 추가.
+- splat `COLOR_0`: 기본 `--color0 display`(0.5+C0·f_dc, cesium-native SPZ 디코더·Cesium for Unreal과 같은 공간), `linear`는 README 폴백 문구대로. 출처 확인: cesium-native `decodeSpz.cpp` 272~274행, cesium-unreal `CesiumGaussianSplatCompute.usf` 242행, Khronos README 387~390행.
+- `golmok-splat crop --manifest`: footprint 좌표가 `[lon, lat, alt]`여도 동작.
+- 3D Tiles: 부모(LOD) 타일 박스가 확대된 splat의 3σ 범위와 자식 박스를 감싸게(`build_octree`가 확대 계수 계산). 테스트가 SCALE까지 읽어 확인.
+- `write_obj`: 머티리얼 없는 면을 맨 앞(usemtl 전)에 써서 왕복 시 머티리얼이 바뀌지 않음.
+- `read_obj`: 줄마다 `/` 배치가 같을 때만 빠른 경로(v/vt와 v//vn 혼합 시 UV 오배정), 탭·앞 공백·BOM 허용, 범위 밖 인덱스는 `ValueError`(CLI `ERROR`, 종료 코드 2).
+- `--along`: 중심선 양 끝 밖은 첫/끝 선분을 연장해 구간을 계속 매김(`s_m001` …). 끝 청크에 몰리던 문제.
+- `read_ply`: vertex 앞의 고정 크기 element는 건너뛰고, 리스트 속성이면 거부.
+- `golmok-splat transform`: 4×4 마지막 행이 `0 0 0 1`이 아니면 거부(열 우선 붙여넣기 방지).
+- 문서: blocker `kind`는 메시 `extras.kind`(스펙 §5·위 인계·`blockers.py`), 스펙 §2 폴더 레이아웃을 WP-03 출력으로.
+- 테스트 보강: 청크 면별 위치·UV·머티리얼 비교, `split_by_bboxes` 소유 영역·청크별 충돌 합 = 전체, crop/clean 개수 하한.
+- 하지 않음: CLAUDE.md의 테스트 설치 명령(extras 누락)은 소유자 파일이라 고치지 않음 — `pip install -e ".[basemap,zone,mesh,splat,align,dev]"`로 바꿀 것을 제안.

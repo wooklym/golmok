@@ -102,8 +102,12 @@ def test_crop_and_clean():
     both = np.concatenate([d, far])
     out, rep = ops.clean(both, knn=8, std=2.0)
     assert rep["floaters"] >= 20 and (ply.positions(out)[:, 2] < 10).all()
+    assert len(out) == pytest.approx(2000, rel=0.05)  # the floaters go, the dense cloud stays
     out, rep = ops.clean(both, knn=0, std=0, min_opacity=0.5, max_scale_m=0.05)
     assert (ply.opacities(out) >= 0.5).all() and (ply.scales(out).max(axis=1) <= 0.05).all()
+    faint = ply.opacities(both) < 0.5
+    big = ply.scales(both).max(axis=1) > 0.05
+    assert len(out) == int((~faint & ~big).sum()) > 0
     assert rep["removed"] == len(both) - len(out)
 
 
@@ -133,6 +137,7 @@ def test_crop_with_zone_footprint(tmp_path):
     )
     p = ply.positions(ply.read_ply(tmp_path / "b.ply"))
     assert (np.abs(p[:, 0]) <= 20.01).all() and (np.abs(p[:, 1]) <= 10.01).all()
+    assert len(p) == pytest.approx(4000 * 800 / 1800, rel=0.1)  # 40x20 m of a uniform 60x30 m cloud
 
 
 def read_glb_json(path):
@@ -284,3 +289,101 @@ def test_3d_tiles_validator(tmp_path):
 
     walk(report)
     assert unexpected == [], unexpected
+
+
+# -- review fixes (2026-09-24) ---------------------------------------------------------------------
+
+
+def _glb_attr(path, name, width):
+    g = read_glb_json(path)
+    raw = path.read_bytes()
+    n = struct.unpack("<I", raw[12:16])[0]
+    binary = raw[20 + n + 8 :]
+    acc = g["accessors"][g["meshes"][0]["primitives"][0]["attributes"][name]]
+    view = g["bufferViews"][acc["bufferView"]]
+    start = view.get("byteOffset", 0) + acc.get("byteOffset", 0)
+    return np.frombuffer(binary, np.float32, acc["count"] * width, start).reshape(acc["count"], width)
+
+
+def test_color0_is_cesium_display_color_by_default(tmp_path):
+    d = ply.random_splats(4, 0)
+    for i in range(3):
+        d[f"f_dc_{i}"] = [0.0, 1.0, -1.0, 1.7]
+    write_tileset(d, tmp_path / "a", max_splats=100)
+    rgba = _glb_attr(tmp_path / "a" / "tiles" / "r.glb", "COLOR_0", 4)
+    expect = np.clip(0.5 + ops.C0 * np.array([0.0, 1.0, -1.0, 1.7]), 0, 1)
+    assert np.allclose(rgba[:, 0], expect, atol=1e-6)  # what cesium-native's SPZ decoder writes
+    assert np.allclose(rgba[:, 3], ply.opacities(d), atol=1e-6)
+    src = ply.write_ply(d, tmp_path / "a.ply")
+    assert main(["tiles", str(src), "--out", str(tmp_path / "b"), "--color0", "linear"]) == 0
+    lin = _glb_attr(tmp_path / "b" / "tiles" / "r.glb", "COLOR_0", 4)
+    assert lin[0, 0] == pytest.approx(0.21404, abs=1e-4)  # sRGB-decoded 0.5 (Khronos README fallback)
+
+
+def test_crop_accepts_footprint_positions_with_altitude(tmp_path):
+    m = json.loads(FIXTURE.read_text(encoding="utf-8"))
+    m["footprint_wgs84"]["coordinates"] = [
+        [[*pos, 50.0] for pos in ring] for ring in m["footprint_wgs84"]["coordinates"]
+    ]
+    poly = footprint_local(m)
+    assert poly.shape[1] == 2
+    assert np.allclose(poly.min(axis=0), [-20, -10], atol=0.01)
+    (tmp_path / "m3.json").write_text(json.dumps(m), encoding="utf-8")
+    d = ply.random_splats(500, 0, extent=(60, 30, 5))
+    d["x"] -= 30
+    d["y"] -= 15
+    src = ply.write_ply(d, tmp_path / "a.ply")
+    args = ["crop", str(src), "--manifest", str(tmp_path / "m3.json"), "--out", str(tmp_path / "b.ply")]
+    assert main(args) == 0
+
+
+def test_tile_boxes_enclose_the_3_sigma_extent_of_their_content(tmp_path):
+    d = ply.random_splats(6000, 0, extent=(20, 10, 4))
+    for i in range(3):
+        d[f"scale_{i}"] = np.log(np.random.default_rng(i).uniform(0.05, 0.6, len(d)))
+    write_tileset(d, tmp_path / "t", max_splats=1000)
+    root = json.loads((tmp_path / "t" / "tileset.json").read_text(encoding="utf-8"))["root"]
+
+    def box(t):
+        b = np.array(t["boundingVolume"]["box"])
+        return b[:3] - b[3::4], b[:3] + b[3::4]
+
+    def walk(t):
+        lo, hi = box(t)
+        path = tmp_path / "t" / t["content"]["uri"]
+        pos = _glb_attr(path, "POSITION", 3).astype(np.float64)
+        enu = np.column_stack([pos[:, 0], -pos[:, 2], pos[:, 1]])
+        r = 3 * _glb_attr(path, f"{EXT}:SCALE", 3).max(axis=1)[:, None]
+        assert (enu - r >= lo - 1e-3).all() and (enu + r <= hi + 1e-3).all(), t["content"]["uri"]
+        for c in t.get("children", []):
+            clo, chi = box(c)
+            assert (clo >= lo - 1e-6).all() and (chi <= hi + 1e-6).all()  # children inside the parent
+            walk(c)
+
+    walk(root)
+
+
+def test_read_ply_skips_elements_before_vertex(tmp_path):
+    d = ply.random_splats(3, 0)
+    body = ply.write_ply(d, tmp_path / "a.ply").read_bytes()
+    head, data = body.split(b"end_header\n", 1)
+    head = head.replace(b"element vertex", b"element camera 1\nproperty float fx\nelement vertex")
+    (tmp_path / "b.ply").write_bytes(head + b"end_header\n" + struct.pack("<f", 1234.5) + data)
+    assert np.array_equal(ply.read_ply(tmp_path / "b.ply"), d)
+    head2 = head.replace(b"property float fx", b"property list uchar int ids")
+    (tmp_path / "c.ply").write_bytes(head2 + b"end_header\n" + b"\x00" + data)
+    with pytest.raises(ValueError, match="vertex"):
+        ply.read_ply(tmp_path / "c.ply")
+
+
+def test_transform_rejects_non_affine_last_row():
+    d = ply.random_splats(5, 0)
+    m = np.eye(4)
+    m[3] = [0.1, 0.2, 0.3, 2.0]
+    with pytest.raises(ValueError, match="last row"):
+        ops.transform(d, m)
+    rt = np.eye(4)
+    rt[:3, :3] = rot(2, 90)
+    rt[:3, 3] = [10, 20, 0]
+    with pytest.raises(ValueError, match="last row"):
+        ops.transform(d, rt.T)  # column-major paste

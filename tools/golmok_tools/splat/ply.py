@@ -54,11 +54,12 @@ def splat_dtype(degree: int = 3, normals: bool = False) -> np.dtype:
 
 
 def read_ply(path: str | Path) -> np.ndarray:
-    """Vertex element as a numpy structured array."""
+    """Vertex element as a numpy structured array (fixed-size elements declared before it are skipped)."""
     with open(path, "rb") as fh:
         if fh.readline().strip() != b"ply":
             raise ValueError(f"{path}: not a PLY file")
-        fmt, count, props, element = None, 0, [], None
+        fmt = None
+        elements: list[dict] = []  # in header order: name, count, props, has_list
         while True:
             line = fh.readline()
             if not line:
@@ -69,19 +70,37 @@ def read_ply(path: str | Path) -> np.ndarray:
             if tok[0] == "format":
                 fmt = tok[1]
             elif tok[0] == "element":
-                element = tok[1]
-                if element == "vertex":
-                    count = int(tok[2])
-            elif tok[0] == "property" and element == "vertex":
+                elements.append({"name": tok[1], "count": int(tok[2]), "props": [], "has_list": False})
+            elif tok[0] == "property" and elements:
+                el = elements[-1]
                 if tok[1] == "list":
-                    raise ValueError(f"{path}: list properties in vertex element are not supported")
-                props.append((tok[2], "<" + _PLY_TYPES[tok[1]]))
+                    if el["name"] == "vertex":
+                        raise ValueError(f"{path}: list properties in vertex element are not supported")
+                    el["has_list"] = True
+                else:
+                    el["props"].append((tok[2], "<" + _PLY_TYPES[tok[1]]))
             elif tok[0] == "end_header":
                 break
         if fmt != "binary_little_endian":
             raise ValueError(f"{path}: only binary_little_endian PLY is supported (got {fmt})")
-        dtype = np.dtype(props)
-        data = np.frombuffer(fh.read(dtype.itemsize * count), dtype=dtype, count=count)
+        names = [el["name"] for el in elements]
+        if "vertex" not in names:
+            raise ValueError(f"{path}: no vertex element")
+        skip = 0
+        for el in elements[: names.index("vertex")]:
+            if el["has_list"]:
+                raise ValueError(
+                    f"{path}: element {el['name']!r} with list properties before vertex is not supported"
+                )
+            skip += el["count"] * np.dtype(el["props"]).itemsize
+        vertex = elements[names.index("vertex")]
+        dtype = np.dtype(vertex["props"])
+        count = vertex["count"]
+        fh.seek(skip, 1)
+        raw = fh.read(dtype.itemsize * count)
+        if len(raw) < dtype.itemsize * count:
+            raise ValueError(f"{path}: truncated vertex data")
+        data = np.frombuffer(raw, dtype=dtype, count=count)
     return data.copy()
 
 

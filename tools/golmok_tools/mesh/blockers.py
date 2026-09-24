@@ -109,7 +109,8 @@ def blockers_mesh(doc: dict, thickness: float = THICKNESS_M) -> tuple[np.ndarray
 
 
 def write_blockers_glb(doc: dict, path: str | Path, thickness: float = THICKNESS_M) -> Path:
-    """One GLB node per plane (named by id, extras.kind) so UE can tell glass from no-entry."""
+    """One GLB node + mesh per plane, both named by the plane id; kind is in the *mesh* extras.kind
+    (write_glb puts extras on meshes only). blockers.json stays the authoritative source of kind."""
     from golmok_tools.basemap.gltf import MeshData, write_glb
 
     meshes = []

@@ -3,8 +3,9 @@
 Coordinates are zone-local ENU (x=east, y=north, z=up, m). OBJ is read as-is (RealityScan export set to
 the zone's local frame, Z-up). GLB is glTF Y-up and is converted back: (x, y, z)_gltf -> (x, -z, y)_enu.
 
-Memory: a mesh of F triangles holds ~9 int64 index columns + float64 attributes ≈ 150 bytes/triangle,
-so 10M triangles need ~1.5 GB plus the text being parsed. Export larger scenes in parts.
+Memory: read_obj parses the text in batches of _BATCH lines, so the peak is the finished arrays
+(~9 int64 index columns + float64 attributes) plus a bounded batch. Measured peak (tracemalloc/RSS on a
+RealityScan-like OBJ with v/vt/vn) is in docs/runbooks/recon-postprocess.md §0. Export larger scenes in parts.
 """
 
 from __future__ import annotations
@@ -93,6 +94,8 @@ class Mesh:
 # -- OBJ ------------------------------------------------------------------------------------------
 
 _FACE_TOKEN = re.compile(r"^(-?\d+)(?:/(-?\d*)(?:/(-?\d+))?)?$")
+_BATCH = 200_000  # lines converted to arrays at a time: bounds the Python string/token lists while reading
+_TAGS = ("v ", "vt", "vn", "f ")
 
 
 def _floats(lines: list[str], n: int) -> np.ndarray:
@@ -114,12 +117,16 @@ def _parse_faces(path, lines, meta) -> tuple[np.ndarray, np.ndarray]:
         cols = [0, 2]
     else:
         cols = [0, 1, 2][: first.count("/") + 1]
-    # Fast path (RealityScan): all triangles, same token layout, positive indices
-    try:
-        flat = " ".join(ln[2:] for ln in lines).replace("/", " ").split()
-        arr = np.asarray(flat, dtype=np.int64)
-    except ValueError:
-        arr = None
+    # Fast path (RealityScan): all triangles, same token layout on every line, positive indices
+    n_slash, n_double = 3 * first.count("/"), 3 * first.count("//")
+    arr = None
+    if all(ln.count("/") == n_slash and ln.count("//") == n_double for ln in lines):
+        try:
+            flat = " ".join(ln[2:] for ln in lines).replace("/", " ").split()
+            arr = np.asarray(flat, dtype=np.int64)
+            del flat
+        except ValueError:
+            arr = None
     if arr is not None and arr.size == 3 * len(cols) * len(lines) and (arr > 0).all():
         arr = arr.reshape(len(lines), 3, len(cols)) - 1
         f = np.full((len(lines), 3, 3), -1, np.int64)
@@ -144,6 +151,8 @@ def _parse_faces_slow(path, lines, meta):
                 if g:
                     i = int(g)
                     corner[k] = i - 1 if i > 0 else base[k] + i
+                    if corner[k] < 0:
+                        raise ValueError(f"{path}: face index {i} out of range in {line.strip()!r}")
             idx.append(corner)
         for i in range(1, len(idx) - 1):  # fan triangulation
             rows.append([idx[0], idx[i], idx[i + 1]])
@@ -151,49 +160,112 @@ def _parse_faces_slow(path, lines, meta):
     return np.asarray(rows, np.int64).reshape(-1, 3, 3), np.asarray(mats, np.int64)
 
 
+def _resolve_mtllibs(folder: Path, rest: str) -> list[Path]:
+    """'mtllib a.mtl b.mtl' or 'mtllib my model.mtl': the whole remainder first, then space-separated."""
+    rest = rest.strip()
+    if not rest:
+        return []
+    whole = (folder / rest).resolve()
+    names = rest.split()
+    if whole.is_file() or len(names) == 1:
+        return [whole]
+    parts = [(folder / n).resolve() for n in names]
+    return parts if any(p.is_file() for p in parts) else [whole]
+
+
 def read_obj(path: str | Path) -> Mesh:
-    """Read a Wavefront OBJ (polygons are fan-triangulated; negative indices supported)."""
+    """Read a Wavefront OBJ (polygons are fan-triangulated; negative indices supported).
+
+    Lines are converted to arrays every _BATCH lines, so peak memory stays near the size of the result.
+    """
     path = Path(path)
-    v_lines, vt_lines, vn_lines = [], [], []
+    lines = {"v ": [], "vt": [], "vn": []}
+    arrays = {"v ": [], "vt": [], "vn": []}
+    width = {"v ": 3, "vt": 2, "vn": 3}
     face_lines: list[str] = []
     face_meta: list[tuple[int, int, int, int]] = []  # material, v/vt/vn counts so far (negative indices)
+    f_cols: list[list[np.ndarray]] = [[], [], []]  # per batch: v, vt, vn index columns (F, 3)
+    f_mats: list[np.ndarray] = []
     materials: list[str] = []
     mat_index: dict[str, int] = {}
     mtllibs: list[Path] = []
     cur = -1
     nv = nvt = nvn = 0
-    with open(path, encoding="utf-8", errors="replace") as fh:
+
+    def flush_faces():
+        f, mats = _parse_faces(path, face_lines, face_meta)
+        for k in range(3):
+            f_cols[k].append(f[:, :, k].copy())
+        f_mats.append(mats)
+        face_lines.clear()
+        face_meta.clear()
+
+    with open(path, encoding="utf-8-sig", errors="replace") as fh:  # -sig: drop a UTF-8 BOM
         for line in fh:
             tag = line[:2]
-            if tag == "v ":
-                v_lines.append(line)
-                nv += 1
-            elif tag == "vt":
-                vt_lines.append(line)
-                nvt += 1
-            elif tag == "vn":
-                vn_lines.append(line)
-                nvn += 1
-            elif tag == "f ":
+            if tag not in _TAGS:
+                # tabs / leading whitespace after or before the keyword are valid OBJ whitespace
+                parts = line.split(maxsplit=1)
+                if not parts:
+                    continue
+                key, rest = parts[0], (parts[1] if len(parts) > 1 else "")
+                if key == "usemtl":
+                    name = rest.strip()
+                    if name not in mat_index:
+                        mat_index[name] = len(materials)
+                        materials.append(name)
+                    cur = mat_index[name]
+                    continue
+                if key == "mtllib":
+                    mtllibs += _resolve_mtllibs(path.parent, rest)
+                    continue
+                if key not in ("v", "vt", "vn", "f"):
+                    continue
+                line = f"{key} {rest}"
+                tag = line[:2]
+            if tag == "f ":
                 face_lines.append(line)
                 face_meta.append((cur, nv, nvt, nvn))
-            elif line.startswith("usemtl"):
-                parts = line.split(maxsplit=1)
-                name = parts[1].strip() if len(parts) > 1 else ""
-                if name not in mat_index:
-                    mat_index[name] = len(materials)
-                    materials.append(name)
-                cur = mat_index[name]
-            elif line.startswith("mtllib"):
-                for name in line.split(maxsplit=1)[1].strip().split():
-                    mtllibs.append((path.parent / name).resolve())
-    f, face_mat = _parse_faces(path, face_lines, face_meta)
-    v = _floats(v_lines, 3)
-    vt = _floats(vt_lines, 2) if vt_lines else None
-    vn = _floats(vn_lines, 3) if vn_lines else None
-    has_vt = vt is not None and len(f) and (f[:, :, 1] >= 0).all()
-    has_vn = vn is not None and len(f) and (f[:, :, 2] >= 0).all()
-    f_mat = face_mat
+                if len(face_lines) >= _BATCH:
+                    flush_faces()
+                continue
+            if tag == "v ":
+                nv += 1
+            elif tag == "vt":
+                nvt += 1
+            else:
+                nvn += 1
+            buf = lines[tag]
+            buf.append(line)
+            if len(buf) >= _BATCH:
+                arrays[tag].append(_floats(buf, width[tag]))
+                buf.clear()
+    flush_faces()
+    for tag, buf in lines.items():
+        if buf:
+            arrays[tag].append(_floats(buf, width[tag]))
+            buf.clear()
+
+    def cat(parts, w):
+        out = np.concatenate(parts) if parts else np.zeros((0, w))
+        parts.clear()
+        return out
+
+    v = cat(arrays["v "], 3)
+    vt = cat(arrays["vt"], 2) if nvt else None
+    vn = cat(arrays["vn"], 3) if nvn else None
+    f_v, f_vt, f_vn = (np.concatenate(c) for c in f_cols)
+    f_cols.clear()
+    f_mat = np.concatenate(f_mats)
+    for col, count, what in ((f_v, nv, "v"), (f_vt, nvt, "vt"), (f_vn, nvn, "vn")):
+        if len(col) and col.max() >= count:
+            raise ValueError(
+                f"{path}: face {what} index {int(col.max()) + 1} out of range ({count} {what} lines)"
+            )
+    if len(f_v) and f_v.min() < 0:
+        raise ValueError(f"{path}: face without a vertex index")
+    has_vt = vt is not None and len(f_v) and (f_vt >= 0).all()
+    has_vn = vn is not None and len(f_v) and (f_vn >= 0).all()
     if len(f_mat) and (f_mat < 0).any():  # faces before any usemtl
         if "" not in mat_index:
             mat_index[""] = len(materials)
@@ -201,11 +273,11 @@ def read_obj(path: str | Path) -> Mesh:
         f_mat[f_mat < 0] = mat_index[""]
     return Mesh(
         v=v,
-        f_v=f[:, :, 0].copy(),
+        f_v=f_v,
         vt=vt if has_vt else None,
-        f_vt=f[:, :, 1].copy() if has_vt else None,
+        f_vt=f_vt if has_vt else None,
         vn=vn if has_vn else None,
-        f_vn=f[:, :, 2].copy() if has_vn else None,
+        f_vn=f_vn if has_vn else None,
         f_mat=f_mat,
         materials=materials,
         mtllibs=mtllibs,
@@ -241,9 +313,14 @@ def write_obj(mesh: Mesh, path: str | Path, mtllib: str | None = None, header: s
         corner = "%d//%d"
     fmt = "f " + " ".join([corner] * 3)
     idx = np.stack(cols, axis=2) + 1  # (F, 3 corners, k) 1-based
-    for m in np.unique(f_mat):
+
+    def name_of(m):
+        return mesh.materials[m] if mesh.materials and m < len(mesh.materials) else ""
+
+    # faces without a material go first (before any usemtl), or re-reading would give them the previous one
+    for m in sorted(np.unique(f_mat), key=lambda m: (name_of(m) != "", m)):
         sel = order[f_mat[order] == m]
-        name = mesh.materials[m] if mesh.materials and m < len(mesh.materials) else ""
+        name = name_of(m)
         if name:
             parts.append(f"usemtl {name}\n")
         buf = io.StringIO()
@@ -256,37 +333,99 @@ def write_obj(mesh: Mesh, path: str | Path, mtllib: str | None = None, header: s
 
 # -- MTL ------------------------------------------------------------------------------------------
 
-_MAP_KEYS = ("map_", "bump", "disp", "decal", "norm")
+_MAP_KEYS = ("map_", "bump", "disp", "decal", "norm", "refl")
+# MTL texture options and how many arguments they take (-o/-s/-t take 1 to 3 numbers)
+_MAP_OPTS = {
+    "-blendu": 1, "-blendv": 1, "-bm": 1, "-boost": 1, "-cc": 1, "-clamp": 1, "-imfchan": 1,
+    "-mm": 2, "-o": 3, "-s": 3, "-t": 3, "-texres": 1, "-type": 1,
+}  # fmt: skip
+_UP_TO_3 = ("-o", "-s", "-t")
+
+
+def _is_number(tok: str) -> bool:
+    try:
+        float(tok)
+    except ValueError:
+        return False
+    return True
+
+
+def split_map_line(line: str) -> tuple[str, str] | None:
+    """'map_Kd -bm 1 tex/my file.png' -> ('map_Kd -bm 1', 'tex/my file.png'); None if not a texture line.
+
+    Known options and their arguments are skipped; everything after them is the file name, spaces included.
+    """
+    s = line.strip()
+    if not s.lower().startswith(_MAP_KEYS):
+        return None
+    toks = s.split()
+    i = 1
+    while i < len(toks) - 1 and toks[i].lower() in _MAP_OPTS:
+        opt = toks[i].lower()
+        i += 1
+        if opt in _UP_TO_3:
+            k = 0
+            while k < 3 and i < len(toks) - 1 and _is_number(toks[i]):
+                i += 1
+                k += 1
+        else:
+            i += _MAP_OPTS[opt]
+    if i >= len(toks):
+        return None
+    parts = s.split(maxsplit=i)
+    return " ".join(parts[:i]), parts[i]
 
 
 def mtl_textures(mtl_path: Path) -> list[str]:
     """Texture paths referenced by a .mtl (as written, options stripped)."""
     out = []
-    for line in Path(mtl_path).read_text(encoding="utf-8", errors="replace").splitlines():
-        s = line.strip()
-        if s.lower().startswith(_MAP_KEYS):
-            toks = s.split()
-            if len(toks) >= 2:
-                out.append(toks[-1])  # options (-bm 1 ...) come before the file name
+    for line in Path(mtl_path).read_text(encoding="utf-8-sig", errors="replace").splitlines():
+        split = split_map_line(line)
+        if split:
+            out.append(split[1])
     return out
+
+
+def texture_exists(tex: Path) -> bool:
+    """True if the file exists; for '<UDIM>' names, if at least one tile (1001 …) exists."""
+    tex = Path(tex)
+    if "<udim>" in tex.name.lower():
+        pattern = re.sub("<udim>", "[0-9][0-9][0-9][0-9]", tex.name, flags=re.IGNORECASE)
+        return any(tex.parent.glob(pattern)) if tex.parent.is_dir() else False
+    return tex.is_file()
+
+
+def _rel_or_abs(target: Path, start: Path) -> str:
+    """Relative path with '/', or the absolute path when there is none (Windows: another drive)."""
+    try:
+        return os.path.relpath(target, start).replace(os.sep, "/")
+    except ValueError:
+        return Path(target).as_posix()
+
+
+def rewrite_mtl_text(src: Path, dst_dir: Path) -> tuple[str, list[Path]]:
+    """Text of src's .mtl with texture paths rewritten for a .mtl in dst_dir, and the resolved textures."""
+    src = Path(src).resolve()
+    base = Path(dst_dir).resolve()
+    textures, lines = [], []
+    for line in src.read_text(encoding="utf-8-sig", errors="replace").splitlines():
+        split = split_map_line(line)
+        if split:
+            prefix, name = split
+            tex = (src.parent / name).resolve()
+            textures.append(tex)
+            line = f"{prefix} {_rel_or_abs(tex, base)}"
+        lines.append(line)
+    return "\n".join(lines) + "\n", textures
 
 
 def rewrite_mtl(src: Path, dst: Path) -> list[Path]:
     """Copy a .mtl to dst, rewriting texture paths relative to dst's folder. Returns resolved textures."""
-    src, dst = Path(src).resolve(), Path(dst)
+    dst = Path(dst)
     dst.parent.mkdir(parents=True, exist_ok=True)
-    textures, lines = [], []
-    for line in src.read_text(encoding="utf-8", errors="replace").splitlines():
-        s = line.strip()
-        if s.lower().startswith(_MAP_KEYS) and len(s.split()) >= 2:
-            toks = s.split()
-            tex = (src.parent / toks[-1]).resolve()
-            textures.append(tex)
-            rel = os.path.relpath(tex, dst.parent.resolve()).replace(os.sep, "/")
-            line = " ".join([*toks[:-1], rel])
-        lines.append(line)
+    text, textures = rewrite_mtl_text(src, dst.parent)
     with open(dst, "w", encoding="utf-8", newline="\n") as fh:
-        fh.write("\n".join(lines) + "\n")
+        fh.write(text)
     return textures
 
 
