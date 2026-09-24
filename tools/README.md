@@ -5,6 +5,7 @@
 | `golmok-exif <폴더>` | 촬영 사진 EXIF 점검: 셔터 속도, 사용 렌즈(메인 1x 여부), 해상도(48MP), GPS, 촬영 시간. **리허설과 촬영 직후에 실행** |
 | `golmok-frames <영상> <출력폴더>` | 영상에서 선명한 프레임만 추출(창마다 가장 선명한 1장). ffmpeg 필요 |
 | `golmok-blur <입력폴더> <출력폴더> --face-model … --lp-model …` | **얼굴·번호판 블러**(Meta EgoBlur, Apache-2.0). 재구성(RealityScan/Postshot)에는 **출력 폴더만** 쓴다 |
+| `golmok-perf <csv…> [--label …] [--markdown]` | Unreal CSV 프로파일(`CsvProfile Start/Stop`) 요약: 평균·1% low fps, Game/Render/GPU ms. 스파이크 비교표용 |
 | `golmok-basemap inspect/build …` | **배경 베이스맵**: 건물 SHP(GIS건물통합정보) + DEM + 정사영상 → LOD1 건물·지형 GLB 타일 + `manifest.json` + `tileset.json`(3D Tiles 1.1) |
 
 ## 설치 (Windows, 한 번만)

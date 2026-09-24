@@ -71,8 +71,10 @@
 | 성능 | 4K와 1440p, DLSS 끔/켬에서 평균·1% low fps, GPU ms, VRAM |
 | 제작 비용 | 처리 시간(학습·변환), 수작업 시간 |
 
+**준비된 도구**(✅ 코드 완료, 에디터 검증 대기): 조명 프리셋 `golmok.lighting`, 고정 시점 저장·일괄 캡처 `golmok.viewpoints`, 성능 요약 `golmok-perf`
+
 **산출물**
-- `docs/research/08-spike-results.md`(비교 스크린샷과 수치)
+- `docs/research/08-spike-results.md`(템플릿 작성됨. 비교 스크린샷과 수치)
 - **D-010: 환경 표현 방식 확정**
 
 ### 1.2 베이스맵(배경) 빌더 — 🟡 코드·테스트 완료, **실데이터 빌드·UE 임포트 검증 대기**

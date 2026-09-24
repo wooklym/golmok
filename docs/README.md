@@ -13,6 +13,7 @@
 | [research/07-ue5-toolchain.md](research/07-ue5-toolchain.md) | UE5 툴체인 검증: 버전, PC 사양, RealityScan, Postshot, splat 플러그인, 클라우드 |
 | [capture/01-alley-capture-guide.md](capture/01-alley-capture-guide.md) | 촬영 가이드 #1: 골목 |
 | [outreach/smap-inquiry-draft.md](outreach/smap-inquiry-draft.md) | 서울시 S-Map 문의 초안 |
+| [research/08-spike-results.md](research/08-spike-results.md) | 스파이크 1.1 결과(템플릿, 측정 전) |
 | [capture/02-interior-capture-guide.md](capture/02-interior-capture-guide.md) | 촬영 가이드 #2: 실내 |
 | [outreach/interior-consent-form-draft.md](outreach/interior-consent-form-draft.md) | 실내 촬영·게시 동의서 초안(변호사 검토 전) |
 | [captures/INDEX.md](captures/INDEX.md) | 촬영 목록(Zone 백로그) |
