@@ -15,9 +15,13 @@ class DummyModel(torch.nn.Module):
     def forward(self, image: torch.Tensor):
         # image: uint8 CHW (BGR). Return (boxes, labels, scores, dims) like EgoBlur Gen1.
         _, h, w = image.shape
-        boxes = torch.tensor([[0.0, 0.0, 10.0, 10.0],
-                              [1.0, 1.0, 10.0, 10.0],   # overlaps first -> removed by NMS
-                              [20.0, 20.0, 30.0, 30.0]])  # low score -> filtered
+        boxes = torch.tensor(
+            [
+                [0.0, 0.0, 10.0, 10.0],
+                [1.0, 1.0, 10.0, 10.0],  # overlaps first -> removed by NMS
+                [20.0, 20.0, 30.0, 30.0],
+            ]
+        )  # low score -> filtered
         scores = torch.tensor([0.95, 0.93, 0.5])
         labels = torch.zeros(3, dtype=torch.int64)
         dims = torch.tensor([h, w])

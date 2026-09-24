@@ -1,0 +1,256 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/wooklym/golmok/docs/spec/zone-manifest.schema.json",
+  "title": "Golmok Zone manifest",
+  "description": "zones/<zone_id>/v<version>/manifest.json. Spec: docs/spec/zone-manifest.md. Units: meters, zone-local ENU (x=east, y=north, z=up) unless the field name says otherwise.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "zone_id",
+    "version",
+    "kind",
+    "parent_zone",
+    "origin",
+    "origin_ecef",
+    "transform",
+    "footprint_wgs84",
+    "replaces",
+    "layers",
+    "portals",
+    "priority",
+    "quality",
+    "consent",
+    "attribution",
+    "sources"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "zone_id": { "$ref": "#/$defs/zone_id" },
+    "version": { "type": "integer", "minimum": 1 },
+    "kind": { "enum": ["exterior", "interior"] },
+    "parent_zone": {
+      "description": "interior: the exterior zone it hangs off. exterior: null.",
+      "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/zone_id" }]
+    },
+    "origin": {
+      "description": "Geodetic position (WGS84, EPSG:4979) of zone-local (0,0,0). Derived from transform; kept for humans and indexing.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["lat", "lon", "height_ellipsoidal"],
+      "properties": {
+        "lat": { "type": "number", "minimum": -90, "maximum": 90 },
+        "lon": { "type": "number", "minimum": -180, "maximum": 180 },
+        "height_ellipsoidal": { "type": "number", "minimum": -1000, "maximum": 10000 }
+      }
+    },
+    "origin_ecef": {
+      "description": "ECEF (EPSG:4978, m) of zone-local (0,0,0) = transform translation.",
+      "$ref": "#/$defs/vec3"
+    },
+    "transform": {
+      "description": "zone-local ENU (Z-up, m) -> ECEF (m), 4x4, row-major: [r00,r01,r02,tx, r10,r11,r12,ty, r20,r21,r22,tz, 0,0,0,1].",
+      "type": "array",
+      "items": { "type": "number" },
+      "minItems": 16,
+      "maxItems": 16
+    },
+    "footprint_wgs84": { "$ref": "#/$defs/geojson_polygon" },
+    "replaces": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["building_ids", "terrain_clip"],
+      "properties": {
+        "building_ids": {
+          "description": "Basemap building ids (GIS건물통합정보 key) this zone hides.",
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "uniqueItems": true
+        },
+        "terrain_clip": { "type": "boolean" }
+      }
+    },
+    "layers": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["visual", "collision"],
+      "properties": {
+        "visual": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["format", "chunks"],
+          "properties": {
+            "format": { "enum": ["nanite_mesh", "splat_ply", "splat_3dtiles", "splat_lcc"] },
+            "chunks": { "type": "array", "items": { "$ref": "#/$defs/chunk" } },
+            "textures": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["uri"],
+                "properties": {
+                  "uri": { "$ref": "#/$defs/rel_uri" },
+                  "chunk_id": { "$ref": "#/$defs/asset_id" },
+                  "role": { "enum": ["base_color", "normal", "orm", "other"] }
+                }
+              }
+            }
+          }
+        },
+        "collision": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["format", "uri"],
+          "properties": {
+            "format": { "const": "glb" },
+            "uri": { "$ref": "#/$defs/rel_uri" },
+            "chunks": { "type": "array", "items": { "$ref": "#/$defs/chunk" } }
+          }
+        },
+        "blockers": {
+          "description": "Planes the player must not pass (glass, no-entry). File format: zone-blockers.schema.json.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["uri"],
+          "properties": { "uri": { "$ref": "#/$defs/rel_uri" } }
+        },
+        "navmesh": {
+          "description": "Optional: UE builds its own navmesh from collision.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["format", "uri"],
+          "properties": {
+            "format": { "enum": ["recast"] },
+            "uri": { "$ref": "#/$defs/rel_uri" }
+          }
+        }
+      }
+    },
+    "portals": { "type": "array", "items": { "$ref": "#/$defs/portal" } },
+    "priority": {
+      "description": "Higher wins where zones overlap; ties go to the newer version.",
+      "type": "integer"
+    },
+    "quality": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "icp_rmse_m": { "type": ["number", "null"], "minimum": 0 },
+        "footprint_iou": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+        "reviewed_by": { "type": ["string", "null"] },
+        "reviewed_at": { "type": ["string", "null"], "format": "date-time" }
+      }
+    },
+    "consent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "record_id"],
+      "properties": {
+        "type": { "enum": ["public_street", "owner_consent"] },
+        "record_id": { "type": ["string", "null"] }
+      }
+    },
+    "attribution": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+    "sources": {
+      "description": "Captures this zone was built from (IDs from docs/captures/INDEX.md).",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["capture_id"],
+        "properties": {
+          "capture_id": { "type": "string", "minLength": 1 },
+          "note": { "type": "string" }
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "kind": { "const": "interior" } } },
+      "then": { "properties": { "parent_zone": { "$ref": "#/$defs/zone_id" } } },
+      "else": { "properties": { "parent_zone": { "type": "null" } } }
+    }
+  ],
+  "$defs": {
+    "zone_id": { "type": "string", "pattern": "^z_[a-z0-9]+(_[a-z0-9]+)*$", "maxLength": 64 },
+    "asset_id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9_]*$", "maxLength": 64 },
+    "rel_uri": {
+      "description": "Path relative to the manifest's folder, '/' separated, no '..', no scheme.",
+      "type": "string",
+      "pattern": "^(?![/\\\\])(?!.*(^|/)\\.\\.(/|$))(?!.*\\\\)(?![A-Za-z][A-Za-z0-9+.-]*:)[^\\s]+$"
+    },
+    "vec3": {
+      "type": "array",
+      "items": { "type": "number" },
+      "minItems": 3,
+      "maxItems": 3
+    },
+    "chunk": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "uri", "bbox_enu"],
+      "properties": {
+        "id": { "$ref": "#/$defs/asset_id" },
+        "uri": { "$ref": "#/$defs/rel_uri" },
+        "bbox_enu": {
+          "description": "[[min x,y,z],[max x,y,z]] in zone-local ENU m.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/vec3" },
+          "minItems": 2,
+          "maxItems": 2
+        },
+        "tris": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "portal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "to_zone", "pose_enu", "radius_m", "kind"],
+      "properties": {
+        "id": { "$ref": "#/$defs/asset_id" },
+        "to_zone": { "$ref": "#/$defs/zone_id" },
+        "pose_enu": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["position", "yaw_deg"],
+          "properties": {
+            "position": { "$ref": "#/$defs/vec3" },
+            "yaw_deg": {
+              "description": "Facing direction (into the target zone), counter-clockwise from +x (east) seen from above.",
+              "type": "number",
+              "minimum": -360,
+              "maximum": 360
+            }
+          }
+        },
+        "radius_m": { "type": "number", "exclusiveMinimum": 0 },
+        "kind": { "enum": ["door"] }
+      }
+    },
+    "position": {
+      "type": "array",
+      "items": { "type": "number" },
+      "minItems": 2,
+      "maxItems": 3,
+      "prefixItems": [
+        { "type": "number", "minimum": -180, "maximum": 180 },
+        { "type": "number", "minimum": -90, "maximum": 90 }
+      ]
+    },
+    "linear_ring": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/position" },
+      "minItems": 4
+    },
+    "geojson_polygon": {
+      "description": "GeoJSON Polygon (RFC 7946), [lon, lat] in WGS84. Any winding order.",
+      "type": "object",
+      "required": ["type", "coordinates"],
+      "properties": {
+        "type": { "const": "Polygon" },
+        "coordinates": { "type": "array", "items": { "$ref": "#/$defs/linear_ring" }, "minItems": 1 }
+      }
+    }
+  }
+}

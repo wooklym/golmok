@@ -38,9 +38,9 @@ def resolve(url_path: str, data_dir: Path) -> Path | None:
     """Map a request path to a file; None when outside the allowed roots."""
     path = unquote(urlsplit(url_path).path)
     if path.startswith("/data/"):
-        root, rel = data_dir, path[len("/data/"):]
+        root, rel = data_dir, path[len("/data/") :]
     elif path.startswith("/cesium/"):
-        root, rel = CESIUM_BUILD, path[len("/cesium/"):]
+        root, rel = CESIUM_BUILD, path[len("/cesium/") :]
     else:
         root, rel = VIEWER_DIR, path.lstrip("/") or "index.html"
     full = (root / rel).resolve()
@@ -93,7 +93,8 @@ def main(argv: list[str] | None = None) -> int:
     server = make_server(args.data_dir.resolve(), args.port)
     url = f"http://127.0.0.1:{args.port}/?tileset=/data/{args.tileset}"
     print(f"viewer: {url}")
-    print(f"cesium: {'local node_modules' if CESIUM_BUILD.exists() else 'CDN (internet needed)'}  (Ctrl+C to stop)")
+    source = "local node_modules" if CESIUM_BUILD.exists() else "CDN (internet needed)"
+    print(f"cesium: {source}  (Ctrl+C to stop)")
     if not args.no_browser:
         threading.Timer(0.5, webbrowser.open, args=(url,)).start()
     try:

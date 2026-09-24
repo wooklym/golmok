@@ -2,7 +2,8 @@
 
     golmok-basemap inspect --buildings AL_D010_11_….shp
     golmok-basemap build --buildings AL_D010_11_….shp --height-field A16 \\
-        --dem dem\\*.tif --ortho ortho\\*.tif --center 37.5620,126.9250 --radius 1000 --out D:\\golmok_basemap\\yeonnam
+        --dem dem\\*.tif --ortho ortho\\*.tif --center 37.5620,126.9250 --radius 1000 \\
+        --out D:\\golmok_basemap\\yeonnam
 
 Output (--out):
     manifest.json   origin, tiles, sources/attribution (read by the Unreal import script)
@@ -18,7 +19,7 @@ import argparse
 import glob
 import json
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import numpy as np
@@ -80,8 +81,13 @@ def build(args) -> dict:
     probe = EnuFrame(lon, lat, 0.0)
     probe_proj = Projector("EPSG:4326", probe)
     corner_lon, corner_lat = probe_proj.enu_to_lonlat(np.array([-r, r, r, -r]), np.array([-r, -r, r, r]))
-    dem = DemSampler(dem_paths, corner_lon, corner_lat, margin=args.tile_size,
-                     crs_override=getattr(args, "raster_crs", None))
+    dem = DemSampler(
+        dem_paths,
+        corner_lon,
+        corner_lat,
+        margin=args.tile_size,
+        crs_override=getattr(args, "raster_crs", None),
+    )
     h0 = float(dem.sample_lonlat(np.array([lon]), np.array([lat]))[0])
     frame = EnuFrame(lon, lat, h0 + args.geoid_offset)
 
@@ -95,9 +101,17 @@ def build(args) -> dict:
 
     area = box(-r, -r, r, r)
     exclude = _load_exclude(args.exclude, ll_proj)
-    buildings = load_buildings(Path(args.buildings), projector, area, encoding=args.encoding,
-                               height_field=args.height_field, floors_field=args.floors_field,
-                               usage_field=args.usage_field, id_field=args.id_field, exclude_enu=exclude)
+    buildings = load_buildings(
+        Path(args.buildings),
+        projector,
+        area,
+        encoding=args.encoding,
+        height_field=args.height_field,
+        floors_field=args.floors_field,
+        usage_field=args.usage_field,
+        id_field=args.id_field,
+        exclude_enu=exclude,
+    )
     set_elevations(buildings, ground_z)
     ortho = OrthoSource(ortho_paths, getattr(args, "raster_crs", None)) if ortho_paths else None
 
@@ -115,13 +129,31 @@ def build(args) -> dict:
         for iy in range(n_tiles):
             x0, y0 = x_min + ix * t, x_min + iy * t
             tb = by_tile.get((ix, iy), [])
-            contents, entry = [], {"id": f"{ix}_{iy}", "ix": ix, "iy": iy,
-                                   "center_enu": [x0 + t / 2, y0 + t / 2], "buildings": None,
-                                   "terrain": None, "n_buildings": len(tb)}
+            contents, entry = (
+                [],
+                {
+                    "id": f"{ix}_{iy}",
+                    "ix": ix,
+                    "iy": iy,
+                    "center_enu": [x0 + t / 2, y0 + t / 2],
+                    "buildings": None,
+                    "terrain": None,
+                    "n_buildings": len(tb),
+                },
+            )
             z_vals = []
             if not args.no_terrain:
-                tm = terrain_mesh(ll_proj, dem, x0, y0, t, args.terrain_spacing, ortho, args.texture_size,
-                                  name=f"terrain_{ix}_{iy}")
+                tm = terrain_mesh(
+                    ll_proj,
+                    dem,
+                    x0,
+                    y0,
+                    t,
+                    args.terrain_spacing,
+                    ortho,
+                    args.texture_size,
+                    name=f"terrain_{ix}_{iy}",
+                )
                 uri = f"tiles/t_{ix}_{iy}.glb"
                 write_glb(out / uri, [tm], {"golmok": {"kind": "terrain", "tile": entry["id"]}})
                 entry["terrain"] = uri
@@ -139,19 +171,35 @@ def build(args) -> dict:
             if not contents:
                 continue
             zmin, zmax = float(min(z_vals)), float(max(z_vals))
-            children.append({
-                "boundingVolume": {"box": [x0 + t / 2, y0 + t / 2, (zmin + zmax) / 2,
-                                           t / 2, 0, 0, 0, t / 2, 0, 0, 0, max((zmax - zmin) / 2, 1.0)]},
-                "geometricError": 0.0,
-                "contents": contents,
-            })
+            children.append(
+                {
+                    "boundingVolume": {
+                        "box": [
+                            x0 + t / 2,
+                            y0 + t / 2,
+                            (zmin + zmax) / 2,
+                            t / 2,
+                            0,
+                            0,
+                            0,
+                            t / 2,
+                            0,
+                            0,
+                            0,
+                            max((zmax - zmin) / 2, 1.0),
+                        ]
+                    },
+                    "geometricError": 0.0,
+                    "contents": contents,
+                }
+            )
             tiles.append(entry)
 
     if children:
         zs = [c["boundingVolume"]["box"][2] for c in children]
         hz = [c["boundingVolume"]["box"][11] for c in children]
-        zmin = min(z - h for z, h in zip(zs, hz))
-        zmax = max(z + h for z, h in zip(zs, hz))
+        zmin = min(z - h for z, h in zip(zs, hz, strict=True))
+        zmax = max(z + h for z, h in zip(zs, hz, strict=True))
     else:
         zmin, zmax = -1.0, 1.0
     half = n_tiles * t / 2
@@ -160,7 +208,9 @@ def build(args) -> dict:
         "geometricError": 2 * half,
         "root": {
             "transform": frame.transform_matrix(),
-            "boundingVolume": {"box": [0, 0, (zmin + zmax) / 2, half, 0, 0, 0, half, 0, 0, 0, max((zmax - zmin) / 2, 1.0)]},
+            "boundingVolume": {
+                "box": [0, 0, (zmin + zmax) / 2, half, 0, 0, 0, half, 0, 0, 0, max((zmax - zmin) / 2, 1.0)]
+            },
             "geometricError": half,
             "refine": "ADD",
             "children": children,
@@ -180,17 +230,34 @@ def build(args) -> dict:
     n_est = sum(1 for b in buildings if b.estimated)
     manifest = {
         "format": "golmok-basemap/1",
-        "created": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-        "origin": {"lat": lat, "lon": lon, "height_orthometric": h0, "geoid_offset": args.geoid_offset,
-                   "height_ellipsoidal": h0 + args.geoid_offset},
+        "created": datetime.now(UTC).isoformat(timespec="seconds"),
+        "origin": {
+            "lat": lat,
+            "lon": lon,
+            "height_orthometric": h0,
+            "geoid_offset": args.geoid_offset,
+            "height_ellipsoidal": h0 + args.geoid_offset,
+        },
         "frame": "ENU meters (x=east, y=north, z=up); GLB stores (east, up, -north)",
-        "radius_m": r, "tile_size_m": t, "terrain_spacing_m": args.terrain_spacing,
-        "buildings": {"count": len(buildings), "height_estimated": n_est,
-                      "fields": {"height": args.height_field, "floors": args.floors_field,
-                                 "usage": args.usage_field, "id": args.id_field},
-                      "source_crs": src_crs.to_string()},
-        "sources": {"buildings": str(args.buildings), "dem": [str(p) for p in dem_paths],
-                    "ortho": [str(p) for p in ortho_paths]},
+        "radius_m": r,
+        "tile_size_m": t,
+        "terrain_spacing_m": args.terrain_spacing,
+        "buildings": {
+            "count": len(buildings),
+            "height_estimated": n_est,
+            "fields": {
+                "height": args.height_field,
+                "floors": args.floors_field,
+                "usage": args.usage_field,
+                "id": args.id_field,
+            },
+            "source_crs": src_crs.to_string(),
+        },
+        "sources": {
+            "buildings": str(args.buildings),
+            "dem": [str(p) for p in dem_paths],
+            "ortho": [str(p) for p in ortho_paths],
+        },
         "attribution": ATTRIBUTION,
         "tiles": tiles,
     }
@@ -199,7 +266,9 @@ def build(args) -> dict:
 
 
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(prog="golmok-basemap", description="배경 베이스맵(LOD1 건물 + 지형) 타일 빌더")
+    ap = argparse.ArgumentParser(
+        prog="golmok-basemap", description="배경 베이스맵(LOD1 건물 + 지형) 타일 빌더"
+    )
     sub = ap.add_subparsers(dest="cmd", required=True)
 
     ins = sub.add_parser("inspect", help="SHP 필드·좌표계 확인")
@@ -223,8 +292,12 @@ def main(argv: list[str] | None = None) -> int:
     b.add_argument("--tile-size", type=float, default=250.0)
     b.add_argument("--terrain-spacing", type=float, default=5.0)
     b.add_argument("--texture-size", type=int, default=4096)
-    b.add_argument("--geoid-offset", type=float, default=0.0,
-                   help="지오이드고(m): 정표고→타원체고. UE 정적 임포트에는 영향 없음, Cesium 정렬 시 필요")
+    b.add_argument(
+        "--geoid-offset",
+        type=float,
+        default=0.0,
+        help="지오이드고(m): 정표고→타원체고. UE 정적 임포트에는 영향 없음, Cesium 정렬 시 필요",
+    )
     b.add_argument("--exclude", type=Path, help="제외할 플레이 구역 GeoJSON(경위도)")
     b.add_argument("--no-terrain", action="store_true")
 
@@ -234,7 +307,10 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     manifest = build(args)
     bl = manifest["buildings"]
-    print(f"건물 {bl['count']}동 (높이 추정 {bl['height_estimated']}동), 타일 {len(manifest['tiles'])}개 → {args.out}")
+    print(
+        f"건물 {bl['count']}동 (높이 추정 {bl['height_estimated']}동), "
+        f"타일 {len(manifest['tiles'])}개 → {args.out}"
+    )
     return 0
 
 

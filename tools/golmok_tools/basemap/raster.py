@@ -7,8 +7,8 @@ from pathlib import Path
 import cv2
 import numpy as np
 import rasterio
-from rasterio.merge import merge
 from pyproj import CRS, Transformer
+from rasterio.merge import merge
 
 
 def _raster_crs(paths: list[Path], override: str | None = None) -> CRS:
@@ -28,19 +28,26 @@ def _raster_crs(paths: list[Path], override: str | None = None) -> CRS:
 def _bounds_in(crs: CRS, lon, lat, margin: float):
     t = Transformer.from_crs(CRS.from_epsg(4326), crs, always_xy=True)
     x, y = t.transform(np.asarray(lon), np.asarray(lat))
-    return float(np.min(x) - margin), float(np.min(y) - margin), float(np.max(x) + margin), float(np.max(y) + margin)
+    return (
+        float(np.min(x) - margin),
+        float(np.min(y) - margin),
+        float(np.max(x) + margin),
+        float(np.max(y) + margin),
+    )
 
 
 class DemSampler:
     """Bilinear DEM sampling for lon/lat points. Heights are orthometric (above sea level)."""
 
-    def __init__(self, paths: list[Path], lon_bounds, lat_bounds, margin: float = 50.0,
-                 crs_override: str | None = None):
+    def __init__(
+        self, paths: list[Path], lon_bounds, lat_bounds, margin: float = 50.0, crs_override: str | None = None
+    ):
         self.paths = [Path(p) for p in paths]
         self.crs = _raster_crs(self.paths, crs_override)
         bounds = _bounds_in(self.crs, lon_bounds, lat_bounds, margin)
-        arr, self.transform = merge([str(p) for p in self.paths], bounds=bounds, indexes=[1],
-                                    nodata=np.nan, dtype="float64")
+        arr, self.transform = merge(
+            [str(p) for p in self.paths], bounds=bounds, indexes=[1], nodata=np.nan, dtype="float64"
+        )
         self.data = arr[0]
         valid = np.isfinite(self.data)
         if not valid.any():
@@ -51,7 +58,9 @@ class DemSampler:
         self._inv = ~self.transform
 
     def sample_lonlat(self, lon, lat) -> np.ndarray:
-        x, y = self._from_lonlat.transform(np.asarray(lon, dtype=np.float64), np.asarray(lat, dtype=np.float64))
+        x, y = self._from_lonlat.transform(
+            np.asarray(lon, dtype=np.float64), np.asarray(lat, dtype=np.float64)
+        )
         col, row = self._inv * (np.asarray(x), np.asarray(y))
         return _bilinear(self.data, np.asarray(row) - 0.5, np.asarray(col) - 0.5)
 
@@ -88,10 +97,13 @@ class OrthoSource:
 
     def crop(self, lon, lat, max_size: int = 4096, jpeg_quality: int = 90):
         """Returns (jpeg_bytes, uv) or (None, None) when the tile has no imagery."""
-        x, y = self._from_lonlat.transform(np.asarray(lon, dtype=np.float64), np.asarray(lat, dtype=np.float64))
+        x, y = self._from_lonlat.transform(
+            np.asarray(lon, dtype=np.float64), np.asarray(lat, dtype=np.float64)
+        )
         bounds = (float(np.min(x)), float(np.min(y)), float(np.max(x)), float(np.max(y)))
-        arr, transform = merge([str(p) for p in self.paths], bounds=bounds,
-                               indexes=list(range(1, self.band_count + 1)), nodata=0)
+        arr, transform = merge(
+            [str(p) for p in self.paths], bounds=bounds, indexes=list(range(1, self.band_count + 1)), nodata=0
+        )
         if arr.size == 0 or not arr.any():
             return None, None
         img = np.moveaxis(arr, 0, -1)
@@ -107,7 +119,9 @@ class OrthoSource:
         side = min(max_size, 1 << int(np.ceil(np.log2(max(h, w, 2)))))
         interp = cv2.INTER_AREA if side < max(h, w) else cv2.INTER_CUBIC
         img = cv2.resize(img, (side, side), interpolation=interp)
-        ok, buf = cv2.imencode(".jpg", cv2.cvtColor(img, cv2.COLOR_RGB2BGR), [cv2.IMWRITE_JPEG_QUALITY, jpeg_quality])
+        ok, buf = cv2.imencode(
+            ".jpg", cv2.cvtColor(img, cv2.COLOR_RGB2BGR), [cv2.IMWRITE_JPEG_QUALITY, jpeg_quality]
+        )
         if not ok:
             raise RuntimeError("JPEG encode failed")
         return buf.tobytes(), np.clip(uv, 0.0, 1.0)

@@ -54,8 +54,15 @@ class _Buffer:
         self.views.append(view)
         return len(self.views) - 1
 
-    def add_accessor(self, arr: np.ndarray, comp: int, typ: str, target: int | None,
-                     normalized: bool = False, minmax: bool = False) -> int:
+    def add_accessor(
+        self,
+        arr: np.ndarray,
+        comp: int,
+        typ: str,
+        target: int | None,
+        normalized: bool = False,
+        minmax: bool = False,
+    ) -> int:
         view = self.add_view(arr.tobytes(), target)
         acc = {"bufferView": view, "componentType": comp, "count": int(arr.shape[0]), "type": typ}
         if normalized:
@@ -93,25 +100,35 @@ def write_glb(path, meshes: list[MeshData], metadata: dict | None = None) -> Non
             nrm = enu_to_gltf(mesh.normals).astype(np.float32)
             attrs["NORMAL"] = buf.add_accessor(nrm, FLOAT, "VEC3", ARRAY_BUFFER)
         if mesh.uv0 is not None:
-            attrs["TEXCOORD_0"] = buf.add_accessor(np.asarray(mesh.uv0, np.float32), FLOAT, "VEC2", ARRAY_BUFFER)
+            attrs["TEXCOORD_0"] = buf.add_accessor(
+                np.asarray(mesh.uv0, np.float32), FLOAT, "VEC2", ARRAY_BUFFER
+            )
         if mesh.uv1 is not None:
-            attrs["TEXCOORD_1"] = buf.add_accessor(np.asarray(mesh.uv1, np.float32), FLOAT, "VEC2", ARRAY_BUFFER)
+            attrs["TEXCOORD_1"] = buf.add_accessor(
+                np.asarray(mesh.uv1, np.float32), FLOAT, "VEC2", ARRAY_BUFFER
+            )
         if mesh.colors is not None:
-            attrs["COLOR_0"] = buf.add_accessor(np.asarray(mesh.colors, np.uint8), UINT8, "VEC4",
-                                                ARRAY_BUFFER, normalized=True)
+            attrs["COLOR_0"] = buf.add_accessor(
+                np.asarray(mesh.colors, np.uint8), UINT8, "VEC4", ARRAY_BUFFER, normalized=True
+            )
         primitive: dict = {"attributes": attrs, "mode": 4}
         if mesh.feature_ids is not None:
-            attrs["_FEATURE_ID_0"] = buf.add_accessor(np.asarray(mesh.feature_ids, np.float32), FLOAT,
-                                                      "SCALAR", ARRAY_BUFFER)
+            attrs["_FEATURE_ID_0"] = buf.add_accessor(
+                np.asarray(mesh.feature_ids, np.float32), FLOAT, "SCALAR", ARRAY_BUFFER
+            )
             n_features = int(np.max(mesh.feature_ids)) + 1 if len(mesh.feature_ids) else 0
-            primitive["extensions"] = {"EXT_mesh_features": {
-                "featureIds": [{"featureCount": n_features, "attribute": 0}]}}
+            primitive["extensions"] = {
+                "EXT_mesh_features": {"featureIds": [{"featureCount": n_features, "attribute": 0}]}
+            }
             uses_features = True
-        primitive["indices"] = buf.add_accessor(np.asarray(mesh.indices, np.uint32), UINT32, "SCALAR",
-                                                ELEMENT_ARRAY_BUFFER)
+        primitive["indices"] = buf.add_accessor(
+            np.asarray(mesh.indices, np.uint32), UINT32, "SCALAR", ELEMENT_ARRAY_BUFFER
+        )
 
-        material = {"name": f"{mesh.name}_mat",
-                    "pbrMetallicRoughness": {"metallicFactor": 0.0, "roughnessFactor": 0.9}}
+        material = {
+            "name": f"{mesh.name}_mat",
+            "pbrMetallicRoughness": {"metallicFactor": 0.0, "roughnessFactor": 0.9},
+        }
         if mesh.texture_jpeg:
             img_view = buf.add_view(mesh.texture_jpeg)
             images.append({"bufferView": img_view, "mimeType": "image/jpeg"})
@@ -122,7 +139,9 @@ def write_glb(path, meshes: list[MeshData], metadata: dict | None = None) -> Non
         gltf["materials"].append(material)
         primitive["material"] = len(gltf["materials"]) - 1
 
-        gltf["meshes"].append({"name": mesh.name, "primitives": [primitive], **({"extras": mesh.extras} if mesh.extras else {})})
+        gltf["meshes"].append(
+            {"name": mesh.name, "primitives": [primitive], **({"extras": mesh.extras} if mesh.extras else {})}
+        )
         gltf["nodes"].append({"name": mesh.name, "mesh": len(gltf["meshes"]) - 1})
         gltf["scenes"][0]["nodes"].append(len(gltf["nodes"]) - 1)
 

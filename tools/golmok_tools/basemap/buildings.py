@@ -15,7 +15,7 @@ import mapbox_earcut as earcut
 import numpy as np
 import shapefile
 from pyproj import CRS
-from shapely.geometry import Polygon, MultiPolygon, shape, box
+from shapely.geometry import MultiPolygon, Polygon, box, shape
 from shapely.geometry.polygon import orient
 from shapely.validation import make_valid
 
@@ -35,14 +35,17 @@ USAGE_CATEGORIES = [
     (5, ("교육", "학교", "종교", "문화", "의료", "노유자", "운동", "공공", "관광")),
 ]
 
-PALETTE = np.array([
-    [150, 72, 58],    # red brick
-    [168, 96, 72],    # light brick
-    [196, 184, 164],  # beige
-    [176, 176, 172],  # concrete grey
-    [214, 210, 200],  # off-white render
-    [120, 110, 100],  # dark stone
-], dtype=np.float64)
+PALETTE = np.array(
+    [
+        [150, 72, 58],  # red brick
+        [168, 96, 72],  # light brick
+        [196, 184, 164],  # beige
+        [176, 176, 172],  # concrete grey
+        [214, 210, 200],  # off-white render
+        [120, 110, 100],  # dark stone
+    ],
+    dtype=np.float64,
+)
 
 
 @dataclass
@@ -89,7 +92,7 @@ def inspect_fields(shp: Path, encoding: str = "cp949", samples: int = 5) -> str:
         names = [f[0] for f in r.fields[1:]]
         lines = [f"레코드 {len(r)}개, 도형 유형 {r.shapeTypeName}", f"필드 {len(names)}개:"]
         rows = [r.record(i) for i in range(min(samples, len(r)))]
-        for i, (name, typ, size, dec) in enumerate(r.fields[1:]):
+        for i, (name, typ, size, _dec) in enumerate(r.fields[1:]):
             vals = ", ".join(repr(row[i]) for row in rows)
             lines.append(f"  {name:<12} {typ}{size:>4}  예: {vals}")
     prj = shp.with_suffix(".prj")
@@ -113,10 +116,18 @@ def shapefile_crs(shp: Path, override: str | None) -> CRS:
     return CRS.from_wkt(prj.read_text(encoding="utf-8", errors="ignore"))
 
 
-def load_buildings(shp: Path, projector: Projector, area_enu: Polygon, *, encoding: str = "cp949",
-                   height_field: str | None, floors_field: str | None = None,
-                   usage_field: str | None = None, id_field: str | None = None,
-                   exclude_enu: list[Polygon] | None = None) -> list[Building]:
+def load_buildings(
+    shp: Path,
+    projector: Projector,
+    area_enu: Polygon,
+    *,
+    encoding: str = "cp949",
+    height_field: str | None,
+    floors_field: str | None = None,
+    usage_field: str | None = None,
+    id_field: str | None = None,
+    exclude_enu: list[Polygon] | None = None,
+) -> list[Building]:
     """Read footprints whose ENU footprint intersects `area_enu`."""
     # Coarse filter in the source CRS using the area's lon/lat bounds.
     ex, ey = area_enu.exterior.xy
@@ -136,14 +147,16 @@ def load_buildings(shp: Path, projector: Projector, area_enu: Polygon, *, encodi
             geom = shape(sr.shape.__geo_interface__)
             if not geom.intersects(src_bbox):
                 continue
-            rec = dict(zip(names, sr.record))
+            rec = dict(zip(names, sr.record, strict=False))
             for poly in _polygons(geom):
                 enu_poly = _poly_to_enu(poly, projector)
                 if enu_poly is None or enu_poly.area < MIN_AREA_M2 or not enu_poly.intersects(area_enu):
                     continue
                 if exclude_enu and any(enu_poly.intersects(z) for z in exclude_enu):
                     continue
-                out.append(_make_building(rec, enu_poly, n, height_field, floors_field, usage_field, id_field))
+                out.append(
+                    _make_building(rec, enu_poly, n, height_field, floors_field, usage_field, id_field)
+                )
     return out
 
 
@@ -161,6 +174,7 @@ def _poly_to_enu(poly: Polygon, projector: Projector) -> Polygon | None:
         c = np.asarray(coords, dtype=np.float64)
         enu = projector.to_enu(c[:, 0], c[:, 1], np.zeros(len(c)))
         return enu[:, :2]
+
     try:
         p = Polygon(ring(poly.exterior.coords), [ring(i.coords) for i in poly.interiors])
     except ValueError:
@@ -185,8 +199,15 @@ def _make_building(rec, poly, n, height_field, floors_field, usage_field, id_fie
         height = floors * DEFAULT_FLOOR_HEIGHT if floors else DEFAULT_HEIGHT
         estimated = True
     height = float(np.clip(height, 2.5, 400.0))
-    return Building(id=bid, footprint=poly, height=height, floors=floors, usage=usage,
-                    category=usage_category(usage), estimated=estimated)
+    return Building(
+        id=bid,
+        footprint=poly,
+        height=height,
+        floors=floors,
+        usage=usage,
+        category=usage_category(usage),
+        estimated=estimated,
+    )
 
 
 def set_elevations(buildings: list[Building], ground_at) -> None:
@@ -211,14 +232,21 @@ def buildings_mesh(buildings: list[Building], name: str = "buildings") -> MeshDa
 
     def add(p, nm, u0, u1, c, f, tri):
         nonlocal count
-        pos.append(p); nrm.append(nm); uv0.append(u0); uv1.append(u1); col.append(c); fid.append(f)
+        pos.append(p)
+        nrm.append(nm)
+        uv0.append(u0)
+        uv1.append(u1)
+        col.append(c)
+        fid.append(f)
         idx.append(tri + count)
         count += len(p)
 
     for fi, b in enumerate(buildings):
         rgba = np.append(tint(b.id), 255).astype(np.uint8)
         fh = b.floor_height
-        rings = [np.asarray(b.footprint.exterior.coords)[:-1]] + [np.asarray(r.coords)[:-1] for r in b.footprint.interiors]
+        rings = [np.asarray(b.footprint.exterior.coords)[:-1]] + [
+            np.asarray(r.coords)[:-1] for r in b.footprint.interiors
+        ]
         # Walls: one quad per edge with flat normals. Exterior is CCW, holes CW -> (dy, -dx) points outward.
         for ring in rings:
             p0 = ring
@@ -244,8 +272,15 @@ def buildings_mesh(buildings: list[Building], name: str = "buildings") -> MeshDa
             uv[:, 2] = np.c_[u_start + length, np.full(m, zt - zb)]
             uv[:, 3] = np.c_[u_start, np.full(m, zt - zb)]
             tris = (np.arange(m)[:, None] * 4 + np.array([0, 1, 2, 0, 2, 3])).ravel()
-            add(v.reshape(-1, 3), np.repeat(normal, 4, axis=0), uv.reshape(-1, 2),
-                np.tile([fh, b.category], (m * 4, 1)), np.tile(rgba, (m * 4, 1)), np.full(m * 4, fi), tris)
+            add(
+                v.reshape(-1, 3),
+                np.repeat(normal, 4, axis=0),
+                uv.reshape(-1, 2),
+                np.tile([fh, b.category], (m * 4, 1)),
+                np.tile(rgba, (m * 4, 1)),
+                np.full(m * 4, fi),
+                tris,
+            )
 
         # Roof: earcut with holes, flat at top_z, UV = ENU meters.
         flat = np.concatenate(rings)
@@ -256,16 +291,38 @@ def buildings_mesh(buildings: list[Building], name: str = "buildings") -> MeshDa
             cross = (bb[:, 0] - a[:, 0]) * (c[:, 1] - a[:, 1]) - (bb[:, 1] - a[:, 1]) * (c[:, 0] - a[:, 0])
             tri[cross < 0] = tri[cross < 0][:, [0, 2, 1]]  # make CCW from above (normal +z)
             k = len(flat)
-            add(np.c_[flat, np.full(k, b.top_z)], np.tile([0.0, 0.0, 1.0], (k, 1)), flat.copy(),
-                np.tile([fh, 100 + b.category], (k, 1)), np.tile(rgba, (k, 1)), np.full(k, fi), tri.ravel())
+            add(
+                np.c_[flat, np.full(k, b.top_z)],
+                np.tile([0.0, 0.0, 1.0], (k, 1)),
+                flat.copy(),
+                np.tile([fh, 100 + b.category], (k, 1)),
+                np.tile(rgba, (k, 1)),
+                np.full(k, fi),
+                tri.ravel(),
+            )
 
     if not pos:
         return MeshData(np.zeros((0, 3)), np.zeros(0, np.uint32), name=name)
     return MeshData(
-        positions=np.concatenate(pos), indices=np.concatenate(idx).astype(np.uint32),
-        normals=np.concatenate(nrm), uv0=np.concatenate(uv0), uv1=np.concatenate(uv1),
-        colors=np.concatenate(col), feature_ids=np.concatenate(fid).astype(np.float32), name=name,
-        extras={"features": [{"id": b.id, "height": round(b.height, 2), "floors": b.floors,
-                              "usage": b.usage, "category": b.category, "estimated": b.estimated}
-                             for b in buildings]},
+        positions=np.concatenate(pos),
+        indices=np.concatenate(idx).astype(np.uint32),
+        normals=np.concatenate(nrm),
+        uv0=np.concatenate(uv0),
+        uv1=np.concatenate(uv1),
+        colors=np.concatenate(col),
+        feature_ids=np.concatenate(fid).astype(np.float32),
+        name=name,
+        extras={
+            "features": [
+                {
+                    "id": b.id,
+                    "height": round(b.height, 2),
+                    "floors": b.floors,
+                    "usage": b.usage,
+                    "category": b.category,
+                    "estimated": b.estimated,
+                }
+                for b in buildings
+            ]
+        },
     )
