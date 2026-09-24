@@ -6,7 +6,9 @@
 #include "Components/SceneComponent.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
+#include "GameFramework/Controller.h"
 #include "GameFramework/Pawn.h"
+#include "GameFramework/PlayerController.h"
 #include "HAL/IConsoleManager.h"
 #include "Kismet/GameplayStatics.h"
 #include "Lighting/GolmokTimeOfDay.h"
@@ -73,21 +75,21 @@ AGolmokPortal::AGolmokPortal()
 
 // ---- configuration --------------------------------------------------------------------------------------------
 
-void AGolmokPortal::Configure(const AGolmokZone& Owner, const FGolmokZonePortal& P)
+void AGolmokPortal::Configure(const AGolmokZone& OwnerZone, const FGolmokZonePortal& P)
 {
 	PortalId = P.Id;
-	OwnerZoneId = Owner.ZoneId;
+	OwnerZoneId = OwnerZone.ZoneId;
 	TargetZoneId = P.ToZone;
 	Kind = P.Kind;
 	RadiusCm = AGolmokZone::PortalRadiusCm(P);
-	bIsEntry = !Owner.IsInterior();
+	bIsEntry = !OwnerZone.IsInterior();
 	SublevelPackagePath.Reset();
 	if (bIsEntry)
 	{
 		// Version of the interior: the placed zone actor's Version when it is in this level, else 1 (editor worlds
 		// have no zone subsystem).
 		int32 TargetVersion = 1;
-		UWorld* World = Owner.GetWorld();
+		UWorld* World = OwnerZone.GetWorld();
 		UGolmokZoneSubsystem* Subsystem = World ? World->GetSubsystem<UGolmokZoneSubsystem>() : nullptr;
 		if (Subsystem)
 		{
@@ -134,37 +136,77 @@ void AGolmokPortal::BeginPlay()
 	}
 	Trigger->OnComponentBeginOverlap.AddDynamic(this, &AGolmokPortal::OnTriggerBeginOverlap);
 	Trigger->OnComponentEndOverlap.AddDynamic(this, &AGolmokPortal::OnTriggerEndOverlap);
+	// Path playback possesses another pawn (UGolmokDebugSubsystem::StartPlayback / EndPlayback) without the trigger
+	// seeing an overlap change: follow the possessed pawn instead of re-querying "is this the player" per event.
+	if (APlayerController* PC = World ? UGameplayStatics::GetPlayerController(World, 0) : nullptr)
+	{
+		PC->OnPossessedPawnChanged.AddDynamic(this, &AGolmokPortal::OnPlayerPawnChanged);
+		BoundController = PC;
+	}
 	// A pawn already standing in the box when the zone loads gets no BeginOverlap event: enter the same path by hand.
 	APawn* Pawn = World ? UGameplayStatics::GetPlayerPawn(World, 0) : nullptr;
 	if (Pawn && Trigger->IsOverlappingActor(Pawn))
 	{
-		OnTriggerBeginOverlap(Trigger, Pawn, nullptr, 0, false, FHitResult());
+		BeginPlayerOverlap(Pawn);
 	}
 }
 
 void AGolmokPortal::EndPlay(const EEndPlayReason::Type Reason)
 {
-	if (UWorld* World = GetWorld())
+	UWorld* World = GetWorld();
+	if (World)
 	{
 		World->GetTimerManager().ClearTimer(DebounceTimer);
 		World->GetTimerManager().ClearTimer(UnloadTimer);
 	}
-	if (bIsEntry && (State == EGolmokPortalState::Active || State == EGolmokPortalState::Leaving))
+	if (AController* PC = BoundController.Get())
 	{
-		// Stream out and drop our lighting source so no orphan overlay survives the portal. RequestUnload is not
-		// called: the interior zone actor is cleaned up by UGolmokZoneSubsystem::Evaluate() (parent unloaded rule).
-		FString Msg;
-		StreamOut(Msg);
-		AGolmokTimeOfDay* Tod = TimeOfDay.IsValid() ? TimeOfDay.Get() : AGolmokTimeOfDay::Find(GetWorld());
+		PC->OnPossessedPawnChanged.RemoveDynamic(this, &AGolmokPortal::OnPlayerPawnChanged);
+	}
+	BoundController.Reset();
+	if (bIsEntry)
+	{
+		const bool bWorldAlive =
+			World && !World->bIsTearingDown && Reason != EEndPlayReason::EndPlayInEditor && Reason != EEndPlayReason::Quit;
+		if (State == EGolmokPortalState::Active || State == EGolmokPortalState::Leaving)
+		{
+			FString Msg;
+			StreamOut(Msg);
+			// The interior zone was loaded pinned, which the Evaluate() orphan-interior rule skips, so the unload is
+			// ours. It runs next tick: EndPlay is reached from AGolmokZone::Unload() -> DestroyPortals(), possibly
+			// inside Evaluate(), and nothing must re-enter the subsystem from there (design section 3-1).
+			UGolmokZoneSubsystem* Subsystem = GetZoneSubsystem();
+			if (bWorldAlive && Subsystem && Subsystem->FindZone(TargetZoneId))
+			{
+				auto UnloadInterior = [Subsystem, ZoneId = TargetZoneId, Portal = PortalId]()
+				{
+					if (IsInteriorZoneInUse(Subsystem->GetWorld(), ZoneId, nullptr))
+					{
+						UE_LOG(LogGolmok, Log, TEXT("Portal %s: gone; %s kept (another portal is active)"), *Portal, *ZoneId);
+						return;
+					}
+					// The interior is not distance-managed, so the bBlocked flag RequestUnload sets is harmless.
+					FString ZoneMsg;
+					Subsystem->RequestUnload(ZoneId, ZoneMsg);
+					UE_LOG(LogGolmok, Log, TEXT("Portal %s: gone -> %s"), *Portal, *ZoneMsg);
+				};
+				World->GetTimerManager().SetTimerForNextTick(FTimerDelegate::CreateWeakLambda(Subsystem, MoveTemp(UnloadInterior)));
+				Msg += TEXT("; zone unload scheduled");
+			}
+			UE_LOG(LogGolmok, Log, TEXT("Portal %s: end play while %s -> %s"), *PortalId, StateName(State), *Msg);
+		}
+		// Always drop our lighting source (a plane crossing can happen while still Pending, and ExitInterior is a
+		// no-op for an unknown source) so no orphan overlay survives the portal.
+		AGolmokTimeOfDay* Tod = TimeOfDay.IsValid() ? TimeOfDay.Get() : AGolmokTimeOfDay::Find(World);
 		if (Tod)
 		{
 			Tod->ExitInterior(FName(*PortalId));
 		}
-		UE_LOG(LogGolmok, Log, TEXT("Portal %s: end play while %s -> %s"), *PortalId, StateName(State), *Msg);
 	}
 	State = EGolmokPortalState::Idle;
 	bPlayerOverlapping = false;
 	bPlayerInside = false;
+	OverlappingPawn.Reset();
 	Super::EndPlay(Reason);
 }
 
@@ -177,9 +219,16 @@ void AGolmokPortal::Tick(float DeltaSeconds)
 		return;
 	}
 	UWorld* World = GetWorld();
-	APawn* Pawn = World ? UGameplayStatics::GetPlayerPawn(World, 0) : nullptr;
-	if (!Pawn)
+	if (!World)
 	{
+		return;
+	}
+	APawn* Pawn = OverlappingPawn.Get();
+	APawn* Player = UGameplayStatics::GetPlayerPawn(World, 0);
+	if (!Pawn || Pawn != Player || !Trigger || !Trigger->IsOverlappingActor(Pawn))
+	{
+		// Possession changed or an EndOverlap was missed: resync (may end the overlap and disable Tick).
+		RefreshOverlap(Player);
 		return;
 	}
 	const double Now = World->GetTimeSeconds();
@@ -208,11 +257,38 @@ void AGolmokPortal::OnTriggerBeginOverlap(UPrimitiveComponent* OverlappedComp, A
 	{
 		return;
 	}
-	UWorld* World = GetWorld();
-	if (!World)
+	BeginPlayerOverlap(Cast<APawn>(OtherActor));
+}
+
+void AGolmokPortal::OnTriggerEndOverlap(UPrimitiveComponent* OverlappedComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex)
+{
+	// Matched against the pawn that began the overlap, not "the player pawn now": after a possession swap the old
+	// pawn's EndOverlap (or the path pawn's on destruction) must still close the overlap.
+	if (!IsValid(this) || IsActorBeingDestroyed() || !bIsEntry || !bPlayerOverlapping || !OtherActor
+		|| OtherActor != OverlappingPawn.Get())
 	{
 		return;
 	}
+	EndPlayerOverlap();
+}
+
+void AGolmokPortal::OnPlayerPawnChanged(APawn* OldPawn, APawn* NewPawn)
+{
+	if (!IsValid(this) || IsActorBeingDestroyed() || !bIsEntry)
+	{
+		return;
+	}
+	RefreshOverlap(NewPawn);
+}
+
+void AGolmokPortal::BeginPlayerOverlap(APawn* Pawn)
+{
+	UWorld* World = GetWorld();
+	if (!World || !Pawn)
+	{
+		return;
+	}
+	OverlappingPawn = Pawn;
 	bPlayerOverlapping = true;
 	SetActorTickEnabled(true);
 	// Re-entry during the unload delay keeps the interior loaded (no thrash).
@@ -230,17 +306,21 @@ void AGolmokPortal::OnTriggerBeginOverlap(UPrimitiveComponent* OverlappedComp, A
 	}
 }
 
-void AGolmokPortal::OnTriggerEndOverlap(UPrimitiveComponent* OverlappedComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex)
+void AGolmokPortal::EndPlayerOverlap()
 {
-	if (!IsValid(this) || IsActorBeingDestroyed() || !bIsEntry || !IsPlayerPawn(OtherActor))
-	{
-		return;
-	}
 	UWorld* World = GetWorld();
 	bPlayerOverlapping = false;
+	OverlappingPawn.Reset();
 	SetActorTickEnabled(false);
 	if (State == EGolmokPortalState::Pending)
 	{
+		if (bPlayerInside)
+		{
+			// Crossed the plane inside the debounce window and walked on into the room: the pending debounce still
+			// loads the interior (OnDebounceElapsed activates when inside), so the overlay never runs without it.
+			LastEvent = TEXT("left trigger inward before debounce");
+			return;
+		}
 		if (World)
 		{
 			World->GetTimerManager().ClearTimer(DebounceTimer);
@@ -263,6 +343,36 @@ void AGolmokPortal::OnTriggerEndOverlap(UPrimitiveComponent* OverlappedComp, AAc
 	}
 }
 
+void AGolmokPortal::RefreshOverlap(APawn* Pawn)
+{
+	if (!bIsEntry || !Trigger)
+	{
+		return;
+	}
+	const bool bOverlaps = Pawn != nullptr && Trigger->IsOverlappingActor(Pawn);
+	if (bPlayerOverlapping)
+	{
+		if (bOverlaps)
+		{
+			// The new pawn stands in the box too (playback started at the door): swap it in, keep the state.
+			OverlappingPawn = Pawn;
+			return;
+		}
+		// The new pawn is elsewhere (the hidden character outside while the path pawn was in the room): a pawn on
+		// the exterior side leaves the door outward, so the overlay goes off and the unload delay starts.
+		if (bPlayerInside && Pawn && SignedDistanceAlongForward(Pawn->GetActorLocation()) < 0.0)
+		{
+			SetInside(false);
+		}
+		EndPlayerOverlap();
+		return;
+	}
+	if (bOverlaps)
+	{
+		BeginPlayerOverlap(Pawn);
+	}
+}
+
 bool AGolmokPortal::IsPlayerPawn(const AActor* Other) const
 {
 	if (!Other)
@@ -273,6 +383,27 @@ bool AGolmokPortal::IsPlayerPawn(const AActor* Other) const
 	return Player != nullptr && Player == Other;
 }
 
+bool AGolmokPortal::IsInteriorZoneInUse(UWorld* World, const FString& ZoneId, const AGolmokPortal* Except)
+{
+	if (!World)
+	{
+		return false;
+	}
+	for (TActorIterator<AGolmokPortal> It(World); It; ++It)
+	{
+		const AGolmokPortal* Other = *It;
+		if (Other == Except || !IsValid(Other) || Other->IsActorBeingDestroyed() || !Other->bIsEntry)
+		{
+			continue;
+		}
+		if (Other->TargetZoneId == ZoneId && (Other->State == EGolmokPortalState::Active || Other->State == EGolmokPortalState::Leaving))
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
 // ---- timers ----------------------------------------------------------------------------------------------------
 
 void AGolmokPortal::OnDebounceElapsed()
@@ -281,7 +412,8 @@ void AGolmokPortal::OnDebounceElapsed()
 	{
 		return;
 	}
-	if (!bPlayerOverlapping)
+	// A pawn that already crossed the plane and left the box inward still needs its interior loaded.
+	if (!bPlayerOverlapping && !bPlayerInside)
 	{
 		State = EGolmokPortalState::Idle;
 		return;

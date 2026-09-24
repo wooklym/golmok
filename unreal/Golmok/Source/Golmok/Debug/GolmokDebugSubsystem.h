@@ -176,7 +176,11 @@ public:
 
 	// ---- screenshots ------------------------------------------------------------------------------------------
 
-	/** HighResShot into <Saved>/<ScreenshotFolder>/<tag>/<preset>/<name>.png (name = timestamp when empty). */
+	/**
+	 * High resolution screenshot (ScreenshotMultiplier x the viewport) into <Saved>/<ScreenshotFolder>/<tag>/<preset>/
+	 * <name>.png (name = timestamp when empty), exact file name as viewpoints.py writes it. Without a sized game
+	 * viewport it falls back to the HighResShot console command, whose file is <name>00000.png.
+	 */
 	bool TakeScreenshot(const FString& Tag, const FString& NameOrEmpty, FString& OutMessage);
 
 private:

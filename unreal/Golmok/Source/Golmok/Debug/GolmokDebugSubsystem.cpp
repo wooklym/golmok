@@ -22,6 +22,7 @@
 #include "HAL/FileManager.h"
 #include "HAL/IConsoleManager.h"
 #include "HAL/PlatformTime.h"
+#include "HighResScreenshot.h"
 #include "Kismet/GameplayStatics.h"
 #include "Lighting/GolmokTimeOfDay.h"
 #include "Materials/Material.h"
@@ -34,6 +35,7 @@
 #include "Portals/GolmokPortal.h"
 #include "ShowFlags.h"
 #include "TimerManager.h"
+#include "UnrealClient.h"
 #include "Zones/GolmokZone.h"
 #include "Zones/GolmokZoneSubsystem.h"
 
@@ -56,6 +58,38 @@ namespace
 
 	/** HUD zone block: at most this many DescribeZones() rows after the header line. */
 	constexpr int32 MaxHudZoneRows = 4;
+
+	/**
+	 * Runs a console command the way the in-game console does: APlayerController::ConsoleCommand -> ULocalPlayer ->
+	 * UGameViewportClient::Exec, so viewport-level commands ("show ...", "HighResShot") reach the PIE / -game viewport.
+	 * GEngine->Exec alone is not enough in PIE, where GEngine is the editor engine and UEngine::Exec does not parse
+	 * those commands; it only reaches registered console objects (CsvProfile). Falls back to the game viewport client,
+	 * then to GEngine->Exec (no player, or the world is tearing down).
+	 */
+	void ExecConsole(UWorld* World, const FString& Cmd)
+	{
+		if (!World)
+		{
+			return;
+		}
+		if (!World->bIsTearingDown)
+		{
+			if (APlayerController* PC = UGameplayStatics::GetPlayerController(World, 0))
+			{
+				PC->ConsoleCommand(Cmd);
+				return;
+			}
+			if (UGameViewportClient* Viewport = World->GetGameViewport())
+			{
+				Viewport->Exec(World, *Cmd, *GLog);
+				return;
+			}
+		}
+		if (GEngine)
+		{
+			GEngine->Exec(World, *Cmd);
+		}
+	}
 } // namespace
 
 // ---- lifecycle ------------------------------------------------------------------------------------------------
@@ -424,10 +458,10 @@ void UGolmokDebugSubsystem::ApplyCollisionShowFlag(bool bOn)
 	{
 		Viewport->EngineShowFlags.SetCollision(bOn);
 	}
-	else if (GEngine)
+	else
 	{
 		// No game viewport (e.g. -nullrhi automation): the console toggle is the fallback (design section 11 #31).
-		GEngine->Exec(World, TEXT("show collision"));
+		ExecConsole(World, TEXT("show collision"));
 	}
 }
 
@@ -797,7 +831,7 @@ void UGolmokDebugSubsystem::BeginCsv()
 		return;
 	}
 	CsvStartUtc = FDateTime::UtcNow();
-	GEngine->Exec(World, TEXT("CsvProfile Start"));
+	ExecConsole(World, TEXT("CsvProfile Start"));
 	bCsvStarted = true;
 	UE_LOG(LogGolmok, Log, TEXT("GolmokDebugSubsystem: CsvProfile Start (path '%s')"), *PlayName);
 }
@@ -859,7 +893,7 @@ void UGolmokDebugSubsystem::EndPlayback(bool bFinished, const TCHAR* Reason)
 		bCsvStarted = false;
 		if (GEngine && World)
 		{
-			GEngine->Exec(World, TEXT("CsvProfile Stop"));
+			ExecConsole(World, TEXT("CsvProfile Stop"));
 		}
 		CsvLookupRetries = 1;
 		LogLatestCsv();
@@ -950,8 +984,24 @@ bool UGolmokDebugSubsystem::TakeScreenshot(const FString& Tag, const FString& Na
 	const FString File = NameOrEmpty.IsEmpty() ? FDateTime::Now().ToString(TEXT("%Y%m%d_%H%M%S")) : NameOrEmpty;
 	IFileManager::Get().MakeDirectory(*Dir, /*Tree*/ true);
 	const FString FullPath = FPaths::Combine(Dir, File);
-	GEngine->Exec(World, *FString::Printf(TEXT("HighResShot %d filename=\"%s\""), ScreenshotMultiplier, *FullPath));
-	OutMessage = FString::Printf(TEXT("screenshot requested -> %s.png (written on the next frame)"), *FullPath);
+
+	// Design section 11 #28: the same request the HighResShot console command makes, but with the exact file name.
+	// "HighResShot N filename=<path>" goes through FScreenshotRequest::RequestScreenshot(bAddFilenameSuffix = true),
+	// which appends a 5-digit counter (<name>00000.png) and so breaks the viewpoints.py "<name>.png" convention.
+	const UGameViewportClient* Viewport = World->GetGameViewport();
+	const FIntPoint ViewSize = (Viewport && Viewport->Viewport) ? Viewport->Viewport->GetSizeXY() : FIntPoint::ZeroValue;
+	if (ViewSize.X > 0 && ViewSize.Y > 0)
+	{
+		GetHighResScreenshotConfig().SetResolution(ViewSize.X, ViewSize.Y, static_cast<float>(ScreenshotMultiplier));
+		FScreenshotRequest::RequestScreenshot(FullPath + TEXT(".png"), /*bInShowUI*/ false, /*bAddFilenameSuffix*/ false);
+		OutMessage = FString::Printf(TEXT("screenshot requested -> %s.png (%dx, written on the next frame)"), *FullPath, ScreenshotMultiplier);
+		return true;
+	}
+
+	// No sized game viewport (e.g. -nullrhi): the console command is the fallback. It is routed through the player so
+	// it reaches UGameViewportClient::Exec in PIE too; the engine then names the file <name>00000.png.
+	ExecConsole(World, FString::Printf(TEXT("HighResShot %d filename=\"%s\""), ScreenshotMultiplier, *FullPath));
+	OutMessage = FString::Printf(TEXT("screenshot requested via HighResShot -> %s00000.png (no viewport size; written on the next frame)"), *FullPath);
 	return true;
 }
 

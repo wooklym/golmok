@@ -106,9 +106,16 @@ namespace GolmokLevelStreaming
 		}
 		Level->SetShouldBeVisible(false);
 		Level->SetShouldBeLoaded(false);
-		if (ULevelStreamingDynamic* Dynamic = Cast<ULevelStreamingDynamic>(Level))
+		// Only an instance StreamIn() created with LoadLevelInstance leaves the streaming level list once unloaded
+		// (design section 11 #3): its world asset is the unique L_<id>_inst name while PackageNameToLoad holds the
+		// source package. A registered entry (NamedStreamingLevel; also a ULevelStreamingDynamic when added by
+		// synthetic_zone.register_interior_sublevel()) has world asset == PackagePath and must stay registered, or the
+		// next StreamIn() in that mode fails with "not registered".
+		ULevelStreamingDynamic* Dynamic = Cast<ULevelStreamingDynamic>(Level);
+		const bool bInstance = Dynamic && !Dynamic->PackageNameToLoad.IsNone()
+			&& UWorld::RemovePIEPrefix(Dynamic->GetWorldAssetPackageName()) != PackagePath;
+		if (bInstance)
 		{
-			// Dynamic instances also leave the streaming level list once unloaded (design section 11 #3).
 			Dynamic->SetIsRequestingUnloadAndRemoval(true);
 		}
 		OutMessage = TEXT("sublevel out");

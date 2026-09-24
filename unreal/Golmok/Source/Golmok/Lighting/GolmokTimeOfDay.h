@@ -34,15 +34,25 @@ struct FGolmokLightingPreset
 	bool IsComplete() const { return bHasSun && bHasSky && bHasFog && bHasVolumetric && bHasExposure; }
 };
 
-/** Actual values read from / applied to the lighting actors (transition end points). */
+/**
+ * Actual values read from / applied to the lighting actors (transition end points). The two override flags record
+ * whether the sun's colour temperature and the volume's exposure bias are in use at all: a level authored without
+ * them (the default InitialPreset= keeps the level's lighting) gets them switched off again when the base preset
+ * is None, instead of being left with the raw property values written as overrides.
+ */
 struct FGolmokLightingState
 {
 	FRotator SunRotation = FRotator::ZeroRotator;
 	double Lux = 0.0;
+	/** DirectionalLight bUseTemperature; presets with a sun group turn it on. */
+	bool bUseTemperature = false;
 	double Kelvin = 6500.0;
 	double Sky = 1.0;
 	double Fog = 0.0;
 	double FogHeightFalloff = 0.2;
+	/** PostProcessVolume bOverride_AutoExposureBias; presets with exposure_bias turn it on. */
+	bool bExposureOverridden = false;
+	/** Effective bias: the volume's value when overridden, else the engine default (r.DefaultFeature.AutoExposure.Bias). */
 	double ExposureBias = 0.0;
 	bool bVolumetric = false;
 };
@@ -147,6 +157,9 @@ public:
 
 	/** Reads the current values off the lighting actors (tests). False when no target actor was found. */
 	bool CaptureState(FGolmokLightingState& Out) const;
+
+	/** r.DefaultFeature.AutoExposure.Bias (the bias a volume without the override contributes); 1.0 when the cvar is missing. */
+	static double DefaultAutoExposureBias();
 
 	/** "overcast_morning" | "overcast_morning -> night 45%" | + " [interior: door_1]" | "(no presets)". */
 	FString Describe() const;

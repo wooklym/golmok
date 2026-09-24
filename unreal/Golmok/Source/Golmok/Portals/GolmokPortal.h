@@ -6,8 +6,10 @@
 #include "Zones/GolmokZoneManifest.h"
 #include "GolmokPortal.generated.h"
 
+class AController;
 class AGolmokTimeOfDay;
 class AGolmokZone;
+class APawn;
 class UBoxComponent;
 class UGolmokZoneSubsystem;
 class UPrimitiveComponent;
@@ -137,7 +139,7 @@ public:
 	FString LastEvent;
 
 	/** Fill the manifest fields and size the trigger. Called by AGolmokZone::SpawnPortals() before FinishSpawning(). */
-	void Configure(const AGolmokZone& Owner, const FGolmokZonePortal& P);
+	void Configure(const AGolmokZone& OwnerZone, const FGolmokZonePortal& P);
 
 	/** dot(WorldPos - portal location, actor forward) in cm; positive = interior side. */
 	double SignedDistanceAlongForward(const FVector& WorldPos) const;
@@ -171,6 +173,13 @@ public:
 
 protected:
 	virtual void BeginPlay() override;
+
+	/**
+	 * Timers cleared. An entry portal always drops its lighting source (ExitInterior(PortalId) is a no-op when the
+	 * source is absent); while Active / Leaving it also streams the sublevel out and, unless the world is tearing down,
+	 * schedules RequestUnload(TargetZoneId) for the next tick (off the Evaluate() stack; skipped when another Active /
+	 * Leaving portal targets the same interior).
+	 */
 	virtual void EndPlay(const EEndPlayReason::Type Reason) override;
 
 	/** Runs only while the player overlaps the trigger: door plane crossing check. */
@@ -183,11 +192,25 @@ protected:
 	UFUNCTION()
 	void OnTriggerEndOverlap(UPrimitiveComponent* OverlappedComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex);
 
+	/** Player controller 0 possessed another pawn (path playback swaps character <-> AGolmokPathPawn): re-check the overlap. */
+	UFUNCTION()
+	void OnPlayerPawnChanged(APawn* OldPawn, APawn* NewPawn);
+
 private:
-	/** UGameplayStatics::GetPlayerPawn(World, 0) == Other (the playback pawn passes too). */
+	/** UGameplayStatics::GetPlayerPawn(World, 0) == Other (the playback pawn passes too once possessed). */
 	bool IsPlayerPawn(const AActor* Other) const;
 
-	/** Pending -> Active: RequestLoad + StreamIn. */
+	/** Overlap bookkeeping for the tracked pawn (no identity check; the handlers and RefreshOverlap() call these). */
+	void BeginPlayerOverlap(APawn* Pawn);
+	void EndPlayerOverlap();
+
+	/** Make the overlap state follow Pawn (the current player pawn): enter, leave or swap the tracked pawn in place. */
+	void RefreshOverlap(APawn* Pawn);
+
+	/** Another entry portal (not Except) targeting ZoneId is Active / Leaving. */
+	static bool IsInteriorZoneInUse(UWorld* World, const FString& ZoneId, const AGolmokPortal* Except);
+
+	/** Pending -> Active: RequestLoad + StreamIn (also when the pawn already left the box on the interior side). */
 	void OnDebounceElapsed();
 
 	/** Leaving -> Idle: StreamOut + RequestUnload. */
@@ -215,6 +238,13 @@ private:
 	TObjectPtr<UBoxComponent> Trigger;
 
 	TWeakObjectPtr<AGolmokTimeOfDay> TimeOfDay;
+
+	/** The pawn whose overlap set bPlayerOverlapping; matched on EndOverlap regardless of who is possessed by then. */
+	TWeakObjectPtr<APawn> OverlappingPawn;
+
+	/** Player controller whose OnPossessedPawnChanged we bound in BeginPlay (unbound in EndPlay). */
+	TWeakObjectPtr<AController> BoundController;
+
 	FTimerHandle DebounceTimer;
 	FTimerHandle UnloadTimer;
 	double LastCrossingSeconds = -1.0e9;

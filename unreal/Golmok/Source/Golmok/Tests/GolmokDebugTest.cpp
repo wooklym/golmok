@@ -324,7 +324,13 @@ namespace GolmokDebugTest
 				Test->AddInfo(FString::Printf(TEXT("stats after 1 s: %s"), *Debug->FormatStatsLine()));
 				Test->TestTrue(TEXT("Frames >= 10 (OnEndFrame fires under -nullrhi too)"), S.Frames >= 10);
 				Test->TestTrue(TEXT("AvgFps > 0"), S.AvgFps > 0.0);
-				Test->TestTrue(TEXT("0 < OnePercentLowFps <= AvgFps * 1.001"), S.OnePercentLowFps > 0.0 && S.OnePercentLowFps <= S.AvgFps * 1.001);
+				// Only the lower bound is asserted on the live sample: the numpy-linear 1st percentile of fps is not bounded by
+				// the harmonic-mean average (N / sum dt), so one startup hitch (e.g. 99 frames of which one is 100 ms) makes
+				// 1% low (59) exceed avg (57.2) although both are correct by definition. The deterministic pattern block
+				// below verifies the percentile math; the ratio is only logged here.
+				Test->TestTrue(TEXT("OnePercentLowFps > 0"), S.OnePercentLowFps > 0.0);
+				Test->AddInfo(FString::Printf(TEXT("OnePercentLowFps / AvgFps = %.3f (not asserted: a single hitch can push the percentile above the harmonic mean)"),
+					S.AvgFps > 0.0 ? S.OnePercentLowFps / S.AvgFps : 0.0));
 				Test->TestTrue(TEXT("AvgGameMs >= 0"), S.AvgGameMs >= 0.0);
 				Test->TestTrue(TEXT("AvgRenderMs >= 0"), S.AvgRenderMs >= 0.0);
 				Test->TestTrue(TEXT("AvgGpuMs >= 0"), S.AvgGpuMs >= 0.0);

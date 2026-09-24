@@ -23,7 +23,9 @@
 
 // ---- presets JSON ---------------------------------------------------------------------------------------------
 
-namespace
+// Named (not anonymous) so a unity build that concatenates this file with Zones/GolmokZoneManifest.cpp, which has
+// its own Fail(FString&, const FString&) in an unnamed namespace, never sees two bodies for the same function.
+namespace GolmokLightingJson
 {
 	// Keys are passed as FString objects (never TCHAR literals) so the FJsonObject::TryGet*Field overloads that
 	// exist in 5.x (const FString& and, since 5.4, FStringView) never become ambiguous (WP-04 rule).
@@ -258,10 +260,11 @@ namespace
 		}
 		return FString();
 	}
-} // namespace
+} // namespace GolmokLightingJson
 
 bool AGolmokTimeOfDay::ParsePresetsText(const FString& Json, TArray<FGolmokLightingPreset>& Out, TArray<FName>& OutCycle, FString& Error)
 {
+	using namespace GolmokLightingJson;
 	Out.Reset();
 	OutCycle.Reset();
 	Error.Reset();
@@ -342,8 +345,8 @@ bool AGolmokTimeOfDay::ParsePresetsText(const FString& Json, TArray<FGolmokLight
 	}
 
 	const FName Interior(InteriorName);
-	const FGolmokLightingPreset* InteriorPreset = FindByName(Out, Interior);
-	if (!InteriorPreset)
+	const FGolmokLightingPreset* InteriorEntry = FindByName(Out, Interior);
+	if (!InteriorEntry)
 	{
 		return Fail(Error, FString::Printf(TEXT("missing preset '%s'"), InteriorName));
 	}
@@ -351,11 +354,11 @@ bool AGolmokTimeOfDay::ParsePresetsText(const FString& Json, TArray<FGolmokLight
 	{
 		return FailPreset(Error, InteriorName, TEXT("must not be in cycle"));
 	}
-	if (!InteriorPreset->bHasFog || InteriorPreset->Fog != 0.0)
+	if (!InteriorEntry->bHasFog || InteriorEntry->Fog != 0.0)
 	{
-		return FailPreset(Error, InteriorName, FString::Printf(TEXT("fog must be 0 (got %g)"), InteriorPreset->bHasFog ? InteriorPreset->Fog : 0.0));
+		return FailPreset(Error, InteriorName, FString::Printf(TEXT("fog must be 0 (got %g)"), InteriorEntry->bHasFog ? InteriorEntry->Fog : 0.0));
 	}
-	if (!InteriorPreset->bHasExposure || InteriorPreset->ExposureBias <= 0.0)
+	if (!InteriorEntry->bHasExposure || InteriorEntry->ExposureBias <= 0.0)
 	{
 		return FailPreset(Error, InteriorName, TEXT("exposure_bias must be > 0"));
 	}
@@ -390,7 +393,8 @@ void AGolmokTimeOfDay::BeginPlay()
 	Super::BeginPlay();
 	EnsurePresets();
 	ResolveTargets(/*bForce*/ true);
-	// The level's authored values are the return point while the base preset is None.
+	// The level's authored values (including whether the exposure / temperature overrides were on) are the
+	// return point while the base preset is None.
 	CaptureState(Initial);
 	Applied = Initial;
 	if (!InitialPreset.IsNone())
@@ -490,12 +494,13 @@ bool AGolmokTimeOfDay::EnsurePresets()
 		return false;
 	}
 	bPresetsLoaded = true;
+	UE_LOG(LogGolmok, Log, TEXT("TimeOfDay: presets loaded (%d) from %s"), Presets.Num(), *Path);
 	return true;
 }
 
 bool AGolmokTimeOfDay::FindPreset(FName Name, FGolmokLightingPreset& Out) const
 {
-	if (const FGolmokLightingPreset* P = FindByName(Presets, Name))
+	if (const FGolmokLightingPreset* P = GolmokLightingJson::FindByName(Presets, Name))
 	{
 		Out = *P;
 		return true;
@@ -706,6 +711,7 @@ bool AGolmokTimeOfDay::CaptureState(FGolmokLightingState& Out) const
 	if (const UDirectionalLightComponent* Component = Sun.Get())
 	{
 		Out.Lux = Component->Intensity;
+		Out.bUseTemperature = Component->bUseTemperature != 0;
 		Out.Kelvin = Component->Temperature;
 		bAny = true;
 	}
@@ -723,10 +729,19 @@ bool AGolmokTimeOfDay::CaptureState(FGolmokLightingState& Out) const
 	}
 	if (const APostProcessVolume* Volume = PostProcess.Get())
 	{
-		Out.ExposureBias = Volume->Settings.AutoExposureBias;
+		Out.bExposureOverridden = Volume->Settings.bOverride_AutoExposureBias != 0;
+		// A volume whose override is off contributes nothing: the effective bias is the engine default
+		// (r.DefaultFeature.AutoExposure.Bias, 1.0 in UE5), so a transition starts from what is on screen.
+		Out.ExposureBias = Out.bExposureOverridden ? Volume->Settings.AutoExposureBias : DefaultAutoExposureBias();
 		bAny = true;
 	}
 	return bAny;
+}
+
+double AGolmokTimeOfDay::DefaultAutoExposureBias()
+{
+	static const IConsoleVariable* CVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.DefaultFeature.AutoExposure.Bias"));
+	return CVar ? static_cast<double>(CVar->GetFloat()) : 1.0;
 }
 
 // ---- transitions ----------------------------------------------------------------------------------------------
@@ -739,6 +754,7 @@ FGolmokLightingState AGolmokTimeOfDay::StateFromPreset(const FGolmokLightingPres
 		// C++ FRotator(Pitch, Yaw, Roll); the editor Python uses unreal.Rotator(roll, pitch, yaw) for the same rotation.
 		S.SunRotation = FRotator(P.PitchDeg, P.YawDeg, 0.0);
 		S.Lux = P.Lux;
+		S.bUseTemperature = true;
 		S.Kelvin = P.Kelvin;
 	}
 	if (P.bHasSky)
@@ -756,6 +772,7 @@ FGolmokLightingState AGolmokTimeOfDay::StateFromPreset(const FGolmokLightingPres
 	}
 	if (P.bHasExposure)
 	{
+		S.bExposureOverridden = true;
 		S.ExposureBias = P.ExposureBias;
 	}
 	return S;
@@ -792,6 +809,10 @@ FGolmokLightingState AGolmokTimeOfDay::Lerp(const FGolmokLightingState& A, const
 	R.FogHeightFalloff = FMath::Lerp(A.FogHeightFalloff, B.FogHeightFalloff, T);
 	R.ExposureBias = FMath::Lerp(A.ExposureBias, B.ExposureBias, T);
 	R.bVolumetric = Alpha >= 0.5f ? B.bVolumetric : A.bVolumetric;
+	// Mid-transition values are only visible through the overrides, so they stay on while either end uses them;
+	// the final ApplyState(To) then restores the level's own flag.
+	R.bUseTemperature = A.bUseTemperature || B.bUseTemperature;
+	R.bExposureOverridden = A.bExposureOverridden || B.bExposureOverridden;
 	return R;
 }
 
@@ -874,8 +895,12 @@ void AGolmokTimeOfDay::ApplyState(const FGolmokLightingState& S, bool bFinal)
 	if (UDirectionalLightComponent* Component = Sun.Get())
 	{
 		Component->SetIntensity(static_cast<float>(S.Lux));
-		Component->SetUseTemperature(true);
-		Component->SetTemperature(static_cast<float>(S.Kelvin));
+		// Level lighting that never used a colour temperature gets it back untouched (bUseTemperature false).
+		Component->SetUseTemperature(S.bUseTemperature);
+		if (S.bUseTemperature)
+		{
+			Component->SetTemperature(static_cast<float>(S.Kelvin));
+		}
 		if (bFinal)
 		{
 			Component->SetVisibility(S.Lux > 0.0);
@@ -900,8 +925,13 @@ void AGolmokTimeOfDay::ApplyState(const FGolmokLightingState& S, bool bFinal)
 	}
 	if (APostProcessVolume* Volume = PostProcess.Get())
 	{
-		Volume->Settings.bOverride_AutoExposureBias = true;
-		Volume->Settings.AutoExposureBias = static_cast<float>(S.ExposureBias);
+		// Only write the bias while it is overridden; back at the level's lighting the override is switched off
+		// again so the engine default applies exactly as before the first preset / interior overlay.
+		Volume->Settings.bOverride_AutoExposureBias = S.bExposureOverridden;
+		if (S.bExposureOverridden)
+		{
+			Volume->Settings.AutoExposureBias = static_cast<float>(S.ExposureBias);
+		}
 	}
 	Applied = S;
 }

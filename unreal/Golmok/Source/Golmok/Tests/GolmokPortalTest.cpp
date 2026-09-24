@@ -4,9 +4,12 @@
 // only); its Load() must spawn one AGolmokPortal from the manifest with the fixture's values (door_1 ->
 // z_synthetic_001_interior, 150 cm, entry, relative (500, -950, 0) cm / yaw -90, sublevel package path), and Unload()
 // must destroy it again.
-// Golmok.Portal.RoundTrip: on L_ZoneTest (only when synthetic_zone.run(interior=True) built it; otherwise skipped)
-// the entry portal is driven through EnterInterior / LeaveInterior without walking: sublevel streamed in, interior
-// zone loaded, lighting overlay on; then overlay off and, after UnloadDelaySeconds, sublevel and zone unloaded.
+// Golmok.Portal.RoundTrip: on L_ZoneTest (only when synthetic_zone.run(interior=True) built the interior sublevel
+// package; otherwise skipped) the entry portal is driven through EnterInterior / LeaveInterior without walking:
+// sublevel streamed in, interior zone loaded, lighting overlay on; then overlay off and, after UnloadDelaySeconds,
+// sublevel and zone unloaded. The cycle runs twice (a stream-out must not drop a registered NamedStreamingLevel
+// entry), then the exterior zone is unloaded while the portal is Active: the destroyed portal must release the
+// pinned interior zone, the sublevel and the overlay by itself.
 // Both pass under -nullrhi.
 //
 // Headless: .\tools\ue\test.ps1 -Filter Golmok.Portal   (or in the editor console: Automation RunTests Golmok.Portal)
@@ -21,9 +24,11 @@
 #include "Engine/World.h"
 #include "Lighting/GolmokTimeOfDay.h"
 #include "Misc/PackageName.h"
+#include "Portals/GolmokLevelStreaming.h"
 #include "Portals/GolmokPortal.h"
 #include "Tests/AutomationEditorCommon.h"
 #include "Zones/GolmokZone.h"
+#include "Zones/GolmokZoneManifest.h"
 #include "Zones/GolmokZoneSubsystem.h"
 
 namespace GolmokPortalTest
@@ -223,7 +228,7 @@ namespace GolmokPortalTest
 				}
 				return Next(1);
 
-			case 1: // find the entry portal
+			case 1: // find the entry portal and enter (cycle 1, 2 and the final one before the exterior unload)
 			{
 				AGolmokPortal* Portal = AGolmokPortal::FindPortal(World, EntryPortalId);
 				if (!Portal)
@@ -234,7 +239,7 @@ namespace GolmokPortalTest
 				Test->TestTrue(TEXT("door_1 is an entry portal"), Portal->bIsEntry);
 				Test->AddInfo(Portal->Describe());
 				FString Msg;
-				Test->TestTrue(TEXT("EnterInterior"), Portal->EnterInterior(Msg));
+				Test->TestTrue(FString::Printf(TEXT("EnterInterior (cycle %d)"), Cycle), Portal->EnterInterior(Msg));
 				Test->AddInfo(Msg);
 				return Next(2);
 			}
@@ -247,36 +252,35 @@ namespace GolmokPortalTest
 					Test->AddError(TEXT("portal disappeared after EnterInterior"));
 					return true;
 				}
-				AGolmokZone* Interior = Subsystem->FindZone(InteriorZoneId);
-				AGolmokTimeOfDay* Tod = AGolmokTimeOfDay::Find(World);
-				const bool bSublevel = Portal->IsSublevelVisible();
-				const bool bZone = Interior && Interior->IsLoaded();
-				const bool bOverlay = Tod && Tod->IsInterior();
-				if (!(bSublevel && bZone && bOverlay))
+				bool bReady = false;
+				if (CheckInteriorReady(World, Subsystem, Portal, bReady))
 				{
-					if (Elapsed < StreamInTimeoutSeconds)
-					{
-						return false;
-					}
-					Test->AddInfo(Portal->Describe());
-					Test->TestTrue(TEXT("sublevel visible after EnterInterior"), bSublevel);
-					Test->TestNotNull(TEXT("interior zone actor placed in L_ZoneTest"), Interior);
-					Test->TestTrue(TEXT("interior zone loaded after EnterInterior"), bZone);
-					Test->TestNotNull(TEXT("AGolmokTimeOfDay present"), Tod);
-					Test->TestTrue(TEXT("interior lighting overlay on after EnterInterior"), bOverlay);
 					return true;
 				}
-				Test->AddInfo(FString::Printf(TEXT("interior ready after %.2f s: %s"), Elapsed, *Portal->Describe()));
-				Test->TestEqual(TEXT("portal state Active"), static_cast<int32>(Portal->State), static_cast<int32>(EGolmokPortalState::Active));
+				if (!bReady)
+				{
+					return false;
+				}
+				if (Cycle > RoundTripCycles)
+				{
+					// Last activation: unload the exterior while the portal is Active. Its EndPlay must release the
+					// pinned interior zone, the sublevel and the overlay (nothing else does: the orphan-interior rule
+					// skips pinned zones).
+					FString Msg;
+					Test->TestTrue(TEXT("RequestUnload(exterior) while the portal is Active"), Subsystem->RequestUnload(ExteriorZoneId, Msg));
+					Test->AddInfo(Msg);
+					return Next(4);
+				}
+				AGolmokTimeOfDay* Tod = AGolmokTimeOfDay::Find(World);
 				FString Msg;
-				Test->TestTrue(TEXT("LeaveInterior"), Portal->LeaveInterior(Msg));
+				Test->TestTrue(FString::Printf(TEXT("LeaveInterior (cycle %d)"), Cycle), Portal->LeaveInterior(Msg));
 				Test->AddInfo(Msg);
-				Test->TestFalse(TEXT("interior lighting overlay off right after LeaveInterior"), Tod->IsInterior());
+				Test->TestFalse(TEXT("interior lighting overlay off right after LeaveInterior"), Tod && Tod->IsInterior());
 				UnloadDeadline = static_cast<double>(Portal->UnloadDelaySeconds) + 1.0;
 				return Next(3);
 			}
 
-			case 3: // within UnloadDelaySeconds + 1: sublevel unloaded, zone unloaded, portal Idle
+			case 3: // within UnloadDelaySeconds + 1: sublevel unloaded, zone unloaded, portal Idle; then the next cycle
 			{
 				AGolmokPortal* Portal = PortalActor.Get();
 				if (!Portal)
@@ -300,7 +304,33 @@ namespace GolmokPortalTest
 					Test->TestTrue(TEXT("portal back to Idle after the unload delay"), bIdle);
 					return true;
 				}
-				Test->AddInfo(FString::Printf(TEXT("interior released after %.2f s: %s"), Elapsed, *Portal->Describe()));
+				Test->AddInfo(FString::Printf(TEXT("cycle %d: interior released after %.2f s: %s"), Cycle, Elapsed, *Portal->Describe()));
+				// Cycle 2 catches a stream-out that drops a registered NamedStreamingLevel entry (re-entry then fails).
+				++Cycle;
+				return Next(1);
+			}
+
+			case 4: // within StreamInTimeoutSeconds: portal destroyed with the exterior; interior zone, sublevel, overlay released
+			{
+				AGolmokZone* Interior = Subsystem->FindZone(InteriorZoneId);
+				AGolmokTimeOfDay* Tod = AGolmokTimeOfDay::Find(World);
+				const bool bPortalGone = !PortalActor.IsValid();
+				const bool bZoneGone = !Interior || !Interior->IsLoaded();
+				const bool bSublevelGone = !GolmokLevelStreaming::IsLoaded(World, ExpectedSublevel);
+				const bool bOverlayOff = !Tod || !Tod->IsInterior();
+				if (!(bPortalGone && bZoneGone && bSublevelGone && bOverlayOff))
+				{
+					if (Elapsed < StreamInTimeoutSeconds)
+					{
+						return false;
+					}
+					Test->TestTrue(TEXT("portal destroyed with its exterior zone"), bPortalGone);
+					Test->TestTrue(TEXT("pinned interior zone unloaded after the portal's EndPlay"), bZoneGone);
+					Test->TestTrue(TEXT("sublevel unloaded after the portal's EndPlay"), bSublevelGone);
+					Test->TestTrue(TEXT("interior lighting overlay off after the portal's EndPlay"), bOverlayOff);
+					return true;
+				}
+				Test->AddInfo(FString::Printf(TEXT("exterior unload released the interior after %.2f s"), Elapsed));
 				return true;
 			}
 
@@ -310,9 +340,41 @@ namespace GolmokPortalTest
 		}
 
 	private:
+		/** True when the phase must end (timeout failures recorded); otherwise bOutReady says whether the interior is up. */
+		bool CheckInteriorReady(UWorld* World, UGolmokZoneSubsystem* Subsystem, AGolmokPortal* Portal, bool& bOutReady)
+		{
+			bOutReady = false;
+			AGolmokZone* Interior = Subsystem->FindZone(InteriorZoneId);
+			AGolmokTimeOfDay* Tod = AGolmokTimeOfDay::Find(World);
+			const bool bSublevel = Portal->IsSublevelVisible();
+			const bool bZone = Interior && Interior->IsLoaded();
+			const bool bOverlay = Tod && Tod->IsInterior();
+			if (!(bSublevel && bZone && bOverlay))
+			{
+				if (Elapsed < StreamInTimeoutSeconds)
+				{
+					return false;
+				}
+				Test->AddInfo(Portal->Describe());
+				Test->TestTrue(FString::Printf(TEXT("sublevel visible after EnterInterior (cycle %d)"), Cycle), bSublevel);
+				Test->TestNotNull(TEXT("interior zone actor placed in L_ZoneTest"), Interior);
+				Test->TestTrue(FString::Printf(TEXT("interior zone loaded after EnterInterior (cycle %d)"), Cycle), bZone);
+				Test->TestNotNull(TEXT("AGolmokTimeOfDay present"), Tod);
+				Test->TestTrue(FString::Printf(TEXT("interior lighting overlay on after EnterInterior (cycle %d)"), Cycle), bOverlay);
+				return true;
+			}
+			Test->AddInfo(FString::Printf(TEXT("cycle %d: interior ready after %.2f s: %s"), Cycle, Elapsed, *Portal->Describe()));
+			Test->TestEqual(TEXT("portal state Active"), static_cast<int32>(Portal->State), static_cast<int32>(EGolmokPortalState::Active));
+			bOutReady = true;
+			return false;
+		}
+
 		static constexpr double StreamInTimeoutSeconds = 2.0;
+		/** Full Enter / Leave cycles before the final Enter + exterior unload. */
+		static constexpr int32 RoundTripCycles = 2;
 		TWeakObjectPtr<AGolmokPortal> PortalActor;
 		double UnloadDeadline = 4.0;
+		int32 Cycle = 1;
 	};
 } // namespace GolmokPortalTest
 
@@ -343,7 +405,10 @@ bool FGolmokPortalRoundTripTest::RunTest(const FString& Parameters)
 {
 	using namespace GolmokPortalTest;
 
-	if (!FPackageName::DoesPackageExist(ZoneTestMap))
+	// L_ZoneTest exists from WP-04 already (built without interior=True); the interior sublevel package is what
+	// run(interior=True) adds, so the skip keys on that (design section 8-6 / runbook step 1).
+	const FString InteriorSublevel = GolmokZoneManifest::SublevelPackagePath(InteriorZoneId, 1);
+	if (!FPackageName::DoesPackageExist(ZoneTestMap) || !FPackageName::DoesPackageExist(InteriorSublevel))
 	{
 		AddInfo(TEXT("skipped: run synthetic_zone.run(interior=True)"));
 		return true;

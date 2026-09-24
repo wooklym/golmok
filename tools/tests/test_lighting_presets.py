@@ -188,3 +188,40 @@ def test_default_game_ini_points_at_the_presets_file(raw):
 def test_setup_dev_level_tags_the_lighting_actors():
     text = (UE / "Content" / "Python" / "golmok" / "setup_dev_level.py").read_text(encoding="utf-8")
     assert text.count('unreal.Name("GolmokLighting")') == 4  # Sun, SkyLight, HeightFog, PostProcess
+
+
+def _anonymous_namespace_functions(text: str) -> list[str]:
+    """Free function names at the top level of `namespace { ... }` blocks (one tab in, Allman braces)."""
+    names: list[str] = []
+    in_anon = False
+    depth = 0
+    decl = re.compile(r"^\t(?:static |inline )*[A-Za-z_][\w:<>*&, ]*?[\s*&]([A-Za-z_]\w*)\s*\(")
+    for line in text.splitlines():
+        if re.match(r"^namespace\s*$", line):
+            in_anon, depth = True, -1
+            continue
+        if not in_anon:
+            continue
+        if line.startswith("}"):
+            in_anon = False
+            continue
+        if depth == 0 and not line.lstrip().startswith(("//", "*", "return", "using ")):
+            m = decl.match(line)
+            if m:
+                names.append(m.group(1))
+        depth += line.count("{") - line.count("}")
+    return names
+
+
+def test_anonymous_namespace_helpers_do_not_repeat_across_module_files():
+    # A unity build concatenates the module's .cpp files, where every unnamed namespace is the same namespace
+    # and a second `bool Fail(FString&, const FString&)` body is a redefinition (MSVC C2084).
+    # GolmokTimeOfDay.cpp keeps its JSON helpers in the named namespace GolmokLightingJson for that reason.
+    owners: dict[str, set[str]] = {}
+    for path in sorted((UE / "Source" / "Golmok").rglob("*.cpp")):
+        for name in _anonymous_namespace_functions(path.read_text(encoding="utf-8")):
+            owners.setdefault(name, set()).add(path.name)
+    clashes = {name: sorted(files) for name, files in owners.items() if len(files) > 1}
+    assert not clashes, f"anonymous-namespace functions defined in more than one file: {clashes}"
+    tod = TIME_OF_DAY_CPP.read_text(encoding="utf-8")
+    assert "namespace GolmokLightingJson" in tod
