@@ -290,7 +290,7 @@ def _move_player_start(zone):
         unreal.log_warning("synthetic_zone: no PlayerStart in the level; add one on the zone's slab by hand.")
         return
     # zone-local (0, -5, 0) m -> UE (0, +500, 0) cm, 120 cm up so the capsule stands on the collision slab.
-    target = zone.get_actor_transform().transform_position(unreal.Vector(0.0, 500.0, 120.0))
+    target = zone.get_actor_transform().transform_location(unreal.Vector(0.0, 500.0, 120.0))
     starts[0].set_actor_location(target, False, False)
     for extra in starts[1:]:
         unreal.log_warning(f"synthetic_zone: extra PlayerStart '{extra.get_actor_label()}' left in place")
@@ -316,8 +316,8 @@ def run(geo_origin="area", move_player_start=True, import_assets=True):
     unreal.log(f"synthetic_zone: zone root at {t.translation} yaw {t.rotation.rotator().yaw:.4f}")
     if geo_origin == "area":
         unreal.log("synthetic_zone: expected root (spec table C): X=17670.59 Y=-22198.00 Z=999.37 cm, yaw ~0")
-    _spawn_tagged_cube("BM_dummy_inside", t.transform_position(unreal.Vector(0.0, 0.0, 500.0)))
-    _spawn_tagged_cube("BM_dummy_outside", t.transform_position(unreal.Vector(6000.0, 0.0, 500.0)))
+    _spawn_tagged_cube("BM_dummy_inside", t.transform_location(unreal.Vector(0.0, 0.0, 500.0)))
+    _spawn_tagged_cube("BM_dummy_outside", t.transform_location(unreal.Vector(6000.0, 0.0, 500.0)))
     if move_player_start:
         _move_player_start(zone)
     unreal.get_editor_subsystem(unreal.LevelEditorSubsystem).save_current_level()
