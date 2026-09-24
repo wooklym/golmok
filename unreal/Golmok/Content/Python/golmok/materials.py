@@ -15,6 +15,8 @@ import unreal
 
 MATERIAL_DIR = "/Game/Golmok/Materials"
 FACADE_NAME = "M_BasemapFacade"
+TERRAIN_NAME = "M_BasemapTerrain"
+DEFAULT_TEXTURE = "/Engine/EngineResources/DefaultTexture.DefaultTexture"
 
 FACADE_HLSL = r"""
 float cat = UV1.y;
@@ -54,6 +56,13 @@ def _mel():
     return unreal.MaterialEditingLibrary
 
 
+def _custom_input(name):
+    # FCustomInput.InputName is EditAnywhere only, so the struct constructor takes no keywords (UE 5.8).
+    ci = unreal.CustomInput()
+    ci.set_editor_property("input_name", name)
+    return ci
+
+
 def _new_material(name, overwrite):
     path = f"{MATERIAL_DIR}/{name}"
     if unreal.EditorAssetLibrary.does_asset_exist(path):
@@ -80,11 +89,7 @@ def build_facade_material(overwrite=False):
     custom.set_editor_property("code", FACADE_HLSL)
     custom.set_editor_property("description", "GolmokFacade")
     custom.set_editor_property("output_type", unreal.CustomMaterialOutputType.CMOT_FLOAT4)
-    custom.set_editor_property("inputs", [
-        unreal.CustomInput(input_name="UV0"),
-        unreal.CustomInput(input_name="UV1"),
-        unreal.CustomInput(input_name="Tint"),
-    ])
+    custom.set_editor_property("inputs", [_custom_input(n) for n in ("UV0", "UV1", "Tint")])
     mel.connect_material_expressions(uv0, "", custom, "UV0")
     mel.connect_material_expressions(uv1, "", custom, "UV1")
     mel.connect_material_expressions(tint, "", custom, "Tint")
@@ -99,8 +104,52 @@ def build_facade_material(overwrite=False):
     mel.connect_material_expressions(custom, "", alpha, "")
     mel.connect_material_property(rgb, "", unreal.MaterialProperty.MP_BASE_COLOR)
     mel.connect_material_property(alpha, "", unreal.MaterialProperty.MP_ROUGHNESS)
+    # Basemap buildings are Nanite; without the saved usage flag the material fails outside the editor.
+    mat.set_editor_property("used_with_nanite", True)
 
     mel.recompile_material(mat)
     unreal.EditorAssetLibrary.save_loaded_asset(mat)
     unreal.log(f"Created {MATERIAL_DIR}/{FACADE_NAME}")
     return mat
+
+
+def build_terrain_material(overwrite=False):
+    """M_BasemapTerrain: orthophoto texture parameter "BaseColor", matte, Nanite-ready.
+
+    Replaces the glTF importer's per-tile instances of the plugin's MI_Default_Opaque, whose parent
+    lacks the Nanite usage flag (it cannot be saved from here and would break in packaged builds)."""
+    mat, created = _new_material(TERRAIN_NAME, overwrite)
+    if not created:
+        return mat
+    mel = _mel()
+    tex = mel.create_material_expression(mat, unreal.MaterialExpressionTextureSampleParameter2D, -500, 0)
+    tex.set_editor_property("parameter_name", "BaseColor")
+    tex.set_editor_property("texture", unreal.EditorAssetLibrary.load_asset(DEFAULT_TEXTURE))
+    rough = mel.create_material_expression(mat, unreal.MaterialExpressionConstant, -300, 200)
+    rough.set_editor_property("r", 0.9)
+    spec = mel.create_material_expression(mat, unreal.MaterialExpressionConstant, -300, 300)
+    spec.set_editor_property("r", 0.3)
+    mel.connect_material_property(tex, "RGB", unreal.MaterialProperty.MP_BASE_COLOR)
+    mel.connect_material_property(rough, "", unreal.MaterialProperty.MP_ROUGHNESS)
+    mel.connect_material_property(spec, "", unreal.MaterialProperty.MP_SPECULAR)
+    mat.set_editor_property("used_with_nanite", True)
+    mel.recompile_material(mat)
+    unreal.EditorAssetLibrary.save_loaded_asset(mat)
+    unreal.log(f"Created {MATERIAL_DIR}/{TERRAIN_NAME}")
+    return mat
+
+
+def terrain_instance(texture, parent, path):
+    """Material instance of M_BasemapTerrain at `path` showing `texture` (created or updated)."""
+    mel = _mel()
+    if unreal.EditorAssetLibrary.does_asset_exist(path):
+        mic = unreal.EditorAssetLibrary.load_asset(path)
+    else:
+        folder, name = path.rsplit("/", 1)
+        mic = unreal.AssetToolsHelpers.get_asset_tools().create_asset(
+            name, folder, unreal.MaterialInstanceConstant, unreal.MaterialInstanceConstantFactoryNew())
+    mel.set_material_instance_parent(mic, parent)
+    mel.set_material_instance_texture_parameter_value(mic, "BaseColor", texture)
+    mel.update_material_instance(mic)
+    unreal.EditorAssetLibrary.save_loaded_asset(mic)
+    return mic

@@ -33,3 +33,8 @@ __pycache__/
 tools/viewer/node_modules/
 tools/viewer/test/out/
 tools/viewer/package-lock.json
+
+# Recreated by editor Python (golmok.basemap_import / golmok.materials) from the basemap output (~130 MB)
+unreal/Golmok/Content/Golmok/Basemap/
+unreal/Golmok/Content/Golmok/Maps/L_Basemap_*
+unreal/Golmok/Content/Golmok/Materials/M_Basemap*

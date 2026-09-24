@@ -18,6 +18,7 @@
 - AGPL 도구(Ultralytics, OpenMVS, OpenSplat)는 서버 파이프라인에서 쓰지 않는다.
 - 새 의존성을 추가할 때는 LICENSE 원문을 확인하고 이 문서에 기록한다.
 - 상용 툴(RealityScan, Postshot, 서드파티 UE 플러그인)은 **EULA와 배포 조건**을 확인하고 기록한다.
+- 촬영·베이스맵 도구 공통 의존성(`tools/pyproject.toml` 기본·`basemap` extra, 게임 패키지에는 들어가지 않음): **opencv-python** 5.0 — 래퍼 MIT + OpenCV 바이너리 Apache-2.0(동봉 서드파티 중 LGPL 항목은 macOS 휠의 libgnutls 등에만 해당; Windows/Linux 휠은 libvpx·libpng·zlib 등 BSD/zlib 계열) [확인: wheel 동봉 LICENSE.txt·LICENSE-3RD-PARTY.txt 원문, https://github.com/opencv/opencv/blob/4.x/LICENSE], **numpy** 2.4 — BSD-3-Clause(+0BSD/MIT/Zlib/CC0 부속) [확인: wheel `License-Expression`, https://github.com/numpy/numpy/blob/main/LICENSE.txt], **Pillow** 12 — MIT-CMU(HPND) [확인: wheel `License-Expression`, https://github.com/python-pillow/Pillow/blob/main/LICENSE], **exifread** 3.5 — BSD-3-Clause, **rasterio** 1.4 — BSD-3-Clause, **pyshp** 3.1 — MIT, **mapbox-earcut** 2.1 — ISC, **piexif** 1.1 — MIT, **pygltflib** 1.16 — MIT(개발 전용) [확인: 각 wheel `*.dist-info/licenses/` 원문]. 2026-09-25 확인(V-02에서 `basemap/ngii.py`가 OpenCV 템플릿 매칭을 새로 쓰면서 기록).
 - 로컬 데이터 도구 `golmok-zone`(WP-02, `zone` extra — 게임 패키지에는 들어가지 않음): **jsonschema** 4.26 — MIT, 의존 **referencing**·**jsonschema-specifications**·**rpds-py** — MIT(모두 Julian Berman), **attrs** — MIT [확인: 각 wheel의 `*.dist-info/licenses/` 원문, https://github.com/python-jsonschema/jsonschema/blob/main/COPYING]. `basemap`과 같이 쓰는 **pyproj** 3.7 — MIT(동봉 PROJ — MIT/X 계열), **shapely** 2.1 — BSD-3-Clause(동봉 GEOS — **LGPL-2.1**, 동적 라이브러리로 링크돼 도구로 쓰는 데 제약 없음. 게임에 동봉하지 않는다) [확인: wheel 동봉 LICENSE·LICENSE_proj·LICENSE_GEOS 원문]. 2026-09-24 확인.
 - 재구성 후처리 `golmok-mesh`/`golmok-splat`(WP-03, `mesh`·`splat` extra, 로컬 도구): **trimesh** 4.x — MIT, **fast-simplification** 0.2 — MIT(PyVista; 내장 Fast-Quadric-Mesh-Simplification도 MIT), **scipy** 1.x — BSD-3-Clause [확인: 각 wheel `*.dist-info` 라이선스 원문, 2026-09-24]. **open3d(MIT)는 쓰지 않기로 판단**: Linux 휠이 시스템 libEGL을 요구해 CI·헤드리스에서 import가 실패했고 dash/flask 등 웹 스택을 끌고 온다. 필요한 기능(바닥 평면 RANSAC)은 numpy로 구현. pymeshlab(GPL)은 WP 스펙대로 제외. 3D Tiles 출력의 splat 인코딩은 Khronos `KHR_gaussian_splatting` README(Ratified) 원문을 따른다.
 - 로컬 정합 도구 `golmok-align`(WP-07, `align` extra — 게임 패키지에는 들어가지 않음): **trimesh** 5.1 — MIT [확인: wheel 동봉 LICENSE.md 원문, https://github.com/mikedh/trimesh/blob/main/LICENSE.md], **scipy** 1.17 — BSD-3-Clause [확인: wheel 동봉 LICENSE.txt, https://github.com/scipy/scipy/blob/main/LICENSE.txt]. **open3d(MIT)는 쓰지 않는다**: 리눅스 CI 러너에 libEGL이 없어 import가 실패하므로 ICP를 numpy/scipy로 직접 구현했다. 2026-09-24 확인.
@@ -146,6 +147,18 @@
   - 커스텀 머티리얼을 붙이려면 Cesium 머티리얼 레이어 구조를 따라야 한다.
   - 파일럿 반경 1~2km 정도의 한정된 배경은 정적 임포트가 품질과 제어 면에서 낫다.
 - **ARCHITECTURE 반영**: §4의 "베이스맵 건물 숨김"은 빌드 단계의 `--exclude`(플레이 구역 GeoJSON)로 처리한다.
-- **남은 확인**:
-  - 실제 SHP 컬럼 매핑(높이·층수·용도·ID). 공식 컬럼 정의 문서를 찾지 못했으므로 `inspect` 결과로 판단해 여기에 기록한다.
-  - 지오이드 보정값(Cesium 정렬 시).
+- **남은 확인** (2026-09-24 PC 세션에서 실데이터로 확인한 것 포함):
+  - ✅ **실제 SHP 컬럼 매핑** — 서울 `AL_D010_11_20260909.shp`(V-World, 기준일 2026-09-09, 695,754건, 필드 29개 A0~A28, `.prj` = EPSG:5186):
+
+    | 용도 | 컬럼 | 컬럼정의서 항목명 | 연남동 2×2 km 표본(9,393동) |
+    |---|---|---|---|
+    | 높이(m) `--height-field` | **A16** | 높이(m) | 값 있음 54.7%, 중앙 12.2 m, 5~95% 6.7~23.7 m, 최대 87.7 m. 0 = 결측 |
+    | 지상층수 `--floors-field` | **A26** | 지상층_수 | 값 있음 90.7%, 중앙 3층, 최대 25층. A16/A26 중앙 **3.23 m/층**(10~90% 2.74~3.99) |
+    | 용도명 `--usage-field` | **A9** | 건축물용도명 | 단독주택 3,908, 제2종근린생활시설 1,954, 공동주택 1,319, 제1종근린생활시설 914, 빈 값 872 … |
+    | 건물 ID `--id-field` | **A1** | GIS건물통합식별번호(28자) | 9,387개 고유(중복 폴리곤 6개), 빈 값 0 |
+
+    근거: V-World 「국가중점데이터_컬럼정의서(26.08.19)_배포용.xlsx」(데이터셋 페이지의 "컬럼 정의서 다운로드", 테이블정의서(전체) `AL_D010` 행)와 `inspect` 표본값·위 통계가 서로 맞는다. 높이가 0이거나 없으면 층수×3.2 m로 추정한다(`DEFAULT_FLOOR_HEIGHT`, 실측 중앙값 3.23 m/층과 일치). 연남동 반경 1 km 빌드에서 9,447동 중 4,258동(45%)이 추정 높이.
+  - 🔴 **DEM 5 m 출처(결정 필요)**: 국토정보플랫폼 "공개DEM"은 **90 m 격자**만 있다(`37608.img`, 253×316, EPSG:5179; 국토지리정보원 안내도 공개 DEM은 90 m, 도시지역 1 m는 LiDAR로 별도 구축 [https://www.ngii.go.kr/kor/content.do?sq=204]). 5 m DEM은 다운로드 목록에 없고 받으려면 별도 신청이 필요해 보인다(절차 미확인). 지금 빌드는 **90 m로 임시** 진행했다(도로 경사·언덕 형태가 뭉개짐). 대안: ① NGII에 5 m/1 m DEM 제공 신청(사용자), ② 공개 1:5,000 수치지형도의 등고선·표고점으로 DEM 생성(코드 추가, 같은 신청서로 다운로드), ③ 90 m 유지(배경 전용이라 허용).
+  - ✅ **정사영상 좌표**: 2025 정사영상(25 cm, `(B060)정사영상_2025_<도엽>.tif`)은 GeoTIFF 태그·월드파일이 **없다**. 메타데이터 XML은 좌표계(중부원점 GRS80 TM = EPSG:5186)와 도엽번호만 준다. `golmok-basemap georef-ortho`가 도엽번호로 위치를 잡고(이미지 = 도엽 경계상자 + 약 50 m 여유, 중심 정렬), 건물 윤곽선과 영상 경계를 맞춰 보정하고(37608077: peak 0.256 / 차순위 0.138, 보정 (−1, −1) m; 37608078: 0.287 / 0.170, 보정 0), 인접 도엽의 겹침(약 100 m)을 픽셀 단위로 맞춘다(상관 1.000). 절대 위치 약 1 m, 도엽 간 이음새 없음. 빌드된 지형 텍스처에 건물 지붕 윤곽을 겹쳐 맞는 것을 눈으로 확인했다.
+  - ✅ **국외 반출** — 2026-09-25 사용자가 법률 자문을 받았고, NGII 파생물(지형 텍스처·스크린샷 등)을 저장소에 올려도 된다고 확인했다(자문 세부 내용은 이 문서에 없음, D-009). 배경: NGII 다운로드 신청서의 "사용자 준수사항"에 동의해야 받을 수 있고, 거기에 「공간정보관리법 제16조 및 제21조에 따라 국토교통부 장관의 허가 없이 측량성과를 국외 반출 시 2년 이하의 징역 또는 2천만원 이하의 벌금」이 적혀 있다. 법 제16조①: "누구든지 국토교통부장관의 허가 없이 기본측량성과 중 지도등 또는 측량용 사진을 국외로 반출하여서는 아니 된다. 다만, … 대통령령으로 정하는 경우에는 그러하지 아니하다." [국가법령정보센터, https://www.law.go.kr/법령/공간정보의구축및관리등에관한법률/제16조]. 생성된 UE 에셋은 법률 때문이 아니라 스크립트로 다시 만들 수 있어서 커밋하지 않는다(`.gitignore`).
+  - 지오이드 보정값(Cesium 정렬 시). 아직 필요 없음(정적 임포트).

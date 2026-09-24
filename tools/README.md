@@ -72,21 +72,27 @@ golmok-blur D:\golmok_capture\…\frames D:\golmok_capture\…\frames_blurred `
 - DNG(ProRAW)는 16-bit TIFF로 현상해 저장한다. **아이폰 ProRAW 일부 형식은 rawpy(LibRaw)가 못 열 수 있다** → 그 경우 `blur_log.csv`에 `decode_error`로 남는다. 리허설 사진으로 먼저 확인하고, 실패하면 알려줘(대안: HEIF Max 촬영 또는 다른 현상 경로).
 - `--detect-max-side`(기본 4032): 검출만 축소 이미지로 하고 블러는 원본 해상도에 적용한다. 멀리 있는 작은 얼굴이 걱정되면 `0`(원본)으로 — 느려진다.
 
-**4) 배경 베이스맵** (ROADMAP 1.2)
+**4) 배경 베이스맵** (ROADMAP 1.2, 데이터 받는 법은 [runbooks/pc-setup.md §5](../docs/runbooks/pc-setup.md))
 ```powershell
 # ① 필드 확인: 높이/층수/용도/ID가 어느 컬럼인지 본다 (컬럼명은 파일 버전마다 다를 수 있어 코드에 고정하지 않음)
+#    서울 AL_D010_11_20260909 기준: 높이 A16, 지상층수 A26, 용도명 A9, ID A1 (근거 D-012)
 golmok-basemap inspect --buildings D:\golmok_data\AL_D010_11_….shp
-# ② 빌드 (연남동 예: 중심 반경 1km, 250m 타일)
+# ② NGII 정사영상(좌표 정보 없는 TIFF) → GeoTIFF(EPSG:5186). 파일명의 8자리 도엽번호로 배치하고 건물 윤곽으로 보정
+golmok-basemap georef-ortho "D:\golmok_data\ortho\raw\(B060)정사영상_2025_*.tif" --out-dir D:\golmok_data\ortho `
+  --buildings D:\golmok_data\AL_D010_11_….shp
+# ③ 빌드 (연남동 예: 중심 반경 1km, 250m 타일)
 golmok-basemap build --buildings D:\golmok_data\AL_D010_11_….shp `
-  --height-field <높이필드> --floors-field <지상층수필드> --usage-field <용도명필드> --id-field <건물ID필드> `
-  --dem "D:\golmok_data\dem\*.img" --ortho "D:\golmok_data\ortho\*.tif" `
+  --height-field A16 --floors-field A26 --usage-field A9 --id-field A1 `
+  --dem "D:\golmok_data\dem\*.img" --ortho "D:\golmok_data\ortho\ortho_*.tif" `
   --center 37.5620,126.9250 --radius 1000 --out D:\golmok_basemap\yeonnam
 ```
-- 좌표계는 SHP의 `.prj`에서 읽는다. 없으면 `--src-crs EPSG:5174` 등. DEM/정사영상에 좌표계가 없으면 `--raster-crs`.
+- 좌표계는 SHP의 `.prj`에서 읽는다. 없으면 `--src-crs EPSG:5174` 등. DEM/정사영상에 좌표계가 없으면 `--raster-crs`(DEM과 정사영상 모두에 적용되므로, NGII 정사영상은 `georef-ortho`로 따로 처리한다).
+- `georef-ortho`: 인접 도엽은 겹치는 여유(약 100 m)를 픽셀 단위로 맞춰 이음새가 없다. 결과 줄의 건물 윤곽 매칭 peak가 차순위보다 확실히 커야 보정이 적용된다(아니면 도엽 중심 배치, 약 1~2 m).
 - `--exclude zone.geojson`(경위도 폴리곤): 실촬영 플레이 구역 안의 배경 건물을 빼고 만든다.
 - `--geoid-offset`: 정표고→타원체고 보정(m). **UE 정적 임포트에는 영향 없음**, Cesium 타일과 맞출 때만 필요(서울 일대 약 +20m대 추정, 적용 전 확인).
-- UE로 가져오기(에디터 Python): `import golmok.basemap_import as b; b.run(r"D:\golmok_basemap\yeonnam")`
-  - 건물은 Nanite + `M_BasemapFacade`(층·창 패턴 절차적 머티리얼), 지형은 정사영상 텍스처. 축·단위 변환은 타일 경계상자로 자동 측정한다.
+- UE로 가져오기(에디터 Python): `import golmok.basemap_import as b; b.run(r"D:\golmok_basemap\yeonnam")`(현재 레벨) 또는 `b.run(r"…\yeonnam", level="/Game/Golmok/Maps/L_Basemap_Yeonnam")`(새 레벨: 조명 + 지면 위 PlayerStart). 다시 실행하면 이전 배경 액터를 지우고 다시 놓는다.
+  - 건물은 Nanite + `M_BasemapFacade`(층·창 패턴 절차적 머티리얼), 지형은 `M_BasemapTerrain` 인스턴스(정사영상). 축·단위 변환은 타일 경계상자로 자동 측정한다.
+  - 생성된 에셋(`Content/Golmok/Basemap/`, `L_Basemap_*`, `M_Basemap*`)은 스크립트로 다시 만들 수 있어 커밋하지 않는다.
 
 **5) Zone manifest** (ROADMAP 1.4, 스펙 [docs/spec/zone-manifest.md](../docs/spec/zone-manifest.md))
 ```powershell
