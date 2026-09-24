@@ -6,10 +6,14 @@ Capture every viewpoint (optionally under several lighting presets):
     v.capture("spike_a_mesh", presets=["overcast_morning", "clear_noon"])
 
 Viewpoints live in unreal/Golmok/Config/Golmok/Viewpoints/<level>.json (text, reviewable in git).
-Screenshots go to Saved/Screenshots/Golmok/<tag>/<preset>/<viewpoint>.png. Captures are spread
-over editor ticks because a high-res screenshot is taken on the viewport's next draw: each request
-waits until its file is written before the camera moves on, and the viewport is redrawn every tick
-(an editor in the background otherwise stops drawing, and the shot would land on a later view).
+Screenshots go to Saved/Screenshots/Golmok/<tag>/<preset>/<viewpoint>.png, taken in Game View (no
+editor icons; game_view=False keeps the current view mode).
+
+Keep the editor window in front while capturing. A high-res screenshot is taken on the viewport's
+next draw, and an editor that has been in the background stops drawing its viewport (seen on UE 5.8.3
+even with "Use Less CPU when in Background" off). So each request waits until its file is written
+before the camera moves on; a shot that never comes is reported as missing instead of landing on a
+later view under the wrong name. For unattended runs capture in PIE or -game instead (HighResShot).
 """
 
 import json
@@ -62,7 +66,7 @@ def goto(name):
 
 
 class _Capture:
-    def __init__(self, tag, names, presets):
+    def __init__(self, tag, names, presets, game_view):
         self.jobs = [(p, n) for p in presets for n in names]
         self.tag = tag
         self.wait = 0
@@ -73,10 +77,24 @@ class _Capture:
         self.out_root = os.path.join(unreal.Paths.project_saved_dir(), "Screenshots", "Golmok", tag)
         self.level_editor = unreal.get_editor_subsystem(unreal.LevelEditorSubsystem)
         self.level_editor.editor_set_viewport_realtime(True)
+        # Game View hides editor sprites and gizmos so screenshots show only what the player sees.
+        self.game_view = self.level_editor.editor_get_game_view()
+        self.level_editor.editor_set_game_view(game_view)
         self.handle = unreal.register_slate_post_tick_callback(self._tick)
         unreal.log(f"Capturing {len(self.jobs)} screenshots -> {self.out_root}")
 
-    def _tick(self, _dt):
+    def _finish(self, message, warn):
+        unreal.unregister_slate_post_tick_callback(self.handle)
+        self.level_editor.editor_set_game_view(self.game_view)
+        (unreal.log_warning if warn else unreal.log)(message)
+
+    def _tick(self, dt):
+        try:
+            self._step()
+        except Exception as e:  # stop instead of raising on every editor tick
+            self._finish(f"Capture '{self.tag}' stopped: {e}", warn=True)
+
+    def _step(self):
         self.level_editor.editor_invalidate_viewports()
         if self.wait > 0:
             self.wait -= 1
@@ -105,9 +123,8 @@ class _Capture:
             self.current = None
             return
         if not self.jobs:
-            unreal.unregister_slate_post_tick_callback(self.handle)
-            done = f"Capture '{self.tag}' done: {len(self.saved)} saved, {len(self.missing)} missing -> {self.out_root}"
-            (unreal.log_warning if self.missing else unreal.log)(done)
+            counts = f"{len(self.saved)} saved, {len(self.missing)} missing"
+            self._finish(f"Capture '{self.tag}' done: {counts} -> {self.out_root}", warn=bool(self.missing))
             return
         preset, name = self.jobs.pop(0)
         if preset:
@@ -117,9 +134,9 @@ class _Capture:
         self.wait = WAIT_TICKS
 
 
-def capture(tag, names=None, presets=None):
+def capture(tag, names=None, presets=None, game_view=True):
     names = names or sorted(_load())
     if not names:
         unreal.log_warning("No viewpoints saved for this level. Use save('<name>') first.")
         return None
-    return _Capture(tag, names, presets or [None])
+    return _Capture(tag, names, presets or [None], game_view)
