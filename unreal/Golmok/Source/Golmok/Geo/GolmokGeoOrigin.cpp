@@ -11,7 +11,7 @@ AGolmokGeoOrigin::AGolmokGeoOrigin()
 	PrimaryActorTick.bCanEverTick = false;
 	Root = CreateDefaultSubobject<USceneComponent>(TEXT("Root"));
 	SetRootComponent(Root);
-	Root->SetMobility(EComponentMobility::Static);
+	Root->SetMobility(EComponentMobility::Static); // never moves; lives at (0,0,0)
 }
 
 AGolmokGeoOrigin* AGolmokGeoOrigin::Find(UWorld* World)

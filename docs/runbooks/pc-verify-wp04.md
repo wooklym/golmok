@@ -106,6 +106,8 @@ golmok.zone.list
 | 16 | GolmokZone | `UStaticMeshComponent::bAffectDistanceFieldLighting` 직접 대입 | public UPROPERTY | 줄 삭제 |
 | 17 | synthetic_zone.py | `unreal.GolmokGeoOrigin`, `unreal.GolmokZone`, `set_editor_property("zone_id")`, `zone.rebuild_in_editor()` | Python 이름 노출(BlueprintCallable) | `zone.call_method("RebuildInEditor")`; 속성 이름은 `dir(zone)`으로 확인 |
 | 18 | synthetic_zone.py | `unreal.Paths.project_content_dir()/project_saved_dir()`, `EditorAssetLibrary.delete_directory` | 안정 | `unreal.SystemLibrary.get_project_content_directory()` |
+| 19 | GolmokZone | 루트 Movable + 자식 Stationary 조합(런타임 `SetActorTransform` 허용, Static 자식은 비Static 부모에 붙일 수 없음) | 런타임 로그 "AttachTo … Aborting" 또는 "Mobility … has to be Movable" | 자식도 Movable로(VSM 캐시 비용 증가) 또는 원점 액터를 먼저 배치해 에디터에서 위치 확정 후 루트 Static |
+| 20 | GolmokZone | `MakeUniqueObjectName(this, Class, BaseName)` + `NewObject(Outer, Name, RF_Transient)` | 안정 | `NewObject<…>(this)` (이름 자동) |
 
 ## 7. 결과 기록
 | 항목 | 결과 | 메모 |

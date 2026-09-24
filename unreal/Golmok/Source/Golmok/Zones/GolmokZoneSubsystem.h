@@ -4,6 +4,7 @@
 #include "Subsystems/WorldSubsystem.h"
 #include "GolmokZoneSubsystem.generated.h"
 
+class AActor;
 class AGolmokZone;
 
 /** Bookkeeping for one registered zone. */

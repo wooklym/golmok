@@ -30,7 +30,10 @@ AGolmokZone::AGolmokZone()
 	PrimaryActorTick.bCanEverTick = false;
 	Root = CreateDefaultSubobject<USceneComponent>(TEXT("ZoneRoot"));
 	SetRootComponent(Root);
-	Root->SetMobility(EComponentMobility::Static);
+	// Movable: the root is re-positioned from the manifest after BeginPlay (a Static root cannot move in a game
+	// world). Children are Stationary so shadow / Lumen caches treat them as non-moving (Static children may not
+	// attach to a non-Static parent).
+	Root->SetMobility(EComponentMobility::Movable);
 }
 
 // ---- lifecycle ------------------------------------------------------------------------------------------------
@@ -462,12 +465,14 @@ UStaticMeshComponent* AGolmokZone::MakeMeshComponent(const FName& Name, UStaticM
 	{
 		return nullptr;
 	}
-	UStaticMeshComponent* Component = NewObject<UStaticMeshComponent>(this, Name, RF_Transient);
+	// Unique names: a component destroyed by Unload() a moment ago may still exist until GC.
+	UStaticMeshComponent* Component =
+		NewObject<UStaticMeshComponent>(this, MakeUniqueObjectName(this, UStaticMeshComponent::StaticClass(), Name), RF_Transient);
 	if (!Component)
 	{
 		return nullptr;
 	}
-	Component->SetMobility(EComponentMobility::Static);
+	Component->SetMobility(EComponentMobility::Stationary);
 	Component->SetupAttachment(Root);
 	Component->SetRelativeTransform(FTransform::Identity);
 	Component->SetStaticMesh(Mesh);
@@ -498,12 +503,12 @@ UBoxComponent* AGolmokZone::MakeBoxComponent(const FName& Name, const FVector& R
 	{
 		return nullptr;
 	}
-	UBoxComponent* Box = NewObject<UBoxComponent>(this, Name, RF_Transient);
+	UBoxComponent* Box = NewObject<UBoxComponent>(this, MakeUniqueObjectName(this, UBoxComponent::StaticClass(), Name), RF_Transient);
 	if (!Box)
 	{
 		return nullptr;
 	}
-	Box->SetMobility(EComponentMobility::Static);
+	Box->SetMobility(EComponentMobility::Stationary);
 	Box->SetupAttachment(Root);
 	Box->SetRelativeLocationAndRotation(RelativeLocation, RelativeRotation);
 	Box->InitBoxExtent(Extent);

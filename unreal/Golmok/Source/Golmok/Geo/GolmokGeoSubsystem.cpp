@@ -17,7 +17,16 @@ AGolmokGeoOrigin* UGolmokGeoSubsystem::FindOrigin()
 {
 	if (!CachedOrigin.IsValid())
 	{
-		CachedOrigin = AGolmokGeoOrigin::Find(GetWorld());
+		// Levels without an origin actor would otherwise scan all actors on every query (zone evaluation runs 2/s).
+		const double Now = FPlatformTime::Seconds();
+		if (Now - LastMissSeconds >= 2.0)
+		{
+			CachedOrigin = AGolmokGeoOrigin::Find(GetWorld());
+			if (!CachedOrigin.IsValid())
+			{
+				LastMissSeconds = Now;
+			}
+		}
 	}
 	AGolmokGeoOrigin* Origin = CachedOrigin.Get();
 	const bool bHas = Origin != nullptr;

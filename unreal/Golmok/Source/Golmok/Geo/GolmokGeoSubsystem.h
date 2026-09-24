@@ -62,6 +62,7 @@ private:
 	void WarnNoOriginOnce();
 
 	TWeakObjectPtr<AGolmokGeoOrigin> CachedOrigin;
+	double LastMissSeconds = -1.0e9; // last time a search found no origin (re-search at most every 2 s)
 	bool bWarnedNoOrigin = false;
 	int32 PresenceRevision = 0;
 	bool bLastHadOrigin = false;
