@@ -702,7 +702,7 @@ void AGolmokZone::DestroyOwnedComponents()
 			{
 				Component->DestroyComponent();
 				const FName Trash = MakeUniqueObjectName(this, Component->GetClass(), TEXT("TRASH_Golmok"));
-				Component->Rename(*Trash.ToString(), this, REN_DontCreateRedirectors | REN_DoNotDirty | REN_NonTransactional | REN_ForceNoResetLoaders);
+				Component->Rename(*Trash.ToString(), this, REN_DontCreateRedirectors | REN_DoNotDirty | REN_NonTransactional);
 			}
 		}
 		Components.Empty();
