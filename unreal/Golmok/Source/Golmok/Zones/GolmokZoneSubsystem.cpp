@@ -30,10 +30,16 @@ void UGolmokZoneSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	}
 	UpdateIntervalSeconds = FMath::Max(0.1f, UpdateIntervalSeconds);
 	MaxLoadsPerUpdate = FMath::Max(1, MaxLoadsPerUpdate);
+	MaxUnloadsPerUpdate = FMath::Max(1, MaxUnloadsPerUpdate);
+	// Streamed sublevels bring basemap actors in and out: rescan the tagged-actor cache when that happens.
+	LevelAddedHandle = FWorldDelegates::LevelAddedToWorld.AddUObject(this, &UGolmokZoneSubsystem::OnLevelChanged);
+	LevelRemovedHandle = FWorldDelegates::LevelRemovedFromWorld.AddUObject(this, &UGolmokZoneSubsystem::OnLevelChanged);
 }
 
 void UGolmokZoneSubsystem::Deinitialize()
 {
+	FWorldDelegates::LevelAddedToWorld.Remove(LevelAddedHandle);
+	FWorldDelegates::LevelRemovedFromWorld.Remove(LevelRemovedHandle);
 	if (UWorld* World = GetWorld())
 	{
 		World->GetTimerManager().ClearTimer(EvaluateTimer);
@@ -58,6 +64,14 @@ void UGolmokZoneSubsystem::OnWorldBeginPlay(UWorld& InWorld)
 		LoadRadiusM, UnloadRadiusM, UpdateIntervalSeconds);
 }
 
+void UGolmokZoneSubsystem::OnLevelChanged(ULevel* Level, UWorld* World)
+{
+	if (World == GetWorld())
+	{
+		bBasemapDirty = true;
+	}
+}
+
 // ---- registration ---------------------------------------------------------------------------------------------
 
 void UGolmokZoneSubsystem::RegisterZone(AGolmokZone* Zone)
@@ -77,6 +91,7 @@ void UGolmokZoneSubsystem::RegisterZone(AGolmokZone* Zone)
 	FGolmokZoneRecord Record;
 	Record.Zone = Zone;
 	Zones.Add(Record);
+	bBasemapDirty = true;
 }
 
 void UGolmokZoneSubsystem::UnregisterZone(AGolmokZone* Zone)
@@ -96,14 +111,16 @@ FGolmokZoneRecord* UGolmokZoneSubsystem::FindRecord(const AGolmokZone* Zone)
 
 AGolmokZone* UGolmokZoneSubsystem::FindZone(const FString& ZoneId) const
 {
+	// Several versions of one zone may be placed while tuning; the console addresses the highest version.
+	AGolmokZone* Best = nullptr;
 	for (const FGolmokZoneRecord& R : Zones)
 	{
-		if (R.Zone.IsValid() && R.Zone->ZoneId == ZoneId)
+		if (R.Zone.IsValid() && R.Zone->ZoneId == ZoneId && (!Best || R.Zone->Version > Best->Version))
 		{
-			return R.Zone.Get();
+			Best = R.Zone.Get();
 		}
 	}
-	return nullptr;
+	return Best;
 }
 
 void UGolmokZoneSubsystem::PruneInvalid()
@@ -155,6 +172,7 @@ void UGolmokZoneSubsystem::Evaluate()
 	const FVector2D PlayerXY(Player.X, Player.Y);
 
 	TArray<FGolmokZoneRecord*> ToLoad;
+	TArray<FGolmokZoneRecord*> ToUnload;
 	bool bChanged = false;
 	for (FGolmokZoneRecord& R : Zones)
 	{
@@ -172,30 +190,74 @@ void UGolmokZoneSubsystem::Evaluate()
 			if (!Zone->EnsureManifest())
 			{
 				R.bLoadFailed = true;
+				UE_LOG(LogGolmok, Error, TEXT("GolmokZoneSubsystem: zone %s manifest failed: %s"), *Zone->ZoneId, *Zone->LastError);
 				continue;
 			}
 		}
-		const double DistanceM = Zone->DistanceToFootprintM(PlayerXY);
-		R.LastDistanceM = DistanceM;
-		if (!Zone->bAutoManaged || (Zone->IsInterior() && !bAutoManageInterior))
-		{
-			continue;
-		}
-		if (R.bBlocked && DistanceM >= UnloadRadiusM)
-		{
-			R.bBlocked = false; // the player left; console unload no longer sticks
-		}
+		// Cheap bounds distance first (a lower bound of the polygon distance); the polygon is only measured in the
+		// ring where it can change the decision.
+		const double BoundsM = Zone->DistanceToBoundsM(PlayerXY);
+		R.LastDistanceM = BoundsM;
+		R.bDistanceIsLowerBound = true;
+		const bool bManaged = Zone->bAutoManaged && (!Zone->IsInterior() || bAutoManageInterior) && !R.bLoadFailed;
 		if (Zone->IsLoaded())
 		{
-			if (!R.bPinned && DistanceM >= UnloadRadiusM)
+			bool bFar = BoundsM >= UnloadRadiusM;
+			if (!bFar)
 			{
-				Zone->Unload();
-				bChanged = true;
+				R.LastDistanceM = Zone->DistanceToFootprintM(PlayerXY);
+				R.bDistanceIsLowerBound = false;
+				bFar = R.LastDistanceM >= UnloadRadiusM;
+			}
+			if (R.bBlocked && bFar)
+			{
+				R.bBlocked = false; // the player left; a console unload no longer sticks
+			}
+			// An interior zone whose parent exterior zone is registered but unloaded is cleaned up too (no portal left).
+			bool bOrphanInterior = false;
+			if (Zone->IsInterior() && !Zone->GetParentZoneId().IsEmpty())
+			{
+				if (const AGolmokZone* Parent = FindZone(Zone->GetParentZoneId()))
+				{
+					bOrphanInterior = !Parent->IsLoaded();
+				}
+			}
+			if (!R.bPinned && ((bManaged && bFar) || bOrphanInterior))
+			{
+				ToUnload.Add(&R);
 			}
 		}
-		else if (!R.bLoadFailed && !R.bBlocked && DistanceM <= LoadRadiusM)
+		else
 		{
-			ToLoad.Add(&R);
+			if (BoundsM > LoadRadiusM)
+			{
+				if (R.bBlocked && BoundsM >= UnloadRadiusM)
+				{
+					R.bBlocked = false;
+				}
+				continue; // far away: polygon not needed
+			}
+			R.LastDistanceM = Zone->DistanceToFootprintM(PlayerXY);
+			R.bDistanceIsLowerBound = false;
+			if (R.bBlocked && R.LastDistanceM >= UnloadRadiusM)
+			{
+				R.bBlocked = false;
+			}
+			if (bManaged && !R.bBlocked && R.LastDistanceM <= LoadRadiusM)
+			{
+				ToLoad.Add(&R);
+			}
+		}
+	}
+
+	// Farthest first, at most MaxUnloadsPerUpdate per step.
+	ToUnload.Sort([](const FGolmokZoneRecord& A, const FGolmokZoneRecord& B) { return A.LastDistanceM > B.LastDistanceM; });
+	for (int32 i = 0; i < ToUnload.Num() && i < MaxUnloadsPerUpdate; ++i)
+	{
+		if (AGolmokZone* Zone = ToUnload[i]->Zone.Get())
+		{
+			Zone->Unload();
+			bChanged = true;
 		}
 	}
 
@@ -204,14 +266,18 @@ void UGolmokZoneSubsystem::Evaluate()
 	for (int32 i = 0; i < ToLoad.Num() && i < MaxLoadsPerUpdate; ++i)
 	{
 		AGolmokZone* Zone = ToLoad[i]->Zone.Get();
-		if (Zone && !Zone->Load())
+		if (!Zone)
 		{
-			ToLoad[i]->bLoadFailed = true;
-			UE_LOG(LogGolmok, Error, TEXT("GolmokZoneSubsystem: zone %s failed to load: %s"), *Zone->ZoneId, *Zone->LastError);
+			continue;
+		}
+		if (Zone->Load())
+		{
+			bChanged = true;
 		}
 		else
 		{
-			bChanged = true;
+			ToLoad[i]->bLoadFailed = true;
+			UE_LOG(LogGolmok, Error, TEXT("GolmokZoneSubsystem: zone %s failed to load: %s"), *Zone->ZoneId, *Zone->LastError);
 		}
 	}
 
@@ -285,6 +351,20 @@ bool UGolmokZoneSubsystem::RequestUnload(const FString& ZoneId, FString& OutMess
 
 // ---- overlap priority -----------------------------------------------------------------------------------------
 
+bool UGolmokZoneSubsystem::ZoneWins(const AGolmokZone& A, const AGolmokZone& B)
+{
+	// Higher priority wins, then higher version, then zone id (deterministic).
+	if (A.GetPriority() != B.GetPriority())
+	{
+		return A.GetPriority() > B.GetPriority();
+	}
+	if (A.Version != B.Version)
+	{
+		return A.Version > B.Version;
+	}
+	return A.ZoneId < B.ZoneId;
+}
+
 void UGolmokZoneSubsystem::ResolveOverlaps()
 {
 	TArray<FGolmokZoneRecord*> Loaded;
@@ -302,25 +382,22 @@ void UGolmokZoneSubsystem::ResolveOverlaps()
 		{
 			AGolmokZone* A = Loaded[i]->Zone.Get();
 			AGolmokZone* B = Loaded[j]->Zone.Get();
-			if (!A || !B || !A->FootprintOverlaps(*B))
+			if (!A || !B)
 			{
 				continue;
 			}
-			// Higher priority wins, then higher version, then zone id (deterministic).
-			bool bAWins;
-			if (A->GetPriority() != B->GetPriority())
+			// An interior zone and its parent exterior zone are meant to coexist.
+			if (A->GetParentZoneId() == B->ZoneId || B->GetParentZoneId() == A->ZoneId)
 			{
-				bAWins = A->GetPriority() > B->GetPriority();
+				continue;
 			}
-			else if (A->Version != B->Version)
+			// Two versions of the same zone always compete; otherwise test the footprints.
+			const bool bOverlap = (A->ZoneId == B->ZoneId) || A->FootprintOverlaps(*B);
+			if (!bOverlap)
 			{
-				bAWins = A->Version > B->Version;
+				continue;
 			}
-			else
-			{
-				bAWins = A->ZoneId < B->ZoneId;
-			}
-			(bAWins ? Loaded[j] : Loaded[i])->bSuppressed = true;
+			(ZoneWins(*A, *B) ? Loaded[j] : Loaded[i])->bSuppressed = true;
 		}
 	}
 	for (FGolmokZoneRecord* R : Loaded)
@@ -329,6 +406,10 @@ void UGolmokZoneSubsystem::ResolveOverlaps()
 		if (Zone && Zone->IsVisualVisible() == R->bSuppressed)
 		{
 			Zone->SetVisualVisible(!R->bSuppressed);
+			if (bSuppressLoserCollision)
+			{
+				Zone->SetCollisionEnabled(!R->bSuppressed);
+			}
 			UE_LOG(LogGolmok, Log, TEXT("GolmokZoneSubsystem: zone %s visual %s (overlap priority)"), *Zone->ZoneId,
 				R->bSuppressed ? TEXT("hidden") : TEXT("shown"));
 		}
@@ -339,6 +420,10 @@ void UGolmokZoneSubsystem::ResolveOverlaps()
 
 void UGolmokZoneSubsystem::RefreshBasemap()
 {
+	for (FGolmokZoneRecord& R : Zones)
+	{
+		R.bLoadFailed = false; // give failed zones another chance (e.g. after assets were imported)
+	}
 	bBasemapDirty = true;
 	UpdateBasemapHiding();
 }
@@ -413,11 +498,11 @@ void UGolmokZoneSubsystem::UpdateBasemapHiding()
 		}
 	}
 
-	// 2) Recompute which loaded zones cover each actor (bounds pre-test, then point in polygon).
+	// 2) Recompute which loaded, non-suppressed zones cover each actor (bounds pre-test, then point in polygon).
 	TArray<AGolmokZone*> Loaded;
 	for (const FGolmokZoneRecord& R : Zones)
 	{
-		if (R.Zone.IsValid() && R.Zone->IsLoaded())
+		if (R.Zone.IsValid() && R.Zone->IsLoaded() && !R.bSuppressed)
 		{
 			Loaded.Add(R.Zone.Get());
 		}
@@ -432,7 +517,7 @@ void UGolmokZoneSubsystem::UpdateBasemapHiding()
 		TArray<FName> Covering;
 		for (AGolmokZone* Zone : Loaded)
 		{
-			if (Entry.bIsTerrain && !Zone->Manifest.bTerrainClip)
+			if (Entry.bIsTerrain && !Zone->Manifest.Replaces.bTerrainClip)
 			{
 				continue;
 			}
@@ -490,8 +575,9 @@ FString UGolmokZoneSubsystem::DescribeZones()
 		const TCHAR* StateText = Zone->State == EGolmokZoneState::Loaded ? TEXT("loaded")
 								 : Zone->State == EGolmokZoneState::Failed ? TEXT("FAILED")
 																		   : TEXT("unloaded");
-		Out += FString::Printf(TEXT("  %-28s v%-3d prio %-4d %-9s dist %8.1f m%s%s%s%s%s\n"), *Zone->ZoneId, Zone->Version, Zone->GetPriority(),
-			StateText, R.LastDistanceM, R.bPinned ? TEXT(" pinned") : TEXT(""), R.bBlocked ? TEXT(" blocked") : TEXT(""),
+		Out += FString::Printf(TEXT("  %-28s v%-3d prio %-4d %-9s dist %s%8.1f m%s%s%s%s%s\n"), *Zone->ZoneId, Zone->Version, Zone->GetPriority(),
+			StateText, R.bDistanceIsLowerBound ? TEXT(">=") : TEXT("  "), R.LastDistanceM, R.bPinned ? TEXT(" pinned") : TEXT(""),
+			R.bBlocked ? TEXT(" blocked") : TEXT(""),
 			R.bSuppressed ? TEXT(" visual-off(overlap)") : TEXT(""), Zone->bAutoManaged ? TEXT("") : TEXT(" manual"),
 			Zone->LastError.IsEmpty() ? TEXT("") : *FString::Printf(TEXT(" error: %s"), *Zone->LastError));
 	}

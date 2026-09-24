@@ -64,6 +64,8 @@ void AGolmokZone::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedE
 	const FName Name = PropertyChangedEvent.GetPropertyName();
 	if (Name == GET_MEMBER_NAME_CHECKED(AGolmokZone, ZoneId) || Name == GET_MEMBER_NAME_CHECKED(AGolmokZone, Version))
 	{
+		Unload();
+		State = EGolmokZoneState::Unloaded;
 		bManifestLoaded = false;
 		FootprintOriginRevision = INDEX_NONE;
 	}
@@ -108,19 +110,22 @@ bool AGolmokZone::EnsureManifest(bool bForceReload)
 	}
 	if (Manifest.ZoneId != ZoneId || Manifest.Version != Version)
 	{
-		UE_LOG(LogGolmok, Warning, TEXT("Zone %s v%d: manifest says zone_id=%s version=%d (folder and file disagree)."), *ZoneId,
-			Version, *Manifest.ZoneId, Manifest.Version);
+		// Spec §2/§3.2: folder name and manifest must agree; a copy into the wrong folder is a setup error.
+		LastError = FString::Printf(TEXT("manifest says zone_id=%s version=%d but the actor/folder is %s v%d"), *Manifest.ZoneId,
+			Manifest.Version, *ZoneId, Version);
+		UE_LOG(LogGolmok, Error, TEXT("Zone %s v%d: %s"), *ZoneId, Version, *LastError);
+		return false;
 	}
-	if (Manifest.Layers.VisualFormat != TEXT("nanite_mesh"))
+	if (Manifest.Layers.Visual.Format != EGolmokVisualFormat::NaniteMesh)
 	{
-		UE_LOG(LogGolmok, Warning, TEXT("Zone %s: visual format '%s' is not implemented yet (nanite_mesh only); chunks are placed as meshes."),
-			*ZoneId, *Manifest.Layers.VisualFormat);
+		UE_LOG(LogGolmok, Warning, TEXT("Zone %s: visual format '%s' is not implemented yet (nanite_mesh only, D-010); chunks get wire boxes."),
+			*ZoneId, *Manifest.Layers.Visual.FormatString);
 	}
 
 	Blockers = FGolmokBlockers();
-	if (!Manifest.Layers.BlockersUri.IsEmpty())
+	if (Manifest.Layers.Blockers.bPresent)
 	{
-		const FString BlockersPath = FPaths::Combine(FPaths::GetPath(Path), Manifest.Layers.BlockersUri);
+		const FString BlockersPath = FPaths::Combine(FPaths::GetPath(Path), Manifest.Layers.Blockers.Uri);
 		FString BlockersError;
 		if (!GolmokZoneManifest::LoadBlockers(BlockersPath, Blockers, BlockersError))
 		{
@@ -221,6 +226,24 @@ double AGolmokZone::DistanceToFootprintM(const FVector2D& LevelUEPointCm)
 		   / 100.0;
 }
 
+double AGolmokZone::DistanceToBoundsM(const FVector2D& LevelUEPointCm)
+{
+	const TArray<FVector2D>& Poly = GetFootprintUE();
+	if (Poly.Num() < 3)
+	{
+		return UnknownDistanceM;
+	}
+	const FVector2D Clamped(FMath::Clamp(LevelUEPointCm.X, FootprintBoundsUE.Min.X, FootprintBoundsUE.Max.X),
+		FMath::Clamp(LevelUEPointCm.Y, FootprintBoundsUE.Min.Y, FootprintBoundsUE.Max.Y));
+	return FVector2D::Distance(Clamped, LevelUEPointCm) / 100.0;
+}
+
+FTransform AGolmokZone::GetPortalWorldTransform(const FGolmokZonePortal& Portal) const
+{
+	const FTransform Relative(FRotator(0.0, -Portal.YawDeg, 0.0), GolmokGeo::EnuToUE(Portal.PositionEnu), FVector::OneVector);
+	return Relative * GetActorTransform();
+}
+
 bool AGolmokZone::FootprintContains(const FVector2D& LevelUEPointCm)
 {
 	const TArray<FVector2D>& Poly = GetFootprintUE();
@@ -269,24 +292,55 @@ bool AGolmokZone::Load()
 		UE_LOG(LogGolmok, Warning, TEXT("Zone %s: bAsyncLoad is not implemented yet (TODO FStreamableManager); loading synchronously."), *ZoneId);
 	}
 	DestroyOwnedComponents();
+	MissingAssetCount = 0;
 	const double StartSeconds = FPlatformTime::Seconds();
 
-	// 1) visual chunks — vertices are already zone-local UE cm, so every component sits at the root with identity.
-	int32 LoadedChunks = 0;
-	for (const FGolmokZoneChunk& Chunk : Manifest.Layers.VisualChunks)
+	const int32 NumChunks = BuildVisualLayer();
+	const int32 NumCollision = BuildCollisionLayer();
+	const int32 NumBlockers = BuildBlockers();
+
+	State = EGolmokZoneState::Loaded;
+	LastError.Reset();
+	SetVisualVisible(bVisualVisible);
+	SetCollisionEnabled(bCollisionOn);
+	SpawnPortals();
+
+	const int32 NumCollisionWanted = FMath::Max(1, Manifest.Layers.Collision.Chunks.Num());
+	UE_LOG(LogGolmok, Log, TEXT("Zone %s v%d loaded in %.1f ms: chunks %d/%d (%d wire boxes), collision %d/%d, blockers %d/%d, portals %d (WP-05)"),
+		*ZoneId, Version, (FPlatformTime::Seconds() - StartSeconds) * 1000.0, NumChunks, Manifest.Layers.Visual.Chunks.Num(),
+		PlaceholderBoxes.Num(), NumCollision, NumCollisionWanted, NumBlockers, Blockers.Planes.Num(), Manifest.Portals.Num());
+
+	if (UGolmokZoneSubsystem* Subsystem = GetZoneSubsystem())
+	{
+		Subsystem->NotifyZoneLoaded(this);
+	}
+	return true;
+}
+
+int32 AGolmokZone::BuildVisualLayer()
+{
+	// Vertices are already zone-local UE cm (spec §5), so every chunk component sits at the root with identity.
+	int32 Loaded = 0;
+	const bool bMeshFormat = Manifest.Layers.Visual.Format == EGolmokVisualFormat::NaniteMesh;
+	for (const FGolmokZoneChunk& Chunk : Manifest.Layers.Visual.Chunks)
 	{
 		const FString AssetPath = GolmokZoneManifest::ChunkAssetPath(ZoneId, Version, Chunk.Id);
-		if (UStaticMesh* Mesh = LoadMeshAsset(AssetPath))
+		UStaticMesh* Mesh = bMeshFormat ? LoadMeshAsset(AssetPath) : nullptr;
+		if (Mesh)
 		{
 			if (UStaticMeshComponent* Component = MakeMeshComponent(MakeComponentName(TEXT("Chunk"), Chunk.Id), Mesh, /*bVisual*/ true))
 			{
 				ChunkComponents.Add(Component);
-				++LoadedChunks;
+				++Loaded;
 			}
 			continue;
 		}
-		UE_LOG(LogGolmok, Warning, TEXT("Zone %s: chunk asset %s missing%s"), *ZoneId, *AssetPath,
-			(bDrawMissingAssetBoxes && Chunk.bHasBbox) ? TEXT("; drawing its bbox as a wire box") : TEXT(""));
+		++MissingAssetCount;
+		if (bMeshFormat)
+		{
+			UE_LOG(LogGolmok, Warning, TEXT("Zone %s: chunk asset %s missing%s"), *ZoneId, *AssetPath,
+				(bDrawMissingAssetBoxes && Chunk.bHasBbox) ? TEXT("; drawing its bbox as a wire box") : TEXT(""));
+		}
 		if (bDrawMissingAssetBoxes && Chunk.bHasBbox)
 		{
 			const FBox Box = GolmokGeo::EnuBoxToUE(Chunk.BboxMinEnu, Chunk.BboxMaxEnu);
@@ -297,18 +351,19 @@ bool AGolmokZone::Load()
 			}
 		}
 	}
+	return Loaded;
+}
 
-	// 2) collision mesh(es): hidden, block everything, no shadows.
-	int32 LoadedCollision = 0;
+int32 AGolmokZone::BuildCollisionLayer()
+{
+	// Hidden, blocks everything, no shadows. One asset per collision chunk when the manifest lists chunks.
+	int32 Loaded = 0;
 	TArray<FString> CollisionIds;
-	if (Manifest.Layers.CollisionChunks.Num() > 0)
+	for (const FGolmokZoneChunk& Chunk : Manifest.Layers.Collision.Chunks)
 	{
-		for (const FGolmokZoneChunk& Chunk : Manifest.Layers.CollisionChunks)
-		{
-			CollisionIds.Add(Chunk.Id);
-		}
+		CollisionIds.Add(Chunk.Id);
 	}
-	else
+	if (CollisionIds.Num() == 0)
 	{
 		CollisionIds.Add(FString());
 	}
@@ -321,47 +376,41 @@ bool AGolmokZone::Load()
 			if (UStaticMeshComponent* Component = MakeMeshComponent(Name, Mesh, /*bVisual*/ false))
 			{
 				CollisionComponents.Add(Component);
-				++LoadedCollision;
+				++Loaded;
 			}
 		}
 		else
 		{
+			++MissingAssetCount;
 			UE_LOG(LogGolmok, Warning, TEXT("Zone %s: collision asset %s missing; the player will fall through this zone."), *ZoneId, *AssetPath);
 		}
 	}
+	return Loaded;
+}
 
-	// 3) blockers (spec §3.1): thin boxes, local X = normal, Z = height axis, Y = width axis.
+int32 AGolmokZone::BuildBlockers()
+{
+	// Spec §3.1: thin boxes; local X = plane normal, Z = height axis (zone +z projected onto the plane, +north when
+	// horizontal), Y = width axis. Both kinds are physical walls; glass is visible in the scan mesh itself.
+	int32 Built = 0;
 	for (const FGolmokBlockerPlane& Plane : Blockers.Planes)
 	{
 		GolmokGeoMath::Vec3 WidthEnu, HeightEnu;
 		GolmokGeoMath::BlockerAxes(GolmokGeo::ToVec3(Plane.NormalEnu), WidthEnu, HeightEnu);
 		const FVector NormalUE = GolmokGeo::EnuDirToUE(Plane.NormalEnu.GetSafeNormal());
 		const FVector HeightUE = GolmokGeo::EnuDirToUE(GolmokGeo::ToFVector(HeightEnu));
+		// MakeFromXZ builds a proper (det +1) UE frame; FMatrix(Dn, Dw, Dh) would be improper because D flips handedness.
 		const FRotator Rotation = FRotationMatrix::MakeFromXZ(NormalUE, HeightUE).Rotator();
 		const FVector Extent(BlockerThicknessCm * 0.5, Plane.SizeM.X * 50.0, Plane.SizeM.Y * 50.0);
-		const FColor Color = (Plane.Kind == TEXT("glass")) ? FColor::Cyan : FColor::Red;
-		if (UBoxComponent* Blocker = MakeBoxComponent(MakeComponentName(TEXT("Blocker"), Plane.Id), GolmokGeo::EnuToUE(Plane.CenterEnu),
-				Rotation, Extent, /*bCollide*/ true, Color))
+		const FColor Color = (Plane.Kind == EGolmokBlockerKind::Glass) ? FColor::Cyan : FColor::Red;
+		if (UBoxComponent* Blocker = MakeBoxComponent(MakeComponentName(TEXT("Blocker"), Plane.Id), GolmokGeo::EnuToUE(Plane.CenterEnu), Rotation,
+				Extent, /*bCollide*/ true, Color))
 		{
 			BlockerComponents.Add(Blocker);
+			++Built;
 		}
 	}
-
-	State = EGolmokZoneState::Loaded;
-	LastError.Reset();
-	SetVisualVisible(bVisualVisible);
-	SetCollisionEnabled(bCollisionOn);
-	SpawnPortals();
-
-	UE_LOG(LogGolmok, Log, TEXT("Zone %s v%d loaded in %.1f ms: chunks %d/%d (%d wire boxes), collision %d/%d, blockers %d, portals %d (WP-05)"),
-		*ZoneId, Version, (FPlatformTime::Seconds() - StartSeconds) * 1000.0, LoadedChunks, Manifest.Layers.VisualChunks.Num(),
-		PlaceholderBoxes.Num(), LoadedCollision, CollisionIds.Num(), BlockerComponents.Num(), Manifest.Portals.Num());
-
-	if (UGolmokZoneSubsystem* Subsystem = GetZoneSubsystem())
-	{
-		Subsystem->NotifyZoneLoaded(this);
-	}
-	return true;
+	return Built;
 }
 
 void AGolmokZone::Unload()

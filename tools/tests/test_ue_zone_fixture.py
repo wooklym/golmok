@@ -83,6 +83,46 @@ def test_default_game_ini_stages_zone_manifests_and_configures_subsystem():
     load_m, unload_m = float(zone["LoadRadiusM"]), float(zone["UnloadRadiusM"])
     assert 0 < load_m < unload_m, "hysteresis needs LoadRadiusM < UnloadRadiusM"
     assert float(zone["UpdateIntervalSeconds"]) >= 0.1, "never evaluate zones per frame (WP-04 checklist f)"
+    assert int(zone["MaxLoadsPerUpdate"]) >= 1 and int(zone["MaxUnloadsPerUpdate"]) >= 1
+    for key in (
+        "bSuppressLoserCollision",
+        "bHideBasemap",
+        "BasemapTag",
+        "BasemapTerrainTag",
+        "bAutoManageInterior",
+    ):
+        assert key in zone, key
+    assert (
+        zone["BasemapTag"] == "GolmokBasemap"
+    )  # basemap_import.py / synthetic_zone.py tag actors with this name
+    actor = cp["/Script/Golmok.GolmokZone"]
+    assert float(actor["BlockerThicknessCm"]) > 0
+    assert actor["bAsyncLoad"] == "False" and actor["bDrawMissingAssetBoxes"] == "True"
+
+
+def test_ini_keys_match_config_uproperties():
+    """Keys under [/Script/Golmok.X] must be UPROPERTY(Config) members of X (typos are silently ignored)."""
+    text = (UE / "Config" / "DefaultGame.ini").read_text(encoding="utf-8-sig")
+    cp = parse_ue_ini(text)
+    headers = {p.stem: p.read_text(encoding="utf-8") for p in SOURCE.rglob("*.h")}
+    for section in cp.sections():
+        if not section.startswith("/Script/Golmok."):
+            continue
+        cls = section.split(".", 1)[1]
+        header = headers.get(cls)
+        assert header, f"{section}: no header {cls}.h"
+        # UPROPERTY(...) may nest one level of parentheses (meta = (ClampMin = "1.0")).
+        spec = r"(?:[^()]|\([^()]*\))*"
+        config_props = set(
+            re.findall(r"UPROPERTY\(" + spec + r"\bConfig\b" + spec + r"\)\s*\n\s*[\w:<>]+\s+(\w+)", header)
+        )
+        for key in cp[section]:
+            assert key in config_props, f"{section}: '{key}' is not a UPROPERTY(Config) of {cls}"
+
+
+def test_basemap_import_tags_tile_actors_for_runtime_hiding():
+    text = (UE / "Content" / "Python" / "golmok" / "basemap_import.py").read_text(encoding="utf-8")
+    assert 'unreal.Name("GolmokBasemap")' in text and 'unreal.Name("GolmokBasemapTerrain")' in text
 
 
 def test_build_cs_has_json_modules():

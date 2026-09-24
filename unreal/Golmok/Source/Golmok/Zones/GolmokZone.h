@@ -50,7 +50,14 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Golmok|Zone")
 	bool bAutoManaged = true;
 
-	/** Reserved: asynchronous asset loading through FStreamableManager. Loads synchronously for now (TODO WP-05+). */
+	/**
+	 * Reserved: asynchronous asset loading. Loads synchronously for now.
+	 * TODO(WP-05+): UGolmokZoneSubsystem owns one FStreamableManager; LoadAsync() collects the chunk / collision
+	 * FSoftObjectPaths, sets a Loading state, builds `FStreamableDelegate Done = FStreamableDelegate::CreateUObject(this,
+	 * &AGolmokZone::OnAssetsLoaded)` as a named variable (a temporary is overload-ambiguous on 5.4+) and keeps the
+	 * TSharedPtr<FStreamableHandle>; Unload() cancels it; OnAssetsLoaded runs BuildVisualLayer/BuildCollisionLayer/
+	 * BuildBlockers only while still Loading (StaticLoadObject then returns the already resident assets).
+	 */
 	UPROPERTY(Config, EditAnywhere, Category = "Golmok|Zone|Streaming")
 	bool bAsyncLoad = false;
 
@@ -64,6 +71,10 @@ public:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Transient, Category = "Golmok|Zone|State")
 	EGolmokZoneState State = EGolmokZoneState::Unloaded;
+
+	/** Chunk / collision assets that were missing during the last Load() (wire boxes stand in for chunks). */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Transient, Category = "Golmok|Zone|State")
+	int32 MissingAssetCount = 0;
 
 	/** Last manifest / load error (empty when fine). */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Transient, Category = "Golmok|Zone|State")
@@ -118,6 +129,9 @@ public:
 	/** Horizontal distance (m) from a level UE point to the footprint polygon; 0 inside. Huge when unknown. */
 	double DistanceToFootprintM(const FVector2D& LevelUEPointCm);
 
+	/** Distance (m) to the footprint's 2D bounds: a cheap lower bound of DistanceToFootprintM (0 inside the box). */
+	double DistanceToBoundsM(const FVector2D& LevelUEPointCm);
+
 	/** True when the two footprints overlap in level XY. */
 	bool FootprintOverlaps(AGolmokZone& Other);
 
@@ -126,6 +140,11 @@ public:
 
 	int32 GetPriority() const { return Manifest.Priority; }
 	bool IsInterior() const { return Manifest.IsInterior(); }
+	const FString& GetParentZoneId() const { return Manifest.ParentZone; }
+
+	/** Portal helpers for WP-05: world transform (S * position, Yaw = -yaw_deg) and radius in cm. */
+	FTransform GetPortalWorldTransform(const FGolmokZonePortal& Portal) const;
+	static double PortalRadiusCm(const FGolmokZonePortal& Portal) { return Portal.RadiusM * 100.0; }
 
 	/** Path helpers exposed for tools and tests (spec §5). */
 	FString GetManifestFilePath() const;
@@ -146,16 +165,21 @@ protected:
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 #endif
 
-private:
-	bool ApplyRootTransform();
-	bool BuildFootprintCache();
-	UGolmokZoneSubsystem* GetZoneSubsystem() const;
+	/** Load() steps, overridable for other visual formats (D-010). Each returns the number of components created. */
+	virtual int32 BuildVisualLayer();
+	virtual int32 BuildCollisionLayer();
+	virtual int32 BuildBlockers();
 
 	UStaticMeshComponent* MakeMeshComponent(const FName& Name, UStaticMesh* Mesh, bool bVisual);
 	UBoxComponent* MakeBoxComponent(const FName& Name, const FVector& RelativeLocation, const FRotator& RelativeRotation,
 		const FVector& Extent, bool bCollide, const FColor& Color);
-	void DestroyOwnedComponents();
 	static UStaticMesh* LoadMeshAsset(const FString& ObjectPath);
+
+private:
+	bool ApplyRootTransform();
+	bool BuildFootprintCache();
+	UGolmokZoneSubsystem* GetZoneSubsystem() const;
+	void DestroyOwnedComponents();
 
 	UPROPERTY(VisibleAnywhere, Category = "Golmok|Zone")
 	TObjectPtr<USceneComponent> Root;

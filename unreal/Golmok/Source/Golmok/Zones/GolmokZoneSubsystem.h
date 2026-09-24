@@ -6,6 +6,7 @@
 
 class AActor;
 class AGolmokZone;
+class ULevel;
 
 /** Bookkeeping for one registered zone. */
 USTRUCT()
@@ -25,10 +26,12 @@ struct FGolmokZoneRecord
 	/** Lost an overlap against a higher priority / newer zone: visual hidden, collision kept. */
 	bool bSuppressed = false;
 
-	/** Load() failed; not retried until the manifest is rebuilt (keeps the log quiet). */
+	/** Load() failed; not retried until golmok.zone.load / golmok.zone.refresh / RebuildInEditor (keeps the log quiet). */
 	bool bLoadFailed = false;
 
+	/** Last evaluated distance (m). When bDistanceIsLowerBound only the cheap bounds distance was computed. */
 	double LastDistanceM = 1.0e9;
+	bool bDistanceIsLowerBound = false;
 };
 
 /** A basemap actor (tag GolmokBasemap) the subsystem may hide while zones cover it. */
@@ -91,9 +94,17 @@ public:
 	UPROPERTY(Config, EditAnywhere, Category = "Golmok|Zone")
 	int32 MaxLoadsPerUpdate = 1;
 
+	/** Unloads per evaluation. */
+	UPROPERTY(Config, EditAnywhere, Category = "Golmok|Zone")
+	int32 MaxUnloadsPerUpdate = 2;
+
 	/** Also manage interior zones by distance (normally WP-05 portals drive them). */
 	UPROPERTY(Config, EditAnywhere, Category = "Golmok|Zone")
 	bool bAutoManageInterior = false;
+
+	/** Overlap loser: spec says hide the visual layer only. Opt in to also disable its collision. */
+	UPROPERTY(Config, EditAnywhere, Category = "Golmok|Zone")
+	bool bSuppressLoserCollision = false;
 
 	UPROPERTY(Config, EditAnywhere, Category = "Golmok|Basemap")
 	bool bHideBasemap = true;
@@ -106,9 +117,9 @@ public:
 	UPROPERTY(Config, EditAnywhere, Category = "Golmok|Basemap")
 	FName BasemapTerrainTag = TEXT("GolmokBasemapTerrain");
 
-	/** Seconds between re-scans of the level for basemap actors (streamed sublevels). 0 = only at BeginPlay/refresh. */
+	/** Optional periodic re-scan of the level for basemap actors (s). 0 = only at BeginPlay, sublevel changes and refresh. */
 	UPROPERTY(Config, EditAnywhere, Category = "Golmok|Basemap")
-	float BasemapRescanSeconds = 10.f;
+	float BasemapRescanSeconds = 0.f;
 
 	void RegisterZone(AGolmokZone* Zone);
 	void UnregisterZone(AGolmokZone* Zone);
@@ -142,6 +153,8 @@ private:
 	void UpdateBasemapHiding();
 	void RestoreAllBasemap();
 	void ApplyBasemapEntryState(FGolmokBasemapEntry& Entry, bool bHidden);
+	void OnLevelChanged(ULevel* Level, UWorld* World);
+	static bool ZoneWins(const AGolmokZone& A, const AGolmokZone& B);
 
 	UPROPERTY(Transient)
 	TArray<FGolmokZoneRecord> Zones;
@@ -150,6 +163,8 @@ private:
 	TArray<FGolmokBasemapEntry> Basemap;
 
 	FTimerHandle EvaluateTimer;
+	FDelegateHandle LevelAddedHandle;
+	FDelegateHandle LevelRemovedHandle;
 	double LastBasemapScanSeconds = -1.0;
 	bool bBasemapDirty = true;
 	bool bWarnedNoPlayer = false;

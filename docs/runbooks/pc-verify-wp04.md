@@ -62,7 +62,7 @@ golmok.geo.selftest
 golmok.zone.list
 ```
 - [ ] **(6) 수치 예제**: `golmok.geo.selftest … PASS`, 6줄 모두 `OK` (표 B·C, Yaw −30).
-- [ ] `golmok.zone.list`: `z_synthetic_001  v1  prio 10  loaded  dist 0.0 m` (플레이어가 footprint 안).
+- [ ] `golmok.zone.list`: `z_synthetic_001  v1  prio 10  loaded  dist 0.0 m` (플레이어가 footprint 안). 참고: L_Dev 기본 PlayerStart(−5 m, 0) 자리에서는 dist ≈ 266.6 m, 레벨 원점에서는 263.6 m라 기본 반경(150/250)으로는 자동 로드되지 않는다 — `synthetic_zone.run()`이 PlayerStart를 옮기는 이유.
 - [ ] **(1) 청크 위치**: 북쪽에 파사드 벽 3조각이 보이고, 서쪽 조각에 문 구멍.
 - [ ] **(2) 충돌 메시**: 슬래브 위를 걷고 뛴다. 슬래브 끝(남쪽 12 m, 동서 22 m)에서 떨어지면 L_Dev 바닥(10 m 아래)에 착지 = 정상.
 - [ ] **(3) blocker**: x = −12 m 지점(원점에서 서쪽 12 m)의 문 구멍으로 북진 → 보이지 않는 벽(`Blocker_glass_1`, 유리)에 막힌다. 다른 x에서는 파사드 충돌벽에 막힌다. `show collision`으로 청록/빨강 박스 확인 가능.
@@ -88,6 +88,7 @@ golmok.zone.list
 
 | # | 파일 | API | 불확실한 점 | 대안 |
 |---|---|---|---|---|
+| 0 | GolmokZoneManifest | `FJsonObject::TryGet{Number,String,Array,Object,Bool}Field(key, …)`, `HasField`, `TryGetField` | 5.4+ `FStringView` 오버로드 → TCHAR 리터럴 키가 모호 | **키를 `const FString` 객체로 넘긴다**(이미 그렇게 함). 그래도 실패하면 `GetField<EJson::…>(FString)` |
 | 1 | GolmokZoneSubsystem | `UWorldSubsystem::DoesSupportWorldType(const EWorldType::Type) const` override | 5.8에서 시그니처 유지 여부 | 오버라이드 삭제 후 `ShouldCreateSubsystem(UObject* Outer)`에서 `Cast<UWorld>(Outer)->WorldType`이 Game/PIE인지 검사 |
 | 2 | GolmokZoneSubsystem | `UWorldSubsystem::OnWorldBeginPlay(UWorld&)` | 존재는 확실, 액터 BeginPlay와의 순서 | 순서 무관하게 설계됨(액터 등록 + 스윕). 시그니처 오류면 `Initialize`에서 `FWorldDelegates::OnWorldBeginPlay`? 대신 첫 `RegisterZone`에서 타이머 시작 |
 | 3 | GolmokZoneSubsystem | `FTimerManager::SetTimer(Handle, this, &Class::Method, float, bool)` | 안정 | `FTimerDelegate::CreateUObject(this, &UGolmokZoneSubsystem::Evaluate)` 오버로드 |
@@ -98,7 +99,6 @@ golmok.zone.list
 | 8 | GolmokZone | `StaticLoadObject(UStaticMesh::StaticClass(), nullptr, *Path, nullptr, LOAD_NoWarn \| LOAD_Quiet)` | 플래그 이름 | `LoadObject<UStaticMesh>(nullptr, *Path)` |
 | 9 | GolmokZone | `UCollisionProfile::BlockAll_ProfileName`, `NoCollision_ProfileName` (`Engine/CollisionProfile.h`) | 안정 | `SetCollisionProfileName(TEXT("BlockAll"))` / `TEXT("NoCollision")` |
 | 10 | GolmokZone | `USceneComponent::SetupAttachment` → `RegisterComponent()` 순서(런타임 NewObject) | 경고 가능 | `RegisterComponent()` 후 `AttachToComponent(Root, FAttachmentTransformRules::KeepRelativeTransform)` |
-| 11 | GolmokZoneManifest | `FJsonObject::TryGetNumberField/TryGetStringField/TryGetArrayField/TryGetObjectField/TryGetBoolField(const FString&, …)` | 5.4+ `FStringView` 오버로드와 모호성 | 이미 FString 변수로 넘김. 그래도 실패하면 `GetField<EJson::…>` |
 | 12 | 전체 | `UPROPERTY` `double`, `TArray<double>`, `FVector2D`(double), `TWeakObjectPtr` in USTRUCT | UE5에서 리플렉션 가능 | 문제 시 `TArray<double>` → `TArray<FVector>`4개로 분해 |
 | 13 | GolmokZone | `UFUNCTION(CallInEditor, BlueprintCallable)` 조합 | 허용됨 | `BlueprintCallable` 제거(Python은 `call_method("RebuildInEditor")`) |
 | 14 | GolmokGeoOrigin | `UCLASS(HideCategories=(…))` 목록의 카테고리 이름 | 없는 이름은 무시됨 | 목록 축소 |
@@ -108,6 +108,10 @@ golmok.zone.list
 | 18 | synthetic_zone.py | `unreal.Paths.project_content_dir()/project_saved_dir()`, `EditorAssetLibrary.delete_directory` | 안정 | `unreal.SystemLibrary.get_project_content_directory()` |
 | 19 | GolmokZone | 루트 Movable + 자식 Stationary 조합(런타임 `SetActorTransform` 허용, Static 자식은 비Static 부모에 붙일 수 없음) | 런타임 로그 "AttachTo … Aborting" 또는 "Mobility … has to be Movable" | 자식도 Movable로(VSM 캐시 비용 증가) 또는 원점 액터를 먼저 배치해 에디터에서 위치 확정 후 루트 Static |
 | 20 | GolmokZone | `MakeUniqueObjectName(this, Class, BaseName)` + `NewObject(Outer, Name, RF_Transient)` | 안정 | `NewObject<…>(this)` (이름 자동) |
+| 21 | GolmokZoneSubsystem | `FWorldDelegates::LevelAddedToWorld / LevelRemovedFromWorld` (`AddUObject`, `(ULevel*, UWorld*)`) | 시그니처·존재 | 바인드 두 줄 삭제 후 `DefaultGame.ini`의 `BasemapRescanSeconds=10` |
+| 22 | GolmokZoneManifest | `FRegexPattern`/`FRegexMatcher` (`Internationalization/Regex.h`, zone_id 검사) | 안정(Core) | 수동 문자 검사로 교체 |
+| 23 | GolmokZoneManifest | `TJsonWriterFactory<TCHAR, TCondensedJsonPrintPolicy<TCHAR>>::Create(&String)` + `FJsonSerializer::Serialize(Obj, Writer)` (quality 추가 키 보존) | 안정 | `ExtraJson` 채우는 블록 삭제 |
+| 24 | 패키징 | `FFileHelper::LoadFileToString`로 pak 안 UFS 스테이징 파일 읽기 | 경로 유지 여부 | `+DirectoriesToAlwaysStageAsNonUFS`(느슨한 파일)로 전환 |
 
 ## 7. 결과 기록
 | 항목 | 결과 | 메모 |
