@@ -28,7 +28,7 @@ git pull
 - [ ] 에디터 실행 `.\tools\ue\open-editor.ps1`, Output Log에 `LogGolmok` 카테고리가 보임.
 
 ## 2. 합성 Zone 생성 (에디터 Python)
-`L_Dev`를 열고(없으면 `import golmok.setup_dev_level as s; s.run()`), Output Log → Python:
+어느 레벨이 열려 있든 상관없다. `z.run()`은 **전용 맵 `/Game/Golmok/Maps/L_ZoneTest`**를 만들거나(없으면 L_Dev와 같은 조명으로 생성) 열어 그 안에 구성하므로 `L_Dev`는 건드리지 않는다 — main의 자동 테스트 `Golmok.Player.Movement`(`tools/ue/test.ps1`)가 L_Dev의 PlayerStart 위치를 전제하기 때문이다(통합 리뷰 지적). 현재 레벨에 만들려면 `z.run(level=None)`. Output Log → Python:
 ```python
 import golmok.synthetic_zone as z; z.run()
 ```
@@ -64,7 +64,7 @@ golmok.geo.selftest
 golmok.zone.list
 ```
 - [ ] **(6) 수치 예제**: `golmok.geo.selftest … PASS`, 6줄 모두 `OK` (표 B·C, Yaw −30).
-- [ ] `golmok.zone.list`: `z_synthetic_001  v1  prio 10  loaded  dist 0.0 m` (플레이어가 footprint 안). 참고: L_Dev 기본 PlayerStart(−5 m, 0) 자리에서는 dist ≈ 266.6 m, 레벨 원점에서는 263.6 m라 기본 반경(150/250)으로는 자동 로드되지 않는다 — `synthetic_zone.run()`이 PlayerStart를 옮기는 이유.
+- [ ] `golmok.zone.list`: `z_synthetic_001  v1  prio 10  loaded  dist 0.0 m` (플레이어가 footprint 안). 참고: `L_ZoneTest`에는 PlayerStart가 slab 위에 생성된다. L_Dev 기본 PlayerStart(−5 m, 0) 자리에서라면 dist ≈ 266.6 m, 레벨 원점에서는 263.6 m라 기본 반경(150/250)으로는 자동 로드되지 않는다 — `synthetic_zone.run()`이 PlayerStart를 옮기는 이유.
 - [ ] **(1) 청크 위치**: 북쪽에 파사드 벽 3조각이 보이고, 서쪽 조각에 문 구멍.
 - [ ] **(2) 충돌 메시**: 슬래브 위를 걷고 뛴다. 슬래브 끝(남쪽 12 m, 동서 22 m)에서 20 cm 아래 지면(`Zone_Ground`)으로 내려가고 다시 올라올 수 있다.
 - [ ] **(3) blocker**: x = −12 m 지점(원점에서 서쪽 12 m)의 문 구멍으로 북진 → 보이지 않는 벽(`Blocker_glass_1`, 유리)에 막힌다. 다른 x에서는 파사드 충돌벽에 막힌다. `show collision`으로 청록/빨강 박스 확인 가능.
@@ -83,7 +83,7 @@ golmok.zone.list
 - [ ] `GeoOrigin` 액터를 삭제하고 `Zone_z_synthetic_001` 디테일의 **Rebuild In Editor** → 경고 `No AGolmokGeoOrigin in …` 1회, zone이 레벨 원점(0,0,0)에 Yaw 0으로 놓인다. 되돌리려면 `z.run(import_assets=False)`.
 
 ## 5. 패키징(선택, 30분)
-- [ ] `.\tools\ue\package.ps1` → 실행 파일에서 `L_Dev` 로드 → `golmok.zone.list`에 zone이 있고 `loaded`. 실패하면 manifest가 pak에 안 들어간 것: `DefaultGame.ini`의 `+DirectoriesToAlwaysStageAsUFS=(Path="Golmok/Zones")`가 프로젝트 설정 Packaging › "Additional Non-Asset Directories to Package"에 보이는지 확인.
+- [ ] `.\tools\ue\package.ps1` → 실행 파일에서 콘솔 `open L_ZoneTest`(기본 맵은 L_Dev) → `golmok.zone.list`에 zone이 있고 `loaded`. 실패하면 manifest가 pak에 안 들어간 것: `DefaultGame.ini`의 `+DirectoriesToAlwaysStageAsUFS=(Path="Golmok/Zones")`가 프로젝트 설정 Packaging › "Additional Non-Asset Directories to Package"에 보이는지 확인.
 
 ## 6. 컴파일 에러가 나면 — 불확실한 UE 5.8 API와 대안
 클라우드 세션이 공식 문서를 열지 못해(사이트가 스크립트 렌더링·403) **엔진 헤더로 직접 확인하지 못한** 호출 목록. 오류 메시지에 아래 이름이 보이면 대안으로 바꾼다.

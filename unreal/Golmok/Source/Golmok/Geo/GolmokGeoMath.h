@@ -201,9 +201,9 @@ namespace GolmokGeoMath
 	}
 
 	/** UE point (cm) -> ENU (m). */
-	inline Vec3 UEToEnu(const Vec3& UE)
+	inline Vec3 UEToEnu(const Vec3& UEPos)
 	{
-		return Vec3{UE[0] / ENU_TO_UE_SCALE, -UE[1] / ENU_TO_UE_SCALE, UE[2] / ENU_TO_UE_SCALE};
+		return Vec3{UEPos[0] / ENU_TO_UE_SCALE, -UEPos[1] / ENU_TO_UE_SCALE, UEPos[2] / ENU_TO_UE_SCALE};
 	}
 
 	/** ENU direction -> UE direction (unit-preserving): D = diag(1, -1, 1). */

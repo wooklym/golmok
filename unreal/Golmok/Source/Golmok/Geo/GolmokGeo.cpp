@@ -109,20 +109,20 @@ namespace GolmokGeo
 			const Mat4 Zone = ZoneTransform(37.5620, 126.9250, 50.0, C.Yaw);
 			const Vec3 Ecef = ApplyPoint(Zone, C.Local);
 			const Mat4 ToArea = ZoneLocalToAreaEnu(Zone, 37.5600, 126.9230, 40.0);
-			const Vec3 UE = GolmokGeoMath::EnuToUE(ApplyPoint(ToArea, C.Local));
+			const Vec3 UEPos = GolmokGeoMath::EnuToUE(ApplyPoint(ToArea, C.Local));
 			// The actor matrix applied to a vertex already in UE cm must give the same level position.
 			const Vec3 ViaActor = ApplyPoint(UEActorMatrix(ToArea), GolmokGeoMath::EnuToUE(C.Local));
 			double ErrEcef = 0.0, ErrUE = 0.0, ErrActor = 0.0;
 			for (int32 i = 0; i < 3; ++i)
 			{
 				ErrEcef = FMath::Max(ErrEcef, FMath::Abs(Ecef[i] - C.Ecef[i]));
-				ErrUE = FMath::Max(ErrUE, FMath::Abs(UE[i] - C.UELevel[i]));
-				ErrActor = FMath::Max(ErrActor, FMath::Abs(ViaActor[i] - UE[i]));
+				ErrUE = FMath::Max(ErrUE, FMath::Abs(UEPos[i] - C.UELevel[i]));
+				ErrActor = FMath::Max(ErrActor, FMath::Abs(ViaActor[i] - UEPos[i]));
 			}
 			const bool bCaseOk = ErrEcef < 1e-4 && ErrUE < 0.01 && ErrActor < 1e-6;
 			bOk = bOk && bCaseOk;
 			OutReport += FString::Printf(TEXT("%s yaw=%.0f local=(%.0f,%.0f,%.0f) ecef_err=%.2e m ue=(%.2f,%.2f,%.2f) cm ue_err=%.4f cm actor_err=%.2e\n"),
-				bCaseOk ? TEXT("OK  ") : TEXT("FAIL"), C.Yaw, C.Local[0], C.Local[1], C.Local[2], ErrEcef, UE[0], UE[1], UE[2], ErrUE,
+				bCaseOk ? TEXT("OK  ") : TEXT("FAIL"), C.Yaw, C.Local[0], C.Local[1], C.Local[2], ErrEcef, UEPos[0], UEPos[1], UEPos[2], ErrUE,
 				ErrActor);
 		}
 		const Mat4 ToArea30 = ZoneLocalToAreaEnu(ZoneTransform(37.5620, 126.9250, 50.0, 30.0), 37.5600, 126.9230, 40.0);

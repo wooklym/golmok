@@ -1,10 +1,13 @@
 """Build the synthetic zone z_synthetic_001 v1 in the editor so WP-04 can be verified without real captures.
 
-Run inside the editor (Output Log, "Python" mode), with L_Dev (or any level) open:
+Run inside the editor (Output Log, "Python" mode). By default everything is built in its own map,
+/Game/Golmok/Maps/L_ZoneTest (created with the L_Dev lighting when missing, opened otherwise), so L_Dev stays
+untouched and main's automation test Golmok.Player.Movement (tools/ue/test.ps1) keeps passing:
 
     import golmok.synthetic_zone as z; z.run()
     z.run(geo_origin="zone")            # put the zone at the level origin instead of the spec area origin
     z.run(move_player_start=False)      # leave the PlayerStart where it is
+    z.run(level=None)                   # build in whatever level is open instead of L_ZoneTest
 
 What it does (docs/runbooks/pc-verify-wp04.md):
 1. Writes small GLB meshes into <Project>/Saved/Golmok/synthetic_zone/ and imports them as
@@ -19,8 +22,8 @@ What it does (docs/runbooks/pc-verify-wp04.md):
 3. Finds or spawns AGolmokZone (zone_id z_synthetic_001, version 1) and calls RebuildInEditor().
 4. Spawns two cubes tagged GolmokBasemap: BM_dummy_inside (bounds center inside the footprint, must vanish in
    PIE once the zone loads) and BM_dummy_outside (stays).
-5. Spawns a 400 x 400 m ground plane 20 cm below the slab top (L_Dev's floor does not reach the zone) and moves
-   the PlayerStart onto the zone's collision slab (5 m south of the zone origin).
+5. Spawns a 400 x 400 m ground plane 20 cm below the slab top (the dev floor does not reach the zone) and moves
+   the PlayerStart onto the zone's collision slab (5 m south of the zone origin); a missing PlayerStart is spawned.
 
 The manifest is read by the C++ actor from Content/Golmok/Zones/z_synthetic_001/v1/manifest.json (committed).
 """
@@ -37,6 +40,7 @@ from . import basemap_import as bm
 ZONE_ID = "z_synthetic_001"
 VERSION = 1
 ASSET_FOLDER = f"/Game/Golmok/Zones/{ZONE_ID}/v{VERSION}"
+ZONE_TEST_MAP = "/Game/Golmok/Maps/L_ZoneTest"  # own map so L_Dev (movement automation test) stays untouched
 AREA_ORIGIN = (37.5600, 126.9230, 40.0)  # docs/spec/zone-manifest.md §4 C
 CUBE = "/Engine/BasicShapes/Cube.Cube"
 PLANE = "/Engine/BasicShapes/Plane.Plane"
@@ -237,6 +241,9 @@ def _import_assets(manifest, work_dir):
             )
         if name.endswith("_collision"):
             bm._complex_collision(mesh)
+            # Complex collision of a Nanite mesh comes from its simplified fallback (see basemap_import._set_nanite).
+            if hasattr(bm, "_set_nanite"):
+                bm._set_nanite(mesh, False)
         unreal.EditorAssetLibrary.save_loaded_asset(mesh)
         unreal.log(f"synthetic_zone: {mesh.get_path_name()} bounds ok (error {err:.2f} cm)")
 
@@ -307,19 +314,42 @@ def _spawn_ground(zone):
 def _move_player_start(zone):
     actors = _actors()
     starts = [a for a in actors.get_all_level_actors() if isinstance(a, unreal.PlayerStart)]
-    if not starts:
-        unreal.log_warning("synthetic_zone: no PlayerStart in the level; add one on the zone's slab by hand.")
-        return
     # zone-local (0, -5, 0) m -> UE (0, +500, 0) cm, 120 cm up so the capsule stands on the collision slab.
     target = zone.get_actor_transform().transform_location(unreal.Vector(0.0, 500.0, 120.0))
+    if not starts:
+        start = actors.spawn_actor_from_class(unreal.PlayerStart, target, unreal.Rotator(0.0, 0.0, 0.0))
+        start.set_actor_label("PlayerStart")
+        unreal.log(f"synthetic_zone: PlayerStart spawned at {target}")
+        return
     starts[0].set_actor_location(target, False, False)
     for extra in starts[1:]:
         unreal.log_warning(f"synthetic_zone: extra PlayerStart '{extra.get_actor_label()}' left in place")
     unreal.log(f"synthetic_zone: PlayerStart moved to {target}")
 
 
-def run(geo_origin="area", move_player_start=True, import_assets=True):
-    """Build everything in the current level. geo_origin: "area" (spec §4 area origin) or "zone"."""
+def open_or_create_level(level_path):
+    """Open the map at level_path, or create it with the L_Dev lighting (sun, sky, fog, post-process) when missing."""
+    level_editor = unreal.get_editor_subsystem(unreal.LevelEditorSubsystem)
+    if unreal.EditorAssetLibrary.does_asset_exist(level_path):
+        if not level_editor.load_level(level_path):
+            raise RuntimeError(f"synthetic_zone: could not open {level_path}")
+        return False
+    if not level_editor.new_level(level_path):
+        raise RuntimeError(f"synthetic_zone: could not create {level_path}")
+    from . import setup_dev_level as dev  # imported here: its defaults touch unreal.Vector at import time
+
+    dev._build_lighting()
+    unreal.log(f"synthetic_zone: created {level_path} with the L_Dev lighting")
+    return True
+
+
+def run(geo_origin="area", move_player_start=True, import_assets=True, level=ZONE_TEST_MAP):
+    """Build everything in `level` (default L_ZoneTest; None = the level that is open).
+
+    geo_origin: "area" (spec §4 area origin) or "zone".
+    """
+    if level:
+        open_or_create_level(level)
     manifest = _load_manifest()
     if import_assets:
         _import_assets(manifest, _saved_dir())
