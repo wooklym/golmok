@@ -80,10 +80,15 @@ golmok-basemap inspect --buildings D:\golmok_data\AL_D010_11_….shp
 # ② NGII 정사영상(좌표 정보 없는 TIFF) → GeoTIFF(EPSG:5186). 파일명의 8자리 도엽번호로 배치하고 건물 윤곽으로 보정
 golmok-basemap georef-ortho "D:\golmok_data\ortho\raw\(B060)정사영상_2025_*.tif" --out-dir D:\golmok_data\ortho `
   --buildings D:\golmok_data\AL_D010_11_….shp
-# ③ 빌드 (연남동 예: 중심 반경 1km, 250m 타일)
+# ③ 5 m DEM: 1:5,000 수치지형도의 등고선(N3L_F0010000)·표고점(N3P_F0020000) → TIN → GeoTIFF
+#    (공개DEM은 90 m뿐, D-012). --half-size는 빌드 반경 + 타일 여유, --fill-dem은 자료 밖 가장자리용
+golmok-basemap contour-dem --contours "D:\golmok_data\topo\*\N3L_F0010000.shp" `
+  --spots "D:\golmok_data\topo\*\N3P_F0020000.shp" --center 37.5620,126.9250 --half-size 1300 `
+  --fill-dem D:\golmok_data\dem\37608.img --out D:\golmok_data\dem\yeonnam_contour_5m.tif
+# ④ 빌드 (연남동 예: 중심 반경 1km, 250m 타일)
 golmok-basemap build --buildings D:\golmok_data\AL_D010_11_….shp `
   --height-field A16 --floors-field A26 --usage-field A9 --id-field A1 `
-  --dem "D:\golmok_data\dem\*.img" --ortho "D:\golmok_data\ortho\ortho_*.tif" `
+  --dem D:\golmok_data\dem\yeonnam_contour_5m.tif --ortho "D:\golmok_data\ortho\ortho_*.tif" `
   --center 37.5620,126.9250 --radius 1000 --out D:\golmok_basemap\yeonnam
 ```
 - 좌표계는 SHP의 `.prj`에서 읽는다. 없으면 `--src-crs EPSG:5174` 등. DEM/정사영상에 좌표계가 없으면 `--raster-crs`(DEM과 정사영상 모두에 적용되므로, NGII 정사영상은 `georef-ortho`로 따로 처리한다).
@@ -91,7 +96,7 @@ golmok-basemap build --buildings D:\golmok_data\AL_D010_11_….shp `
 - `--exclude zone.geojson`(경위도 폴리곤): 실촬영 플레이 구역 안의 배경 건물을 빼고 만든다.
 - `--geoid-offset`: 정표고→타원체고 보정(m). **UE 정적 임포트에는 영향 없음**, Cesium 타일과 맞출 때만 필요(서울 일대 약 +20m대 추정, 적용 전 확인).
 - UE로 가져오기(에디터 Python): `import golmok.basemap_import as b; b.run(r"D:\golmok_basemap\yeonnam")`(현재 레벨) 또는 `b.run(r"…\yeonnam", level="/Game/Golmok/Maps/L_Basemap_Yeonnam")`(새 레벨: 조명 + 지면 위 PlayerStart). 다시 실행하면 이전 배경 액터를 지우고 다시 놓는다.
-  - 건물은 Nanite + `M_BasemapFacade`(층·창 패턴 절차적 머티리얼), 지형은 `M_BasemapTerrain` 인스턴스(정사영상). 축·단위 변환은 타일 경계상자로 자동 측정한다.
+  - 건물은 Nanite + `M_BasemapFacade`(층·창 패턴 절차적 머티리얼), 지형은 `M_BasemapTerrain` 인스턴스(정사영상)이고 Nanite를 끈다(Nanite fallback 충돌이 타일 경계에 틈을 냄, D-012). 축·단위 변환은 타일 경계상자로 자동 측정한다.
   - 생성된 에셋(`Content/Golmok/Basemap/`, `L_Basemap_*`, `M_Basemap*`)은 스크립트로 다시 만들 수 있어 커밋하지 않는다.
 
 **5) Zone manifest** (ROADMAP 1.4, 스펙 [docs/spec/zone-manifest.md](../docs/spec/zone-manifest.md))
