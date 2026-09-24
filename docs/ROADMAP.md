@@ -42,8 +42,8 @@
 | # | 작업 | 담당 | 완료 기준 |
 |---|---|---|---|
 | 1.0a | **사용자 PC**: 사양 확인 완료(7500F / 32GB / RTX 5060 8GB / 1TB, D-006) → **업그레이드 여부 결정**(GPU → 저장장치 → RAM 순). 결정 전까지 Postshot 최종 학습은 AWS에서. 툴 설치: UE 5.8.3, VS 2026, Git LFS, RealityScan 2.2, Postshot(Studio), XGRIDS LCC4Unreal. 로컬 Claude Code 세션 준비(D-006) | 👤 | UE 에디터 실행, C++ 빌드 성공 |
-| 1.0b | **저장소·UE 프로젝트 골격** (아래 "구조" 참고) | 🤖 | 에디터에서 빈 레벨이 뜨고, 캐릭터가 평지에서 걷는다 |
-| 1.0c | **개인정보 전처리 스크립트**: EgoBlur 얼굴·번호판 블러, 폴더 단위 일괄 처리, 처리 로그 | 🤖 | 샘플 사진에 블러가 적용되고 누락률을 육안으로 점검 |
+| 1.0b | **저장소·UE 프로젝트 골격** (아래 "구조" 참고) — 🟡 코드 작성 완료(C++ 캐릭터·게임모드, 설정, 테스트 레벨 Python, 빌드 스크립트). **사용자 PC에서 빌드·실행 검증 대기** | 🤖 / 👤 검증 | 에디터에서 L_Dev가 뜨고, 캐릭터가 걷고 뛰고 점프한다 |
+| 1.0c | **촬영 도구**: `golmok-exif`(EXIF 점검), `golmok-frames`(선명 프레임 추출), `golmok-blur`(EgoBlur 얼굴·번호판 블러, 로그·GPS·미리보기) — 🟡 코드·단위테스트 완료. **실제 아이폰 사진(ProRAW 현상 포함)과 EgoBlur 모델로 검증 대기** | 🤖 / 👤 검증 | 리허설 사진에서 EXIF 리포트가 나오고, 블러가 적용되고, 누락률을 육안으로 점검 |
 | 1.0d | **아이폰 리허설**(가이드 §4-C): 사진 20장 + 영상 1분 → 셔터 속도와 선명도 확인 | 👤 촬영 / 🤖 EXIF 점검 스크립트 | 대부분의 컷이 1/200s 이상이고 흔들림 없음 |
 | 1.0e | S-Map 문의 발송 | 👤 | 발송 완료(회신은 병행으로 대기) |
 | 1.0f | **촬영 누적(가는 곳마다)**: 가이드 #1 §0 체크 후 골목 촬영 → 원본은 PC와 외장 디스크에 보관, `notes.md` 작성 → 촬영 목록(`captures/INDEX.md`)에 등록 | 👤 | 골목 1곳 이상 촬영(사진 약 1,300장, 영상 15분 이상) |
@@ -127,15 +127,15 @@ golmok/
     Content/Python/              Unreal Python 에디터 자동화 (임포트, 배치, 측정)
     Config/  Plugins/            (XGRIDS 등 서드파티 플러그인은 라이선스 확인 후)
   tools/
-    privacy/                     얼굴·번호판 블러 (EgoBlur)
-    basemap/                     SHP·DEM → 3D Tiles 빌더 (Python)
-    splat/                       ply → 3D Tiles 변환 등
+    golmok_tools/                Python 패키지: exif_report, extract_frames, privacy/blur (1.0c)
+                                 (이후 basemap: SHP·DEM → 3D Tiles, splat: ply → 3D Tiles 추가 예정)
+    ue/                          UE 빌드·에디터·패키징 PowerShell 스크립트
   .gitattributes                 LFS: *.uasset *.umap (lockable), 텍스처·메시
   .gitignore                     Binaries/ Intermediate/ Saved/ DerivedDataCache/ data/
 ```
 
 - 원천 데이터(사진, 영상, .ply 원본, RealityScan 프로젝트)는 저장소 **밖**에 둔다. 외장 디스크와 비공개 버킷에 보관한다.
-- UE 에디터가 없는 이 클라우드 세션에서는 C++ 컴파일과 에디터 실행 검증을 할 수 없다. 그래서 **1.0b 이후의 빌드 검증은 사용자 PC에서** 한다. 빌드 방법은 README에 스크립트(`RunUAT BuildCookRun` 등)로 제공한다.
+- UE 에디터가 없는 클라우드 세션에서는 C++ 컴파일과 에디터 실행 검증을 할 수 없다. 그래서 **빌드 검증은 사용자 PC(Claude Desktop 세션)에서** 한다. 빌드 방법은 루트 README와 `tools/ue/*.ps1`에 있다.
 
 ## Phase 2 이후 (방향)
 - 서버 자동화 파이프라인(COLMAP + gsplat, D-002 준수, RunPod/국내 클라우드)

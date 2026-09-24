@@ -1,0 +1,21 @@
+# Golmok — notes for Claude sessions
+
+Read `docs/ROADMAP.md` and `docs/DECISIONS.md` first; they are the source of truth. Docs are in Korean.
+
+## Rules from the owner
+- Research and design before code; get approval for anything that costs money or picks a stack/data source.
+- Don't guess about licenses, API terms or law — verify and cite the source. Record decisions in `docs/DECISIONS.md`, progress in `docs/ROADMAP.md`.
+- **Quality first** (game visuals) over difficulty and cost.
+- When captures are needed, give a concrete guide (where, how, how many); see `docs/capture/`.
+
+## Engineering conventions
+- Unreal Engine **5.8.3** (Launcher build, no engine source changes). Game logic in **C++** (`unreal/Golmok/Source/Golmok`), editor automation in **Unreal Python** (`unreal/Golmok/Content/Python/golmok`). Keep Blueprints to the unavoidable minimum.
+- Create input actions/mapping contexts in C++ rather than binary assets where practical.
+- `.uasset`/`.umap` are Git LFS + lockable. Never commit raw captures, `.ply`, RealityScan projects or model weights.
+- Licenses (D-002): no non-commercial code/weights (Inria 3DGS family, MASt3R/DUSt3R, InsightFace weights, …) and no AGPL tools (Ultralytics, OpenMVS, OpenSplat) in the product pipeline.
+- Privacy (docs/research/05): every image is blurred with `golmok-blur` before RealityScan/Postshot.
+
+## Commands
+- Python tools: `cd tools && pip install -e ".[dev]" && pytest`
+- UE (Windows PowerShell): `.\tools\ue\build.ps1`, `.\tools\ue\open-editor.ps1`, `.\tools\ue\package.ps1`
+- Dev level (editor Python): `import golmok.setup_dev_level as s; s.run()`

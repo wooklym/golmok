@@ -1,0 +1,30 @@
+# Unreal generated
+unreal/Golmok/Binaries/
+unreal/Golmok/Intermediate/
+unreal/Golmok/Saved/
+unreal/Golmok/DerivedDataCache/
+unreal/Golmok/.vs/
+unreal/Golmok/*.sln
+unreal/Golmok/.vsconfig
+unreal/Golmok/Plugins/*/Binaries/
+unreal/Golmok/Plugins/*/Intermediate/
+build/
+
+# Raw captures, reconstruction projects and model weights never go in git (D-005, D-007)
+data/
+captures_raw/
+*.dng
+*.heic
+*.mov
+*.mp4
+*.ply
+*.rsproj
+*.psht
+*.jit
+tools/models/
+
+# Python
+__pycache__/
+*.egg-info/
+.venv/
+.pytest_cache/

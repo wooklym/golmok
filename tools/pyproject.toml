@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "golmok-tools"
+version = "0.1.0"
+description = "Golmok capture tools: EXIF check, video frame extraction, face/plate blur"
+requires-python = ">=3.10"
+dependencies = [
+    "numpy",
+    "opencv-python",
+    "exifread>=3.0",
+]
+
+[project.optional-dependencies]
+# PyTorch: on Windows + RTX 50 series, install CUDA 12.8+ wheels first (see tools/README.md).
+blur = ["torch", "torchvision"]
+raw = ["rawpy"]
+heic = ["pillow", "pillow-heif"]
+dev = ["pytest", "pillow", "piexif"]
+
+[project.scripts]
+golmok-exif = "golmok_tools.exif_report:main"
+golmok-frames = "golmok_tools.extract_frames:main"
+golmok-blur = "golmok_tools.privacy.blur:main"
+
+[tool.setuptools.packages.find]
+include = ["golmok_tools*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

@@ -1,0 +1,29 @@
+* text=auto
+
+# Text sources stay in git
+*.cpp text
+*.h text
+*.cs text
+*.ini text
+*.py text
+*.md text
+*.uproject text
+*.ps1 text eol=crlf
+*.bat text eol=crlf
+
+# Unreal binary assets: Git LFS + lockable (edit one at a time, see docs/DECISIONS.md D-003)
+*.uasset filter=lfs diff=lfs merge=lfs -text lockable
+*.umap filter=lfs diff=lfs merge=lfs -text lockable
+
+# Source art that may be committed (game-ready derivatives only; raw captures never go in git)
+*.fbx filter=lfs diff=lfs merge=lfs -text
+*.glb filter=lfs diff=lfs merge=lfs -text
+*.obj filter=lfs diff=lfs merge=lfs -text
+*.png filter=lfs diff=lfs merge=lfs -text
+*.jpg filter=lfs diff=lfs merge=lfs -text
+*.tga filter=lfs diff=lfs merge=lfs -text
+*.exr filter=lfs diff=lfs merge=lfs -text
+*.tif filter=lfs diff=lfs merge=lfs -text
+*.wav filter=lfs diff=lfs merge=lfs -text
+*.spz filter=lfs diff=lfs merge=lfs -text
+*.lcc filter=lfs diff=lfs merge=lfs -text
