@@ -7,11 +7,14 @@ Capture every viewpoint (optionally under several lighting presets):
 
 Viewpoints live in unreal/Golmok/Config/Golmok/Viewpoints/<level>.json (text, reviewable in git).
 Screenshots go to Saved/Screenshots/Golmok/<tag>/<preset>/<viewpoint>.png. Captures are spread
-over editor ticks because high-res screenshots are taken asynchronously on the next frame.
+over editor ticks because a high-res screenshot is taken on the viewport's next draw: each request
+waits until its file is written before the camera moves on, and the viewport is redrawn every tick
+(an editor in the background otherwise stops drawing, and the shot would land on a later view).
 """
 
 import json
 import os
+import time
 
 import unreal
 
@@ -19,6 +22,7 @@ from . import lighting
 
 RES_X, RES_Y = 2560, 1440
 WAIT_TICKS = 30  # frames to let Lumen/VSM/TSR settle after each camera or lighting change
+SCREENSHOT_TIMEOUT_TICKS = 300  # give up on a screenshot file after this many ticks
 
 
 def _level_name():
@@ -63,25 +67,47 @@ class _Capture:
         self.tag = tag
         self.wait = 0
         self.current = None
+        self.pending = None  # (path, requested_at, ticks_left) while waiting for the screenshot file
+        self.saved = []
+        self.missing = []
         self.out_root = os.path.join(unreal.Paths.project_saved_dir(), "Screenshots", "Golmok", tag)
+        self.level_editor = unreal.get_editor_subsystem(unreal.LevelEditorSubsystem)
+        self.level_editor.editor_set_viewport_realtime(True)
         self.handle = unreal.register_slate_post_tick_callback(self._tick)
         unreal.log(f"Capturing {len(self.jobs)} screenshots -> {self.out_root}")
 
     def _tick(self, _dt):
+        self.level_editor.editor_invalidate_viewports()
         if self.wait > 0:
             self.wait -= 1
+            return
+        if self.pending is not None:
+            path, requested_at, ticks_left = self.pending
+            if os.path.exists(path) and os.path.getmtime(path) >= requested_at:
+                self.saved.append(path)
+                self.pending = None
+                self.wait = 5  # let the image writer finish before the camera moves
+            elif ticks_left <= 0:
+                unreal.log_warning(f"Screenshot not written: {path}")
+                self.missing.append(path)
+                self.pending = None
+            else:
+                self.pending = (path, requested_at, ticks_left - 1)
             return
         if self.current is not None:
             preset, name = self.current
             folder = os.path.join(self.out_root, preset or "current")
             os.makedirs(folder, exist_ok=True)
-            unreal.AutomationLibrary.take_high_res_screenshot(RES_X, RES_Y, os.path.join(folder, f"{name}.png"))
+            path = os.path.join(folder, f"{name}.png")
+            requested_at = time.time() - 1.0  # file mtime resolution
+            unreal.AutomationLibrary.take_high_res_screenshot(RES_X, RES_Y, path)
+            self.pending = (path, requested_at, SCREENSHOT_TIMEOUT_TICKS)
             self.current = None
-            self.wait = 5  # let the screenshot finish before moving
             return
         if not self.jobs:
             unreal.unregister_slate_post_tick_callback(self.handle)
-            unreal.log(f"Capture '{self.tag}' done -> {self.out_root}")
+            done = f"Capture '{self.tag}' done: {len(self.saved)} saved, {len(self.missing)} missing -> {self.out_root}"
+            (unreal.log_warning if self.missing else unreal.log)(done)
             return
         preset, name = self.jobs.pop(0)
         if preset:
