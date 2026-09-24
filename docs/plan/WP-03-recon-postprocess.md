@@ -1,6 +1,6 @@
 # WP-03 — 재구성 후처리 도구 `golmok-mesh` / `golmok-splat`
 
-상태: ⚪ 대기 · 담당: 클라우드 Claude 세션 · 의존: WP-02 · 검증: G1, 이후 G3(RealityScan/Postshot 실출력)
+상태: 🔵 진행 중 · 담당: 클라우드 Claude 세션 · 의존: WP-02 · 검증: G1, 이후 G3(RealityScan/Postshot 실출력)
 
 ## 목표
 RealityScan(메시)과 Postshot(splat) 출력을 **UE와 스파이크가 바로 쓰는 형태**로 바꾼다. 청크 분할, 충돌 메시, blocker, splat 정리, 그리고 스파이크 (b)에 필요한 **로컬 PLY→3D Tiles 변환기**(D-007: 외부 업로드 없이).
