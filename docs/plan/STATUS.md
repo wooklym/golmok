@@ -3,7 +3,7 @@
 갱신 규칙: 각 세션이 시작·종료 시 자기 행을 고친다. 상태 기호:
 ⚪ 대기 · 🔵 진행 중 · 🟡 코드 완료·PC 검증 대기 · 🟢 완료 · 🔴 막힘 · ⏸ 보류
 
-마지막 갱신: 2026-09-24 (WP-04 세션 종료 🟡 · V-02 PC 세션)
+마지막 갱신: 2026-09-25 (WP-04 세션 종료 🟡 · V-01·V-02 PC 세션)
 
 ## 트랙 1A — 클라우드 코드 (순차)
 
@@ -22,8 +22,8 @@
 
 | V | 내용 | 상태 | 메모 |
 |---|---|---|---|
-| V-01 | PC 셋업·L_Dev·리허설 점검 (`runbooks/pc-setup.md` §0~4) | ⚪ 대기 | 사용자 설치 필요 |
-| V-02 | 베이스맵 실데이터 (`pc-setup.md` §5) | 🟢 완료 (DEM 90 m 임시) | 연남동 반경 1 km: 건물 9,447동, 64타일. UE `L_Basemap_Yeonnam`: fit error ≈0, 북쪽 −Y, 파사드 패턴, PIE 보행 OK, 1080p 169 fps(1% low 137). 신규 `golmok-basemap georef-ortho`(좌표 없는 NGII 정사영상), `M_BasemapTerrain`. 결과·근거: ROADMAP 1.2, D-012 |
+| V-01 | PC 셋업·L_Dev·리허설 점검 (`runbooks/pc-setup.md` §0~4) | 🔵 진행 중 | §0~2 🟢(2026-09-24): UE 5.8.3·VS 2026 빌드 무수정 통과, L_Dev·마네킹 PIE, 자동 테스트 `Golmok.Player.Movement`(`tools/ue/test.ps1`) 통과, pytest·CUDA OK. 결과 ROADMAP 1.0a~1.0d. §3 리허설은 C-01 사진과 EgoBlur 모델(사용자 라이선스 동의) 대기. **push는 이 PC의 GitHub 로그인 필요**(사용자). 클라우드 인계(WP-06 필독): ① `viewpoints.capture`가 스크린샷을 빠뜨리거나 **다른 시점 이름으로 저장**하던 버그 수정(파일 기록 대기, missing 보고, 게임 뷰). 단 **에디터 창이 백그라운드에 오래 있으면 뷰포트를 그리지 않아 스크린샷이 안 나온다**("백그라운드 CPU 절약" 꺼도 같음) → `spike_runner`의 무인 캡처는 PIE/`-game`의 `HighResShot`으로 설계할 것. ② `golmok-perf`가 실제 5.8 CSV에서 죽던 문제(긴 필드)와 맵 로딩 프레임이 평균에 섞이던 문제 수정, `-game` CSV 위치는 `%LOCALAPPDATA%\UnrealEngine\5.8\Saved\Profiling\CSV`. 기준선(빈 L_Dev 1080p 158 fps / 1440p 128 fps)은 `research/08`. ③ `golmok.lighting` 4개 프리셋 에디터 검증 ✅. ④ `check_repo.py`에 병합 충돌 표시 검사 추가 |
+| V-02 | 베이스맵 실데이터 (`pc-setup.md` §5) | 🟢 완료 | 연남동 반경 1 km: 건물 9,447동, 64타일, **5 m DEM**(수치지형도 등고선·표고점, `contour-dem`). UE `L_Basemap_Yeonnam`: fit error ≈0, 북쪽 −Y, 파사드 패턴, PIE 보행 OK, 1080p 169 fps(1% low 141), 충돌 추적 169/169(지형 Nanite 끔). 신규 `golmok-basemap georef-ortho`(좌표 없는 NGII 정사영상), `M_BasemapTerrain`. 결과·근거: ROADMAP 1.2, D-012 |
 | V-03 | WP-04/05 빌드·PIE 검증 | ⚪ 대기 | WP-04 런북 준비됨(`runbooks/pc-verify-wp04.md`); WP-05 뒤 함께 실행 |
 | V-04 | WP-06 에디터 Python 검증 | ⚪ 대기 | |
 | V-05 | 재구성·후처리·스파이크 1.1 | ⚪ 대기 | C-02 필요 |
@@ -33,15 +33,15 @@
 
 | C | 내용 | 상태 |
 |---|---|---|
-| C-01 | 아이폰 리허설 | ⚪ |
+| C-01 | 아이폰 리허설 — ProRAW 형식 **JPEG 무손실**로 찍는다(D-011, 가이드 #1 v3 §4-A) | ⚪ |
 | C-02 | 골목 촬영(홈 Zone 후보 포함) | ⚪ |
-| C-03 | 베이스맵 데이터 다운로드 | 🟢 (5 m DEM 제외 — 결정 필요) |
+| C-03 | 베이스맵 데이터 다운로드 | 🟢 (수치지형도 6도엽 추가 2026-09-25) |
 | C-04 | PC 업그레이드 결정, Postshot Studio, XGRIDS 문의 | ⚪ |
 | C-05 | 실내 동의·촬영 | ⚪ |
 | C-06 | S-Map 문의 발송 | ⚪ |
 
 ## 결정 필요 (세션이 발견한 것)
-- **DEM 5 m 출처** (V-02): 국토정보플랫폼 공개DEM은 90 m뿐. ① NGII에 5 m/1 m DEM 신청 ② 1:5,000 수치지형도 등고선·표고점으로 DEM 생성(코드 추가) ③ 배경이니 90 m 유지 — D-012
+- ~~DEM 5 m 출처~~ → 2026-09-25 ② 수치지형도 등고선·표고점으로 생성(`golmok-basemap contour-dem`, D-012)
 - ~~NGII 데이터 국외 반출~~ → 2026-09-25 사용자 법률 자문 완료, 업로드 허용(D-012)
 
 ## 세션 로그
@@ -54,3 +54,5 @@
 | 2026-09-24 | session_014zvy99LzAuVhnHYFtUYfVz | Opus | WP-03 | 🟢 golmok-mesh·golmok-splat·런북, 테스트 30개(전체 144 passed) |
 | 2026-09-24 | PC 로컬 세션 (trusting-varahamihira) | Opus 5.5 | V-02 베이스맵 실데이터 | 🟢 SHP 컬럼 매핑·연남동 빌드·UE 임포트·보행·fps. georef-ortho, M_BasemapTerrain, UE 5.8 CustomInput 수정. 전체 123 passed |
 | 2026-09-24 | session_01GGmw3pPHLp4Wk5Us9243AL | Fable 5.1 ultracode (검증 Opus) | WP-04 | 🟡 설계 패널 3안→심판→종합, Geo·Zones C++, 적대적 리뷰 20건(확정 6 수정·반박 14), 테스트 38개 추가(전체 218 passed, 2 skipped, 189 warnings in 12.06s). PR #7 |
+| 2026-09-24 | PC 세션(Claude Desktop, 사용자 PC) | Opus 5.5 | V-01 PC 셋업·UE 검증, JPEG-XL ProRAW 발견 → D-011 JPEG 무손실, 스파이크 도구 에디터 검증 | 🔵 `claude/golmok-phase-0-research-4kloq6`에 커밋(사용자 push 대기). 전체 125 passed, check_repo OK |
+| 2026-09-25 | PC 로컬 세션 (trusting-varahamihira) | Opus 5.5 | V-02 후속: 5 m DEM | 🟢 수치지형도 6도엽 → `contour-dem`(RMSE 2.1 m), 재빌드·UE 재임포트, 지형 Nanite 끔(충돌 틈 수정), 1080p 169/141 fps. 전체 142 passed |

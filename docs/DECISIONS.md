@@ -22,6 +22,7 @@
 - 로컬 데이터 도구 `golmok-zone`(WP-02, `zone` extra — 게임 패키지에는 들어가지 않음): **jsonschema** 4.26 — MIT, 의존 **referencing**·**jsonschema-specifications**·**rpds-py** — MIT(모두 Julian Berman), **attrs** — MIT [확인: 각 wheel의 `*.dist-info/licenses/` 원문, https://github.com/python-jsonschema/jsonschema/blob/main/COPYING]. `basemap`과 같이 쓰는 **pyproj** 3.7 — MIT(동봉 PROJ — MIT/X 계열), **shapely** 2.1 — BSD-3-Clause(동봉 GEOS — **LGPL-2.1**, 동적 라이브러리로 링크돼 도구로 쓰는 데 제약 없음. 게임에 동봉하지 않는다) [확인: wheel 동봉 LICENSE·LICENSE_proj·LICENSE_GEOS 원문]. 2026-09-24 확인.
 - 재구성 후처리 `golmok-mesh`/`golmok-splat`(WP-03, `mesh`·`splat` extra, 로컬 도구): **trimesh** 4.x — MIT, **fast-simplification** 0.2 — MIT(PyVista; 내장 Fast-Quadric-Mesh-Simplification도 MIT), **scipy** 1.x — BSD-3-Clause [확인: 각 wheel `*.dist-info` 라이선스 원문, 2026-09-24]. **open3d(MIT)는 쓰지 않기로 판단**: Linux 휠이 시스템 libEGL을 요구해 CI·헤드리스에서 import가 실패했고 dash/flask 등 웹 스택을 끌고 온다. 필요한 기능(바닥 평면 RANSAC)은 numpy로 구현. pymeshlab(GPL)은 WP 스펙대로 제외. 3D Tiles 출력의 splat 인코딩은 Khronos `KHR_gaussian_splatting` README(Ratified) 원문을 따른다.
 - 로컬 정합 도구 `golmok-align`(WP-07, `align` extra — 게임 패키지에는 들어가지 않음): **trimesh** 5.1 — MIT [확인: wheel 동봉 LICENSE.md 원문, https://github.com/mikedh/trimesh/blob/main/LICENSE.md], **scipy** 1.17 — BSD-3-Clause [확인: wheel 동봉 LICENSE.txt, https://github.com/scipy/scipy/blob/main/LICENSE.txt]. **open3d(MIT)는 쓰지 않는다**: 리눅스 CI 러너에 libEGL이 없어 import가 실패하므로 ICP를 numpy/scipy로 직접 구현했다. 2026-09-24 확인.
+- 베이스맵 `golmok-basemap contour-dem`(2026-09-25, `basemap` extra)도 위의 **scipy**(BSD-3-Clause)를 쓴다(TIN 보간·가우시안 필터). 게임 패키지에는 들어가지 않는다.
 - 개발·CI 전용 도구(제품에 포함되지 않음, WP-01): **ruff** — MIT [확인: https://github.com/astral-sh/ruff/blob/main/LICENSE], **3d-tiles-validator**(CesiumGS, `npx`로 CI에서만 실행) — Apache-2.0 [확인: https://github.com/CesiumGS/3d-tiles-validator/blob/main/LICENSE.md]. 2026-09-24 원문 확인.
 
 ### D-003 | 승인 | 2026-09-24 — 엔진: **Unreal Engine 5 + Cesium for Unreal**
@@ -134,11 +135,15 @@
 ### D-010 | 예약 | — 환경 표현 방식 (스파이크 1.1 결과로 결정)
 
 ### D-011 | 승인 | 2026-09-24 — 촬영 장비: **iPhone 17 Pro**
-- **사진**: 기본 카메라 앱, **메인 1x(24mm), 48MP ProRAW Max**, AE/AF 잠금, 매크로 자동 전환 끔. 수동 셔터 앱은 RAW 해상도가 12MP로 제한되는 경우가 있어 해상도를 우선했다 [2차].
+- **사진**: 기본 카메라 앱, **메인 1x(24mm), 48MP ProRAW Max, ProRAW 형식 JPEG 무손실**, AE/AF 잠금, 매크로 자동 전환 끔. 수동 셔터 앱은 RAW 해상도가 12MP로 제한되는 경우가 있어 해상도를 우선했다 [2차].
 - **영상**: Blackmagic Camera 앱, 4K60, 셔터 1/250~1/500, ISO·WB·초점 고정, HEVC 10-bit.
 - 초광각과 망원은 쓰지 않는다.
 - **첫 촬영 전 리허설**(가이드 §4-C)로 셔터 속도를 확인한다. 흐린 아침에 셔터가 느리게 잡히면 설정을 다시 정한다.
 - PC 전송 시 "원본 유지" 설정을 확인한다.
+- **추가(승인, 2026-09-24)**: ProRAW 형식(설정 > 카메라 > 포맷 > ProRAW 형식)을 **JPEG 무손실**로 고정한다. 가이드 #1 v3에 반영.
+  - 이유: iPhone 16 Pro/17 Pro의 JPEG-XL ProRAW(무손실·손실)는 DNG 1.7이다. LibRaw 0.22는 이것을 **Adobe DNG SDK와 함께 빌드했을 때만** 현상한다([LibRaw 0.22 릴리스 노트](https://www.libraw.org/news/libraw-0-22-0-release)). 우리 `golmok-blur`가 쓰는 rawpy 0.27.1 휠은 SDK 없이 빌드됐다(PC에서 `rawpy.flags` 확인). JPEG 무손실은 기존 ProRAW 형식이라 현상된다.
+  - 대가: 48MP 장당 약 75MB(JPEG-XL 무손실은 약 46MB, 손실은 약 20MB) [2차]. 1,300장이면 약 100GB로, 저장공간 계획(D-006)과 맞는다. 화질은 JPEG 무손실과 JPEG-XL 무손실이 같다(둘 다 무손실).
+  - 채택하지 않은 대안: JPEG-XL 무손실로 찍고 현상 경로를 추가한다(예: tifffile + imagecodecs로 JPEG-XL 타일 디코드 후 선형 DNG 현상, 또는 Adobe DNG Converter로 DNG 1.4 변환 — 약관 동의 필요). 저장공간이 병목이 되면 다시 검토한다.
 
 ### D-012 | 승인(기술 결정, 원칙 적용) | 2026-09-24 — 배경 베이스맵을 **UE 정적 메시(Nanite)로 임포트**한다
 - **내용**: `golmok-basemap`이 만든 GLB 타일을 UE 정적 메시로 임포트한다. 건물은 Nanite + 절차적 파사드 머티리얼, 지형은 정사영상 텍스처를 쓴다. Cesium3DTileset 런타임 스트리밍은 쓰지 않는다. 같은 출력에 `tileset.json`(3D Tiles 1.1)도 함께 만들어 두어, 웹 검수 뷰어와 Cesium에서도 쓸 수 있게 한다.
@@ -147,6 +152,7 @@
   - 커스텀 머티리얼을 붙이려면 Cesium 머티리얼 레이어 구조를 따라야 한다.
   - 파일럿 반경 1~2km 정도의 한정된 배경은 정적 임포트가 품질과 제어 면에서 낫다.
 - **ARCHITECTURE 반영**: §4의 "베이스맵 건물 숨김"은 빌드 단계의 `--exclude`(플레이 구역 GeoJSON)로 처리한다.
+- **지형 타일은 Nanite를 끈다**(2026-09-25): Nanite 메시의 복합 충돌은 단순화된 fallback 메시로 만들어진다. 5 m DEM으로 지형에 기복이 생기자 타일 경계에 충돌 틈이 생겼다(13×13 격자 추적 169점 중 19점이 통과, 모두 경계선 위). 지형 타일(250 m, 5 m 격자)은 작아서 Nanite 이득이 없으므로 일반 정적 메시로 두고(169/169, 경계 3 cm 옆 597/597 명중), 건물은 Nanite를 유지하되 fallback을 단순화하지 않는다(`fallback_relative_error` 0) — 충돌이 보이는 형상과 같다.
 - **남은 확인** (2026-09-24 PC 세션에서 실데이터로 확인한 것 포함):
   - ✅ **실제 SHP 컬럼 매핑** — 서울 `AL_D010_11_20260909.shp`(V-World, 기준일 2026-09-09, 695,754건, 필드 29개 A0~A28, `.prj` = EPSG:5186):
 
@@ -158,7 +164,7 @@
     | 건물 ID `--id-field` | **A1** | GIS건물통합식별번호(28자) | 9,387개 고유(중복 폴리곤 6개), 빈 값 0 |
 
     근거: V-World 「국가중점데이터_컬럼정의서(26.08.19)_배포용.xlsx」(데이터셋 페이지의 "컬럼 정의서 다운로드", 테이블정의서(전체) `AL_D010` 행)와 `inspect` 표본값·위 통계가 서로 맞는다. 높이가 0이거나 없으면 층수×3.2 m로 추정한다(`DEFAULT_FLOOR_HEIGHT`, 실측 중앙값 3.23 m/층과 일치). 연남동 반경 1 km 빌드에서 9,447동 중 4,258동(45%)이 추정 높이.
-  - 🔴 **DEM 5 m 출처(결정 필요)**: 국토정보플랫폼 "공개DEM"은 **90 m 격자**만 있다(`37608.img`, 253×316, EPSG:5179; 국토지리정보원 안내도 공개 DEM은 90 m, 도시지역 1 m는 LiDAR로 별도 구축 [https://www.ngii.go.kr/kor/content.do?sq=204]). 5 m DEM은 다운로드 목록에 없고 받으려면 별도 신청이 필요해 보인다(절차 미확인). 지금 빌드는 **90 m로 임시** 진행했다(도로 경사·언덕 형태가 뭉개짐). 대안: ① NGII에 5 m/1 m DEM 제공 신청(사용자), ② 공개 1:5,000 수치지형도의 등고선·표고점으로 DEM 생성(코드 추가, 같은 신청서로 다운로드), ③ 90 m 유지(배경 전용이라 허용).
+  - ✅ **DEM 5 m** — 2026-09-25 사용자 결정: ② 수치지형도로 만든다. 국토정보플랫폼 "공개DEM"은 **90 m 격자**뿐이고(`37608.img`, 253×316, EPSG:5179; 국토지리정보원 안내도 공개 DEM은 90 m, 도시지역 1 m는 LiDAR로 별도 구축 [https://www.ngii.go.kr/kor/content.do?sq=204]), 5 m는 다운로드 목록에 없다. 그래서 1:5,000 **수치지형도 Ver2.0**(SHP, 2025년 제작, 도엽 37608067·068·077·078·087·088, 도엽당 2~5 MB, 같은 신청서)의 등고선 `N3L_F0010000`(`등고수치`, 주곡선 5 m·계곡선 25 m)과 표고점 `N3P_F0020000`(`수치`)으로 5 m DEM을 만든다(`golmok-basemap contour-dem`: 등고선을 5 m마다 재표본 + 표고점 → Delaunay TIN 선형 보간 → 가우시안 σ 1칸). 연남동 ±1.3 km: 등고선 점 95,550 + 표고점 999, TIN이 전 영역을 덮음, 높이 5.0~101.3 m. 표고점 10%(99점)를 빼고 만든 뒤 그 점에서 잰 오차: 중앙 0.63 m, RMSE 2.09 m, 95% 3.2 m, 최대 14.5 m(가장 큰 오차는 등고선 사이 작은 봉우리·정상. 최종 DEM에는 모든 표고점이 들어가 정상이 깎이지 않는다). 90 m 공개DEM과의 차이: 평균 −0.13 m, 표준편차 4.9 m. 옹벽 `N3L_F0040000`의 `높이`는 벽 높이라 쓰지 않는다. 90 m 공개DEM은 가장자리 채움(`--fill-dem`)으로만 남긴다.
   - ✅ **정사영상 좌표**: 2025 정사영상(25 cm, `(B060)정사영상_2025_<도엽>.tif`)은 GeoTIFF 태그·월드파일이 **없다**. 메타데이터 XML은 좌표계(중부원점 GRS80 TM = EPSG:5186)와 도엽번호만 준다. `golmok-basemap georef-ortho`가 도엽번호로 위치를 잡고(이미지 = 도엽 경계상자 + 약 50 m 여유, 중심 정렬), 건물 윤곽선과 영상 경계를 맞춰 보정하고(37608077: peak 0.256 / 차순위 0.138, 보정 (−1, −1) m; 37608078: 0.287 / 0.170, 보정 0), 인접 도엽의 겹침(약 100 m)을 픽셀 단위로 맞춘다(상관 1.000). 절대 위치 약 1 m, 도엽 간 이음새 없음. 빌드된 지형 텍스처에 건물 지붕 윤곽을 겹쳐 맞는 것을 눈으로 확인했다.
   - ✅ **국외 반출** — 2026-09-25 사용자가 법률 자문을 받았고, NGII 파생물(지형 텍스처·스크린샷 등)을 저장소에 올려도 된다고 확인했다(자문 세부 내용은 이 문서에 없음, D-009). 배경: NGII 다운로드 신청서의 "사용자 준수사항"에 동의해야 받을 수 있고, 거기에 「공간정보관리법 제16조 및 제21조에 따라 국토교통부 장관의 허가 없이 측량성과를 국외 반출 시 2년 이하의 징역 또는 2천만원 이하의 벌금」이 적혀 있다. 법 제16조①: "누구든지 국토교통부장관의 허가 없이 기본측량성과 중 지도등 또는 측량용 사진을 국외로 반출하여서는 아니 된다. 다만, … 대통령령으로 정하는 경우에는 그러하지 아니하다." [국가법령정보센터, https://www.law.go.kr/법령/공간정보의구축및관리등에관한법률/제16조]. 생성된 UE 에셋은 법률 때문이 아니라 스크립트로 다시 만들 수 있어서 커밋하지 않는다(`.gitignore`).
   - 지오이드 보정값(Cesium 정렬 시). 아직 필요 없음(정적 임포트).

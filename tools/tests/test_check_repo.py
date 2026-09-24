@@ -105,6 +105,16 @@ def test_uproject_engine_mismatch(repo):
     assert "JSON" in check_repo.check_uproject(repo)[0]
 
 
+def test_conflict_markers_reported(repo):
+    write(repo, "tools/README.md", "| a |\n<<<<<<< HEAD\n| b |\n=======\n| c |\n>>>>>>> origin/main\n")
+    write(repo, "docs/heading.md", "Title\n=======\n")  # setext heading, not a conflict
+    write(repo, ".venv/lib/x.py", "<<<<<<< HEAD\n")  # skipped folder
+    assert check_repo.check_conflict_markers(repo) == [
+        "tools/README.md:2: 병합 충돌 표시 <<<<<<<",
+        "tools/README.md:6: 병합 충돌 표시 >>>>>>>",
+    ]
+
+
 def test_bad_json_and_missing_lfs(repo, capsys):
     write(repo, "docs/data/x.json", "{,}")
     write(repo, ".gitattributes", "*.uasset filter=lfs -text\n# *.umap filter=lfs\n")

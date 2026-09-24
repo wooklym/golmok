@@ -2,7 +2,8 @@
 
 Capture in the game or PIE console:
     CsvProfile Start      ... walk the fixed route ...      CsvProfile Stop
-CSV files land in unreal/Golmok/Saved/Profiling/CSV/. Then:
+CSV files land in unreal/Golmok/Saved/Profiling/CSV/ (standalone `-game -csvCaptureFrames=N` runs of the
+Launcher engine write to %LOCALAPPDATA%\\UnrealEngine\\5.8\\Saved\\Profiling\\CSV\\ instead). Then:
     golmok-perf Saved\\Profiling\\CSV\\Profile(...).csv --label "a: mesh 1440p"
     golmok-perf a.csv b.csv c.csv --markdown >> docs\\research\\08-spike-results.md
 """
@@ -50,6 +51,9 @@ def _find(header: list[str], names: tuple[str, ...]) -> int | None:
 
 
 def read_csv(path: Path) -> dict[str, np.ndarray]:
+    # Real captures carry event and metadata fields longer than csv's 128 KiB default.
+    # 2**31 - 1 also fits Windows, where the limit is a 32-bit C long.
+    csv.field_size_limit(2**31 - 1)
     with open(path, newline="", encoding="utf-8-sig", errors="replace") as f:
         rows = list(csv.reader(f))
     if not rows:
@@ -82,8 +86,9 @@ def read_csv(path: Path) -> dict[str, np.ndarray]:
 
 def summarize(cols: dict[str, np.ndarray], label: str, skip_seconds: float = 2.0) -> Summary:
     frame = cols["frame"]
-    # Drop warm-up frames (streaming, shader compile hitches) at the start.
-    keep = np.cumsum(frame) / 1000.0 > skip_seconds
+    # Drop warm-up frames (streaming, shader compile hitches) that start within the first seconds.
+    # By start time, so a single long loading frame (several seconds in a -game boot capture) goes too.
+    keep = (np.cumsum(frame) - frame) / 1000.0 >= skip_seconds
     if keep.sum() < 10:
         keep = np.ones_like(frame, dtype=bool)
     f = frame[keep]

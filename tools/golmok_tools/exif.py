@@ -8,6 +8,8 @@ from pathlib import Path
 
 import exifread
 
+from .dng import compression_name, raw_compression
+
 
 @dataclass
 class ExifInfo:
@@ -25,6 +27,7 @@ class ExifInfo:
     lat: float | None = None
     lon: float | None = None
     alt: float | None = None
+    raw_compression: int | None = None  # DNG main image compression (dng.JPEG / dng.JPEG_XL ...)
 
     @property
     def megapixels(self) -> float | None:
@@ -36,6 +39,7 @@ class ExifInfo:
         row = asdict(self)
         row["datetime_original"] = self.datetime_original.isoformat() if self.datetime_original else None
         row["megapixels"] = round(self.megapixels, 1) if self.megapixels else None
+        row["raw_compression"] = compression_name(self.raw_compression)
         return row
 
 
@@ -116,4 +120,10 @@ def read_exif(path: Path) -> ExifInfo:
     if alt is not None and alt_ref is not None and _num(alt_ref) == 1:
         alt = -alt
     info.alt = alt
+
+    if path.suffix.lower() == ".dng":
+        try:
+            info.raw_compression = raw_compression(path)
+        except (OSError, ValueError):
+            pass
     return info

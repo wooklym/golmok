@@ -43,10 +43,10 @@
 
 | # | 작업 | 담당 | 완료 기준 |
 |---|---|---|---|
-| 1.0a | **사용자 PC**: 사양 확인 완료(7500F / 32GB / RTX 5060 8GB / 1TB, D-006) → **업그레이드 여부 결정**(GPU → 저장장치 → RAM 순). 결정 전까지 Postshot 최종 학습은 AWS에서. 툴 설치: UE 5.8.3, VS 2026, Git LFS, RealityScan 2.2, Postshot(Studio), XGRIDS LCC4Unreal. 로컬 Claude Code 세션 준비(D-006) | 👤 | UE 에디터 실행, C++ 빌드 성공 |
-| 1.0b | **저장소·UE 프로젝트 골격** (아래 "구조" 참고) — 🟡 코드 작성 완료(C++ 캐릭터·게임모드, 설정, 테스트 레벨 Python, 빌드 스크립트). **사용자 PC에서 빌드·실행 검증 대기** | 🤖 / 👤 검증 | 에디터에서 L_Dev가 뜨고, 캐릭터가 걷고 뛰고 점프한다 |
-| 1.0c | **촬영 도구**: `golmok-exif`(EXIF 점검), `golmok-frames`(선명 프레임 추출), `golmok-blur`(EgoBlur 얼굴·번호판 블러, 로그·GPS·미리보기) — 🟡 코드·단위테스트 완료. **실제 아이폰 사진(ProRAW 현상 포함)과 EgoBlur 모델로 검증 대기** | 🤖 / 👤 검증 | 리허설 사진에서 EXIF 리포트가 나오고, 블러가 적용되고, 누락률을 육안으로 점검 |
-| 1.0d | **아이폰 리허설**(가이드 §4-C): 사진 20장 + 영상 1분 → 셔터 속도와 선명도 확인 | 👤 촬영 / 🤖 EXIF 점검 스크립트 | 대부분의 컷이 1/200s 이상이고 흔들림 없음 |
+| 1.0a | **사용자 PC**: 사양 확인 완료(7500F / 32GB / RTX 5060 8GB / 1TB, D-006) → **업그레이드 여부 결정**(GPU → 저장장치 → RAM 순). 결정 전까지 Postshot 최종 학습은 AWS에서. 툴 설치: UE 5.8.3, VS 2026, Git LFS, RealityScan 2.2, Postshot(Studio), XGRIDS LCC4Unreal. 로컬 Claude Code 세션 준비(D-006) — 🟡 **UE 개발 환경 완료(2026-09-24, PC 세션)**: UE 5.8.3(2026-09-24 기준 최신 핫픽스), VS 2026 Community 18.10.2(C++ 게임 개발 워크로드, MSVC 14.51, Windows SDK 10.0.26100), Git LFS 3.7.1, Python 3.12.10, ffmpeg 9.0.2, ExifTool, **NVIDIA 드라이버 617.14 WHQL**(2026-09-25 591.86에서 업데이트, 사용자 요청. UE 로그의 "610 미만 TSR 16-bit 꺼짐" 경고 사라짐, CUDA·UE 확인). 에디터 실행·C++ 빌드 성공. GitHub 로그인 완료(PC 세션 push 가능). **남은 것(👤)**: 업그레이드 결정, RealityScan·Postshot·XGRIDS 설치 | 👤 | UE 에디터 실행, C++ 빌드 성공 |
+| 1.0b | **저장소·UE 프로젝트 골격** (아래 "구조" 참고) — ✅ **사용자 PC에서 검증 완료(2026-09-24)**. UE 5.8.3에서 C++ 빌드 무수정 통과(5.8 API 변경 영향 없음, 경고는 엔진 헤더의 deprecation뿐). `setup_dev_level`로 L_Dev 생성 → PIE에서 `GolmokGameMode`가 `GolmokCharacter` + 마네킹(`SKM_Manny_Simple`, `ABP_Unarmed`)을 스폰한다(`DefaultGame.ini` 경로 그대로 맞음). **자동 테스트 `Golmok.Player.Movement`**(`tools/ue/test.ps1`, 실제 키 입력 주입): 걷기 W/A/S/D 180 cm/s·방향 일치, Shift 달리기 500 cm/s → 떼면 180, 점프 정점 90 cm·0.87초 후 착지, 마우스 시점(오른쪽→오른쪽, 위→위), 골목 벽 카메라 충돌(벽면 y=−250, 카메라 y=−236). `Golmok.log`에 프로젝트 에러 없음. 스크린샷 `runbooks/pc-setup-L_Dev-pie.jpg`. 남은 것(👤, 선택): 직접 1분 플레이해 조작감 확인 | 🤖 / 👤 검증 | 에디터에서 L_Dev가 뜨고, 캐릭터가 걷고 뛰고 점프한다 |
+| 1.0c | **촬영 도구**: `golmok-exif`(EXIF 점검), `golmok-frames`(선명 프레임 추출), `golmok-blur`(EgoBlur 얼굴·번호판 블러, 로그·GPS·미리보기) — 🟡 코드·단위테스트 완료. PC 환경 준비 완료(2026-09-24): `pytest` 34개 통과, torch 2.11 + CUDA 12.8에서 `cuda.is_available()` True(RTX 5060). ⚠ **발견**: rawpy 0.27.1(LibRaw 0.22.1)은 Adobe DNG SDK 없이 빌드돼 **JPEG-XL ProRAW(DNG 1.7)를 현상하지 못한다**. iPhone 16 Pro/17 Pro는 ProRAW 형식으로 JPEG 무손실 / JPEG-XL 무손실 / JPEG-XL 손실을 고를 수 있다 → `golmok-exif`가 ProRAW 압축 형식을 세어 경고하고, `golmok-blur`의 `decode_error`가 원인을 적는다. → ProRAW 형식 **JPEG 무손실**로 결정(D-011 승인, 가이드 #1 v3). **남은 것**: EgoBlur Gen1 모델(👤 라이선스 동의 후 `tools\models\`), 실제 리허설 사진으로 검증 | 🤖 / 👤 검증 | 리허설 사진에서 EXIF 리포트가 나오고, 블러가 적용되고, 누락률을 육안으로 점검 |
+| 1.0d | **아이폰 리허설**(가이드 §4-C): 사진 20장 + 영상 1분 → 셔터 속도와 선명도 확인 — ⏳ 사진이 아직 PC에 없음(2026-09-24). ProRAW 형식은 **JPEG 무손실**로 찍는다(D-011 승인, 가이드 #1 v3 §4-A) | 👤 촬영 / 🤖 EXIF 점검 스크립트 | 대부분의 컷이 1/200s 이상이고 흔들림 없음 |
 | 1.0e | S-Map 문의 발송 | 👤 | 발송 완료(회신은 병행으로 대기) |
 | 1.0f | **촬영 누적(가는 곳마다)**: 가이드 #1 §0 체크 후 골목 촬영 → 원본은 PC와 외장 디스크에 보관, `notes.md` 작성 → 촬영 목록(`captures/INDEX.md`)에 등록 | 👤 | 골목 1곳 이상 촬영(사진 약 1,300장, 영상 15분 이상) |
 | 1.0g | **홈 Zone 선정**: 촬영한 골목 중 실내 동의 가능한 가게와 배경이 갖춰진 1곳을 고른다(D-008) | 👥 | D-008에 홈 Zone 기록 |
@@ -73,30 +73,40 @@
 | 성능 | 4K와 1440p, DLSS 끔/켬에서 평균·1% low fps, GPU ms, VRAM |
 | 제작 비용 | 처리 시간(학습·변환), 수작업 시간 |
 
-**준비된 도구**(✅ 코드 완료, 에디터 검증 대기): 조명 프리셋 `golmok.lighting`, 고정 시점 저장·일괄 캡처 `golmok.viewpoints`, 성능 요약 `golmok-perf`
+**준비된 도구**(2026-09-24 PC 에디터 검증):
+- 조명 프리셋 `golmok.lighting` — ✅ 4개 프리셋 적용 후 태양 각도·조도·색온도·스카이·안개·노출 값을 되읽어 전부 일치.
+- 고정 시점 저장·일괄 캡처 `golmok.viewpoints` — ✅(조건부) save·goto 정상. **버그 수정**: 스크린샷이 빠지거나 **다른 시점 이름으로 저장**됐다(스크린샷은 뷰포트의 다음 그리기에서 찍히는데, 그 그리기가 카메라 이동 뒤에 일어남). 이제 파일이 기록될 때까지 기다리고, 안 나오면 "missing"으로 알린다. 게임 뷰로 찍어 에디터 아이콘이 안 나온다. 재검증: L_Dev 3시점 × 프리셋 2개 = **6/6 저장, 이름·시점 일치**. ⚠ **캡처 중에는 에디터 창을 앞에 둔다** — 백그라운드에 오래 있던 에디터는 뷰포트를 그리지 않아 스크린샷이 안 나온다("백그라운드에서 CPU 덜 쓰기"를 꺼도 같음, UE 5.8.3). 무인 캡처는 PIE/`-game`의 `HighResShot`으로 한다(WP-06 `spike_runner`에 반영 필요).
+- 성능 요약 `golmok-perf` — ✅ 실제 UE 5.8.3 CSV로 확인. **버그 2개 수정**: 실제 CSV의 긴 이벤트 필드에서 파싱 실패, `-csvCaptureFrames` 부팅 캡처의 맵 로딩 프레임(7.5초)이 평균에 섞임. `-game` 실행의 CSV는 `%LOCALAPPDATA%\UnrealEngine\5.8\Saved\Profiling\CSV`에 생긴다. 사용자 PC 기준선(빈 L_Dev): 1080p 158 fps, 1440p 128 fps(`research/08` "기준선").
 
 **산출물**
 - `docs/research/08-spike-results.md`(템플릿 작성됨. 비교 스크린샷과 수치)
 - **D-010: 환경 표현 방식 확정**
 
-### 1.2 베이스맵(배경) 빌더 — 🟢 실데이터 빌드·UE 임포트 검증 완료 (2026-09-24). **DEM은 90 m 임시** — 5 m 출처 결정 필요(D-012)
+### 1.2 베이스맵(배경) 빌더 — 🟢 실데이터 빌드·UE 임포트 검증 완료 (2026-09-24), **5 m DEM(수치지형도) 반영 (2026-09-25)**
 
 | 작업 | 담당 | 상태 / 완료 기준 |
 |---|---|---|
 | `golmok-basemap`: GIS건물통합정보 SHP + NGII DEM·정사영상 → LOD1 건물(층고·용도·색조 정점 데이터)·지형(정사영상 텍스처) GLB 타일 + manifest + 3D Tiles 1.1 tileset | 🤖 | ✅ 합성 데이터 테스트 통과, 3d-tiles-validator 오류 0·경고 0 |
-| 데이터 다운로드: V-World(건물), 국토정보플랫폼(DEM·정사영상) | 👤 로그인·신청서 | ✅ 서울 SHP `AL_D010_11_20260909`(기준일 2026-09-09), 공개DEM `37608`(2025, **90 m**), 정사영상 2025 25 cm `37608077`·`37608078`. 절차는 runbook §5 |
+| 데이터 다운로드: V-World(건물), 국토정보플랫폼(DEM·정사영상) | 👤 로그인·신청서 | ✅ 서울 SHP `AL_D010_11_20260909`(기준일 2026-09-09), 수치지형도 1:5,000 Ver2.0 6도엽(2025, 등고선·표고점 → 5 m DEM), 공개DEM `37608`(90 m, 가장자리 채움용), 정사영상 2025 25 cm `37608077`·`37608078`. 절차는 runbook §5 |
 | 실제 SHP 필드 확인(`inspect`) → 빌드 | 🤖 (PC 세션) | ✅ 높이 A16, 지상층수 A26, 용도명 A9, ID A1(근거 D-012). 연남동 반경 1 km: **건물 9,447동**(높이 추정 4,258동 = A16 결측 → 층수×3.2 m), 250 m 타일 64개, 10초 |
 | **정사영상 좌표 보정** `golmok-basemap georef-ortho` | 🤖 | ✅ NGII 2025 정사영상 TIFF에 좌표 정보가 없음 → 도엽번호로 배치 + 건물 윤곽 매칭(peak 0.26/0.29) + 인접 도엽 겹침 정렬(1.000). 절대 ~1 m, 도엽 간 이음새 0 |
+| **5 m DEM** `golmok-basemap contour-dem` | 🤖 | ✅ 수치지형도 등고선·표고점 → TIN → 5 m GeoTIFF(EPSG:5186). 표고점 10% 제외 검증 중앙 0.63 m / RMSE 2.1 m. 지형 5~101 m(궁동산·와우산·성미산이 보임). 근거 D-012 |
 | UE 임포트 `basemap_import.py`: Nanite, 복합 충돌, 축·단위 자동 측정, CesiumGeoreference 원점 | 🤖 | ✅ `fit error 18.7`(128메시 합계, cm) → 사실상 0, M=diag(1,−1,1) = **북쪽 −Y** 확인(정사영상 도로·경의선숲길·홍제천 방향이 지도와 같음). 새 레벨 `L_Basemap_Yeonnam`(`run(…, level=…)`: 조명·지면 PlayerStart 자동) |
 | **절차적 파사드 머티리얼** `M_BasemapFacade`(층별 창, 상가 1층, 업무 커튼월, 옥상) — Python으로 생성 | 🤖 | ✅ 창·층 띠·상가 1층 패턴 보임(스크린샷 아래). "박스 느낌" 판단은 👤 리뷰 |
 | 지형 머티리얼 `M_BasemapTerrain`(정사영상 파라미터, Nanite 사용 플래그) | 🤖 | ✅ glTF 기본 머티리얼(플러그인 `MI_Default_Opaque`)은 Nanite 플래그가 없어 패키징 시 깨질 수 있어 교체 |
-| 캐릭터 보행 | 🤖 | ✅ PIE 스크립트 보행: 7초 동안 10.7 m 이동, `is_moving_on_ground` True. 지면 충돌 추적 13×13 격자 166/169(나머지 3개는 타일 경계선 정확히 위의 광선) |
-| 성능 (RTX 5060, `-game -RenderOffscreen`, PlayerStart 거리 시점, `golmok-perf`) | 🤖 | 1080p **평균 169 fps, 1% low 137**(GPU 5.6 ms, Render 7.3 ms). 1440p 168/130(GPU ms가 거의 같아 해상도 적용 여부 재확인 필요). 에디터 PIE는 ~120 fps(에디터 상한) |
+| 캐릭터 보행 | 🤖 | ✅ PIE 스크립트 보행: 7초 동안 10.7 m 이동, `is_moving_on_ground` True. 지면 충돌 추적 13×13 격자 169/169, 타일 경계 3 cm 옆 597/597. 지형은 Nanite 끔(Nanite fallback 충돌이 경계에 틈을 냄, D-012) |
+| 성능 (RTX 5060, `-game -RenderOffscreen`, PlayerStart 거리 시점, `golmok-perf`) | 🤖 | 1080p **평균 169 fps, 1% low 141**(GPU 5.4 ms, Render 7.4 ms; 5 m DEM·지형 Nanite 끔). 90 m DEM 때 169/137. 1440p는 GPU ms가 거의 같아 해상도 적용 여부 재확인 필요. 에디터 PIE는 ~120 fps(에디터 상한) |
 | 원경 안개·대기·조명 프리셋 | 🤖 | 1.3 조명 프리셋과 함께. 현재 기본 안개로 원경이 뿌옇고 지면이 청록빛 — 룩 개발 필요 |
 | **검수 뷰어** `golmok-viewer`(CesiumJS): 레이어 토글, 와이어프레임, ENU 좌표, headless 스모크 테스트 | 🤖 | ✅ 합성 베이스맵 렌더 확인(18타일, 오류 0). 1.6의 검수 도구를 앞당겨 완료 |
 | 플레이 구역 안 배경 제거 | 🤖 | `--exclude zone.geojson`으로 빌드 단계에서 제외(D-012) |
 
-- 스크린샷(에디터 PIE, 기본 조명·안개): 북쪽 위 정사 / 사선 / 골목 파사드. 원본 1920×1080과 개관·보행 후 컷은 PC의 `%USERPROFILE%\golmok_data\review\basemap_yeonnam_2026-09-24\`
+- 5 m DEM(2026-09-25): 개관(북쪽을 봄, 뒤 언덕이 궁동산) / 사선 / DEM 음영기복도
+
+  ![5 m DEM 개관, 북쪽을 봄](images/basemap-yeonnam-2026-09-25-dem5m/overview-north.jpg)
+  ![5 m DEM 사선](images/basemap-yeonnam-2026-09-25-dem5m/oblique.jpg)
+  ![수치지형도로 만든 5 m DEM 음영기복도(북쪽 위, ±1.3 km)](images/basemap-yeonnam-2026-09-25-dem5m/dem-5m-hillshade.jpg)
+
+- 90 m DEM 때(2026-09-24) 스크린샷(에디터 PIE, 기본 조명·안개): 북쪽 위 정사 / 사선 / 골목 파사드. 원본 1920×1080과 개관·보행 후 컷은 PC의 `%USERPROFILE%\golmok_data\review\basemap_yeonnam_2026-09-24\`
 
   ![연남동 베이스맵, 위에서 본 모습(북쪽이 위)](images/basemap-yeonnam-2026-09-24/topdown-north-up.jpg)
   ![사선에서 본 LOD1 건물과 파사드](images/basemap-yeonnam-2026-09-24/oblique.jpg)

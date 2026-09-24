@@ -10,6 +10,11 @@ unreal/Golmok/Plugins/*/Binaries/
 unreal/Golmok/Plugins/*/Intermediate/
 build/
 
+# Recreated by script in each checkout: UE mannequin pack (tools/ue/add-mannequin.ps1)
+# and the movement test level (golmok.setup_dev_level, or tools/ue/test.ps1 -SetupDevLevel)
+unreal/Golmok/Content/Characters/
+unreal/Golmok/Content/Golmok/Maps/L_Dev.umap
+
 # Raw captures, reconstruction projects and model weights never go in git (D-005, D-007)
 data/
 captures_raw/

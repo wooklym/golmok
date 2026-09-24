@@ -4,7 +4,7 @@
     b.run(r"D:\\golmok_basemap\\yeonnam", level="/Game/Golmok/Maps/L_Basemap_Yeonnam")  # own level
 
 - Imports tiles/*.glb as static meshes into /Game/Golmok/Basemap/<area>/ (Nanite on for buildings,
-  complex-as-simple collision so nothing falls through at the play-zone edge).
+  off for terrain; complex-as-simple collision so nothing falls through at the play-zone edge).
 - Assigns M_BasemapFacade to building meshes and M_BasemapTerrain instances (orthophoto) to
   terrain meshes (both built on first use, see materials.py).
 - Places one actor per tile in the level folder "Basemap/<area>" so that Unreal X = east,
@@ -125,9 +125,21 @@ def _tile_texture(mesh):
     return None
 
 
-def _enable_nanite(mesh):
+def _set_nanite(mesh, enabled):
+    """Nanite on (buildings) or off (terrain).
+
+    Complex collision of a Nanite mesh comes from its simplified fallback mesh. For terrain tiles that
+    opened gaps along tile seams once the terrain had real relief (the 5 m contour DEM), so terrain
+    stays a plain static mesh (small uniform grids gain nothing from Nanite), and buildings keep an
+    unsimplified fallback so their collision matches what is drawn."""
     settings = mesh.get_editor_property("nanite_settings")
-    settings.set_editor_property("enabled", True)
+    settings.set_editor_property("enabled", enabled)
+    if enabled:
+        for prop, value in (("fallback_relative_error", 0.0), ("fallback_percent_triangles", 1.0)):
+            try:
+                settings.set_editor_property(prop, value)
+            except Exception:  # property names differ between engine versions
+                unreal.log_warning(f"Nanite setting {prop} not available")
     sub = unreal.get_editor_subsystem(unreal.StaticMeshEditorSubsystem)
     if hasattr(sub, "set_nanite_settings"):
         sub.set_nanite_settings(mesh, settings, apply_changes=True)
@@ -232,12 +244,14 @@ def run(folder, area_name=None, level=None):
                 mesh = _import_glb(os.path.join(folder, uri), f"{dest}/{kind}")
                 if kind == "buildings":
                     mesh.set_material(0, facade)
-                    _enable_nanite(mesh)
-                elif tex := _tile_texture(mesh):
-                    # Terrain is imported as Nanite too; use our Nanite-ready material, not the glTF default.
-                    tile_dir = mesh.get_path_name().rsplit("/", 2)[0]
-                    mesh.set_material(0, materials.terrain_instance(
-                        tex, terrain_mat, f"{tile_dir}/Materials/MI_{mesh.get_name()}"))
+                    _set_nanite(mesh, True)
+                else:
+                    _set_nanite(mesh, False)  # the glTF importer turns Nanite on by default
+                    if tex := _tile_texture(mesh):
+                        # Our material, not the glTF default (its plugin parent lacks the Nanite flag).
+                        tile_dir = mesh.get_path_name().rsplit("/", 2)[0]
+                        mesh.set_material(0, materials.terrain_instance(
+                            tex, terrain_mat, f"{tile_dir}/Materials/MI_{mesh.get_name()}"))
                 _complex_collision(mesh)
                 unreal.EditorAssetLibrary.save_loaded_asset(mesh)
                 imported.append((tile, kind, mesh))

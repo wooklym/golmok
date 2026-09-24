@@ -35,6 +35,7 @@ cd $HOME\golmok
 git checkout claude/golmok-phase-0-research-4kloq6
 ```
 - 이미 클론이 있으면 `git fetch` 후 체크아웃한다.
+- push에는 이 PC의 GitHub 로그인(Git Credential Manager)이 필요하다. 로그인 전에는 Claude 세션이 커밋만 하고, 사용자가 터미널에서 `git push`를 한 번 실행해 브라우저로 로그인한다. 이 PC에는 git 사용자 정보가 없으므로 Claude 세션은 `git -c user.name=Claude -c user.email=noreply@anthropic.com commit …`으로 커밋한다.
 
 ### 1. Python 도구 (1.0c)
 ```powershell
@@ -77,6 +78,11 @@ pytest
   - `Saved\Logs\Golmok.log`에 에러가 없다.
   - 스크린샷 1장을 `docs/runbooks/`에 남긴다. 파일이 크면 남기지 않는다.
 - 마네킹: Content Browser → Add Feature or Content Pack → Third Person을 추가한다. 에디터 GUI 작업이라 사용자 도움이 필요하면 요청한다. 추가된 에셋 경로가 `DefaultGame.ini`와 다르면 ini를 고친다.
+- **GUI 없이 하는 방법**(2026-09-24 검증, 사용자가 PC를 쓰는 중에도 방해하지 않는다):
+  - 마네킹: `.\tools\ue\add-mannequin.ps1` — Feature Pack이 복사하는 "Characters" 팩과 같은 파일. 경로가 `DefaultGame.ini`와 일치한다.
+  - L_Dev 생성 + 이동 자동 테스트: `.\tools\ue\test.ps1 -SetupDevLevel` — 창 없이(-nullrhi) 실행, 걷기·뛰기·점프·마우스 시점·벽 카메라 충돌을 실제 키 입력으로 확인한다.
+  - 열린 에디터를 원격으로 조작: 에디터를 `-ini:Engine:[/Script/PythonScriptPlugin.PythonScriptPluginSettings]:bRemoteExecution=True`로 실행하면(127.0.0.1 전용), 엔진의 `Engine\Plugins\Experimental\PythonScriptPlugin\Content\Python\remote_execution.py`로 Python을 보낼 수 있다(PIE 시작·스크린샷 `HighResShot` 등).
+  - 에디터를 처음 열면 `Config/DefaultEngine.ini`에 AndroidFileServer 토큰이 써지던 문제는 `.uproject`에서 그 플러그인을 꺼서 막았다. 그래도 이 ini에 모르는 변경이 생기면 커밋하지 않는다.
 
 ### 3. 리허설 사진 점검 (가이드 §4-C)
 - 사용자가 아이폰 리허설 사진 20장과 영상 1분을 PC로 옮긴다(원본 유지).
@@ -91,6 +97,7 @@ pytest
   - 전부 메인 1x인지
   - 48MP인지
   - GPS가 있는지
+  - **ProRAW 압축 형식**: `golmok-exif` 출력의 "ProRAW 압축" 줄이 `jpeg-lossless`여야 한다. `jpeg-xl`이면 지금 도구로는 현상할 수 없다. 사용자에게 설정 > 카메라 > 포맷 > ProRAW 형식 = **JPEG 무손실**(D-011, 가이드 #1 §4-A)로 다시 찍어 달라고 한다.
   - **DNG 현상이 성공하는지**: `blur_log.csv`에 decode_error가 없어야 한다.
 - DNG 현상에 실패하면 원인을 조사하고 대안을 구현한다. 예: 다른 현상 경로, HEIF Max 촬영으로 전환. 촬영 방식을 바꿔야 하면 사용자에게 제안한다.
 - 결과를 `docs/captures/INDEX.md`와 `docs/ROADMAP.md`(1.0c, 1.0d)에 기록한다. **사진 자체는 커밋하지 않는다.**
@@ -110,7 +117,7 @@ pytest
 
 **데이터**
 - **건물**: V-World → 공간정보 다운로드 → GIS건물통합정보(`dsId=18`) → 시·도 서울특별시, 구분 **전체데이터** → 최신 행의 [다운로드] → `AL_D010_11_<기준일>.zip`(약 130 MB). 같은 페이지의 "컬럼 정의서 다운로드"(xlsx, 로그인 불필요)도 받는다.
-- **DEM**: 국토정보맵 → 공간정보받기 → 간편지도 검색 → 영역 → 사각형으로 지역을 그림 → **공개DEM** → 최신 연도 `서울 37608` → 다운로드. ⚠ 공개DEM은 **90 m 격자**(`37608.img`, EPSG:5179)뿐이다. 5 m는 목록에 없다(D-012, 결정 필요).
+- **DEM(5 m)**: 국토정보맵 → 공간정보받기 → 간편지도 검색 → 영역 → 사각형으로 지역을 그림 → **수치지도** → 수치지형도Ver2.0(SHP,NGI파일) → 2025년 1:5000 도엽 체크(연남동 ±1.3 km: `37608067`·`068`·`077`·`078`·`087`·`088`, 도엽당 2~5 MB) → 다운로드(신청서는 생년월일·사용목적만) → INNORIX 팝업 [전체 다운로드]. zip 안의 `N3L_F0010000.shp`(등고선)·`N3P_F0020000.shp`(표고점)를 쓴다. 같은 영역의 **공개DEM** `서울 37608`(90 m, `37608.img`)도 받아 가장자리 채움에 쓴다.
 - **정사영상**: 같은 영역 → **정사영상** → 최신 연도 25 cm 도엽. 연남동 반경 1 km는 `37608077`·`37608078` 두 장(각 약 320 MB)이면 된다. 도엽 번호 = 1:5만 5자리 + 001~100(1'30" 격자, 북서에서 행 순서).
   - ⚠ TIFF에 **좌표 정보가 없다** → 아래 `georef-ortho`로 GeoTIFF를 만든다.
 
@@ -122,11 +129,14 @@ $D = "$HOME\golmok_data"
 golmok-basemap inspect --buildings "$D\vworld\AL_D010_11_20260909\AL_D010_11_20260909.shp"
 golmok-basemap georef-ortho "$D\ngii\ortho\raw\(B060)정사영상_2025_376080*.tif" --out-dir "$D\ngii\ortho" `
   --buildings "$D\vworld\AL_D010_11_20260909\AL_D010_11_20260909.shp"
+golmok-basemap contour-dem --contours "$D\ngii\topo\3760*\N3L_F0010000.shp" --spots "$D\ngii\topo\3760*\N3P_F0020000.shp" `
+  --center 37.5620,126.9250 --half-size 1300 --fill-dem "$D\ngii\dem\37608\37608.img" --out "$D\ngii\dem\yeonnam_contour_5m.tif"
 golmok-basemap build --buildings "$D\vworld\AL_D010_11_20260909\AL_D010_11_20260909.shp" `
   --height-field A16 --floors-field A26 --usage-field A9 --id-field A1 `
-  --dem "$D\ngii\dem\37608\37608.img" --ortho "$D\ngii\ortho\ortho_*.tif" `
+  --dem "$D\ngii\dem\yeonnam_contour_5m.tif" --ortho "$D\ngii\ortho\ortho_*.tif" `
   --center 37.5620,126.9250 --radius 1000 --out "$HOME\golmok_basemap\yeonnam"
 ```
+- `contour-dem` 출력의 "표고점 10% 제외 검증" RMSE가 수 m 이하인지, TIN 범위가 100%에 가까운지 본다(연남동 2.09 m / 100%). 수치지형도는 zip을 도엽 번호 폴더(`$D\ngii\topo\<도엽>\`)에 풀어 둔다.
 - `georef-ortho` 출력에서 건물 윤곽 매칭 peak가 차순위보다 확실히 크고(1.3배 이상), 인접 도엽 겹침 매칭이 0.9 이상인지 본다. 아니면 도엽 중심 배치로 남는다(약 1~2 m 오차).
 - 빌드 출력의 "건물 N동 (높이 추정 M동)"이 반경 1 km에서 수천 동인지 본다(연남동 9,447 / 4,258).
 - UE 임포트(에디터 Python 또는 명령줄):

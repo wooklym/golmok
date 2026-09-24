@@ -1,6 +1,8 @@
 """golmok-basemap: build background LOD1 buildings + terrain tiles for one area.
 
     golmok-basemap inspect --buildings AL_D010_11_….shp
+    golmok-basemap contour-dem --contours "topo\\*\\N3L_F0010000.shp" --spots "topo\\*\\N3P_F0020000.shp" \\
+        --center 37.5620,126.9250 --half-size 1300 --fill-dem 37608.img --out dem5m.tif
     golmok-basemap georef-ortho "(B060)정사영상_2025_376080*.tif" --out-dir ortho --buildings AL_D010_11_….shp
     golmok-basemap build --buildings AL_D010_11_….shp --height-field A16 \\
         --dem dem\\*.tif --ortho ortho\\*.tif --center 37.5620,126.9250 --radius 1000 \\
@@ -27,6 +29,7 @@ import numpy as np
 from shapely.geometry import Polygon, box, shape
 
 from .buildings import buildings_mesh, inspect_fields, load_buildings, set_elevations, shapefile_crs
+from .contour_dem import contour_dem
 from .geo import EnuFrame, Projector
 from .gltf import write_glb
 from .ngii import georef_orthos
@@ -286,6 +289,20 @@ def main(argv: list[str] | None = None) -> int:
     g.add_argument("--buildings", type=Path, help="건물 SHP: 윤곽선과 영상 경계를 맞춰 위치를 보정·검증")
     g.add_argument("--encoding", default="cp949")
 
+    c = sub.add_parser("contour-dem", help="수치지형도 등고선·표고점 → DEM GeoTIFF (공개DEM 90 m 대체)")
+    c.add_argument("--contours", nargs="+", required=True, help="등고선 SHP (glob 가능)")
+    c.add_argument("--spots", nargs="*", default=[], help="표고점 SHP (glob 가능)")
+    c.add_argument("--center", required=True, help="중심 위도,경도")
+    c.add_argument("--half-size", type=float, default=1300.0, help="정사각형 반폭(m): 빌드 반경+여유")
+    c.add_argument("--res", type=float, default=5.0, help="격자 간격(m)")
+    c.add_argument("--smooth", type=float, default=1.0, help="가우시안 블러 시그마(격자 칸), 0이면 끔")
+    c.add_argument("--fill-dem", nargs="*", default=[], help="자료 없는 곳을 채울 DEM(공개DEM 90 m)")
+    c.add_argument("--contour-field", help="등고선 높이 필드 (기본: 자동)")
+    c.add_argument("--spot-field", help="표고점 높이 필드 (기본: 자동)")
+    c.add_argument("--src-crs", help=".prj가 없을 때 좌표계 (예: EPSG:5186)")
+    c.add_argument("--encoding", default="cp949")
+    c.add_argument("--out", type=Path, required=True)
+
     b = sub.add_parser("build", help="타일 생성")
     b.add_argument("--buildings", type=Path, required=True, help="건물 SHP (GIS건물통합정보)")
     b.add_argument("--dem", nargs="+", required=True, help="DEM GeoTIFF/IMG (여러 도엽·glob 가능)")
@@ -315,6 +332,34 @@ def main(argv: list[str] | None = None) -> int:
     args = ap.parse_args(argv)
     if args.cmd == "inspect":
         print(inspect_fields(args.buildings, args.encoding))
+        return 0
+    if args.cmd == "contour-dem":
+        lat, lon = _parse_center(args.center)
+        st = contour_dem(
+            _expand(args.contours),
+            _expand(args.spots),
+            lat,
+            lon,
+            args.half_size,
+            args.out,
+            res=args.res,
+            smooth=args.smooth,
+            fill_dem=_expand(args.fill_dem),
+            contour_field=args.contour_field,
+            spot_field=args.spot_field,
+            src_crs=args.src_crs,
+            encoding=args.encoding,
+        )
+        print(
+            f"DEM {st['size']}x{st['size']} @ {st['res']} m ({st['crs']}) → {args.out}\n"
+            f"  등고선 점 {st['contour_points']}, 표고점 {st['spot_heights']}, "
+            f"높이 없는 객체 {st['skipped_features']}\n"
+            f"  TIN 범위 {st['tin_coverage']:.1%}, 높이 {st['min']:.1f}~{st['max']:.1f} m\n"
+            f"  표고점 10% 제외 검증: RMSE {st['holdout_rmse']:.2f} m, 최대 {st['holdout_max']:.2f} m "
+            f"({st['holdout_n']}점)"
+        )
+        if "vs_fill_mean" in st:
+            print(f"  채움 DEM 대비: 평균 {st['vs_fill_mean']:+.2f} m, 표준편차 {st['vs_fill_std']:.2f} m")
         return 0
     if args.cmd == "georef-ortho":
         for info in georef_orthos(
