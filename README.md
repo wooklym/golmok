@@ -38,8 +38,10 @@ tools/                Python 도구 (EXIF 점검, 프레임 추출, 얼굴·번�
    import golmok.setup_dev_level as s; s.run()
    ```
 5. **플레이(Alt+P)**: WASD 이동, 마우스 시점, Space 점프, **Shift 누르고 있으면 달리기**. 게임패드도 된다.
-6. (선택) 캐릭터 외형: Content Browser → Add → **Add Feature or Content Pack → Third Person**을 추가하면 마네킹이 붙는다. 없으면 캡슐로 보인다.
+6. 캐릭터 외형(마네킹): `.\tools\ue\add-mannequin.ps1`. 에디터의 Content Browser → Add → **Add Feature or Content Pack → Third Person**이 복사하는 마네킹 파일(`/Game/Characters`)과 같다. 없으면 캡슐로 보인다.
    - 경로가 다르면 `unreal/Golmok/Config/DefaultGame.ini`의 `CharacterMeshPath`, `AnimClassPath`를 고친다.
+   - 마네킹과 `L_Dev.umap`은 스크립트로 다시 만들 수 있어 git에 넣지 않는다.
+7. 이동 자동 테스트(창 없이): `.\tools\ue\test.ps1` (L_Dev가 없으면 `-SetupDevLevel`). 걷기·뛰기·점프·마우스 시점·골목 벽 카메라 충돌을 실제 키 입력으로 확인한다(`Golmok.Player.Movement`).
 
 Python 도구 설정은 [`tools/README.md`](tools/README.md)를 본다.
 

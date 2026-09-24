@@ -17,5 +17,11 @@ public class Golmok : ModuleRules
 			"InputCore",
 			"EnhancedInput"
 		});
+
+		// Editor-only automation tests (Tests/) start PIE through UnrealEd.
+		if (Target.bBuildEditor)
+		{
+			PrivateDependencyModuleNames.Add("UnrealEd");
+		}
 	}
 }

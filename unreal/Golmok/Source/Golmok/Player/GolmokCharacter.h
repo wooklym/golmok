@@ -28,6 +28,11 @@ public:
 	virtual void PostInitializeComponents() override;
 	virtual void NotifyControllerChanged() override;
 
+	USpringArmComponent* GetCameraBoom() const { return CameraBoom; }
+	UCameraComponent* GetFollowCamera() const { return FollowCamera; }
+	float GetWalkSpeed() const { return WalkSpeed; }
+	float GetRunSpeed() const { return RunSpeed; }
+
 protected:
 	virtual void SetupPlayerInputComponent(UInputComponent* PlayerInputComponent) override;
 
