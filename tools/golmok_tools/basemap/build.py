@@ -1,6 +1,7 @@
 """golmok-basemap: build background LOD1 buildings + terrain tiles for one area.
 
     golmok-basemap inspect --buildings AL_D010_11_….shp
+    golmok-basemap georef-ortho "(B060)정사영상_2025_376080*.tif" --out-dir ortho --buildings AL_D010_11_….shp
     golmok-basemap build --buildings AL_D010_11_….shp --height-field A16 \\
         --dem dem\\*.tif --ortho ortho\\*.tif --center 37.5620,126.9250 --radius 1000 \\
         --out D:\\golmok_basemap\\yeonnam
@@ -28,6 +29,7 @@ from shapely.geometry import Polygon, box, shape
 from .buildings import buildings_mesh, inspect_fields, load_buildings, set_elevations, shapefile_crs
 from .geo import EnuFrame, Projector
 from .gltf import write_glb
+from .ngii import georef_orthos
 from .raster import DemSampler, OrthoSource
 from .terrain import terrain_mesh
 
@@ -155,7 +157,7 @@ def build(args) -> dict:
                     name=f"terrain_{ix}_{iy}",
                 )
                 uri = f"tiles/t_{ix}_{iy}.glb"
-                write_glb(out / uri, [tm], {"golmok": {"kind": "terrain", "tile": entry["id"]}})
+                write_glb(out / uri, [tm], {"golmok_kind": "terrain", "golmok_tile": entry["id"]})
                 entry["terrain"] = uri
                 entry["terrain_bbox_enu"] = _bbox(tm.positions)
                 contents.append({"uri": uri})
@@ -163,7 +165,7 @@ def build(args) -> dict:
             if tb:
                 bm = buildings_mesh(tb, name=f"buildings_{ix}_{iy}")
                 uri = f"tiles/b_{ix}_{iy}.glb"
-                write_glb(out / uri, [bm], {"golmok": {"kind": "buildings", "tile": entry["id"]}})
+                write_glb(out / uri, [bm], {"golmok_kind": "buildings", "golmok_tile": entry["id"]})
                 entry["buildings"] = uri
                 entry["buildings_bbox_enu"] = _bbox(bm.positions)
                 contents.append({"uri": uri})
@@ -275,6 +277,15 @@ def main(argv: list[str] | None = None) -> int:
     ins.add_argument("--buildings", type=Path, required=True)
     ins.add_argument("--encoding", default="cp949")
 
+    g = sub.add_parser("georef-ortho", help="좌표 없는 NGII 정사영상(1:5,000 도엽) → GeoTIFF(EPSG:5186)")
+    g.add_argument("tifs", nargs="+", help="정사영상 TIFF (파일명에 8자리 도엽번호, glob 가능)")
+    g.add_argument("--out-dir", type=Path, required=True)
+    g.add_argument("--sheet", help="도엽번호(파일이 하나이고 이름에 번호가 없을 때)")
+    g.add_argument("--pixel", type=float, default=0.25, help="지상표본거리(m), 메타데이터 XML 참고")
+    g.add_argument("--crs", default="EPSG:5186", help="메타데이터의 좌표계 (중부원점 GRS80 = EPSG:5186)")
+    g.add_argument("--buildings", type=Path, help="건물 SHP: 윤곽선과 영상 경계를 맞춰 위치를 보정·검증")
+    g.add_argument("--encoding", default="cp949")
+
     b = sub.add_parser("build", help="타일 생성")
     b.add_argument("--buildings", type=Path, required=True, help="건물 SHP (GIS건물통합정보)")
     b.add_argument("--dem", nargs="+", required=True, help="DEM GeoTIFF/IMG (여러 도엽·glob 가능)")
@@ -304,6 +315,23 @@ def main(argv: list[str] | None = None) -> int:
     args = ap.parse_args(argv)
     if args.cmd == "inspect":
         print(inspect_fields(args.buildings, args.encoding))
+        return 0
+    if args.cmd == "georef-ortho":
+        for info in georef_orthos(
+            _expand(args.tifs), args.out_dir, args.sheet, args.pixel, args.crs, args.buildings, args.encoding
+        ):
+            extra = ""
+            if "peak" in info:
+                extra += (
+                    f", 건물 윤곽 매칭 peak {info['peak']} (차순위 {info['runner_up']}), "
+                    f"도엽 중심 대비 {info['footprint_shift']} m"
+                )
+            if "overlap_peak" in info:
+                extra += f", 인접 도엽 겹침 매칭 {info['overlap_peak']} (보정 {info['neighbor_shift']} m)"
+            print(
+                f"{info['src'].name} → {info['out'].name} [{info['method']}] "
+                f"좌상단 ({info['x0']:.2f}, {info['y1']:.2f}){extra}"
+            )
         return 0
     manifest = build(args)
     bl = manifest["buildings"]

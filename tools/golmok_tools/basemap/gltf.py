@@ -75,7 +75,11 @@ class _Buffer:
 
 
 def write_glb(path, meshes: list[MeshData], metadata: dict | None = None) -> None:
-    """Write meshes as one GLB (one node per mesh). `metadata` goes to asset.extras."""
+    """Write meshes as one GLB (one node per mesh). `metadata` goes to asset.extras.
+
+    Keep metadata values strings: the UE glTF importer reads asset.extras as string metadata and
+    logs a LogJson error for nested objects.
+    """
     buf = _Buffer()
     gltf: dict = {
         "asset": {"version": "2.0", "generator": "golmok-basemap"},
