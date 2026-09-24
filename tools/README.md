@@ -69,7 +69,7 @@ golmok-blur D:\golmok_capture\…\frames D:\golmok_capture\…\frames_blurred `
 ```
 - 결과: `photos_blurred\_golmok\blur_log.csv`(사진별 검출 수), `gps_priors.csv`(RealityScan GPS 가져오기용), `preview\`(검출 표시 미리보기).
 - **미리보기를 훑어 누락을 확인**한다. 검출 누락은 0이 될 수 없다(05 문서).
-- DNG(ProRAW)는 16-bit TIFF로 현상해 저장한다. **아이폰 ProRAW 일부 형식은 rawpy(LibRaw)가 못 열 수 있다** → 그 경우 `blur_log.csv`에 `decode_error`로 남는다. 리허설 사진으로 먼저 확인하고, 실패하면 알려줘(대안: HEIF Max 촬영 또는 다른 현상 경로).
+- DNG(ProRAW)는 16-bit TIFF로 현상해 저장한다. **JPEG-XL ProRAW(iPhone 16 Pro/17 Pro의 "JPEG-XL 무손실·손실" 형식)는 rawpy(LibRaw, Adobe DNG SDK 없음)가 현상하지 못한다** → `blur_log.csv`에 `decode_error`(원인 포함)로 남는다. `golmok-exif`의 "ProRAW 압축" 줄로 먼저 확인한다. 촬영은 **JPEG 무손실**로 한다(DECISIONS D-011, 가이드 #1 §4-A).
 - `--detect-max-side`(기본 4032): 검출만 축소 이미지로 하고 블러는 원본 해상도에 적용한다. 멀리 있는 작은 얼굴이 걱정되면 `0`(원본)으로 — 느려진다.
 
 **4) 배경 베이스맵** (ROADMAP 1.2, 데이터 받는 법은 [runbooks/pc-setup.md §5](../docs/runbooks/pc-setup.md))

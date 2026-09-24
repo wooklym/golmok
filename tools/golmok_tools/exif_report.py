@@ -14,6 +14,7 @@ import sys
 from fractions import Fraction
 from pathlib import Path
 
+from .dng import JPEG_XL, compression_name
 from .exif import ExifInfo, read_exif
 
 PHOTO_EXTS = {".jpg", ".jpeg", ".heic", ".heif", ".dng", ".tif", ".tiff"}
@@ -73,6 +74,11 @@ def summarize(infos: list[ExifInfo], min_shutter: float) -> dict:
     isos = [i.iso for i in infos if i.iso]
     mps = [i.megapixels for i in infos if i.megapixels]
     times = sorted(i.datetime_original for i in infos if i.datetime_original)
+    raw_formats: dict[str, int] = {}
+    for i in infos:
+        if Path(i.file).suffix.lower() == ".dng":
+            name = compression_name(i.raw_compression) or "unknown"
+            raw_formats[name] = raw_formats.get(name, 0) + 1
     return {
         "total": total,
         "shutter_known": len(with_shutter),
@@ -87,6 +93,7 @@ def summarize(infos: list[ExifInfo], min_shutter: float) -> dict:
         "no_gps": sum(1 for i in infos if i.lat is None or i.lon is None),
         "first": times[0] if times else None,
         "last": times[-1] if times else None,
+        "raw_formats": raw_formats,
     }
 
 
@@ -116,6 +123,14 @@ def render(summary: dict, min_shutter: float, max_list: int = 15) -> str:
         lines.append(f"48MP급 해상도: {s['full_res']}/{s['res_known']}")
         if s["full_res"] < s["res_known"]:
             lines.append("  주의: 48MP 미만 사진 있음(ProRAW Max 설정 확인)")
+    if s["raw_formats"]:
+        lines.append("ProRAW 압축: " + ", ".join(f"{k} {v}" for k, v in sorted(s["raw_formats"].items())))
+        if s["raw_formats"].get(compression_name(JPEG_XL)):
+            lines.append(
+                "  주의: JPEG-XL ProRAW는 golmok-blur(rawpy/LibRaw)로 현상할 수 없다."
+                " 설정 > 카메라 > 포맷 > ProRAW 형식을 'JPEG 무손실'로 바꿔 다시 찍는다"
+                "(D-011, 가이드 #1 §4-A)"
+            )
     lines.append(f"GPS 없음: {s['no_gps']}장" + ("  주의: 카메라 위치 권한 확인" if s["no_gps"] else ""))
     if s["first"] and s["last"]:
         minutes = (s["last"] - s["first"]).total_seconds() / 60
