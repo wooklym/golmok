@@ -57,13 +57,21 @@ def driver(tmp_path_factory) -> Path:
 
 
 def run_raw(driver: Path, *args, stdin: str = "") -> subprocess.CompletedProcess:
-    return subprocess.run([str(driver), *(str(a) for a in args)], input=stdin, capture_output=True, text=True)
+    # encoding= on both pipes: Windows would otherwise use cp1252 (test_pathfmt_escapes_strings sends UTF-8)
+    return subprocess.run(
+        [str(driver), *(str(a) for a in args)], input=stdin, capture_output=True, text=True, encoding="utf-8"
+    )
 
 
 def run(driver: Path, *args, stdin: str = "") -> list[float]:
     res = run_raw(driver, *args, stdin=stdin)
     assert res.returncode == 0, res.stdout + res.stderr
     return [float(v) for v in res.stdout.split()]
+
+
+def run_numbers(driver: Path, cmd: str, a, n: int, values) -> list[float]:
+    """pct / stats / ring with the numbers piped through stdin (a Windows command line holds only 32 KiB)."""
+    return run(driver, cmd, a, n, stdin=" ".join(repr(float(v)) for v in values))
 
 
 def close(a, b, tol: float = 1e-9) -> bool:
@@ -101,7 +109,7 @@ def test_percentile_matches_numpy_linear(driver):
         if rng.random() < 0.3:  # duplicates
             values = np.round(values, 0)
         for p in (0.0, 1.0, 50.0, 99.0, 100.0, float(rng.uniform(0, 100))):
-            (got,) = run(driver, "pct", repr(p), n, *(repr(float(v)) for v in values))
+            (got,) = run_numbers(driver, "pct", repr(p), n, values)
             assert close(got, np.percentile(values, p)), (n, p)
     # edge cases: n = 1, n = 2, all equal
     assert run(driver, "pct", 1, 1, 42.5) == [42.5]
@@ -147,12 +155,12 @@ def ref_stats(samples: list[Sample], window: float, capacity: int = 2048) -> dic
     }
 
 
-def stats_args(samples) -> list[str]:
-    return [repr(float(v)) for s in samples for v in s]
+def stats_values(samples) -> list[float]:
+    return [float(v) for s in samples for v in s]
 
 
 def assert_stats(driver, samples, window):
-    got = run(driver, "stats", repr(window), len(samples), *stats_args(samples))
+    got = run_numbers(driver, "stats", repr(window), len(samples), stats_values(samples))
     ref = ref_stats(samples, window)
     if ref is None:
         assert got == [0.0] * 9
@@ -196,7 +204,7 @@ def test_perf_report_hitch_array_gives_one_percent_low_30(driver):
     # test_perf_report.py: 10 s at 60 fps with ten 33 ms frames -> 1% low ~30 fps, average ~59 fps
     frames_ms = [16.667] * 590 + [33.333] * 10
     samples = [(f / 1000.0, 4.0, 5.0, 12.0) for f in frames_ms]
-    got = run(driver, "stats", 20.0, len(samples), *stats_args(samples))
+    got = run_numbers(driver, "stats", 20.0, len(samples), stats_values(samples))
     frames, avg_fps, one_pct, avg_ms, p99, game, render, gpu, has_gpu = got
     assert frames == 600
     assert avg_fps == pytest.approx(59.0, abs=1.5)

@@ -1,5 +1,6 @@
 #include "GolmokStatsMath.h"
 
+#include <cctype>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -8,6 +9,7 @@
 // Commands:
 //   pct <p> <n> v*n                                        Percentile
 //   stats <window> <n> (dt game render gpu)*n              push oldest first, print the Stats fields
+//   (pct / stats / ring take their numbers from stdin instead when none follow <n>: Windows argv limit)
 //   ring <cap> <n> v*n                                     Size then the newest (up to) 3 DtSec values
 //   cycles <cycles> <spc>                                  CyclesToMs
 //   fmt <value> <decimals>                                 FormatFixed
@@ -31,6 +33,41 @@ static std::string ReadStdin()
 	return In;
 }
 
+// Numeric arguments of pct / stats / ring: from argv[First..], or whitespace-separated from stdin when argv has
+// none (Windows limits a command line to 32 KiB, so large sample sets are piped in by the test).
+static std::vector<double> NumberArgs(int argc, char** argv, int First)
+{
+	std::vector<double> Out;
+	if (argc > First)
+	{
+		for (int i = First; i < argc; ++i)
+		{
+			Out.push_back(std::atof(argv[i]));
+		}
+		return Out;
+	}
+	const std::string In = ReadStdin();
+	std::size_t Pos = 0;
+	while (Pos < In.size())
+	{
+		while (Pos < In.size() && std::isspace(static_cast<unsigned char>(In[Pos])))
+		{
+			++Pos;
+		}
+		if (Pos >= In.size())
+		{
+			break;
+		}
+		const std::size_t Start = Pos;
+		while (Pos < In.size() && !std::isspace(static_cast<unsigned char>(In[Pos])))
+		{
+			++Pos;
+		}
+		Out.push_back(std::atof(In.substr(Start, Pos - Start).c_str()));
+	}
+	return Out;
+}
+
 static bool ParseStdinPath(CameraPath& Path)
 {
 	std::string Error;
@@ -52,26 +89,27 @@ int main(int argc, char** argv)
 	if (!std::strcmp(Cmd, "pct") && argc >= 4)
 	{
 		const double P = std::atof(argv[2]);
-		const int N = std::atoi(argv[3]);
-		std::vector<double> Values;
-		for (int i = 0; i < N && 4 + i < argc; ++i)
+		const std::size_t N = static_cast<std::size_t>(std::atoi(argv[3]));
+		std::vector<double> Values = NumberArgs(argc, argv, 4);
+		if (Values.size() > N)
 		{
-			Values.push_back(std::atof(argv[4 + i]));
+			Values.resize(N);
 		}
 		std::printf("%.17g\n", Percentile(Values, P));
 	}
 	else if (!std::strcmp(Cmd, "stats") && argc >= 4)
 	{
 		const double Window = std::atof(argv[2]);
-		const int N = std::atoi(argv[3]);
+		const std::size_t N = static_cast<std::size_t>(std::atoi(argv[3]));
+		const std::vector<double> V = NumberArgs(argc, argv, 4);
 		RingBuffer Ring;
-		for (int i = 0; i < N && 4 + 4 * i + 3 < argc; ++i)
+		for (std::size_t i = 0; i < N && 4 * i + 3 < V.size(); ++i)
 		{
 			FrameSample S;
-			S.DtSec = std::atof(argv[4 + 4 * i]);
-			S.GameMs = std::atof(argv[5 + 4 * i]);
-			S.RenderMs = std::atof(argv[6 + 4 * i]);
-			S.GpuMs = std::atof(argv[7 + 4 * i]);
+			S.DtSec = V[4 * i];
+			S.GameMs = V[4 * i + 1];
+			S.RenderMs = V[4 * i + 2];
+			S.GpuMs = V[4 * i + 3];
 			Ring.Push(S);
 		}
 		const Stats St = Compute(Ring, Window);
@@ -83,12 +121,13 @@ int main(int argc, char** argv)
 	else if (!std::strcmp(Cmd, "ring") && argc >= 4)
 	{
 		const int Cap = std::atoi(argv[2]);
-		const int N = std::atoi(argv[3]);
+		const std::size_t N = static_cast<std::size_t>(std::atoi(argv[3]));
+		const std::vector<double> V = NumberArgs(argc, argv, 4);
 		RingBuffer Ring(static_cast<std::size_t>(Cap));
-		for (int i = 0; i < N && 4 + i < argc; ++i)
+		for (std::size_t i = 0; i < N && i < V.size(); ++i)
 		{
 			FrameSample S;
-			S.DtSec = std::atof(argv[4 + i]);
+			S.DtSec = V[i];
 			Ring.Push(S);
 		}
 		std::printf("%llu", static_cast<unsigned long long>(Ring.Size()));
