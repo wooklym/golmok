@@ -59,7 +59,8 @@ struct FGolmokBasemapEntry
  *  - hides basemap actors (tag GolmokBasemap) whose bounds center lies inside a loaded zone's footprint, collision
  *    off too, and restores them when the last covering zone unloads (D-012: this is the runtime fallback, the real
  *    exclusion happens at basemap build time).
- * Console: golmok.zone.list | golmok.zone.load <id> | golmok.zone.unload <id> | golmok.zone.refresh
+ * Console: golmok.zone.list | golmok.zone.load <id> | golmok.zone.unload <id> | golmok.zone.refresh |
+ *          golmok.zone.radius <load_m> <unload_m>
  * Config: [/Script/Golmok.GolmokZoneSubsystem] in DefaultGame.ini.
  */
 UCLASS(Config = Game)
@@ -121,6 +122,9 @@ public:
 
 	/** Re-scan the level for basemap actors and re-apply hiding for loaded zones. */
 	void RefreshBasemap();
+
+	/** Change the hysteresis radii at runtime (console golmok.zone.radius <load_m> <unload_m>; runbook use). */
+	void SetRadii(float NewLoadRadiusM, float NewUnloadRadiusM);
 
 	/** One evaluation step (the timer callback). Public so tests and console commands can force it. */
 	void Evaluate();

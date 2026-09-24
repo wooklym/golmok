@@ -343,6 +343,13 @@ void UGolmokZoneSubsystem::RefreshBasemap()
 	UpdateBasemapHiding();
 }
 
+void UGolmokZoneSubsystem::SetRadii(float NewLoadRadiusM, float NewUnloadRadiusM)
+{
+	LoadRadiusM = FMath::Max(1.f, NewLoadRadiusM);
+	UnloadRadiusM = (NewUnloadRadiusM > LoadRadiusM) ? NewUnloadRadiusM : LoadRadiusM + 10.f;
+	UE_LOG(LogGolmok, Log, TEXT("GolmokZoneSubsystem: radii now load < %.0f m, unload > %.0f m"), LoadRadiusM, UnloadRadiusM);
+}
+
 void UGolmokZoneSubsystem::ApplyBasemapEntryState(FGolmokBasemapEntry& Entry, bool bHidden)
 {
 	AActor* Actor = Entry.Actor.Get();
@@ -555,6 +562,22 @@ namespace
 		}
 	}
 
+	void CmdZoneRadius(const TArray<FString>& Args, UWorld* World)
+	{
+		UGolmokZoneSubsystem* Subsystem = ZoneSubsystemFor(World);
+		if (!Subsystem)
+		{
+			return;
+		}
+		if (Args.Num() < 2)
+		{
+			UE_LOG(LogGolmok, Warning, TEXT("usage: golmok.zone.radius <load_m> <unload_m>"));
+			return;
+		}
+		Subsystem->SetRadii(FCString::Atof(*Args[0]), FCString::Atof(*Args[1]));
+		Subsystem->Evaluate();
+	}
+
 	FAutoConsoleCommandWithWorldAndArgs GCmdZoneList(TEXT("golmok.zone.list"), TEXT("List registered zones with state and distance."),
 		FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&CmdZoneList));
 	FAutoConsoleCommandWithWorldAndArgs GCmdZoneLoad(TEXT("golmok.zone.load"), TEXT("golmok.zone.load <zone_id>: load and pin a zone."),
@@ -564,4 +587,7 @@ namespace
 	FAutoConsoleCommandWithWorldAndArgs GCmdZoneRefresh(TEXT("golmok.zone.refresh"),
 		TEXT("Rescan basemap actors (tag GolmokBasemap) and re-evaluate zones now."),
 		FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&CmdZoneRefresh));
+	FAutoConsoleCommandWithWorldAndArgs GCmdZoneRadius(TEXT("golmok.zone.radius"),
+		TEXT("golmok.zone.radius <load_m> <unload_m>: change the load/unload hysteresis radii and re-evaluate."),
+		FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&CmdZoneRadius));
 } // namespace
