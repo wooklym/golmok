@@ -1,10 +1,12 @@
 """Import a golmok-basemap output folder into the current level.
 
     import golmok.basemap_import as b; b.run(r"D:\\golmok_basemap\\yeonnam")
+    b.run(r"D:\\golmok_basemap\\yeonnam", level="/Game/Golmok/Maps/L_Basemap_Yeonnam")  # own level
 
 - Imports tiles/*.glb as static meshes into /Game/Golmok/Basemap/<area>/ (Nanite on for buildings,
   complex-as-simple collision so nothing falls through at the play-zone edge).
-- Assigns M_BasemapFacade to building meshes (built on first use, see materials.py).
+- Assigns M_BasemapFacade to building meshes and M_BasemapTerrain instances (orthophoto) to
+  terrain meshes (both built on first use, see materials.py).
 - Places one actor per tile in the level folder "Basemap/<area>" so that Unreal X = east,
   Y = south, Z = up at the area origin (Cesium for Unreal's convention). The glTF importer's axis
   and unit conversion is measured from each tile's bounding box instead of being assumed.
@@ -13,6 +15,7 @@
 
 import itertools
 import json
+import math
 import os
 
 import unreal
@@ -112,6 +115,16 @@ def _import_glb(path, dest):
     return meshes[0]
 
 
+def _tile_texture(mesh):
+    """The orthophoto texture the glTF importer put next to a terrain mesh (<tile>/Textures/)."""
+    folder = mesh.get_path_name().rsplit("/", 2)[0] + "/Textures"
+    for path in unreal.EditorAssetLibrary.list_assets(folder, recursive=False):
+        asset = unreal.EditorAssetLibrary.load_asset(path)
+        if isinstance(asset, unreal.Texture2D):
+            return asset
+    return None
+
+
 def _enable_nanite(mesh):
     settings = mesh.get_editor_property("nanite_settings")
     settings.set_editor_property("enabled", True)
@@ -141,12 +154,68 @@ def _set_georeference(origin):
     geo.set_editor_property("origin_height", origin["height_ellipsoidal"])
 
 
-def run(folder, area_name=None):
+def _open_level(level):
+    """Load `level`, or create it with the dev-level lighting (sun, sky, fog, post process)."""
+    les = unreal.get_editor_subsystem(unreal.LevelEditorSubsystem)
+    if unreal.EditorAssetLibrary.does_asset_exist(level):
+        les.load_level(level)
+        return
+    if not les.new_level(level):
+        raise RuntimeError(f"Could not create {level}")
+    from . import setup_dev_level
+    setup_dev_level._build_lighting()
+
+
+def _remove_area_actors(area):
+    """Delete actors placed by a previous run for this area so re-running does not duplicate them."""
+    eas = unreal.get_editor_subsystem(unreal.EditorActorSubsystem)
+    old = [a for a in eas.get_all_level_actors() if str(a.get_folder_path()) == f"Basemap/{area}"]
+    if old:
+        eas.destroy_actors(old)
+
+
+def _ground_hit(world, x, y):
+    hit = unreal.SystemLibrary.line_trace_single(
+        world, unreal.Vector(x, y, 1.0e6), unreal.Vector(x, y, -1.0e6), unreal.TraceTypeQuery.ECC_VISIBILITY,
+        False, [], unreal.DrawDebugTrace.NONE, True)
+    if not hit:
+        return None
+    t = hit.to_tuple()  # (blocking, initial_overlap, time, distance, location, impact_point, ..., hit_actor, ...)
+    return t[4], t[9]
+
+
+def _place_player_start(area):
+    """PlayerStart on open terrain (not a roof) nearest the area origin."""
+    world = unreal.get_editor_subsystem(unreal.UnrealEditorSubsystem).get_editor_world()
+    eas = unreal.get_editor_subsystem(unreal.EditorActorSubsystem)
+    for r in range(0, 30000, 250):
+        steps = max(1, int(2 * math.pi * r / 500))
+        for k in range(steps):
+            a = 2 * math.pi * k / steps
+            hit = _ground_hit(world, r * math.cos(a), r * math.sin(a))
+            if hit and hit[1] and hit[1].get_actor_label().startswith("BM_terrain"):
+                loc = hit[0]
+                start = eas.spawn_actor_from_class(unreal.PlayerStart, unreal.Vector(loc.x, loc.y, loc.z + 120.0))
+                start.set_actor_label(f"PlayerStart_{area}")
+                start.set_folder_path(f"Basemap/{area}")
+                unreal.log(f"PlayerStart on terrain at ({loc.x / 100:.1f}, {loc.y / 100:.1f}, {loc.z / 100:.1f}) m")
+                return start
+    unreal.log_warning("No open terrain found near the origin for a PlayerStart.")
+    return None
+
+
+def run(folder, area_name=None, level=None):
+    """Import into the current level, or into `level` (e.g. "/Game/Golmok/Maps/L_Basemap_Yeonnam"),
+    which is created with lighting and gets a PlayerStart on the terrain near the area origin."""
     folder = os.path.abspath(folder)
     manifest = json.load(open(os.path.join(folder, "manifest.json"), encoding="utf-8"))
     area = area_name or os.path.basename(folder.rstrip("\\/"))
     dest = f"{ROOT}/{area}"
+    if level:
+        _open_level(level)
+    _remove_area_actors(area)
     facade = materials.build_facade_material()
+    terrain_mat = materials.build_terrain_material()
     actors = unreal.get_editor_subsystem(unreal.EditorActorSubsystem)
 
     imported = []  # (tile, kind, mesh)
@@ -164,6 +233,11 @@ def run(folder, area_name=None):
                 if kind == "buildings":
                     mesh.set_material(0, facade)
                     _enable_nanite(mesh)
+                elif tex := _tile_texture(mesh):
+                    # Terrain is imported as Nanite too; use our Nanite-ready material, not the glTF default.
+                    tile_dir = mesh.get_path_name().rsplit("/", 2)[0]
+                    mesh.set_material(0, materials.terrain_instance(
+                        tex, terrain_mat, f"{tile_dir}/Materials/MI_{mesh.get_name()}"))
                 _complex_collision(mesh)
                 unreal.EditorAssetLibrary.save_loaded_asset(mesh)
                 imported.append((tile, kind, mesh))
@@ -183,5 +257,7 @@ def run(folder, area_name=None):
         actor.set_folder_path(f"Basemap/{area}")
 
     _set_georeference(manifest["origin"])
+    if level:
+        _place_player_start(area)
     unreal.get_editor_subsystem(unreal.LevelEditorSubsystem).save_current_level()
     unreal.log(f"Basemap {area}: {len(imported)} actors placed. Attribution: {' / '.join(manifest['attribution'])}")

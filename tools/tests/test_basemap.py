@@ -181,6 +181,15 @@ def test_manifest_counts_and_origin(built):
     assert len(m["tiles"]) == 16  # 800 m square / 200 m tiles
 
 
+def test_asset_extras_are_strings_for_unreal_import(built):
+    out, m = built
+    for tile in m["tiles"]:
+        for uri in (tile["terrain"], tile["buildings"]):
+            if uri:
+                extras = pygltflib.GLTF2().load(str(out / uri)).asset.extras
+                assert extras and all(isinstance(v, str) for v in extras.values())
+
+
 def test_center_building_geometry(built):
     out, m = built
     tile = next(
