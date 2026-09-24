@@ -1,7 +1,13 @@
 # Golmok 전체 아키텍처 (Phase 0 설계안)
 
-작성일: 2026-09-24 · 상태: **초안 (승인 대기)**
-근거 문서: `research/01~05`
+작성일: 2026-09-24 · 상태: **승인된 결정(D-003~D-007) 반영, 1차 개정**
+근거 문서: `research/01~07`, `DECISIONS.md`
+
+> **개정 요약 (2026-09-24)**
+> - 클라이언트가 웹에서 **Unreal Engine 5.8 + Cesium for Unreal(고사양 PC)**로 바뀌었다(D-003).
+> - Zone의 시각 레이어 포맷은 스파이크 1.1의 결과(D-010)로 확정한다. 후보는 Nanite 메시, splat, 하이브리드다.
+> - MVP 재구성은 RealityScan + Postshot을 **수동**으로 쓴다(D-005). 아래 §5의 자동 파이프라인(COLMAP + gsplat)은 **Phase 2** 설계다.
+> - 좌표계, Zone 모델, 교체 규칙(§2~§4)은 엔진과 무관하므로 유지한다.
 
 ---
 
@@ -23,11 +29,11 @@
  ┌─────────────────────── 저장 (지리좌표 기반) ────────────────────────┐
  │  Basemap 3D Tiles (지형 + LOD1 건물, 건물ID 메타데이터)                  │
  │  Zone Index (공간 인덱스: 어떤 셀에 어떤 Zone이 있나)                    │
- │  Zones/<zone_id>/<version>/ { manifest.json, splat.rad|sog, collision.glb, navmesh.bin } │
+ │  Zones/<zone_id>/<version>/ { manifest.json, visual(D-010), collision, navmesh } │
  └───────────────────────────────────────┬───────────────────────────┘
                                          ▼  HTTP(S) / CDN, Range 요청
- ┌──────────────────────── 게임 클라이언트 (Web, TypeScript) ────────────────────────┐
- │  3DTilesRendererJS(베이스맵)  +  Spark 2(Zone splat)  +  Rapier(물리)  +  캐릭터    │
+ ┌──────────────── 게임 클라이언트 (Unreal Engine 5.8, C++, 고사양 PC) ────────────────┐
+ │  Cesium3DTileset(배경 LOD1)  +  Zone(Nanite 메시 / splat 플러그인)  +  Chaos 물리 + 캐릭터 │
  │  Floating origin(ENU) · Zone 교체 로직(베이스맵 건물 숨김 + 충돌 스왑)              │
  └────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -92,6 +98,7 @@
 1. 클라이언트는 플레이어 주변 셀의 Zone Index를 받고, 가시 범위 안의 zone manifest를 로드한다.
 2. Zone이 **로드 완료** 상태가 되면 다음을 한다.
    - `replaces.building_ids`에 있는 베이스맵 feature를 **숨긴다**(렌더 + 충돌 모두 끈다).
+     - UE 구현: MVP에서는 Zone footprint로 `CesiumCartographicPolygon` 클리핑을 쓴다(타일셋 제외). building_id 단위로 숨기는 것은 필요해지면 metadata 기반으로 구현한다.
    - `terrain_clip`이면 footprint 안의 베이스맵 지면을 클리핑한다. 시각적으로는 splat이 지면을 덮고, 물리는 zone collision이 대신한다.
    - zone의 collision과 navmesh를 켠다.
 3. 로드 전이나 원거리에서는 **베이스맵을 유지**한다. 이렇게 하면 구멍이 생기지 않는다(fallback-first).
@@ -118,32 +125,36 @@
 
 ## 6. 저장·서빙
 
-- **정적 파일 + CDN**이 기본이다. 3D Tiles와 Zone 레이어는 모두 정적 파일이다. Spark `.RAD`와 Streamed SOG는 HTTP Range 요청으로 스트리밍된다.
+- **정적 파일 + CDN**이 기본이다. 3D Tiles와 Zone 레이어는 모두 정적 파일이다. MVP(PC 패키지 빌드)에서는 게임 설치 파일에 포함한다. 원격 스트리밍은 공개 서비스 단계에서 결정한다.
 - 원천 이미지(블러 처리 전)는 **분리된 비공개 버킷에 두고, 암호화와 보존기간(예: 30일)**을 적용한다.
 - **호스팅 리전**: 국내 리전을 기본으로 한다. 공간정보 국외반출 규정과 보안 검토 리스크를 줄이기 위해서다(05 참고). 최종 결정은 법률 검토 후 한다.
 
-## 7. 클라이언트 구조 (TypeScript)
+## 7. 클라이언트 구조 (Unreal Engine 5.8, C++)
 
 ```
-apps/client/
-  src/geo/         ECEF↔ENU, floating origin, zone transform
-  src/basemap/     3DTilesRendererJS 래퍼, feature 숨김(building_id), 지면 클리핑
-  src/zones/       ZoneIndex 로더, manifest 로더, 교체 규칙, portal
-  src/render/      Spark 2 splat 레이어, 메시와 합성
-  src/physics/     Rapier world(로컬 좌표), 충돌 스왑, blockers
-  src/player/      3인칭 캐릭터 컨트롤러(걷기·뛰기·점프), 카메라
-  src/debug/       collision 와이어프레임, zone 경계, fps·메모리 HUD
-  tests/           Playwright(headless) 스모크 + 스크린샷
+unreal/Golmok/Source/Golmok/
+  Geo/        CesiumGeoreference 원점 관리, Zone transform 적용(CesiumGlobeAnchor)
+  Basemap/    배경 타일셋 설정, 플레이 구역 클리핑 폴리곤, 절차적 파사드 파라미터
+  Zones/      Zone manifest 로더, 교체 규칙, 포털(실내 레벨 스트리밍)
+  Player/     3인칭 캐릭터(걷기·뛰기·점프), 카메라 붐, Enhanced Input
+  Lighting/   시간대 프리셋, 안개·대기, 실내외 노출 전환
+  Debug/      충돌 와이어프레임, Zone 경계, 성능 HUD, 고정 카메라 경로 재생
+unreal/Golmok/Content/Python/   에디터 자동화: 메시·텍스처 임포트, 청크 배치, 머티리얼 설정, 측정·스크린샷
 ```
+
+- 로직은 C++로 쓰고 Blueprint는 최소화한다(D-003). 물리는 Chaos, 캐릭터는 CharacterMovementComponent, 내비게이션은 Recast 기반 NavMesh를 쓴다.
+- 좌표: UE의 Large World Coordinates와 Cesium의 origin rebasing을 쓴다. 플레이 구역은 약 500m라서 정밀도 문제는 작다.
 
 ## 8. 저장소 구조 (제안)
 
 ```
 golmok/
   docs/                 설계·결정·로드맵
-  apps/client/          게임 클라이언트 (TS, Vite)
-  pipeline/             재구성 파이프라인 (Python CLI: ingest/privacy/sfm/splat/collision/align/publish)
+  unreal/Golmok/        UE 5.8 게임 프로젝트 (C++ + Unreal Python, 에셋은 Git LFS)
+  tools/privacy/        얼굴·번호판 블러 (MVP)
   tools/basemap/        베이스맵 빌더 (SHP/DEM → glTF → 3D Tiles)
+  tools/viewer/         (선택) 웹 내부 검수 뷰어
+  pipeline/             (Phase 2) 자동 재구성 파이프라인
   data/                 (git 제외) 로컬 원천·산출물
 ```
 
@@ -151,4 +162,4 @@ golmok/
 - 자체 촬영 앱(ARKit/ARCore 포즈 + 가이드 UI + 온디바이스 블러 미리보기)
 - 크라우드 업로드 서버, 사용자·동의 관리, 신고·임시조치 처리
 - 여러 촬영 세션의 병합, 시간대별 외관 차이 보정
-- 앱스토어 래핑 또는 네이티브 전환 재평가
+- 모바일 재평가(Phase 2 이후)

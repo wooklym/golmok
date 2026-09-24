@@ -170,6 +170,6 @@ golmok_capture/
 | 경로 | 입력 | 처리 |
 |---|---|---|
 | (a) 메시 | 사진 P1~P4 | RealityScan → 고해상도 메시 + 8K 텍스처 → UE Nanite, Lumen |
-| (b) splat → Cesium | 사진 + 영상 프레임 | Postshot(최대 해상도·반복) → .ply → splat 3D Tiles → Cesium for Unreal |
-| (c) splat → 서드파티 | (b)와 같은 .ply | UE 서드파티 splat 플러그인 |
+| (b) splat → Cesium | 사진 + 영상 프레임 (RealityScan 포즈 공유) | Postshot(원본 해상도, SH3) → .ply → splat 3D Tiles(로컬 변환) → Cesium for Unreal |
+| (c) splat → 서드파티 | (b)와 같은 .ply | XGRIDS LCC4Unreal(Lit + ProxyMesh = (a) 메시) |
 | 공통 | (a)의 메시 | 충돌, 그림자 프록시, 정합 기준 |
