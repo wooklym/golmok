@@ -8,6 +8,7 @@ Checks:
     - unreal/Golmok/Config/Golmok/**/*.json and docs/**/*.json parse
     - relative links in docs/**/*.md, README.md, CLAUDE.md, tools/README.md point to existing files
     - .gitattributes puts *.uasset and *.umap in Git LFS
+    - no merge conflict markers (<<<<<<< / >>>>>>>) left in text files
 
 Every failure is printed; exit code 1 if there was any.
 """
@@ -17,6 +18,7 @@ from __future__ import annotations
 import argparse
 import configparser
 import json
+import os
 import re
 import sys
 from pathlib import Path
@@ -35,6 +37,19 @@ REF_LINK = re.compile(r"^\s{0,3}\[[^\]]+\]:\s*(<[^>]*>|\S+)", re.MULTILINE)
 FENCE = re.compile(r"^\s*(```|~~~)")
 INLINE_CODE = re.compile(r"`+[^`]*`+")
 SCHEME = re.compile(r"^[a-zA-Z][a-zA-Z0-9+.-]*:")
+
+# A bare "=======" is also a markdown heading underline, so only the two outer markers count.
+CONFLICT_MARKER = re.compile(r"^(<{7}|>{7})( |$)", re.MULTILINE)
+TEXT_SUFFIXES = {
+    ".md", ".py", ".toml", ".ini", ".cpp", ".h", ".cs", ".ps1", ".bat", ".yml", ".yaml",
+    ".json", ".js", ".mjs", ".html", ".css", ".uproject", ".txt",
+}  # fmt: skip
+TEXT_NAMES = {".gitignore", ".gitattributes", ".editorconfig"}
+# Generated/vendored folders, and .claude (local worktrees hold other copies of the repo).
+SKIP_DIRS = {
+    ".git", ".claude", ".venv", "node_modules", "__pycache__", ".pytest_cache", ".ruff_cache",
+    "Binaries", "Intermediate", "Saved", "DerivedDataCache",
+}  # fmt: skip
 
 
 def check_uproject(root: Path) -> list[str]:
@@ -152,12 +167,32 @@ def check_gitattributes(root: Path) -> list[str]:
     ]
 
 
+def check_conflict_markers(root: Path) -> list[str]:
+    errors = []
+    for dirpath, dirnames, filenames in os.walk(root):
+        dirnames[:] = sorted(d for d in dirnames if d not in SKIP_DIRS)
+        for name in sorted(filenames):
+            path = Path(dirpath) / name
+            if path.suffix.lower() not in TEXT_SUFFIXES and name not in TEXT_NAMES:
+                continue
+            try:
+                text = path.read_text(encoding="utf-8")
+            except (UnicodeDecodeError, OSError):
+                continue
+            rel = path.relative_to(root).as_posix()
+            for m in CONFLICT_MARKER.finditer(text):
+                no = text.count("\n", 0, m.start()) + 1
+                errors.append(f"{rel}:{no}: 병합 충돌 표시 {m.group(1)}")
+    return errors
+
+
 CHECKS = {
     "uproject": check_uproject,
     "ini": check_ini,
     "json": check_json,
     "links": check_links,
     "gitattributes": check_gitattributes,
+    "conflicts": check_conflict_markers,
 }
 
 
