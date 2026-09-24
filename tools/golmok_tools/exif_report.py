@@ -97,7 +97,8 @@ def render(summary: dict, min_shutter: float, max_list: int = 15) -> str:
         pct = 100 * s["shutter_ok"] / s["shutter_known"]
         verdict = "OK" if pct >= 90 else "주의: 느린 셔터가 많음"
         lines.append(
-            f"셔터 {fmt_shutter(min_shutter)} 이상: {s['shutter_ok']}/{s['shutter_known']} ({pct:.0f}%) → {verdict}"
+            f"셔터 {fmt_shutter(min_shutter)} 이상: {s['shutter_ok']}/{s['shutter_known']} "
+            f"({pct:.0f}%) → {verdict}"
         )
         for i in s["slow"][:max_list]:
             lines.append(f"  느림 {fmt_shutter(i.exposure_time):>7}  ISO {i.iso}  {Path(i.file).name}")

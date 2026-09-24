@@ -1,5 +1,7 @@
 # Golmok (골목)
 
+[![CI](https://github.com/wooklym/golmok/actions/workflows/ci.yml/badge.svg)](https://github.com/wooklym/golmok/actions/workflows/ci.yml)
+
 실제 서울 골목을 사진·영상으로 찍어 3D로 재구성하고, 그 안을 걷고 뛰며 건물 내부까지 들어가 볼 수 있는 게임.
 
 - 설계·결정·로드맵: [`docs/`](docs/README.md) (시작점: [ROADMAP](docs/ROADMAP.md), [DECISIONS](docs/DECISIONS.md), [개발 전체 과정](docs/DEVELOPMENT-PLAN.md), [진행 상태](docs/plan/STATUS.md))

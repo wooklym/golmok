@@ -15,7 +15,7 @@ import mapbox_earcut as earcut
 import numpy as np
 import shapefile
 from pyproj import CRS
-from shapely.geometry import Polygon, MultiPolygon, shape, box
+from shapely.geometry import MultiPolygon, Polygon, box, shape
 from shapely.geometry.polygon import orient
 from shapely.validation import make_valid
 
@@ -92,7 +92,7 @@ def inspect_fields(shp: Path, encoding: str = "cp949", samples: int = 5) -> str:
         names = [f[0] for f in r.fields[1:]]
         lines = [f"레코드 {len(r)}개, 도형 유형 {r.shapeTypeName}", f"필드 {len(names)}개:"]
         rows = [r.record(i) for i in range(min(samples, len(r)))]
-        for i, (name, typ, size, dec) in enumerate(r.fields[1:]):
+        for i, (name, typ, size, _dec) in enumerate(r.fields[1:]):
             vals = ", ".join(repr(row[i]) for row in rows)
             lines.append(f"  {name:<12} {typ}{size:>4}  예: {vals}")
     prj = shp.with_suffix(".prj")
@@ -147,7 +147,7 @@ def load_buildings(
             geom = shape(sr.shape.__geo_interface__)
             if not geom.intersects(src_bbox):
                 continue
-            rec = dict(zip(names, sr.record))
+            rec = dict(zip(names, sr.record, strict=False))
             for poly in _polygons(geom):
                 enu_poly = _poly_to_enu(poly, projector)
                 if enu_poly is None or enu_poly.area < MIN_AREA_M2 or not enu_poly.intersects(area_enu):

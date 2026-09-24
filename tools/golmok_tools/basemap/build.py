@@ -2,7 +2,8 @@
 
     golmok-basemap inspect --buildings AL_D010_11_….shp
     golmok-basemap build --buildings AL_D010_11_….shp --height-field A16 \\
-        --dem dem\\*.tif --ortho ortho\\*.tif --center 37.5620,126.9250 --radius 1000 --out D:\\golmok_basemap\\yeonnam
+        --dem dem\\*.tif --ortho ortho\\*.tif --center 37.5620,126.9250 --radius 1000 \\
+        --out D:\\golmok_basemap\\yeonnam
 
 Output (--out):
     manifest.json   origin, tiles, sources/attribution (read by the Unreal import script)
@@ -17,7 +18,7 @@ import argparse
 import glob
 import json
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import numpy as np
@@ -196,8 +197,8 @@ def build(args) -> dict:
     if children:
         zs = [c["boundingVolume"]["box"][2] for c in children]
         hz = [c["boundingVolume"]["box"][11] for c in children]
-        zmin = min(z - h for z, h in zip(zs, hz))
-        zmax = max(z + h for z, h in zip(zs, hz))
+        zmin = min(z - h for z, h in zip(zs, hz, strict=True))
+        zmax = max(z + h for z, h in zip(zs, hz, strict=True))
     else:
         zmin, zmax = -1.0, 1.0
     half = n_tiles * t / 2
@@ -219,7 +220,7 @@ def build(args) -> dict:
     n_est = sum(1 for b in buildings if b.estimated)
     manifest = {
         "format": "golmok-basemap/1",
-        "created": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "created": datetime.now(UTC).isoformat(timespec="seconds"),
         "origin": {
             "lat": lat,
             "lon": lon,
@@ -297,7 +298,8 @@ def main(argv: list[str] | None = None) -> int:
     manifest = build(args)
     bl = manifest["buildings"]
     print(
-        f"건물 {bl['count']}동 (높이 추정 {bl['height_estimated']}동), 타일 {len(manifest['tiles'])}개 → {args.out}"
+        f"건물 {bl['count']}동 (높이 추정 {bl['height_estimated']}동), "
+        f"타일 {len(manifest['tiles'])}개 → {args.out}"
     )
     return 0
 

@@ -26,7 +26,7 @@ def apply(m, v):
 
 
 def fake_import(bbox, scale, m):
-    corners = [apply(m, c) for c in itertools.product(*zip(*bbox))]
+    corners = [apply(m, c) for c in itertools.product(*zip(*bbox, strict=True))]
     lo = tuple(min(c[i] for c in corners) * scale for i in range(3))
     hi = tuple(max(c[i] for c in corners) * scale for i in range(3))
     return lo, hi

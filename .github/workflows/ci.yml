@@ -1,0 +1,86 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHONUTF8: "1"  # Korean output on the Windows runner (cp1252 console)
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+
+jobs:
+  python:
+    name: python (${{ matrix.os }}, ${{ matrix.python }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-latest, python: "3.11" }
+          - { os: ubuntu-latest, python: "3.12" }
+          # Same OS as the user's PC: catches path and encoding problems
+          - { os: windows-latest, python: "3.12" }
+    defaults:
+      run:
+        working-directory: tools
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: false  # tests need no binary assets
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+          cache-dependency-path: tools/pyproject.toml
+      - name: Install
+        run: python -m pip install -e ".[basemap,dev]"
+      - name: ruff check
+        run: ruff check .
+      - name: ruff format --check
+        run: ruff format --check .
+      - name: pytest
+        run: pytest -q
+
+  repo-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: check_repo.py
+        run: python tools/scripts/check_repo.py
+
+  tiles-validate:
+    # Optional: 3D Tiles validation of the synthetic basemap built by tests/test_basemap.py
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: tools/pyproject.toml
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Build synthetic basemap
+        working-directory: tools
+        env:
+          GOLMOK_BASEMAP_OUT: ${{ runner.temp }}/basemap
+        run: |
+          python -m pip install -e ".[basemap,dev]"
+          pytest -q tests/test_basemap.py
+      - name: 3d-tiles-validator
+        run: |
+          npx --yes 3d-tiles-validator@0.6.1 --tilesetFile "$RUNNER_TEMP/basemap/tileset.json" | tee validator.log
+          grep -q '"numErrors": 0' validator.log

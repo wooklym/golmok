@@ -7,8 +7,8 @@ from pathlib import Path
 import cv2
 import numpy as np
 import rasterio
-from rasterio.merge import merge
 from pyproj import CRS, Transformer
+from rasterio.merge import merge
 
 
 def _raster_crs(paths: list[Path], override: str | None = None) -> CRS:

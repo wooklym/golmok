@@ -1,6 +1,7 @@
 """Basemap builder on synthetic data: SHP footprints (EPSG:5186), sloped DEM, RGB orthophoto."""
 
 import json
+import os
 from argparse import Namespace
 from pathlib import Path
 
@@ -115,13 +116,15 @@ def built(tmp_path_factory):
     write_shp(d / "bld.shp")
     write_dem(d / "dem.tif")
     write_ortho(d / "ortho.tif")
+    # CI sets GOLMOK_BASEMAP_OUT to keep the output for 3d-tiles-validator (.github/workflows/ci.yml)
+    out = Path(os.environ["GOLMOK_BASEMAP_OUT"]) if os.environ.get("GOLMOK_BASEMAP_OUT") else d / "out"
     args = Namespace(
         buildings=d / "bld.shp",
         dem=[str(d / "dem.tif")],
         ortho=[str(d / "ortho.tif")],
         center=f"{LAT},{LON}",
         radius=400.0,
-        out=d / "out",
+        out=out,
         height_field="A16",
         floors_field="FLOORS",
         usage_field="A9",
@@ -136,7 +139,7 @@ def built(tmp_path_factory):
         no_terrain=False,
     )
     manifest = build(args)
-    return d / "out", manifest
+    return out, manifest
 
 
 def load_glb(path: Path):

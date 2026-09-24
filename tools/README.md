@@ -83,7 +83,16 @@ golmok-basemap build --buildings D:\golmok_data\AL_D010_11_….shp `
 - UE로 가져오기(에디터 Python): `import golmok.basemap_import as b; b.run(r"D:\golmok_basemap\yeonnam")`
   - 건물은 Nanite + `M_BasemapFacade`(층·창 패턴 절차적 머티리얼), 지형은 정사영상 텍스처. 축·단위 변환은 타일 경계상자로 자동 측정한다.
 
-## 테스트
+## 검사 실행
+
+CI(`.github/workflows/ci.yml`)와 같은 검사다. 커밋 전에 `tools` 폴더에서 실행한다(`pip install -e ".[basemap,dev]"`에 ruff 포함).
+
 ```powershell
-pytest
+ruff check .            # 린트 (자동 수정: ruff check . --fix)
+ruff format --check .   # 형식 (적용: ruff format .)
+pytest -q               # 단위 테스트
+python scripts/check_repo.py   # 저장소 점검: uproject·ini·json 파싱, 문서 상대 링크, .gitattributes LFS
 ```
+
+- CI는 ubuntu(Python 3.11/3.12)와 windows(3.12)에서 위 검사를 돌리고, 선택 잡으로 합성 베이스맵을 `3d-tiles-validator`로 검증한다(실패해도 전체 실패 아님).
+- `GOLMOK_BASEMAP_OUT=<폴더>`를 주고 `pytest tests/test_basemap.py`를 실행하면 합성 베이스맵 출력이 그 폴더에 남는다.

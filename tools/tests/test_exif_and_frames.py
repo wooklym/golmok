@@ -6,7 +6,7 @@ import pytest
 from PIL import Image
 
 from golmok_tools.exif import read_exif
-from golmok_tools.exif_report import fmt_shutter, lens_class, main, parse_shutter, summarize, collect
+from golmok_tools.exif_report import collect, fmt_shutter, lens_class, main, parse_shutter, summarize
 from golmok_tools.extract_frames import best_per_window, sharpness
 
 

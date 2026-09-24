@@ -18,6 +18,7 @@
 - AGPL 도구(Ultralytics, OpenMVS, OpenSplat)는 서버 파이프라인에서 쓰지 않는다.
 - 새 의존성을 추가할 때는 LICENSE 원문을 확인하고 이 문서에 기록한다.
 - 상용 툴(RealityScan, Postshot, 서드파티 UE 플러그인)은 **EULA와 배포 조건**을 확인하고 기록한다.
+- 개발·CI 전용 도구(제품에 포함되지 않음, WP-01): **ruff** — MIT [확인: https://github.com/astral-sh/ruff/blob/main/LICENSE], **3d-tiles-validator**(CesiumGS, `npx`로 CI에서만 실행) — Apache-2.0 [확인: https://github.com/CesiumGS/3d-tiles-validator/blob/main/LICENSE.md]. 2026-09-24 원문 확인.
 
 ### D-003 | 승인 | 2026-09-24 — 엔진: **Unreal Engine 5 + Cesium for Unreal**
 - **이유**: Lumen, Nanite, 캐릭터 애니메이션, 포스트프로세스 덕분에 비주얼 상한이 웹 스택보다 압도적이다(퀄리티 최우선 원칙).

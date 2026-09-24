@@ -10,7 +10,8 @@ Outputs in OUTPUT/_golmok/:
     preview/         small JPEGs of blurred output with detections outlined (for spot checks)
 
 Usage:
-    golmok-blur photos\\ photos_blurred\\ --face-model models\\ego_blur_face.jit --lp-model models\\ego_blur_lp.jit
+    golmok-blur photos\\ photos_blurred\\ \\
+        --face-model models\\ego_blur_face.jit --lp-model models\\ego_blur_lp.jit
 """
 
 from __future__ import annotations
