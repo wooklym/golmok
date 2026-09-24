@@ -83,8 +83,12 @@ def read_ifds(path: Path) -> list[dict]:
                 if tag == _SUB_IFDS:
                     pending.extend(values(entry, typ, n))
                     continue
-                key = {_NEW_SUBFILE_TYPE: "subfile_type", _WIDTH: "width", _HEIGHT: "height",
-                       _COMPRESSION: "compression"}.get(tag)
+                key = {
+                    _NEW_SUBFILE_TYPE: "subfile_type",
+                    _WIDTH: "width",
+                    _HEIGHT: "height",
+                    _COMPRESSION: "compression",
+                }.get(tag)
                 if key and n == 1:
                     vals = values(entry, typ, 1)
                     if vals:

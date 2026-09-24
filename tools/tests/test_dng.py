@@ -28,7 +28,15 @@ def make_dng(path: Path, main_compression: int, little: bool = True) -> Path:
     sub0_at = subifd_array_at + 8
     sub1_at = sub0_at + size(4)
     data = (b"II" if little else b"MM") + struct.pack(e + "HI", 42, ifd0_at)
-    data += ifd([(254, 4, 1, 1), (256, 4, 1, 1008), (257, 4, 1, 756), (259, 3, 1, dng.JPEG), (330, 4, 2, subifd_array_at)])
+    data += ifd(
+        [
+            (254, 4, 1, 1),
+            (256, 4, 1, 1008),
+            (257, 4, 1, 756),
+            (259, 3, 1, dng.JPEG),
+            (330, 4, 2, subifd_array_at),
+        ]
+    )
     data += struct.pack(e + "II", sub0_at, sub1_at)
     data += ifd([(254, 4, 1, 0), (256, 4, 1, 8064), (257, 4, 1, 6048), (259, 3, 1, main_compression)])
     data += ifd([(254, 4, 1, 4), (256, 4, 1, 2016), (257, 4, 1, 1512), (259, 3, 1, main_compression)])

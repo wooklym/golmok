@@ -100,8 +100,9 @@ def _read_raw(path: Path) -> np.ndarray:
     except Exception as e:  # LibRaw may not support every Apple ProRAW variant
         if is_jpeg_xl(path):
             raise DecodeError(
-                f"cannot develop DNG {path}: JPEG-XL ProRAW (DNG 1.7) needs LibRaw built with the Adobe DNG SDK, "
-                f"which rawpy is not; shoot ProRAW format 'JPEG Lossless' (LibRaw: {e})") from e
+                f"cannot develop DNG {path}: JPEG-XL ProRAW (DNG 1.7) needs LibRaw built with "
+                f"the Adobe DNG SDK, which rawpy is not; shoot ProRAW format 'JPEG Lossless' (LibRaw: {e})"
+            ) from e
         raise DecodeError(f"cannot develop DNG {path}: {e}") from e
     return cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR)
 
