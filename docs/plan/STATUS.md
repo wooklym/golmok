@@ -3,7 +3,7 @@
 갱신 규칙: 각 세션이 시작·종료 시 자기 행을 고친다. 상태 기호:
 ⚪ 대기 · 🔵 진행 중 · 🟡 코드 완료·PC 검증 대기 · 🟢 완료 · 🔴 막힘 · ⏸ 보류
 
-마지막 갱신: 2026-09-24 (V-02 PC 세션)
+마지막 갱신: 2026-09-25 (V-01·V-02 PC 세션)
 
 ## 트랙 1A — 클라우드 코드 (순차)
 
@@ -22,7 +22,7 @@
 
 | V | 내용 | 상태 | 메모 |
 |---|---|---|---|
-| V-01 | PC 셋업·L_Dev·리허설 점검 (`runbooks/pc-setup.md` §0~4) | ⚪ 대기 | 사용자 설치 필요 |
+| V-01 | PC 셋업·L_Dev·리허설 점검 (`runbooks/pc-setup.md` §0~4) | 🔵 진행 중 | §0~2 🟢(2026-09-24): UE 5.8.3·VS 2026 빌드 무수정 통과, L_Dev·마네킹 PIE, 자동 테스트 `Golmok.Player.Movement`(`tools/ue/test.ps1`) 통과, pytest·CUDA OK. 결과 ROADMAP 1.0a~1.0d. §3 리허설은 C-01 사진과 EgoBlur 모델(사용자 라이선스 동의) 대기. **push는 이 PC의 GitHub 로그인 필요**(사용자). 클라우드 인계: `viewpoints.capture`가 백그라운드 에디터에서 스크린샷을 빠뜨리거나 다른 시점 이름으로 저장하던 버그 수정(파일 기록 대기, 매 틱 viewport invalidate) — WP-06 `spike_runner`는 이 동작에 기댄다. `check_repo.py`에 병합 충돌 표시 검사 추가(PR #3 병합이 `tools/README.md`에 남긴 표시 수정) |
 | V-02 | 베이스맵 실데이터 (`pc-setup.md` §5) | 🟢 완료 (DEM 90 m 임시) | 연남동 반경 1 km: 건물 9,447동, 64타일. UE `L_Basemap_Yeonnam`: fit error ≈0, 북쪽 −Y, 파사드 패턴, PIE 보행 OK, 1080p 169 fps(1% low 137). 신규 `golmok-basemap georef-ortho`(좌표 없는 NGII 정사영상), `M_BasemapTerrain`. 결과·근거: ROADMAP 1.2, D-012 |
 | V-03 | WP-04/05 빌드·PIE 검증 | ⚪ 대기 | M1 이후 |
 | V-04 | WP-06 에디터 Python 검증 | ⚪ 대기 | |
@@ -33,7 +33,7 @@
 
 | C | 내용 | 상태 |
 |---|---|---|
-| C-01 | 아이폰 리허설 | ⚪ |
+| C-01 | 아이폰 리허설 — ProRAW 형식 **JPEG 무손실**로 찍는다(D-011, 가이드 #1 v3 §4-A) | ⚪ |
 | C-02 | 골목 촬영(홈 Zone 후보 포함) | ⚪ |
 | C-03 | 베이스맵 데이터 다운로드 | 🟢 (5 m DEM 제외 — 결정 필요) |
 | C-04 | PC 업그레이드 결정, Postshot Studio, XGRIDS 문의 | ⚪ |
@@ -52,3 +52,4 @@
 | 2026-09-24 | session_014zvy99LzAuVhnHYFtUYfVz | Opus | WP-02 | 🟢 zone 스펙·스키마·`golmok-zone`·테스트 80개(전체 116 passed) |
 | 2026-09-24 | session_01Cgm7f6oD6xSMpZ5jszj8Xi | Fable 5.1 | PR #1·#2 병합(main), WP-08 검수 뷰어, PC 작업 카드 2건 | PR #3 (`claude/golmok-phase-0-research-4kloq6`). 전체 119 passed |
 | 2026-09-24 | PC 로컬 세션 (trusting-varahamihira) | Opus 5.5 | V-02 베이스맵 실데이터 | 🟢 SHP 컬럼 매핑·연남동 빌드·UE 임포트·보행·fps. georef-ortho, M_BasemapTerrain, UE 5.8 CustomInput 수정. 전체 123 passed |
+| 2026-09-24 | PC 세션(Claude Desktop, 사용자 PC) | Opus 5.5 | V-01 PC 셋업·UE 검증, JPEG-XL ProRAW 발견 → D-011 JPEG 무손실, 스파이크 도구 에디터 검증 | 🔵 `claude/golmok-phase-0-research-4kloq6`에 커밋(사용자 push 대기). 전체 125 passed, check_repo OK |
