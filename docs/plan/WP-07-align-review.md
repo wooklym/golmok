@@ -1,6 +1,6 @@
 # WP-07 — 정합·검수 도구 `golmok-align`
 
-상태: ⚪ 대기 · 담당: 클라우드 Claude 세션 · 의존: WP-02, WP-03 · 검증: G1, 이후 G3(실 Zone)
+상태: 🔵 진행 중 (session_01Cgm7f6oD6xSMpZ5jszj8Xi) · 담당: 클라우드 Claude 세션 · 의존: WP-02, WP-03 · 검증: G1, 이후 G3(실 Zone)
 
 ## 목표
 Zone을 베이스맵 위 올바른 위치·스케일·방향에 놓고(ARCHITECTURE §5 ⑦), 품질 지표를 manifest에 기록하며(⑧ 자동 지표), 렌더 결과의 블러 누락을 재검사한다(05 문서, ROADMAP 1.6).
