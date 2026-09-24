@@ -115,7 +115,8 @@ cd tools\viewer; npm install                      # Cesium을 로컬에 두고(�
 npm test                                          # 합성 베이스맵으로 headless 렌더 검사 → test\out\smoke.png
 $env:GOLMOK_DATA="D:\golmok_basemap\yeonnam"; npm test   # 실데이터로 검사
 ```
-- 화면에서 `/data/…/tileset.json` 경로를 입력해 Zone(splat 3D Tiles 포함, CesiumJS 1.139+ KHR_gaussian_splatting)을 추가할 수 있다.
+- 화면에서 `/data/…/tileset.json`(3D Tiles, splat 포함)이나 `/data/…/manifest.json`(Zone)을 입력해 추가할 수 있다. URL로는 `?zone=/data/zones/<id>/v1/manifest.json`.
+- Zone 오버레이: footprint(노랑), 원점·라벨, 청크 bbox(하늘), 포털 위치·진입 방향(분홍), blockers 평면(유리 = 민트, no_entry = 빨강). 이름을 클릭하면 그 Zone으로 이동.
 - ion 토큰은 쓰지 않는다. 데이터는 로컬 서버(127.0.0.1)에서만 읽는다(D-007).
 
 

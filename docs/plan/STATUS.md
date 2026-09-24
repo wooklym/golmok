@@ -16,7 +16,7 @@
 | WP-05 | UE C++ 2: 포털·조명·디버그 | ⚪ 대기 | | |
 | WP-06 | UE Python 에디터 자동화 2차 | ⚪ 대기 | | |
 | WP-07 | 정합·검수 `golmok-align` | ⚪ 대기 | | |
-| WP-08 | (선택) 웹 검수 뷰어 | 🟢 완료 | session_01Cgm7f6oD6xSMpZ5jszj8Xi (Fable 5.1) | `golmok-viewer`(CesiumJS 1.145, ion 없음) + `tools/viewer` + Playwright 스모크(`npm test`, 합성 베이스맵 18타일). Zone/splat 타일셋은 화면에서 URL 추가. Zone footprint·충돌 오버레이는 WP-03 산출물 나오면 추가 |
+| WP-08 | (선택) 웹 검수 뷰어 | 🟢 완료 | session_01Cgm7f6oD6xSMpZ5jszj8Xi (Fable 5.1) | `golmok-viewer`(CesiumJS 1.145, ion 없음) + `tools/viewer` + Playwright 스모크(`npm test`, 합성 베이스맵 18타일). Zone manifest 오버레이(footprint·청크 bbox·포털·blockers, `?zone=…/manifest.json`) 포함. 충돌 메시 표시는 WP-03 산출물 나오면 추가 |
 
 ## 트랙 1B — PC 검증 (PC Claude 세션)
 

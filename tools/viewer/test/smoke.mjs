@@ -6,7 +6,7 @@
 //
 // Env: GOLMOK_PORT (default 8777), GOLMOK_SHOT (screenshot path), PLAYWRIGHT_PROXY (e.g. http://host:port)
 import { spawn } from 'node:child_process';
-import { existsSync, mkdirSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
@@ -45,6 +45,11 @@ print('synthetic basemap ready')
 }
 if (!existsSync(resolve(data, 'tileset.json'))) throw new Error(`no tileset.json in ${data}`);
 
+// Zone overlay: serve the WP-02 fixture zone next to the basemap (copied, never modified).
+const fixtureZone = resolve(toolsDir, 'tests', 'fixtures', 'zones', 'z_synthetic_001');
+const zoneParam = existsSync(fixtureZone) ? '&zone=/data/zones/z_synthetic_001/v1/manifest.json' : '';
+if (zoneParam) cpSync(fixtureZone, resolve(data, 'zones', 'z_synthetic_001'), { recursive: true });
+
 const py = process.platform === 'win32' ? 'python' : 'python3';
 const server = spawn(py, ['-m', 'golmok_tools.viewer_server', data, '--port', String(port), '--no-browser'],
   { cwd: toolsDir, stdio: ['ignore', 'pipe', 'inherit'] });
@@ -61,13 +66,20 @@ page.on('pageerror', (e) => errors.push(String(e)));
 
 let ok = false;
 try {
-  await page.goto(`http://127.0.0.1:${port}/?tileset=/data/tileset_buildings.json&tileset=/data/tileset_terrain.json`, { waitUntil: 'domcontentloaded' });
+  await page.goto(`http://127.0.0.1:${port}/?tileset=/data/tileset_buildings.json&tileset=/data/tileset_terrain.json${zoneParam}`, { waitUntil: 'domcontentloaded' });
   await page.waitForFunction(() => window.golmok && window.golmok.ready, null, { timeout: 120000 });
   // Software GL in CI can take a while to process textures: poll until every layer has tiles.
   await page.waitForFunction(() => window.golmok.layers.length > 0 &&
     window.golmok.layers.every((l) => l.tileset.tilesLoaded && l.loadedTiles > 0), null, { timeout: 120000 }).catch(() => {});
   await page.waitForTimeout(500);
   const stats = await page.evaluate(() => window.golmok.stats());
+  const zones = await page.evaluate(() => window.golmok.zones.map((z) => ({ id: z.manifest.zone_id, entities: z.entityCount })));
+  if (zoneParam) {
+    // fly to the zone so the screenshot shows the overlay
+    await page.evaluate(() => window.golmok.viewer.flyTo(window.golmok.zones[0].dataSource, { duration: 0 }));
+    await page.waitForTimeout(1500);
+  }
+  console.log('zones:', JSON.stringify(zones));
   const appErrors = await page.evaluate(() => window.golmok.errors);
   mkdirSync(dirname(shot), { recursive: true });
   await page.screenshot({ path: shot });
@@ -76,7 +88,8 @@ try {
   const fatal = errors.filter((e) => !/favicon/i.test(e));
   if (appErrors.length) console.error('app errors:', appErrors);
   if (fatal.length) console.error('console errors:', fatal);
-  ok = stats.length === 2 && loaded > 0 && appErrors.length === 0 && fatal.length === 0;
+  const zoneOk = !zoneParam || (zones.length === 1 && zones[0].entities >= 10);
+  ok = stats.length === 2 && loaded > 0 && zoneOk && appErrors.length === 0 && fatal.length === 0;
   console.log(ok ? `OK: ${loaded} tiles loaded, screenshot ${shot}` : 'FAIL');
 } finally {
   await browser.close();
