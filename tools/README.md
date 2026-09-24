@@ -9,6 +9,7 @@
 | `golmok-zone init/validate/index build/exclude/transform/bump` | **Zone manifest**(스펙 [docs/spec/zone-manifest.md](../docs/spec/zone-manifest.md)): 새 zone 만들기, 검사, Zone Index, 베이스맵 제외 폴리곤, 좌표 변환, 새 버전 |
 | `golmok-mesh inspect/reproject/chunk/collision/blockers` | **재구성 메시 후처리**: RealityScan OBJ → zone-local, 청크(UV·UDIM 보존), 충돌 메시, 유리·접근 금지 평면. 절차는 [recon-postprocess 런북](../docs/runbooks/recon-postprocess.md) |
 | `golmok-splat inspect/crop/clean/transform/tiles` | **3DGS PLY 후처리**: 자르기, 플로터 제거, 좌표 변환(SH 회전 포함), 로컬 3D Tiles(glTF `KHR_gaussian_splatting`) |
+| `golmok-viewer <폴더>` | **검수 뷰어**(CesiumJS, 브라우저): 베이스맵 `tileset.json`과 Zone 타일셋을 로컬에서 띄운다. 레이어 토글, 와이어프레임, 타일 경계, ENU 좌표 읽기, 걷는 높이 시점 |
 | `golmok-basemap inspect/build …` | **배경 베이스맵**: 건물 SHP(GIS건물통합정보) + DEM + 정사영상 → LOD1 건물·지형 GLB 타일 + `manifest.json` + `tileset.json`(3D Tiles 1.1) |
 
 ## 설치 (Windows, 한 번만)
@@ -23,7 +24,7 @@ winget install OliverBetz.ExifTool
 cd golmok\tools
 py -3.12 -m venv .venv
 .\.venv\Scripts\Activate.ps1
-pip install -e ".[raw,heic,basemap,zone,mesh,splat,dev]"
+pip install -e ".[raw,heic,basemap,zone,dev]"
 ```
 
 블러까지 쓰려면 PyTorch를 추가로 설치한다. **RTX 50 시리즈(5060 등)는 CUDA 12.8 이상 빌드**가 필요하다.
@@ -120,9 +121,21 @@ golmok-splat tiles $Z\splat.ply --out $Z\splat_tiles --manifest $Z\manifest.json
 - 청크는 **OBJ+MTL**(UDIM UV와 원본 8K 텍스처 경로 유지). 충돌·blocker GLB는 glTF Y-up(`golmok-basemap`과 같은 규약).
 - open3d는 쓰지 않는다(Linux 휠이 libEGL을 요구하고 웹 스택을 끌고 옴). 바닥 평면 RANSAC은 numpy로 구현.
 
+**7) 검수 뷰어** (D-003: 웹 스택은 검수 용도)
+```powershell
+golmok-viewer D:\golmok_basemap\yeonnam          # 브라우저가 열린다. 인터넷이 없으면 아래 npm install 후 사용
+cd tools\viewer; npm install                      # Cesium을 로컬에 두고(오프라인), Playwright 스모크 테스트 준비
+npm test                                          # 합성 베이스맵으로 headless 렌더 검사 → test\out\smoke.png
+$env:GOLMOK_DATA="D:\golmok_basemap\yeonnam"; npm test   # 실데이터로 검사
+```
+- 화면에서 `/data/…/tileset.json`(3D Tiles, splat 포함)이나 `/data/…/manifest.json`(Zone)을 입력해 추가할 수 있다. URL로는 `?zone=/data/zones/<id>/v1/manifest.json`.
+- Zone 오버레이: footprint(노랑), 원점·라벨, 청크 bbox(하늘), 포털 위치·진입 방향(분홍), blockers 평면(유리 = 민트, no_entry = 빨강). 이름을 클릭하면 그 Zone으로 이동.
+- ion 토큰은 쓰지 않는다. 데이터는 로컬 서버(127.0.0.1)에서만 읽는다(D-007).
+
+
 ## 검사 실행
 
-CI(`.github/workflows/ci.yml`)와 같은 검사다. 커밋 전에 `tools` 폴더에서 실행한다(`pip install -e ".[basemap,zone,mesh,splat,dev]"`에 ruff 포함).
+CI(`.github/workflows/ci.yml`)와 같은 검사다. 커밋 전에 `tools` 폴더에서 실행한다(`pip install -e ".[basemap,zone,dev]"`에 ruff 포함).
 
 ```powershell
 ruff check .            # 린트 (자동 수정: ruff check . --fix)
@@ -132,5 +145,4 @@ python scripts/check_repo.py   # 저장소 점검: uproject·ini·json 파싱, �
 ```
 
 - CI는 ubuntu(Python 3.11/3.12)와 windows(3.12)에서 위 검사를 돌리고, 선택 잡으로 합성 베이스맵을 `3d-tiles-validator`로 검증한다(실패해도 전체 실패 아님).
-- `GOLMOK_TILES_VALIDATOR=1`(Node 필요)이면 `tests/test_splat.py`가 splat 타일셋을 `3d-tiles-validator`로 검사한다. 검증기 0.6.1은 `KHR_gaussian_splatting`을 몰라 속성 이름 오류를 내므로 그 오류만 허용한다.
 - `GOLMOK_BASEMAP_OUT=<폴더>`를 주고 `pytest tests/test_basemap.py`를 실행하면 합성 베이스맵 출력이 그 폴더에 남는다.

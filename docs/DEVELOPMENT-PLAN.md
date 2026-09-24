@@ -115,7 +115,7 @@ UE 에디터와 실데이터 없이도 만들 수 있고, 합성 데이터로 �
 | **WP-07** | 정합·검수 도구 `golmok-align` | GPS prior → 유사변환 → 베이스맵 LOD1과 ICP, 품질 지표(ICP RMSE, footprint IoU, 수직 기울기)를 manifest.quality에 기록, 블러 누락 재검사 리포트 | 합성 데이터 테스트 | 실 Zone 정합 | WP-02, WP-03 |
 | WP-08 (선택) | 웹 내부 검수 뷰어 `tools/viewer` | 3D Tiles + Zone footprint + 충돌 오버레이(Three.js, MIT 스택) | Playwright 스모크 | 브라우저 | WP-02 |
 
-- WP-08은 ROADMAP 1.6의 "(웹, 선택)"이므로 **기본 실행 대상에서 제외**한다. UE 디버그 도구(WP-05)가 검수 역할을 먼저 맡는다. 필요해지면 사용자가 켠다.
+- WP-08은 ROADMAP 1.6의 "(웹, 선택)"이었으나 2026-09-24에 CesiumJS 기반으로 **완료**했다(`tools/viewer`, `golmok-viewer`). UE 디버그 도구(WP-05)는 그대로 진행한다.
 - Phase 2 서버 파이프라인(COLMAP+gsplat)은 이 트랙에 넣지 않는다(D-005: MVP는 수동).
 
 ### 5.2 트랙 1B — PC 셋업·검증 (PC Claude 세션 + 사용자)

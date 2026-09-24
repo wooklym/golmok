@@ -1,0 +1,17 @@
+html, body { margin: 0; height: 100%; font: 13px/1.4 system-ui, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; background: #111; color: #eee; }
+#cesiumContainer { position: absolute; inset: 0; }
+#panel { position: absolute; top: 0; left: 0; bottom: 0; width: 280px; overflow: auto; padding: 12px 14px; box-sizing: border-box;
+  background: rgba(20, 20, 24, 0.92); border-right: 1px solid #333; }
+#panel h1 { font-size: 15px; margin: 0 0 10px; }
+#panel h2 { font-size: 12px; margin: 14px 0 6px; color: #9ab; text-transform: uppercase; letter-spacing: .04em; }
+#panel label { display: block; margin: 3px 0; }
+#panel button { background: #2b3a4a; color: #eee; border: 1px solid #456; border-radius: 4px; padding: 4px 8px; margin: 2px 2px 2px 0; cursor: pointer; }
+#panel button:hover { background: #38506a; }
+#panel input[type=text] { width: 100%; box-sizing: border-box; background: #1a1f26; color: #eee; border: 1px solid #456; border-radius: 4px; padding: 4px 6px; margin: 4px 0; }
+#panel pre { background: #0d1014; border: 1px solid #2a3340; border-radius: 4px; padding: 6px; white-space: pre-wrap; word-break: break-all; margin: 0; }
+#status { color: #9cf; margin-top: 12px; }
+.layer { display: flex; align-items: center; gap: 6px; margin: 3px 0; }
+.layer .name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.layer .x { background: none; border: none; color: #c66; cursor: pointer; padding: 0 4px; }
+.cesium-viewer-bottom { left: 290px !important; }
+.cesium-widget-credits { font-size: 10px; }
