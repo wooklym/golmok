@@ -1,6 +1,6 @@
 # WP-07 — 정합·검수 도구 `golmok-align`
 
-상태: ⚪ 대기 · 담당: 클라우드 Claude 세션 · 의존: WP-02, WP-03 · 검증: G1, 이후 G3(실 Zone)
+상태: 🟢 완료(합성 검증, 실 Zone은 V-05) · 세션: session_01Cgm7f6oD6xSMpZ5jszj8Xi · 담당: 클라우드 Claude 세션 · 의존: WP-02, WP-03 · 검증: G1, 이후 G3(실 Zone)
 
 ## 목표
 Zone을 베이스맵 위 올바른 위치·스케일·방향에 놓고(ARCHITECTURE §5 ⑦), 품질 지표를 manifest에 기록하며(⑧ 자동 지표), 렌더 결과의 블러 누락을 재검사한다(05 문서, ROADMAP 1.6).
@@ -32,4 +32,7 @@ Zone을 베이스맵 위 올바른 위치·스케일·방향에 놓고(ARCHITECT
 - 성능: 포인트 수를 `--max-points 200000`으로 제한.
 
 ## 결과
-(세션이 작성)
+- 구현: `tools/golmok_tools/align/` — `meshio.py`(GLB/OBJ → ENU 표면 샘플+법선, 축 규약 gltf-yup/enu/ue), `poses.py`(RealityScan CSV `#name,x,y,alt,…` + `gps_priors.csv` 조인), `prior.py`(Umeyama 3D·**level(yaw+scale+이동)** + RANSAC), `icp.py`(point-to-plane ICP, dof 1/4/6, rcond 정규화), `metrics.py`(RMSE·inlier·footprint IoU·기울기·point-to-plane 거리·스케일 확인·임계값 경고), `cli.py`(`run`/`compare`/`check-blur`, manifest 갱신, `align_report.md`).
+- 스펙과 다른 점: **open3d를 쓰지 않는다**(리눅스 CI에 libEGL 없음 → import 실패). ICP를 numpy/scipy로 직접 구현. GPS prior는 기본 **level**(3D 자유회전은 평면적인 카메라 궤적에서 GPS 노이즈로 기울어짐 — 합성 테스트에서 7° 기울기 발생, level로 해결). 지면 ICP는 **수직 이동만**(평면 하나에 대한 yaw·xy는 관측 불가 → 발산).
+- 테스트 9개(`tests/test_align.py`): ICP 강체 복원(1.5°, 0.8/0.5/0.3 m → 5 cm 이내), Umeyama 왕복+RANSAC 이상치 제거, RealityScan CSV·GPS 조인, 지표, **합성 베이스맵 위 교란 Zone 정합**(yaw 2°, 이동 1.2/−0.8/0.4 m → yaw 오차 0.05°, 이동 오차 < 2 cm, RMSE 3 cm, manifest `validate --check-files` 통과), 보정 한계 초과 시 거부, **GPS prior 경로**(30/−20 m 오프셋 → prior + ICP로 복원), compare, check-blur 모델 부재 안내. 전체 128 passed.
+- 남은 것(V-05): 실 collision.glb 축 규약 확인(`--mesh-axes`), 실 RealityScan CSV 첫 줄 확인, 임계값 조정, LOD1 대비 실제 벽 오차 관찰.
