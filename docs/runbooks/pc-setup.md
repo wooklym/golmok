@@ -35,6 +35,7 @@ cd $HOME\golmok
 git checkout claude/golmok-phase-0-research-4kloq6
 ```
 - 이미 클론이 있으면 `git fetch` 후 체크아웃한다.
+- push에는 이 PC의 GitHub 로그인(Git Credential Manager)이 필요하다. 로그인 전에는 Claude 세션이 커밋만 하고, 사용자가 터미널에서 `git push`를 한 번 실행해 브라우저로 로그인한다. 이 PC에는 git 사용자 정보가 없으므로 Claude 세션은 `git -c user.name=Claude -c user.email=noreply@anthropic.com commit …`으로 커밋한다.
 
 ### 1. Python 도구 (1.0c)
 ```powershell
@@ -77,6 +78,11 @@ pytest
   - `Saved\Logs\Golmok.log`에 에러가 없다.
   - 스크린샷 1장을 `docs/runbooks/`에 남긴다. 파일이 크면 남기지 않는다.
 - 마네킹: Content Browser → Add Feature or Content Pack → Third Person을 추가한다. 에디터 GUI 작업이라 사용자 도움이 필요하면 요청한다. 추가된 에셋 경로가 `DefaultGame.ini`와 다르면 ini를 고친다.
+- **GUI 없이 하는 방법**(2026-09-24 검증, 사용자가 PC를 쓰는 중에도 방해하지 않는다):
+  - 마네킹: `.\tools\ue\add-mannequin.ps1` — Feature Pack이 복사하는 "Characters" 팩과 같은 파일. 경로가 `DefaultGame.ini`와 일치한다.
+  - L_Dev 생성 + 이동 자동 테스트: `.\tools\ue\test.ps1 -SetupDevLevel` — 창 없이(-nullrhi) 실행, 걷기·뛰기·점프·마우스 시점·벽 카메라 충돌을 실제 키 입력으로 확인한다.
+  - 열린 에디터를 원격으로 조작: 에디터를 `-ini:Engine:[/Script/PythonScriptPlugin.PythonScriptPluginSettings]:bRemoteExecution=True`로 실행하면(127.0.0.1 전용), 엔진의 `Engine\Plugins\Experimental\PythonScriptPlugin\Content\Python\remote_execution.py`로 Python을 보낼 수 있다(PIE 시작·스크린샷 `HighResShot` 등).
+  - 에디터를 처음 열면 `Config/DefaultEngine.ini`에 AndroidFileServer 토큰이 써지던 문제는 `.uproject`에서 그 플러그인을 꺼서 막았다. 그래도 이 ini에 모르는 변경이 생기면 커밋하지 않는다.
 
 ### 3. 리허설 사진 점검 (가이드 §4-C)
 - 사용자가 아이폰 리허설 사진 20장과 영상 1분을 PC로 옮긴다(원본 유지).
@@ -91,6 +97,7 @@ pytest
   - 전부 메인 1x인지
   - 48MP인지
   - GPS가 있는지
+  - **ProRAW 압축 형식**: `golmok-exif` 출력의 "ProRAW 압축" 줄이 `jpeg-lossless`여야 한다. `jpeg-xl`이면 지금 도구로는 현상할 수 없다(DECISIONS D-011 제안: 설정 > 카메라 > 포맷 > ProRAW 형식 = JPEG 무손실).
   - **DNG 현상이 성공하는지**: `blur_log.csv`에 decode_error가 없어야 한다.
 - DNG 현상에 실패하면 원인을 조사하고 대안을 구현한다. 예: 다른 현상 경로, HEIF Max 촬영으로 전환. 촬영 방식을 바꿔야 하면 사용자에게 제안한다.
 - 결과를 `docs/captures/INDEX.md`와 `docs/ROADMAP.md`(1.0c, 1.0d)에 기록한다. **사진 자체는 커밋하지 않는다.**

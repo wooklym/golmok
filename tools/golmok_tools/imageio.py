@@ -10,6 +10,8 @@ from pathlib import Path
 import cv2
 import numpy as np
 
+from .dng import is_jpeg_xl
+
 RASTER_EXTS = {".jpg", ".jpeg", ".png", ".tif", ".tiff"}
 RAW_EXTS = {".dng"}
 HEIC_EXTS = {".heic", ".heif"}
@@ -93,7 +95,13 @@ def _read_raw(path: Path) -> np.ndarray:
         with rawpy.imread(str(path)) as raw:
             # Camera white balance, no auto brightening, 16-bit output. rawpy applies the RAW flip.
             rgb = raw.postprocess(use_camera_wb=True, no_auto_bright=True, output_bps=16)
+        if not rgb.any():
+            raise ValueError("developed image is all black")
     except Exception as e:  # LibRaw may not support every Apple ProRAW variant
+        if is_jpeg_xl(path):
+            raise DecodeError(
+                f"cannot develop DNG {path}: JPEG-XL ProRAW (DNG 1.7) needs LibRaw built with the Adobe DNG SDK, "
+                f"which rawpy is not; shoot ProRAW format 'JPEG Lossless' (LibRaw: {e})") from e
         raise DecodeError(f"cannot develop DNG {path}: {e}") from e
     return cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR)
 
