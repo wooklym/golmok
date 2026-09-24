@@ -78,7 +78,9 @@ def test_default_game_ini_stages_zone_manifests_and_configures_subsystem():
     text = (UE / "Config" / "DefaultGame.ini").read_text(encoding="utf-8-sig")
     cp = parse_ue_ini(text)
     packaging = cp["/Script/UnrealEd.ProjectPackagingSettings"]
-    assert packaging.get("+DirectoriesToAlwaysStageAsUFS") == '(Path="Golmok/Zones")'
+    # RawConfigParser keeps only the last value of a repeated key; WP-05 adds a second staging line.
+    assert '+DirectoriesToAlwaysStageAsUFS=(Path="Golmok/Zones")' in text
+    assert "+DirectoriesToAlwaysStageAsUFS" in packaging
     zone = cp["/Script/Golmok.GolmokZoneSubsystem"]
     load_m, unload_m = float(zone["LoadRadiusM"]), float(zone["UnloadRadiusM"])
     assert 0 < load_m < unload_m, "hysteresis needs LoadRadiusM < UnloadRadiusM"
@@ -138,7 +140,10 @@ def _headers(*folders: str) -> list[Path]:
     return out
 
 
-@pytest.mark.parametrize("header", _headers("Geo", "Zones"), ids=lambda p: p.name)
+CONVENTION_FOLDERS = ("Geo", "Zones", "Lighting", "Portals", "Debug", "Player")  # WP-05 adds the last four
+
+
+@pytest.mark.parametrize("header", _headers(*CONVENTION_FOLDERS), ids=lambda p: p.name)
 def test_wp04_header_conventions(header: Path):
     text = header.read_text(encoding="utf-8")
     assert text.lstrip().startswith("#pragma once"), header
@@ -156,7 +161,7 @@ def test_wp04_header_conventions(header: Path):
 
 @pytest.mark.parametrize(
     "source",
-    sorted((SOURCE / "Geo").glob("*.cpp")) + sorted((SOURCE / "Zones").glob("*.cpp")),
+    [p for f in CONVENTION_FOLDERS for p in sorted((SOURCE / f).glob("*.cpp"))],
     ids=lambda p: p.name,
 )
 def test_wp04_source_conventions(source: Path):

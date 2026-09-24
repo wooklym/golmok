@@ -1,0 +1,82 @@
+{
+  "schema_version": 1,
+  "zone_id": "z_synthetic_001_interior",
+  "version": 1,
+  "kind": "interior",
+  "parent_zone": "z_synthetic_001",
+  "origin": {
+    "lat": 37.56211712862789,
+    "lon": 126.92505659128055,
+    "height_ellipsoidal": 50.0
+  },
+  "origin_ecef": [-3041244.038478065, 4046869.637337062, 3867061.866029263],
+  "transform": [
+    -0.7994220062428468, 0.36624204912721786, -0.47622601502412526, -3041244.038478065,
+    -0.6007698860084965, -0.48734458983789847, 0.6336961376093976, 4046869.637337062,
+    0.0, 0.792692886436372, 0.6096211838454869, 3867061.866029263,
+    0.0, 0.0, 0.0, 1.0
+  ],
+  "footprint_wgs84": {
+    "type": "Polygon",
+    "coordinates": [
+      [
+        [126.925011318, 37.562090099],
+        [126.925101865, 37.562090099],
+        [126.925101865, 37.562144159],
+        [126.925011318, 37.562144159],
+        [126.925011318, 37.562090099]
+      ]
+    ]
+  },
+  "replaces": {
+    "building_ids": [],
+    "terrain_clip": false
+  },
+  "layers": {
+    "visual": {
+      "format": "nanite_mesh",
+      "chunks": [
+        {
+          "id": "room",
+          "uri": "visual/room.glb",
+          "bbox_enu": [[-4.0, -3.0, 0.0], [4.0, 3.0, 3.2]],
+          "tris": 60
+        }
+      ]
+    },
+    "collision": {
+      "format": "glb",
+      "uri": "collision.glb"
+    }
+  },
+  "portals": [
+    {
+      "id": "door_out",
+      "to_zone": "z_synthetic_001",
+      "pose_enu": {
+        "position": [0.0, -3.5, 0.0],
+        "yaw_deg": -90.0
+      },
+      "radius_m": 1.5,
+      "kind": "door"
+    }
+  ],
+  "priority": 20,
+  "quality": {
+    "icp_rmse_m": null,
+    "footprint_iou": null,
+    "reviewed_by": null,
+    "reviewed_at": null
+  },
+  "consent": {
+    "type": "owner_consent",
+    "record_id": "synthetic-consent-001"
+  },
+  "attribution": ["합성 테스트 데이터 (WP-05)"],
+  "sources": [
+    {
+      "capture_id": "synthetic",
+      "note": "실내 테스트 픽스처, 실촬영 아님"
+    }
+  ]
+}

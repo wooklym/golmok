@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "cycle": ["overcast_morning", "clear_noon", "golden_evening", "night"],
+  "presets": {
+    "overcast_morning": {"pitch": -35.0, "yaw": 110.0, "lux": 2.5, "kelvin": 6500.0, "sky": 1.4,
+                         "fog": 0.035, "fog_height_falloff": 0.15, "volumetric": false, "exposure_bias": 0.3},
+    "clear_noon":       {"pitch": -62.0, "yaw": 180.0, "lux": 10.0, "kelvin": 5600.0, "sky": 1.0,
+                         "fog": 0.015, "fog_height_falloff": 0.2, "volumetric": false, "exposure_bias": 0.0},
+    "golden_evening":   {"pitch": -8.0, "yaw": 265.0, "lux": 4.0, "kelvin": 3600.0, "sky": 0.8,
+                         "fog": 0.05, "fog_height_falloff": 0.12, "volumetric": true, "exposure_bias": 0.5},
+    "night":            {"pitch": 15.0, "yaw": 0.0, "lux": 0.0, "kelvin": 4000.0, "sky": 0.15,
+                         "fog": 0.03, "fog_height_falloff": 0.2, "volumetric": true, "exposure_bias": 1.5},
+    "interior":         {"fog": 0.0, "fog_height_falloff": 0.2, "volumetric": false, "exposure_bias": 1.0}
+  }
+}

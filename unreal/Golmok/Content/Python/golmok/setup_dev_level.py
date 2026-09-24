@@ -60,6 +60,8 @@ def _build_lighting():
     sun_comp.set_mobility(unreal.ComponentMobility.MOVABLE)
     sun_comp.set_editor_property("atmosphere_sun_light", True)
     sun_comp.set_intensity(10.0)
+    # Tag GolmokLighting: lighting.py / AGolmokTimeOfDay drive the tagged actors first (WP-05).
+    sun.set_editor_property("tags", [unreal.Name("GolmokLighting")])
 
     _spawn(unreal.SkyAtmosphere, "SkyAtmosphere")
 
@@ -67,11 +69,14 @@ def _build_lighting():
     sky_comp = sky.get_component_by_class(unreal.SkyLightComponent)
     sky_comp.set_mobility(unreal.ComponentMobility.MOVABLE)
     sky_comp.set_editor_property("real_time_capture", True)
+    sky.set_editor_property("tags", [unreal.Name("GolmokLighting")])
 
-    _spawn(unreal.ExponentialHeightFog, "HeightFog")
+    fog = _spawn(unreal.ExponentialHeightFog, "HeightFog")
+    fog.set_editor_property("tags", [unreal.Name("GolmokLighting")])
 
     ppv = _spawn(unreal.PostProcessVolume, "PostProcess")
     ppv.set_editor_property("unbound", True)
+    ppv.set_editor_property("tags", [unreal.Name("GolmokLighting")])
 
 
 def _build_course():

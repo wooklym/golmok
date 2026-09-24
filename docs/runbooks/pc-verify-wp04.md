@@ -67,7 +67,7 @@ golmok.zone.list
 - [ ] `golmok.zone.list`: `z_synthetic_001  v1  prio 10  loaded  dist 0.0 m` (플레이어가 footprint 안). 참고: `L_ZoneTest`에는 PlayerStart가 slab 위에 생성된다. L_Dev 기본 PlayerStart(−5 m, 0) 자리에서라면 dist ≈ 266.6 m, 레벨 원점에서는 263.6 m라 기본 반경(150/250)으로는 자동 로드되지 않는다 — `synthetic_zone.run()`이 PlayerStart를 옮기는 이유.
 - [ ] **(1) 청크 위치**: 북쪽에 파사드 벽 3조각이 보이고, 서쪽 조각에 문 구멍.
 - [ ] **(2) 충돌 메시**: 슬래브 위를 걷고 뛴다. 슬래브 끝(남쪽 12 m, 동서 22 m)에서 20 cm 아래 지면(`Zone_Ground`)으로 내려가고 다시 올라올 수 있다.
-- [ ] **(3) blocker**: x = −12 m 지점(원점에서 서쪽 12 m)의 문 구멍으로 북진 → 보이지 않는 벽(`Blocker_glass_1`, 유리)에 막힌다. 다른 x에서는 파사드 충돌벽에 막힌다. `show collision`으로 청록/빨강 박스 확인 가능.
+- [ ] **(3) blocker**: x = −12 m 지점(원점에서 서쪽 12 m)의 문 구멍으로 북진 → 보이지 않는 벽(`Blocker_glass_1`, 유리)에 막힌다. 다른 x에서는 파사드 충돌벽에 막힌다(`z.run(interior=True)` 이후에는 x=+5 m 문(`door_1`) 제외 — WP-05). `show collision`으로 청록/빨강 박스 확인 가능.
 - [ ] **(5) 베이스맵 숨김**: 시작 시 `BM_dummy_inside`(zone 위 5 m의 4 m 큐브)가 **보이지 않고**, `BM_dummy_outside`(동쪽 60 m)는 보인다. 로그 `GolmokZoneSubsystem: basemap actors hidden +1, restored 0 (tagged 2, zones loaded 1)`.
 - [ ] **(4) 거리 로드/언로드**: 반경을 줄여 걷기 거리 안에서 확인한다.
   ```
