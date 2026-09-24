@@ -3,13 +3,13 @@
 갱신 규칙: 각 세션이 시작·종료 시 자기 행을 고친다. 상태 기호:
 ⚪ 대기 · 🔵 진행 중 · 🟡 코드 완료·PC 검증 대기 · 🟢 완료 · 🔴 막힘 · ⏸ 보류
 
-마지막 갱신: 2026-09-24 (WP-01 세션)
+마지막 갱신: 2026-09-24 (설계 세션)
 
 ## 트랙 1A — 클라우드 코드 (순차)
 
 | WP | 이름 | 상태 | 세션 | 인계 메모 |
 |---|---|---|---|---|
-| WP-01 | 저장소 기반·CI | 🔵 진행 중 | WP-01 세션 (session_01QwUxcoWCFmtiJhq3ZWByEJ) | |
+| WP-01 | 저장소 기반·CI | 🔵 진행 중 | session_01QwUxcoWCFmtiJhq3ZWByEJ (Opus) | 설계 세션이 2026-09-24 13:35Z에 시작 |
 | WP-02 | Zone 데이터 모델·CLI `golmok-zone` | ⚪ 대기 | | |
 | WP-03 | 재구성 후처리 `golmok-mesh` / `golmok-splat` | ⚪ 대기 | | |
 | WP-04 | UE C++ 1: Geo·Zone | ⚪ 대기 | | |
@@ -46,4 +46,5 @@
 ## 세션 로그
 | 날짜 | 세션 | 모델 | 대상 | 결과 |
 |---|---|---|---|---|
-| 2026-09-24 | session_01NM6uvZaVMgq5SUSaduHD1Z | Fable 5.1 | 개발 전체 과정 설계, WP 문서 | 이 문서들 |
+| 2026-09-24 | session_01NM6uvZaVMgq5SUSaduHD1Z | Fable 5.1 | 개발 전체 과정 설계, WP 문서, 오케스트레이션 | PR #2 |
+| 2026-09-24 | session_01QwUxcoWCFmtiJhq3ZWByEJ | Opus | WP-01 | (진행 중) |
