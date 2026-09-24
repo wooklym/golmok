@@ -13,7 +13,7 @@
 //   ring <cap> <n> v*n                                     Size then the newest (up to) 3 DtSec values
 //   cycles <cycles> <spc>                                  CyclesToMs
 //   fmt <value> <decimals>                                 FormatFixed
-//   pathfmt <name> <hz> <level> <created> <n> (t x y z pitch yaw roll)*n     FormatPathJson text
+//   pathfmt <hz> <n> (t x y z pitch yaw roll)*n            stdin: "<len_name> <len_level> <len_created>\\n" + the strings (raw bytes)
 //   pathparse            (stdin JSON)                      "version hz n" then one "t x y z pitch yaw roll" per sample
 //   pathmeta             (stdin JSON)                      name, level, created on three lines
 //   pose <t>             (stdin JSON)                      "px py pz pitch yaw roll"
@@ -146,22 +146,38 @@ int main(int argc, char** argv)
 	{
 		std::printf("%s\n", FormatFixed(std::atof(argv[2]), std::atoi(argv[3])).c_str());
 	}
-	else if (!std::strcmp(Cmd, "pathfmt") && argc >= 7)
+	else if (!std::strcmp(Cmd, "pathfmt") && argc >= 4)
 	{
+		// Strings come through stdin as raw bytes ("<len_name> <len_level> <len_created>\n" + the three strings
+		// back to back): on Windows argv is converted to the ANSI code page, which would mangle UTF-8 and control
+		// characters. Numbers stay on the command line.
 		CameraPath Path;
-		Path.Name = argv[2];
-		Path.Hz = std::atoi(argv[3]);
-		Path.Level = argv[4];
-		Path.Created = argv[5];
-		const int N = std::atoi(argv[6]);
-		for (int i = 0; i < N && 7 + 7 * i + 6 < argc; ++i)
+		Path.Hz = std::atoi(argv[2]);
+		const int N = std::atoi(argv[3]);
+		const std::string In = ReadStdin();
+		const std::size_t Nl = In.find('\n');
+		if (Nl == std::string::npos)
+		{
+			std::printf("ERROR pathfmt: stdin needs \"<len_name> <len_level> <len_created>\\n\" + strings\n");
+			return 3;
+		}
+		std::size_t Len[3] = {0, 0, 0};
+		if (std::sscanf(In.c_str(), "%zu %zu %zu", &Len[0], &Len[1], &Len[2]) != 3 || Nl + 1 + Len[0] + Len[1] + Len[2] > In.size())
+		{
+			std::printf("ERROR pathfmt: bad string lengths\n");
+			return 3;
+		}
+		Path.Name = In.substr(Nl + 1, Len[0]);
+		Path.Level = In.substr(Nl + 1 + Len[0], Len[1]);
+		Path.Created = In.substr(Nl + 1 + Len[0] + Len[1], Len[2]);
+		for (int i = 0; i < N && 4 + 7 * i + 6 < argc; ++i)
 		{
 			PoseSample S;
-			S.T = std::atof(argv[7 + 7 * i]);
+			S.T = std::atof(argv[4 + 7 * i]);
 			for (int k = 0; k < 3; ++k)
 			{
-				S.P[static_cast<std::size_t>(k)] = std::atof(argv[8 + 7 * i + k]);
-				S.R[static_cast<std::size_t>(k)] = std::atof(argv[11 + 7 * i + k]);
+				S.P[static_cast<std::size_t>(k)] = std::atof(argv[5 + 7 * i + k]);
+				S.R[static_cast<std::size_t>(k)] = std::atof(argv[8 + 7 * i + k]);
 			}
 			Path.Samples.push_back(S);
 		}

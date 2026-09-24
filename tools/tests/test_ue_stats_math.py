@@ -297,11 +297,14 @@ def grid_path(rng: np.random.Generator, n: int, hz: int = 10) -> dict:
 
 
 def pathfmt(driver: Path, path: dict) -> str:
-    args = ["pathfmt", path["name"], path["hz"], path["level"], path["created"], len(path["samples"])]
+    # name / level / created go through stdin as raw UTF-8 (Windows converts argv to cp1252 and mangles them)
+    strings = [path["name"], path["level"], path["created"]]
+    lengths = " ".join(str(len(v.encode("utf-8"))) for v in strings)
+    args = ["pathfmt", path["hz"], len(path["samples"])]
     for s in path["samples"]:
         args += [repr(float(s["t"])), *(repr(float(v)) for v in s["p"]), *(repr(float(v)) for v in s["r"])]
-    res = run_raw(driver, *args)
-    assert res.returncode == 0, res.stderr
+    res = run_raw(driver, *args, stdin=lengths + "\n" + "".join(strings))
+    assert res.returncode == 0, res.stdout + res.stderr
     return res.stdout
 
 
