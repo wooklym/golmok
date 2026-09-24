@@ -33,7 +33,10 @@ def output_suffix(path: Path) -> str:
 
 
 def decoder_applies_orientation(path: Path) -> bool:
-    """True when read_image() already rotated pixels per EXIF orientation (so output Orientation must be 1)."""
+    """True when read_image() already rotated pixels per EXIF orientation.
+
+    Output Orientation must then be 1.
+    """
     return path.suffix.lower() in RAW_EXTS | HEIC_EXTS
 
 

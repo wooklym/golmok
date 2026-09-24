@@ -32,8 +32,14 @@ def resolve_device(device: str) -> str:
 
 
 class EgoBlurDetector:
-    def __init__(self, name: str, model_path: Path, score_threshold: float = 0.9,
-                 nms_iou_threshold: float = 0.3, device: str = "auto"):
+    def __init__(
+        self,
+        name: str,
+        model_path: Path,
+        score_threshold: float = 0.9,
+        nms_iou_threshold: float = 0.3,
+        device: str = "auto",
+    ):
         import torch
 
         self.name = name

@@ -110,12 +110,16 @@ def _fmt(v, nd=1):
 
 
 def to_markdown(rows: list[Summary]) -> str:
-    lines = ["| 구성 | 프레임 | 평균 fps | 1% low fps | 프레임 p50 ms | p99 ms | Game ms | Render ms | GPU ms |",
-             "|---|---|---|---|---|---|---|---|---|"]
+    lines = [
+        "| 구성 | 프레임 | 평균 fps | 1% low fps | 프레임 p50 ms | p99 ms | Game ms | Render ms | GPU ms |",
+        "|---|---|---|---|---|---|---|---|---|",
+    ]
     for s in rows:
-        lines.append(f"| {s.label} | {s.frames} | {_fmt(s.fps_avg)} | {_fmt(s.fps_1pct_low)} | "
-                     f"{_fmt(s.frame_ms_p50, 2)} | {_fmt(s.frame_ms_p99, 2)} | {_fmt(s.game_ms, 2)} | "
-                     f"{_fmt(s.render_ms, 2)} | {_fmt(s.gpu_ms, 2)} |")
+        lines.append(
+            f"| {s.label} | {s.frames} | {_fmt(s.fps_avg)} | {_fmt(s.fps_1pct_low)} | "
+            f"{_fmt(s.frame_ms_p50, 2)} | {_fmt(s.frame_ms_p99, 2)} | {_fmt(s.game_ms, 2)} | "
+            f"{_fmt(s.render_ms, 2)} | {_fmt(s.gpu_ms, 2)} |"
+        )
     return "\n".join(lines)
 
 
@@ -136,8 +140,10 @@ def main(argv: list[str] | None = None) -> int:
         print(to_markdown(rows))
     else:
         for s in rows:
-            print(f"{s.label}: 평균 {s.fps_avg:.1f} fps, 1% low {s.fps_1pct_low:.1f} fps, "
-                  f"GPU {_fmt(s.gpu_ms, 2)} ms, 프레임 {s.frames}")
+            print(
+                f"{s.label}: 평균 {s.fps_avg:.1f} fps, 1% low {s.fps_1pct_low:.1f} fps, "
+                f"GPU {_fmt(s.gpu_ms, 2)} ms, 프레임 {s.frames}"
+            )
         print()
         print(to_markdown(rows))
     return 0

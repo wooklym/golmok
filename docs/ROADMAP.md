@@ -3,6 +3,8 @@
 마지막 갱신: 2026-09-24
 최우선 원칙: **게임 퀄리티**(DECISIONS.md 참고)
 
+> **실행 계획**: Phase 1을 작업 패키지(WP-01~08)·PC 검증(V-01~06)·사용자 작업(C-01~06)으로 풀어 쓴 문서가 [`DEVELOPMENT-PLAN.md`](DEVELOPMENT-PLAN.md)이고, 현재 상태는 [`plan/STATUS.md`](plan/STATUS.md)에 있다. 아래 1.x 단계와 WP의 대응은 DEVELOPMENT-PLAN §5.1 표를 본다.
+
 ## Phase 0 — 조사 및 설계 ✅ 완료
 
 | # | 항목 | 산출물 | 상태 |
@@ -103,6 +105,7 @@
 - 충돌: RealityScan 메시를 단순화하고 계단·턱을 정리한다. 유리·쇼윈도는 blocker로 막는다.
 - 정합: RealityScan GPS/GCP로 좌표를 잡고, CesiumGlobeAnchor로 배치하고, 배경 LOD1과 육안 및 ICP 검증을 한다.
 - 이음새 처리: 배경과의 경계 블렌드, 골목 끝 "출구" 방향의 원경 처리.
+- Zone 데이터 계약 — ✅ `spec/zone-manifest.md`(manifest·Index 스키마, 좌표·UE 매핑 규약) + `golmok-zone` CLI(WP-02). 배경 제외는 `golmok-zone exclude` → `golmok-basemap --exclude`.
 - 완료 기준: 골목 전 구간을 걷고 뛰는 동안 끼임, 떨림, 구멍이 없고, 품질 목표 fps를 달성한다.
 
 ### 1.5 실내 1곳
