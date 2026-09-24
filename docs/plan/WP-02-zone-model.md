@@ -1,6 +1,6 @@
 # WP-02 — Zone 데이터 모델·CLI `golmok-zone`
 
-상태: ⚪ 대기 · 담당: 클라우드 Claude 세션 · 의존: WP-01 · 검증: G1, 이후 G3(실 Zone)
+상태: 🔵 진행 중 · 담당: 클라우드 Claude 세션 · 의존: WP-01 · 검증: G1, 이후 G3(실 Zone)
 
 ## 목표
 ARCHITECTURE §2~§4의 Zone 모델을 **실행 가능한 스펙**으로 만든다. manifest 스키마, 좌표 변환, Zone Index, 베이스맵 제외 폴리곤 생성까지. 이후 WP-03(후처리), WP-04(UE 로더), WP-06(임포트), WP-07(정합)이 모두 이 스펙을 읽는다.

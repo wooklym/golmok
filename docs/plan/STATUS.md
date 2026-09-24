@@ -3,14 +3,14 @@
 갱신 규칙: 각 세션이 시작·종료 시 자기 행을 고친다. 상태 기호:
 ⚪ 대기 · 🔵 진행 중 · 🟡 코드 완료·PC 검증 대기 · 🟢 완료 · 🔴 막힘 · ⏸ 보류
 
-마지막 갱신: 2026-09-24 (WP-01 세션)
+마지막 갱신: 2026-09-24 (WP-02 세션)
 
 ## 트랙 1A — 클라우드 코드 (순차)
 
 | WP | 이름 | 상태 | 세션 | 인계 메모 |
 |---|---|---|---|---|
 | WP-01 | 저장소 기반·CI | 🟢 완료 | session_01QwUxcoWCFmtiJhq3ZWByEJ (Opus) | CI 초록(ubuntu 3.11/3.12, windows 3.12, repo-check, tiles-validate). 커밋 전 `cd tools && ruff check . && ruff format --check . && pytest -q && python scripts/check_repo.py` |
-| WP-02 | Zone 데이터 모델·CLI `golmok-zone` | ⚪ 대기 | | |
+| WP-02 | Zone 데이터 모델·CLI `golmok-zone` | 🔵 진행 중 | session_014zvy99LzAuVhnHYFtUYfVz (Opus) | |
 | WP-03 | 재구성 후처리 `golmok-mesh` / `golmok-splat` | ⚪ 대기 | | |
 | WP-04 | UE C++ 1: Geo·Zone | ⚪ 대기 | | |
 | WP-05 | UE C++ 2: 포털·조명·디버그 | ⚪ 대기 | | |
