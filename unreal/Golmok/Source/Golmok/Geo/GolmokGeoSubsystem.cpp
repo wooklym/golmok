@@ -134,9 +134,17 @@ FVector UGolmokGeoSubsystem::LonLatToLevelUE(const GolmokGeoMath::Mat4& EcefToAr
 	return GolmokGeo::ToFVector(GolmokGeoMath::EnuToUE(GolmokGeoMath::ApplyPoint(EcefToArea, Ecef)));
 }
 
-FVector UGolmokGeoSubsystem::LonLatToLevelUE(double LonDeg, double LatDeg, double HeightEllipsoidal)
+bool UGolmokGeoSubsystem::LonLatToLevelUE(double LonDeg, double LatDeg, double HeightEllipsoidal, FVector& OutLevelUE)
 {
-	return LonLatToLevelUE(EcefToAreaMatrix(LatDeg, LonDeg, HeightEllipsoidal), LonDeg, LatDeg, HeightEllipsoidal);
+	double Lat = 0.0, Lon = 0.0, H = 0.0;
+	if (!GetOrigin(Lat, Lon, H))
+	{
+		WarnNoOriginOnce();
+		OutLevelUE = FVector::ZeroVector;
+		return false;
+	}
+	OutLevelUE = LonLatToLevelUE(GolmokGeoMath::RigidInverse(GolmokGeoMath::EnuFrame(Lat, Lon, H)), LonDeg, LatDeg, HeightEllipsoidal);
+	return true;
 }
 
 bool UGolmokGeoSubsystem::LevelUEToLonLat(const FVector& LevelUE, double& OutLatDeg, double& OutLonDeg, double& OutHeightEllipsoidal)

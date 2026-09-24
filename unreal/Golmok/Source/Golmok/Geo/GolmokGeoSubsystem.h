@@ -45,8 +45,8 @@ public:
 	FTransform ZoneLocalToWorld(const TArray<double>& ZoneToEcefRowMajor);
 	FTransform ZoneLocalToWorld(const GolmokGeoMath::Mat4& ZoneToEcef);
 
-	/** Geodetic point -> level UE (cm). Uses the fallback origin (see class comment) when no origin actor exists. */
-	FVector LonLatToLevelUE(double LonDeg, double LatDeg, double HeightEllipsoidal);
+	/** Geodetic point -> level UE (cm). False (Out = zero) when the level has no origin actor. */
+	bool LonLatToLevelUE(double LonDeg, double LatDeg, double HeightEllipsoidal, FVector& OutLevelUE);
 
 	/** Geodetic point -> level UE with an explicit area frame (ECEF -> area ENU); no origin lookup. */
 	static FVector LonLatToLevelUE(const GolmokGeoMath::Mat4& EcefToArea, double LonDeg, double LatDeg, double HeightEllipsoidal);

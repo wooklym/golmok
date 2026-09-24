@@ -19,7 +19,8 @@ What it does (docs/runbooks/pc-verify-wp04.md):
 3. Finds or spawns AGolmokZone (zone_id z_synthetic_001, version 1) and calls RebuildInEditor().
 4. Spawns two cubes tagged GolmokBasemap: BM_dummy_inside (bounds center inside the footprint, must vanish in
    PIE once the zone loads) and BM_dummy_outside (stays).
-5. Moves the PlayerStart onto the zone's collision slab (5 m south of the zone origin).
+5. Spawns a 400 x 400 m ground plane 20 cm below the slab top (L_Dev's floor does not reach the zone) and moves
+   the PlayerStart onto the zone's collision slab (5 m south of the zone origin).
 
 The manifest is read by the C++ actor from Content/Golmok/Zones/z_synthetic_001/v1/manifest.json (committed).
 """
@@ -38,6 +39,7 @@ VERSION = 1
 ASSET_FOLDER = f"/Game/Golmok/Zones/{ZONE_ID}/v{VERSION}"
 AREA_ORIGIN = (37.5600, 126.9230, 40.0)  # docs/spec/zone-manifest.md §4 C
 CUBE = "/Engine/BasicShapes/Cube.Cube"
+PLANE = "/Engine/BasicShapes/Plane.Plane"
 BASEMAP_TAG = "GolmokBasemap"
 
 # Facade wall (visual): the north 20 cm of every chunk bbox, full chunk height. Door opening in chunk_00 where
@@ -223,6 +225,9 @@ def _import_assets(manifest, work_dir):
         with open(path, "wb") as f:
             f.write(boxes_glb(written, name))
         mesh = bm._import_glb(path, ASSET_FOLDER)
+        expected_path = f"{ASSET_FOLDER}/{name}"
+        if mesh.get_path_name().split(".")[0] != expected_path:
+            raise RuntimeError(f"{name}: imported as {mesh.get_path_name()}, but AGolmokZone loads {expected_path}")
         got = bm._mesh_bounds(mesh)
         want = expected_ue_bounds(boxes)
         err = max(abs(a - b) for g_, w_ in zip(got, want, strict=True) for a, b in zip(g_, w_, strict=True))
@@ -283,6 +288,22 @@ def _spawn_tagged_cube(label, world_location, size_cm=400.0):
     return actor
 
 
+def _spawn_ground(zone):
+    """400 x 400 m walkable plane 20 cm below the collision slab top: L_Dev's floor does not reach the zone (it is
+    176 m east / 222 m south of the level origin and 10 m up), and the load/unload test walks 50 m away and back."""
+    actors = _actors()
+    for a in actors.get_all_level_actors():
+        if a.get_actor_label() == "Zone_Ground":
+            actors.destroy_actor(a)
+    plane = unreal.EditorAssetLibrary.load_asset(PLANE)
+    location = zone.get_actor_transform().transform_location(unreal.Vector(0.0, 0.0, -20.0))
+    actor = actors.spawn_actor_from_object(plane, location, unreal.Rotator(0, 0, 0))
+    actor.set_actor_scale3d(unreal.Vector(400.0, 400.0, 1.0))
+    actor.set_actor_label("Zone_Ground")
+    actor.set_folder_path("Golmok")
+    return actor
+
+
 def _move_player_start(zone):
     actors = _actors()
     starts = [a for a in actors.get_all_level_actors() if isinstance(a, unreal.PlayerStart)]
@@ -316,6 +337,7 @@ def run(geo_origin="area", move_player_start=True, import_assets=True):
     unreal.log(f"synthetic_zone: zone root at {t.translation} yaw {t.rotation.rotator().yaw:.4f}")
     if geo_origin == "area":
         unreal.log("synthetic_zone: expected root (spec table C): X=17670.59 Y=-22198.00 Z=999.37 cm, yaw ~0")
+    _spawn_ground(zone)
     _spawn_tagged_cube("BM_dummy_inside", t.transform_location(unreal.Vector(0.0, 0.0, 500.0)))
     _spawn_tagged_cube("BM_dummy_outside", t.transform_location(unreal.Vector(6000.0, 0.0, 500.0)))
     if move_player_start:

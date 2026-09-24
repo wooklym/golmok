@@ -131,7 +131,7 @@ public:
   bool ZoneToAreaMatrix(const TArray<double>& ZoneToEcefRowMajor, GolmokGeoMath::Mat4& Out); // 16개 아니면 false
   FTransform ZoneLocalToWorld(const TArray<double>& ZoneToEcefRowMajor);   // ToFTransform(UEActorMatrix(M))
   FTransform ZoneLocalToWorld(const GolmokGeoMath::Mat4& ZoneToEcef);
-  FVector LonLatToLevelUE(double LonDeg, double LatDeg, double H);
+  bool LonLatToLevelUE(double LonDeg, double LatDeg, double H, FVector& OutLevelUE);   // 원점 없으면 false(임의 점에는 폴백 없음)
   static FVector LonLatToLevelUE(const GolmokGeoMath::Mat4& EcefToArea, double LonDeg, double LatDeg, double H);
   bool LevelUEToLonLat(const FVector& LevelUE, double& Lat, double& Lon, double& H);
   GolmokGeoMath::Mat4 EcefToAreaMatrix(double FallbackLat, double FallbackLon, double FallbackH);
@@ -236,7 +236,7 @@ public:
   bool FootprintContains(const FVector2D& LevelXYcm);       // bounds 사전검사 → PointInPolygon
   bool FootprintOverlaps(AGolmokZone& Other);                // bounds Intersect → PolygonsOverlap
   int32 GetPriority() const;  bool IsInterior() const;  FString GetManifestFilePath() const;
-  bool GetPortalWorldTransform(const FGolmokZonePortal& P, FTransform& Out) const; // 루트 × (S·position, Yaw=-yaw_deg) — WP-05
+  FTransform GetPortalWorldTransform(const FGolmokZonePortal& P) const;          // (S·position, Yaw=-yaw_deg) × 루트 — WP-05
   static double PortalRadiusCm(const FGolmokZonePortal& P) { return 100.0 * P.RadiusM; }
   virtual void SpawnPortals();  virtual void DestroyPortals();   // WP-05 훅(기본: 개수 Verbose 로그 / PortalActors Destroy)
   UPROPERTY(Transient) TArray<TObjectPtr<AActor>> PortalActors;
@@ -246,9 +246,9 @@ protected:
 #if WITH_EDITOR
   virtual void PostEditChangeProperty(FPropertyChangedEvent&) override;  // ZoneId/Version → Unload(); bManifestLoaded=false
 #endif
-  virtual bool BuildVisualLayer(int32& OutLoaded);      // 확장점(D-010 splat 서브클래스가 덮어씀; 플러그인 헤더는 여기 금지)
-  virtual bool BuildCollisionLayer(int32& OutLoaded);
-  virtual bool BuildBlockers();
+  virtual int32 BuildVisualLayer();                     // 확장점(D-010 splat 서브클래스가 덮어씀; 플러그인 헤더는 여기 금지). 만든 컴포넌트 수 반환
+  virtual int32 BuildCollisionLayer();
+  virtual int32 BuildBlockers();
 private:
   bool ApplyRootTransform();  bool BuildFootprintCache();  UGolmokZoneSubsystem* GetZoneSubsystem() const;
   UStaticMeshComponent* MakeMeshComponent(const FName& Name, UStaticMesh* Mesh, bool bVisual);
@@ -390,7 +390,7 @@ BlockerThicknessCm=10
 `Initialize()`가 `UnloadRadiusM<=LoadRadiusM`이면 Warning 후 `LoadRadiusM+100`, 간격 최소 0.1, `MaxLoadsPerUpdate>=1`, `MaxUnloadsPerUpdate>=1`로 보정한다.
 
 ### 8. 순수 수학 헤더 API와 g++ 테스트
-`Geo/GolmokGeoMath.h`(namespace `GolmokGeoMath`, include `<array> <cmath> <cstddef>`만, 전부 `inline`·double): `Vec3`, `Mat4`, `WGS84_A/F/E2/B`, `PI`, `ENU_TO_UE_SCALE`, `DegToRad/RadToDeg`, `Identity`, `At/Set`, `Multiply`, `ApplyPoint`, `ApplyVector`, `RigidInverse`, `Translation`, `GeodeticToEcef`, `EcefToGeodetic`, `EnuFrame`, `RotZ`, `ZoneTransform`, `ZoneLocalToAreaEnu`, `EnuToUE`, `UEToEnu`, `EnuDirToUE`, `UEActorMatrix`, `RigidityError(M, &det)`, `UEYawDegFromZoneToArea`, `PointInPolygon`, `DistanceToSegment`, `DistanceToPolygon`, `SegmentsIntersect`, `PolygonsOverlap`, `BlockerAxes(n, &w, &h)`. **시그니처·이름 변경 금지**(래핑 구조체나 이름 바꾸기는 커밋된 테스트·드라이버를 전부 깨뜨린다).
+`Geo/GolmokGeoMath.h`(namespace `GolmokGeoMath`, include `<array> <cmath> <cstddef>`만, 전부 `inline`·double): `Vec3`, `Mat4`, `WGS84_A/F/E2/B`, `Pi`(UE 매크로 `PI`와 충돌하므로 이 철자), `ENU_TO_UE_SCALE`, `DegToRad/RadToDeg`, `Identity`, `At/Set`, `Multiply`, `ApplyPoint`, `ApplyVector`, `RigidInverse`, `Translation`, `GeodeticToEcef`, `EcefToGeodetic`, `EnuFrame`, `RotZ`, `ZoneTransform`, `ZoneLocalToAreaEnu`, `EnuToUE`, `UEToEnu`, `EnuDirToUE`, `UEActorMatrix`, `RigidityError(M, &det)`, `UEYawDegFromZoneToArea`, `PointInPolygon`, `DistanceToSegment`, `DistanceToPolygon`, `SegmentsIntersect`, `PolygonsOverlap`, `BlockerAxes(n, &w, &h)`. **시그니처·이름 변경 금지**(래핑 구조체나 이름 바꾸기는 커밋된 테스트·드라이버를 전부 깨뜨린다).
 `tools/tests/test_ue_geo_math.py`: `shutil.which("g++"/"clang++"/"c++")` 없으면 `pytest.skip`(windows-latest CI). `fixtures/ue/geomath_driver.cpp`를 `-std=c++17 -Wall -Wextra -Werror -pedantic -I Source/Golmok/Geo`로 빌드해 명령(`ecef geodetic enuframe zone apply applyvec inverse toarea actor enu2ue ue2enu rigid yaw pip dist overlap blocker`)별 double 출력을 `golmok_tools.zone.transform`(pyproj 교차검증)·스펙 §4 표와 비교: 헤더 순수성, 표 A(1e-4 m·파이썬과 1e-9), 무작위 20점, ECEF↔측지 왕복(극 포함), ENU 프레임·zone transform(1e-9), 표 B, 표 C(레벨 0.01 cm, 액터 행렬 1e-7, 청크 정점 경유 1e-6), `D R D` det +1·Yaw −30°, 역행렬·강체성, point-in-polygon(열린/닫힌/오목), 폴리곤 거리(shapely 교차), 폴리곤 겹침(분리/포함/십자/접촉/동일), blocker 축(남향 유리 h=+z w=+x; 동향 w=+y; 수평 h=+y w=+x; 기울어진 법선 직교), 픽스처 transform이 origin 재현. 이 테스트가 이미 커밋돼 통과 중이므로 WP-04 C++는 헤더를 **읽기만** 한다.
 
 ### 9. Python 테스트·`synthetic_zone.py`

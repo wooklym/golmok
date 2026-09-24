@@ -332,6 +332,21 @@ int32 AGolmokZone::BuildVisualLayer()
 			{
 				ChunkComponents.Add(Component);
 				++Loaded;
+				if (Chunk.bHasBbox)
+				{
+					// Runbook check: bbox center in level coordinates (few chunks -> Log, many -> Verbose).
+					const FVector Center = GetActorTransform().TransformPosition(GolmokGeo::EnuBoxToUE(Chunk.BboxMinEnu, Chunk.BboxMaxEnu).GetCenter());
+					if (Manifest.Layers.Visual.Chunks.Num() <= 16)
+					{
+						UE_LOG(LogGolmok, Log, TEXT("Zone %s: chunk %s bbox center -> level (%.2f, %.2f, %.2f) cm"), *ZoneId, *Chunk.Id, Center.X,
+							Center.Y, Center.Z);
+					}
+					else
+					{
+						UE_LOG(LogGolmok, Verbose, TEXT("Zone %s: chunk %s bbox center -> level (%.2f, %.2f, %.2f) cm"), *ZoneId, *Chunk.Id, Center.X,
+							Center.Y, Center.Z);
+					}
+				}
 			}
 			continue;
 		}
@@ -403,11 +418,15 @@ int32 AGolmokZone::BuildBlockers()
 		const FRotator Rotation = FRotationMatrix::MakeFromXZ(NormalUE, HeightUE).Rotator();
 		const FVector Extent(BlockerThicknessCm * 0.5, Plane.SizeM.X * 50.0, Plane.SizeM.Y * 50.0);
 		const FColor Color = (Plane.Kind == EGolmokBlockerKind::Glass) ? FColor::Cyan : FColor::Red;
-		if (UBoxComponent* Blocker = MakeBoxComponent(MakeComponentName(TEXT("Blocker"), Plane.Id), GolmokGeo::EnuToUE(Plane.CenterEnu), Rotation,
-				Extent, /*bCollide*/ true, Color))
+		const FVector RelCenter = GolmokGeo::EnuToUE(Plane.CenterEnu);
+		if (UBoxComponent* Blocker = MakeBoxComponent(MakeComponentName(TEXT("Blocker"), Plane.Id), RelCenter, Rotation, Extent, /*bCollide*/ true, Color))
 		{
 			BlockerComponents.Add(Blocker);
 			++Built;
+			const FVector LevelCenter = GetActorTransform().TransformPosition(RelCenter);
+			UE_LOG(LogGolmok, Log, TEXT("Zone %s: blocker %s (%s) rel (%.0f, %.0f, %.0f) cm yaw %.1f extent (%.0f, %.0f, %.0f) -> level (%.2f, %.2f, %.2f)"),
+				*ZoneId, *Plane.Id, Plane.Kind == EGolmokBlockerKind::Glass ? TEXT("glass") : TEXT("no_entry"), RelCenter.X, RelCenter.Y, RelCenter.Z,
+				Rotation.Yaw, Extent.X, Extent.Y, Extent.Z, LevelCenter.X, LevelCenter.Y, LevelCenter.Z);
 		}
 	}
 	return Built;
@@ -508,15 +527,33 @@ void AGolmokZone::SetCollisionEnabled(bool bEnabled)
 
 // ---- component factories --------------------------------------------------------------------------------------
 
+FName AGolmokZone::UniqueComponentName(const FName& Base) const
+{
+	// A component destroyed by Unload() a moment ago may still exist until the next GC; MakeUniqueObjectName would
+	// rewrite ids that end in _<digits> (glass_1 -> glass_2), so add our own suffix instead.
+	UObject* Outer = const_cast<AGolmokZone*>(this);
+	if (!StaticFindObjectFast(nullptr, Outer, Base))
+	{
+		return Base;
+	}
+	for (int32 i = 1; i < 1000; ++i)
+	{
+		const FName Candidate(*FString::Printf(TEXT("%s__%d"), *Base.ToString(), i));
+		if (!StaticFindObjectFast(nullptr, Outer, Candidate))
+		{
+			return Candidate;
+		}
+	}
+	return NAME_None; // NewObject picks a name
+}
+
 UStaticMeshComponent* AGolmokZone::MakeMeshComponent(const FName& Name, UStaticMesh* Mesh, bool bVisual)
 {
 	if (!Mesh || !Root)
 	{
 		return nullptr;
 	}
-	// Unique names: a component destroyed by Unload() a moment ago may still exist until GC.
-	UStaticMeshComponent* Component =
-		NewObject<UStaticMeshComponent>(this, MakeUniqueObjectName(this, UStaticMeshComponent::StaticClass(), Name), RF_Transient);
+	UStaticMeshComponent* Component = NewObject<UStaticMeshComponent>(this, UniqueComponentName(Name), RF_Transient);
 	if (!Component)
 	{
 		return nullptr;
@@ -552,7 +589,7 @@ UBoxComponent* AGolmokZone::MakeBoxComponent(const FName& Name, const FVector& R
 	{
 		return nullptr;
 	}
-	UBoxComponent* Box = NewObject<UBoxComponent>(this, MakeUniqueObjectName(this, UBoxComponent::StaticClass(), Name), RF_Transient);
+	UBoxComponent* Box = NewObject<UBoxComponent>(this, UniqueComponentName(Name), RF_Transient);
 	if (!Box)
 	{
 		return nullptr;

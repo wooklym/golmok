@@ -170,6 +170,8 @@ protected:
 	virtual int32 BuildCollisionLayer();
 	virtual int32 BuildBlockers();
 
+	/** Name for a new runtime component: Base, or Base__<n> while a destroyed predecessor still exists (pre-GC). */
+	FName UniqueComponentName(const FName& Base) const;
 	UStaticMeshComponent* MakeMeshComponent(const FName& Name, UStaticMesh* Mesh, bool bVisual);
 	UBoxComponent* MakeBoxComponent(const FName& Name, const FVector& RelativeLocation, const FRotator& RelativeRotation,
 		const FVector& Extent, bool bCollide, const FColor& Color);

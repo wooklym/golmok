@@ -376,14 +376,19 @@ namespace GolmokGeoMath
 	{
 		const double Len = std::sqrt(NormalIn[0] * NormalIn[0] + NormalIn[1] * NormalIn[1] + NormalIn[2] * NormalIn[2]);
 		const Vec3 N = (Len > 0.0) ? Vec3{NormalIn[0] / Len, NormalIn[1] / Len, NormalIn[2] / Len} : Vec3{0.0, -1.0, 0.0};
-		Vec3 Ref{0.0, 0.0, 1.0};
-		if (std::fabs(N[2]) > 0.999)
+		// Same rule as golmok_tools.mesh.blockers.plane_axes: project +z; only a (numerically) horizontal plane
+		// falls back to +y (north).
+		auto Project = [&N](const Vec3& Ref) {
+			const double D = Ref[0] * N[0] + Ref[1] * N[1] + Ref[2] * N[2];
+			return Vec3{Ref[0] - D * N[0], Ref[1] - D * N[1], Ref[2] - D * N[2]};
+		};
+		Vec3 Hgt = Project(Vec3{0.0, 0.0, 1.0});
+		double HL = std::sqrt(Hgt[0] * Hgt[0] + Hgt[1] * Hgt[1] + Hgt[2] * Hgt[2]);
+		if (HL < 1e-6)
 		{
-			Ref = Vec3{0.0, 1.0, 0.0};
+			Hgt = Project(Vec3{0.0, 1.0, 0.0});
+			HL = std::sqrt(Hgt[0] * Hgt[0] + Hgt[1] * Hgt[1] + Hgt[2] * Hgt[2]);
 		}
-		const double D = Ref[0] * N[0] + Ref[1] * N[1] + Ref[2] * N[2];
-		Vec3 Hgt{Ref[0] - D * N[0], Ref[1] - D * N[1], Ref[2] - D * N[2]};
-		const double HL = std::sqrt(Hgt[0] * Hgt[0] + Hgt[1] * Hgt[1] + Hgt[2] * Hgt[2]);
 		Hgt = Vec3{Hgt[0] / HL, Hgt[1] / HL, Hgt[2] / HL};
 		OutHeight = Hgt;
 		OutWidth = Vec3{Hgt[1] * N[2] - Hgt[2] * N[1], Hgt[2] * N[0] - Hgt[0] * N[2], Hgt[0] * N[1] - Hgt[1] * N[0]};

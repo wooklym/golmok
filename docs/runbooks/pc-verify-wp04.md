@@ -35,25 +35,27 @@ import golmok.synthetic_zone as z; z.run()
 기대 로그(값은 소수 둘째 자리까지 일치해야 함):
 ```
 synthetic_zone: importer mapping scale=... M=... (fit error 0.00)
-synthetic_zone: /Game/Golmok/Zones/z_synthetic_001/v1/SM_chunk_00 bounds ok (error 0.xx cm)   × 4 (chunk_00..02, collision)
+synthetic_zone: /Game/Golmok/Zones/z_synthetic_001/v1/SM_chunk_00.SM_chunk_00 bounds ok (error 0.xx cm)   × 4 (chunk_00..02, collision)
 LogGolmok: Zone z_synthetic_001 v1 root: zone-local (0,0,0) -> UE (17670.59, -22198.00, 999.37) cm; (10,0,0) m -> (18670.59, -22198.02, 999.34) cm; yaw -0.0012 deg
-LogGolmok: Zone z_synthetic_001 v1 loaded in x ms: chunks 3/3 (0 wire boxes), collision 1/1, blockers 1, portals 1 (WP-05)
+LogGolmok: Zone z_synthetic_001 v1: chunk chunk_01 bbox center -> level (17670.61, -22198.02, 1599.37) cm   (chunk_00/02도 한 줄씩)
+LogGolmok: Zone z_synthetic_001: blocker glass_1 (glass) rel (-1200, -1000, 150) cm yaw 90.0 extent (5, 150, 125) -> level (16470.58, -23197.98, 1149.37)
+LogGolmok: Zone z_synthetic_001 v1 loaded in x ms: chunks 3/3 (0 wire boxes), collision 1/1, blockers 1/1, portals 1 (WP-05)
 synthetic_zone: zone root at ... yaw -0.0012
 synthetic_zone: PlayerStart moved to ...
 ```
 - [ ] 콘텐츠 브라우저 `/Game/Golmok/Zones/z_synthetic_001/v1/`에 `SM_chunk_00`, `SM_chunk_01`, `SM_chunk_02`, `SM_z_synthetic_001_collision` 4개.
-- [ ] 아웃라이너 `Golmok/GeoOrigin`(위치 0,0,0, Latitude 37.56, Longitude 126.923, HeightEllipsoidal 40), `Golmok/Zones/Zone_z_synthetic_001`, `Golmok/BasemapDummy/BM_dummy_inside`·`BM_dummy_outside`.
+- [ ] 아웃라이너 `Golmok/GeoOrigin`(위치 0,0,0, Latitude 37.56, Longitude 126.923, HeightEllipsoidal 40), `Golmok/Zones/Zone_z_synthetic_001`, `Golmok/Zone_Ground`(400 m 지면, 슬래브보다 20 cm 아래), `Golmok/BasemapDummy/BM_dummy_inside`·`BM_dummy_outside`.
 - [ ] 뷰포트: 레벨 원점에서 동쪽 176.7 m·남쪽 222 m·위 10 m에 파사드 벽 3조각(각 13~14 m 폭, 12 m 높이, 두께 0.2 m)이 동서로 이어져 있고, 서쪽 조각(chunk_00)에 문 크기 구멍(폭 3 m, 높이 2.5 m)이 있다. 벽 남쪽에 44×24 m 충돌 슬래브(회색, 에디터에서는 보임).
 - [ ] `Zone_z_synthetic_001` 디테일: State = Loaded, LastError 비어 있음, Manifest.Priority 10, Manifest.Portals 1개(door_1).
 
-수치 대조(스펙 `docs/spec/zone-manifest.md` §4 표 C, 원점 37.5600/126.9230/40):
-| 항목 | 기대값(레벨 UE cm) |
-|---|---|
-| zone root 위치 / Yaw | (17670.59, −22198.00, 999.37) / −0.0012° |
-| zone-local (10,0,0) m | (18670.59, −22198.02, 999.34) |
-| chunk_01 bbox 중심 | (17670.61, −22198.02, 1599.37) |
-| blocker glass_1 중심(컴포넌트 `Blocker_glass_1`) | 상대 (−1200, −1000, 150), 레벨 (16470.58, −23197.98, 1149.37), extent (5, 150, 125) |
-| 포털 door_1(WP-05) | 상대 (500, −950, 0), Yaw −90 |
+수치 대조(스펙 `docs/spec/zone-manifest.md` §4 표 C, 원점 37.5600/126.9230/40). 런타임 생성 컴포넌트는 디테일 패널에 나오지 않으므로 **위 로그 줄**과 비교한다:
+| 항목 | 기대값(레벨 UE cm) | 어디서 |
+|---|---|---|
+| zone root 위치 / Yaw | (17670.59, −22198.00, 999.37) / −0.0012° | `root:` 로그, 액터 디테일 Transform |
+| zone-local (10,0,0) m | (18670.59, −22198.02, 999.34) | `root:` 로그 |
+| chunk_01 bbox 중심 | (17670.61, −22198.02, 1599.37) | `chunk chunk_01 bbox center` 로그 |
+| blocker glass_1 | 상대 (−1200, −1000, 150), yaw 90, extent (5, 150, 125), 레벨 (16470.58, −23197.98, 1149.37) | `blocker glass_1` 로그 |
+| 포털 door_1(WP-05) | 상대 (500, −950, 0), Yaw −90, 반경 150 cm | `AGolmokZone::GetPortalWorldTransform` (WP-05에서 로그) |
 
 ## 3. PIE 체크리스트
 PIE 시작(PlayerStart가 슬래브 위, zone 원점에서 남쪽 5 m). 콘솔(`)에서:
@@ -64,14 +66,14 @@ golmok.zone.list
 - [ ] **(6) 수치 예제**: `golmok.geo.selftest … PASS`, 6줄 모두 `OK` (표 B·C, Yaw −30).
 - [ ] `golmok.zone.list`: `z_synthetic_001  v1  prio 10  loaded  dist 0.0 m` (플레이어가 footprint 안). 참고: L_Dev 기본 PlayerStart(−5 m, 0) 자리에서는 dist ≈ 266.6 m, 레벨 원점에서는 263.6 m라 기본 반경(150/250)으로는 자동 로드되지 않는다 — `synthetic_zone.run()`이 PlayerStart를 옮기는 이유.
 - [ ] **(1) 청크 위치**: 북쪽에 파사드 벽 3조각이 보이고, 서쪽 조각에 문 구멍.
-- [ ] **(2) 충돌 메시**: 슬래브 위를 걷고 뛴다. 슬래브 끝(남쪽 12 m, 동서 22 m)에서 떨어지면 L_Dev 바닥(10 m 아래)에 착지 = 정상.
+- [ ] **(2) 충돌 메시**: 슬래브 위를 걷고 뛴다. 슬래브 끝(남쪽 12 m, 동서 22 m)에서 20 cm 아래 지면(`Zone_Ground`)으로 내려가고 다시 올라올 수 있다.
 - [ ] **(3) blocker**: x = −12 m 지점(원점에서 서쪽 12 m)의 문 구멍으로 북진 → 보이지 않는 벽(`Blocker_glass_1`, 유리)에 막힌다. 다른 x에서는 파사드 충돌벽에 막힌다. `show collision`으로 청록/빨강 박스 확인 가능.
 - [ ] **(5) 베이스맵 숨김**: 시작 시 `BM_dummy_inside`(zone 위 5 m의 4 m 큐브)가 **보이지 않고**, `BM_dummy_outside`(동쪽 60 m)는 보인다. 로그 `GolmokZoneSubsystem: basemap actors hidden +1, restored 0 (tagged 2, zones loaded 1)`.
 - [ ] **(4) 거리 로드/언로드**: 반경을 줄여 걷기 거리 안에서 확인한다.
   ```
   golmok.zone.radius 20 40
   ```
-  남쪽으로 40 m 넘게 뛰어간다(슬래브 밖 → L_Dev 바닥으로 떨어져도 됨). 0.5 s 안에 로그 `Zone z_synthetic_001 v1 unloaded`, 벽이 사라지고 `BM_dummy_inside`가 **다시 보인다**(`restored 1`). 돌아와 footprint 20 m 안 → `loaded` 로그, 벽 복귀, 큐브 다시 숨김. `golmok.zone.list`의 dist가 움직임을 따라 바뀐다.
+  남쪽으로 **50 m 이상** 뛰어간다(시작점이 원점 남쪽 5 m, footprint 남쪽 경계가 원점 남쪽 10 m이므로 경계에서 40 m를 넘기려면 원점 기준 y ≤ −50 m, 즉 시작점에서 45 m 이상. 지면 `Zone_Ground` 위). 0.5 s 안에 로그 `Zone z_synthetic_001 v1 unloaded`, 벽이 사라지고 `BM_dummy_inside`가 **다시 보인다**(`restored 1`). 돌아와 footprint 경계 20 m 안(원점 기준 y ≥ −30 m) → `loaded` 로그, 벽 복귀, 큐브 다시 숨김. `golmok.zone.list`의 dist가 움직임을 따라 바뀐다(`>=`가 붙은 값은 bbox 하한).
   `golmok.zone.radius 150 250`으로 복구.
 - [ ] 콘솔 `golmok.zone.unload z_synthetic_001` → 언로드(blocked), `golmok.zone.load z_synthetic_001` → 로드(pinned, `list`에 `pinned`). 이후 멀리 가도 언로드되지 않는다.
 - [ ] PIE 종료 시 에러·ensure 없음. 에디터로 돌아오면 큐브 2개 모두 보임(복원).

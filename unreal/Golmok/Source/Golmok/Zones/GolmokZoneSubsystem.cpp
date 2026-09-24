@@ -386,8 +386,8 @@ void UGolmokZoneSubsystem::ResolveOverlaps()
 			{
 				continue;
 			}
-			// An interior zone and its parent exterior zone are meant to coexist.
-			if (A->GetParentZoneId() == B->ZoneId || B->GetParentZoneId() == A->ZoneId)
+			// Only exterior zones compete for the street; interiors are separate spaces under their parent.
+			if (A->IsInterior() || B->IsInterior())
 			{
 				continue;
 			}
