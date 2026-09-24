@@ -62,8 +62,11 @@ def summarize(infos: list[ExifInfo], min_shutter: float) -> dict:
     total = len(infos)
     with_shutter = [i for i in infos if i.exposure_time is not None]
     fast = [i for i in with_shutter if i.exposure_time <= min_shutter + 1e-9]
-    slow = sorted((i for i in with_shutter if i.exposure_time > min_shutter + 1e-9),
-                  key=lambda i: i.exposure_time, reverse=True)
+    slow = sorted(
+        (i for i in with_shutter if i.exposure_time > min_shutter + 1e-9),
+        key=lambda i: i.exposure_time,
+        reverse=True,
+    )
     lenses: dict[str, int] = {}
     for i in infos:
         lenses[lens_class(i)] = lenses.get(lens_class(i), 0) + 1
@@ -93,7 +96,9 @@ def render(summary: dict, min_shutter: float, max_list: int = 15) -> str:
     if s["shutter_known"]:
         pct = 100 * s["shutter_ok"] / s["shutter_known"]
         verdict = "OK" if pct >= 90 else "주의: 느린 셔터가 많음"
-        lines.append(f"셔터 {fmt_shutter(min_shutter)} 이상: {s['shutter_ok']}/{s['shutter_known']} ({pct:.0f}%) → {verdict}")
+        lines.append(
+            f"셔터 {fmt_shutter(min_shutter)} 이상: {s['shutter_ok']}/{s['shutter_known']} ({pct:.0f}%) → {verdict}"
+        )
         for i in s["slow"][:max_list]:
             lines.append(f"  느림 {fmt_shutter(i.exposure_time):>7}  ISO {i.iso}  {Path(i.file).name}")
         if len(s["slow"]) > max_list:
@@ -101,7 +106,9 @@ def render(summary: dict, min_shutter: float, max_list: int = 15) -> str:
     lens_txt = ", ".join(f"{k} {v}" for k, v in sorted(s["lenses"].items()))
     lines.append(f"렌즈: {lens_txt}")
     if any(k != "main-1x" for k in s["lenses"]):
-        lines.append("  주의: 메인 1x 이외 렌즈 사진이 섞임(매크로 자동 전환/줌 확인). 재구성에서는 제외 권장")
+        lines.append(
+            "  주의: 메인 1x 이외 렌즈 사진이 섞임(매크로 자동 전환/줌 확인). 재구성에서는 제외 권장"
+        )
     if s["iso_min"] is not None:
         lines.append(f"ISO: 최소 {s['iso_min']} / 중앙 {s['iso_median']} / 최대 {s['iso_max']}")
     if s["res_known"]:

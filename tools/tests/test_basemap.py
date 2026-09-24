@@ -39,8 +39,20 @@ def write_shp(path: Path):
     w.poly([[(cx + 100, cy), (cx + 100, cy + 10), (cx + 120, cy + 10), (cx + 120, cy), (cx + 100, cy)]])
     w.record("B-SHOP", "제2종근린생활시설", 0, 3)
     # Courtyard building with a hole, 300 m north
-    outer = [(cx - 15, cy + 300), (cx - 15, cy + 330), (cx + 15, cy + 330), (cx + 15, cy + 300), (cx - 15, cy + 300)]
-    hole = [(cx - 5, cy + 310), (cx + 5, cy + 310), (cx + 5, cy + 320), (cx - 5, cy + 320), (cx - 5, cy + 310)]
+    outer = [
+        (cx - 15, cy + 300),
+        (cx - 15, cy + 330),
+        (cx + 15, cy + 330),
+        (cx + 15, cy + 300),
+        (cx - 15, cy + 300),
+    ]
+    hole = [
+        (cx - 5, cy + 310),
+        (cx + 5, cy + 310),
+        (cx + 5, cy + 320),
+        (cx - 5, cy + 320),
+        (cx - 5, cy + 310),
+    ]
     w.poly([outer, hole])
     w.record("B-COURT", "업무시설", 20.0, 5)
     # Far away building (outside radius) must be skipped
@@ -48,7 +60,8 @@ def write_shp(path: Path):
     w.record("B-FAR", "창고", 8.0, 1)
     w.close()
     path.with_suffix(".prj").write_text(
-        __import__("pyproj").CRS.from_user_input(CRS).to_wkt("WKT1_ESRI"), encoding="utf-8")
+        __import__("pyproj").CRS.from_user_input(CRS).to_wkt("WKT1_ESRI"), encoding="utf-8"
+    )
 
 
 def write_dem(path: Path):
@@ -60,8 +73,17 @@ def write_dem(path: Path):
     x = x0 + (cols + 0.5) * res
     # 30 m at the center, rising 1 m per 100 m eastwards
     z = 30.0 + (x - cx) / 100.0
-    with rasterio.open(path, "w", driver="GTiff", height=size, width=size, count=1, dtype="float32",
-                       crs=CRS, transform=from_origin(x0, y0, res, res)) as ds:
+    with rasterio.open(
+        path,
+        "w",
+        driver="GTiff",
+        height=size,
+        width=size,
+        count=1,
+        dtype="float32",
+        crs=CRS,
+        transform=from_origin(x0, y0, res, res),
+    ) as ds:
         ds.write(z.astype(np.float32), 1)
 
 
@@ -73,8 +95,17 @@ def write_ortho(path: Path):
     img = np.zeros((3, size, size), np.uint8)
     img[0] = 180
     img[1, :, : size // 2] = 90
-    with rasterio.open(path, "w", driver="GTiff", height=size, width=size, count=3, dtype="uint8",
-                       crs=CRS, transform=from_origin(x0, y0, res, res)) as ds:
+    with rasterio.open(
+        path,
+        "w",
+        driver="GTiff",
+        height=size,
+        width=size,
+        count=3,
+        dtype="uint8",
+        crs=CRS,
+        transform=from_origin(x0, y0, res, res),
+    ) as ds:
         ds.write(img)
 
 
@@ -84,11 +115,26 @@ def built(tmp_path_factory):
     write_shp(d / "bld.shp")
     write_dem(d / "dem.tif")
     write_ortho(d / "ortho.tif")
-    args = Namespace(buildings=d / "bld.shp", dem=[str(d / "dem.tif")], ortho=[str(d / "ortho.tif")],
-                     center=f"{LAT},{LON}", radius=400.0, out=d / "out", height_field="A16",
-                     floors_field="FLOORS", usage_field="A9", id_field="A1", src_crs=None,
-                     encoding="cp949", tile_size=200.0, terrain_spacing=10.0, texture_size=512,
-                     geoid_offset=0.0, exclude=None, no_terrain=False)
+    args = Namespace(
+        buildings=d / "bld.shp",
+        dem=[str(d / "dem.tif")],
+        ortho=[str(d / "ortho.tif")],
+        center=f"{LAT},{LON}",
+        radius=400.0,
+        out=d / "out",
+        height_field="A16",
+        floors_field="FLOORS",
+        usage_field="A9",
+        id_field="A1",
+        src_crs=None,
+        encoding="cp949",
+        tile_size=200.0,
+        terrain_spacing=10.0,
+        texture_size=512,
+        geoid_offset=0.0,
+        exclude=None,
+        no_terrain=False,
+    )
     manifest = build(args)
     return d / "out", manifest
 
@@ -100,14 +146,20 @@ def load_glb(path: Path):
     def accessor(i, dtype, comps):
         acc = g.accessors[i]
         view = g.bufferViews[acc.bufferView]
-        arr = np.frombuffer(blob, dtype=dtype, count=acc.count * comps, offset=view.byteOffset + (acc.byteOffset or 0))
+        arr = np.frombuffer(
+            blob, dtype=dtype, count=acc.count * comps, offset=view.byteOffset + (acc.byteOffset or 0)
+        )
         return arr.reshape(acc.count, comps) if comps > 1 else arr
 
     prim = g.meshes[0].primitives[0]
     pos = accessor(prim.attributes.POSITION, np.float32, 3)
     idx = accessor(prim.indices, np.uint32, 1)
     nrm = accessor(prim.attributes.NORMAL, np.float32, 3)
-    uv1 = accessor(prim.attributes.TEXCOORD_1, np.float32, 2) if prim.attributes.TEXCOORD_1 is not None else None
+    uv1 = (
+        accessor(prim.attributes.TEXCOORD_1, np.float32, 2)
+        if prim.attributes.TEXCOORD_1 is not None
+        else None
+    )
     fid_acc = getattr(prim.attributes, "_FEATURE_ID_0", None)
     load_glb.fid = accessor(fid_acc, np.float32, 1) if fid_acc is not None else None
     return g, pos, idx, nrm, uv1
@@ -128,8 +180,14 @@ def test_manifest_counts_and_origin(built):
 
 def test_center_building_geometry(built):
     out, m = built
-    tile = next(t for t in m["tiles"] if t["buildings"] and t["n_buildings"] and
-                abs(t["center_enu"][0]) <= 100 and abs(t["center_enu"][1]) <= 100)
+    tile = next(
+        t
+        for t in m["tiles"]
+        if t["buildings"]
+        and t["n_buildings"]
+        and abs(t["center_enu"][0]) <= 100
+        and abs(t["center_enu"][1]) <= 100
+    )
     g, pos, idx, nrm, uv1 = load_glb(out / tile["buildings"])
     feats = g.meshes[0].extras["features"]
     fi = next(i for i, f in enumerate(feats) if f["id"] == "B-CENTER")

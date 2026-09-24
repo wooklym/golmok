@@ -9,9 +9,17 @@ from .gltf import MeshData
 from .raster import DemSampler, OrthoSource
 
 
-def terrain_mesh(projector: Projector, dem: DemSampler, x0: float, y0: float, size: float,
-                 spacing: float, ortho: OrthoSource | None = None, texture_size: int = 4096,
-                 name: str = "terrain") -> MeshData:
+def terrain_mesh(
+    projector: Projector,
+    dem: DemSampler,
+    x0: float,
+    y0: float,
+    size: float,
+    spacing: float,
+    ortho: OrthoSource | None = None,
+    texture_size: int = 4096,
+    name: str = "terrain",
+) -> MeshData:
     n = max(1, int(round(size / spacing)))
     xs = np.linspace(x0, x0 + size, n + 1)
     ys = np.linspace(y0, y0 + size, n + 1)
@@ -38,8 +46,9 @@ def terrain_mesh(projector: Projector, dem: DemSampler, x0: float, y0: float, si
         uv = np.stack([(gx.ravel() - x0) / size, 1.0 - (gy.ravel() - y0) / size], axis=1)
     # Terrain uses category 200 so the shared material can tell it apart from walls/roofs.
     uv1 = np.tile([0.0, 200.0], (len(pos), 1))
-    return MeshData(positions=pos, indices=indices, normals=normals, uv0=uv, uv1=uv1,
-                    texture_jpeg=texture, name=name)
+    return MeshData(
+        positions=pos, indices=indices, normals=normals, uv0=uv, uv1=uv1, texture_jpeg=texture, name=name
+    )
 
 
 def _grid_normals(p: np.ndarray) -> np.ndarray:

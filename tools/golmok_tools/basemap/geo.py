@@ -27,11 +27,13 @@ class EnuFrame:
         object.__setattr__(self, "_origin_ecef", np.array([x, y, z]))
         lam, phi = np.radians(self.lon), np.radians(self.lat)
         # Rows: east, north, up unit vectors expressed in ECEF.
-        rot = np.array([
-            [-np.sin(lam), np.cos(lam), 0.0],
-            [-np.sin(phi) * np.cos(lam), -np.sin(phi) * np.sin(lam), np.cos(phi)],
-            [np.cos(phi) * np.cos(lam), np.cos(phi) * np.sin(lam), np.sin(phi)],
-        ])
+        rot = np.array(
+            [
+                [-np.sin(lam), np.cos(lam), 0.0],
+                [-np.sin(phi) * np.cos(lam), -np.sin(phi) * np.sin(lam), np.cos(phi)],
+                [np.cos(phi) * np.cos(lam), np.cos(phi) * np.sin(lam), np.sin(phi)],
+            ]
+        )
         object.__setattr__(self, "_ecef_to_enu", rot)
 
     @property
@@ -71,7 +73,9 @@ class Projector:
         return self._to_lonlat.transform(np.asarray(x, dtype=np.float64), np.asarray(y, dtype=np.float64))
 
     def from_lonlat(self, lon, lat):
-        return self._from_lonlat.transform(np.asarray(lon, dtype=np.float64), np.asarray(lat, dtype=np.float64))
+        return self._from_lonlat.transform(
+            np.asarray(lon, dtype=np.float64), np.asarray(lat, dtype=np.float64)
+        )
 
     def lonlat_to_enu(self, lon, lat, h_ortho) -> np.ndarray:
         lon = np.asarray(lon, dtype=np.float64)

@@ -28,8 +28,15 @@ import cv2
 import numpy as np
 
 from ..exif import read_exif
-from ..imageio import (DecodeError, decoder_applies_orientation, is_supported, output_suffix,
-                       read_image, to_uint8, write_image)
+from ..imageio import (
+    DecodeError,
+    decoder_applies_orientation,
+    is_supported,
+    output_suffix,
+    read_image,
+    to_uint8,
+    write_image,
+)
 from .detector import Box, Detector, EgoBlurDetector, detect_scaled
 
 META_DIR = "_golmok"
@@ -39,7 +46,12 @@ def scale_box(box: Box, width: int, height: int, scale: float) -> Box:
     x1, y1, x2, y2 = box
     cx, cy = (x1 + x2) / 2, (y1 + y2) / 2
     w, h = (x2 - x1) * scale, (y2 - y1) * scale
-    return (max(cx - w / 2, 0.0), max(cy - h / 2, 0.0), min(cx + w / 2, float(width)), min(cy + h / 2, float(height)))
+    return (
+        max(cx - w / 2, 0.0),
+        max(cy - h / 2, 0.0),
+        min(cx + w / 2, float(width)),
+        min(cy + h / 2, float(height)),
+    )
 
 
 def blur_regions(img: np.ndarray, boxes: list[Box], scale: float = 1.15) -> np.ndarray:
@@ -73,8 +85,14 @@ class Result:
     error: str = ""
 
 
-def process_image(src: Path, dst: Path, detectors: list[Detector], max_side: int, scale: float,
-                  preview_path: Path | None = None) -> Result:
+def process_image(
+    src: Path,
+    dst: Path,
+    detectors: list[Detector],
+    max_side: int,
+    scale: float,
+    preview_path: Path | None = None,
+) -> Result:
     img = read_image(src)
     det_input = to_uint8(img)
     counts: dict[str, int] = {}
@@ -122,8 +140,15 @@ def iter_images(root: Path, skip: Path | None = None):
             yield p
 
 
-def run(input_dir: Path, output_dir: Path, detectors: list[Detector], max_side: int = 4032,
-        scale: float = 1.15, preview: bool = True, overwrite: bool = False) -> list[Result]:
+def run(
+    input_dir: Path,
+    output_dir: Path,
+    detectors: list[Detector],
+    max_side: int = 4032,
+    scale: float = 1.15,
+    preview: bool = True,
+    overwrite: bool = False,
+) -> list[Result]:
     meta = output_dir / META_DIR
     meta.mkdir(parents=True, exist_ok=True)
     preview_dir = meta / "preview" if preview else None
@@ -159,7 +184,9 @@ def run(input_dir: Path, output_dir: Path, detectors: list[Detector], max_side: 
         except Exception:
             pass
         rate = n / max(time.time() - t0, 1e-6)
-        print(f"[{n}/{len(images)}] {rel}  얼굴 {res.faces} 번호판 {res.plates}  {res.status}  ({rate:.2f}장/s)")
+        print(
+            f"[{n}/{len(images)}] {rel}  얼굴 {res.faces} 번호판 {res.plates}  {res.status}  ({rate:.2f}장/s)"
+        )
 
     with open(meta / "blur_log.csv", "w", newline="", encoding="utf-8-sig") as f:
         w = csv.writer(f)
@@ -171,7 +198,9 @@ def run(input_dir: Path, output_dir: Path, detectors: list[Detector], max_side: 
         w.writeheader()
         w.writerows(gps_rows)
     if not have_exiftool:
-        print("참고: exiftool이 없어 출력 파일에 EXIF를 복사하지 않았다. GPS는 _golmok/gps_priors.csv를 쓴다.")
+        print(
+            "참고: exiftool이 없어 출력 파일에 EXIF를 복사하지 않았다. GPS는 _golmok/gps_priors.csv를 쓴다."
+        )
     return results
 
 
@@ -185,8 +214,12 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--lp-threshold", type=float, default=0.9)
     ap.add_argument("--nms-iou", type=float, default=0.3)
     ap.add_argument("--scale", type=float, default=1.15, help="검출 박스 확대 비율 (기본 1.15)")
-    ap.add_argument("--detect-max-side", type=int, default=4032,
-                    help="검출용 축소 긴 변 픽셀 (0=원본). 블러는 항상 원본 해상도에 적용")
+    ap.add_argument(
+        "--detect-max-side",
+        type=int,
+        default=4032,
+        help="검출용 축소 긴 변 픽셀 (0=원본). 블러는 항상 원본 해상도에 적용",
+    )
     ap.add_argument("--device", default="auto", help="auto | cpu | cuda:0")
     ap.add_argument("--no-preview", action="store_true")
     ap.add_argument("--overwrite", action="store_true")
@@ -202,8 +235,15 @@ def main(argv: list[str] | None = None) -> int:
         EgoBlurDetector("plate", args.lp_model, args.lp_threshold, args.nms_iou, args.device),
     ]
     print(f"device: {detectors[0].device}")
-    results = run(args.input_dir, args.output_dir, detectors, args.detect_max_side, args.scale,
-                  preview=not args.no_preview, overwrite=args.overwrite)
+    results = run(
+        args.input_dir,
+        args.output_dir,
+        detectors,
+        args.detect_max_side,
+        args.scale,
+        preview=not args.no_preview,
+        overwrite=args.overwrite,
+    )
     failed = [r for r in results if r.status not in {"ok", "skipped"}]
     print(f"완료: {len(results)}장, 실패 {len(failed)}장 → {args.output_dir / META_DIR / 'blur_log.csv'}")
     return 1 if failed else 0

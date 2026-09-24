@@ -10,8 +10,9 @@ from golmok_tools.exif_report import fmt_shutter, lens_class, main, parse_shutte
 from golmok_tools.extract_frames import best_per_window, sharpness
 
 
-def make_jpeg(path: Path, exposure=(1, 250), iso=400, f35=24, gps=True, size=(64, 48),
-              when="2026:10:01 06:45:00"):
+def make_jpeg(
+    path: Path, exposure=(1, 250), iso=400, f35=24, gps=True, size=(64, 48), when="2026:10:01 06:45:00"
+):
     exif = {
         "0th": {piexif.ImageIFD.Make: b"Apple", piexif.ImageIFD.Model: b"iPhone 17 Pro"},
         "Exif": {
