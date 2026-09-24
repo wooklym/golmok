@@ -104,6 +104,34 @@ int main(int argc, char** argv)
 		const bool inside = PointInPolygon(xs, ys, static_cast<std::size_t>(n), std::atof(argv[3 + 2 * n]), std::atof(argv[4 + 2 * n]));
 		std::printf("%d\n", inside ? 1 : 0);
 	}
+	else if (!std::strcmp(cmd, "dist"))
+	{
+		const int n = std::atoi(argv[2]);
+		double xs[64], ys[64];
+		for (int i = 0; i < n && i < 64; ++i)
+		{
+			xs[i] = std::atof(argv[3 + 2 * i]);
+			ys[i] = std::atof(argv[4 + 2 * i]);
+		}
+		std::printf("%.17g\n", DistanceToPolygon(xs, ys, static_cast<std::size_t>(n), std::atof(argv[3 + 2 * n]), std::atof(argv[4 + 2 * n])));
+	}
+	else if (!std::strcmp(cmd, "overlap"))
+	{
+		const int na = std::atoi(argv[2]);
+		double axs[64], ays[64], bxs[64], bys[64];
+		for (int i = 0; i < na && i < 64; ++i)
+		{
+			axs[i] = std::atof(argv[3 + 2 * i]);
+			ays[i] = std::atof(argv[4 + 2 * i]);
+		}
+		const int nb = std::atoi(argv[3 + 2 * na]);
+		for (int i = 0; i < nb && i < 64; ++i)
+		{
+			bxs[i] = std::atof(argv[4 + 2 * na + 2 * i]);
+			bys[i] = std::atof(argv[5 + 2 * na + 2 * i]);
+		}
+		std::printf("%d\n", PolygonsOverlap(axs, ays, static_cast<std::size_t>(na), bxs, bys, static_cast<std::size_t>(nb)) ? 1 : 0);
+	}
 	else if (!std::strcmp(cmd, "blocker"))
 	{
 		Vec3 w, h;

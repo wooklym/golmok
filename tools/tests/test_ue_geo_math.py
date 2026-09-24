@@ -218,3 +218,32 @@ def test_fixture_manifest_transform_reproduces_origin(driver):
     assert abs(la - o["lat"]) < 1e-9 and abs(lo - o["lon"]) < 1e-9 and abs(h - o["height_ellipsoidal"]) < 1e-3
     err, det = run(driver, "rigid", *mat_args(m))
     assert err < 1e-9 and abs(det - 1) < 1e-9
+
+
+def test_distance_to_polygon_matches_shapely(driver):
+    shapely = pytest.importorskip("shapely")
+    from shapely.geometry import Point, Polygon
+
+    ring = [(-20.0, -10.0), (20.0, -10.0), (20.0, 10.0), (5.0, 10.0), (5.0, 3.0), (-20.0, 3.0)]  # notched box
+    poly = Polygon(ring)
+    flat = [v for p in ring for v in p]
+    rng = np.random.default_rng(7)
+    for x, y in zip(rng.uniform(-40, 40, 60), rng.uniform(-30, 30, 60), strict=True):
+        (got,) = run(driver, "dist", len(ring), *flat, x, y)
+        assert (
+            abs(got - poly.exterior.distance(Point(x, y)) * (0 if poly.contains(Point(x, y)) else 1)) < 1e-9
+        )
+    assert shapely is not None
+
+
+def test_polygons_overlap(driver):
+    a = [0, 0, 10, 0, 10, 10, 0, 10]
+    b = [5, 5, 15, 5, 15, 15, 5, 15]  # overlaps corner
+    c = [20, 20, 30, 20, 30, 30, 20, 30]  # disjoint
+    d = [2, 2, 3, 2, 3, 3, 2, 3]  # fully inside a
+    e = [-5, 4, 15, 4, 15, 6, -5, 6]  # crosses a without a vertex inside
+    ovl = lambda p, q: run(driver, "overlap", 4, *p, 4, *q) == [1]  # noqa: E731
+    assert ovl(a, b) and ovl(b, a)
+    assert not ovl(a, c) and not ovl(c, a)
+    assert ovl(a, d) and ovl(d, a)
+    assert ovl(a, e) and ovl(e, a)

@@ -284,6 +284,89 @@ namespace GolmokGeoMath
 		return Inside;
 	}
 
+	/** Distance from a point to a segment (a-b), 2D. */
+	inline double DistanceToSegment(double Ax, double Ay, double Bx, double By, double X, double Y)
+	{
+		const double Dx = Bx - Ax;
+		const double Dy = By - Ay;
+		const double L2 = Dx * Dx + Dy * Dy;
+		double T = (L2 > 0.0) ? ((X - Ax) * Dx + (Y - Ay) * Dy) / L2 : 0.0;
+		T = (T < 0.0) ? 0.0 : ((T > 1.0) ? 1.0 : T);
+		const double Px = Ax + T * Dx - X;
+		const double Py = Ay + T * Dy - Y;
+		return std::sqrt(Px * Px + Py * Py);
+	}
+
+	/** 0 when the point is inside the polygon, else the distance to its nearest edge (same units as the inputs). */
+	inline double DistanceToPolygon(const double* Xs, const double* Ys, std::size_t N, double X, double Y)
+	{
+		if (N < 3)
+		{
+			return 1e300;
+		}
+		if (PointInPolygon(Xs, Ys, N, X, Y))
+		{
+			return 0.0;
+		}
+		double Best = 1e300;
+		for (std::size_t i = 0, j = N - 1; i < N; j = i++)
+		{
+			const double D = DistanceToSegment(Xs[j], Ys[j], Xs[i], Ys[i], X, Y);
+			Best = (D < Best) ? D : Best;
+		}
+		return Best;
+	}
+
+	/** True when segments p1-p2 and p3-p4 intersect (including touching). */
+	inline bool SegmentsIntersect(double X1, double Y1, double X2, double Y2, double X3, double Y3, double X4, double Y4)
+	{
+		auto Orient = [](double Ax, double Ay, double Bx, double By, double Cx, double Cy) {
+			const double V = (Bx - Ax) * (Cy - Ay) - (By - Ay) * (Cx - Ax);
+			return (V > 1e-12) ? 1 : ((V < -1e-12) ? -1 : 0);
+		};
+		auto OnSeg = [](double Ax, double Ay, double Bx, double By, double Px, double Py) {
+			return Px <= ((Ax > Bx) ? Ax : Bx) + 1e-12 && Px + 1e-12 >= ((Ax < Bx) ? Ax : Bx) && Py <= ((Ay > By) ? Ay : By) + 1e-12
+				   && Py + 1e-12 >= ((Ay < By) ? Ay : By);
+		};
+		const int O1 = Orient(X1, Y1, X2, Y2, X3, Y3);
+		const int O2 = Orient(X1, Y1, X2, Y2, X4, Y4);
+		const int O3 = Orient(X3, Y3, X4, Y4, X1, Y1);
+		const int O4 = Orient(X3, Y3, X4, Y4, X2, Y2);
+		if (O1 != O2 && O3 != O4)
+		{
+			return true;
+		}
+		if (O1 == 0 && OnSeg(X1, Y1, X2, Y2, X3, Y3)) return true;
+		if (O2 == 0 && OnSeg(X1, Y1, X2, Y2, X4, Y4)) return true;
+		if (O3 == 0 && OnSeg(X3, Y3, X4, Y4, X1, Y1)) return true;
+		if (O4 == 0 && OnSeg(X3, Y3, X4, Y4, X2, Y2)) return true;
+		return false;
+	}
+
+	/** True when two simple polygons overlap (a vertex of one inside the other, or any two edges intersect). */
+	inline bool PolygonsOverlap(const double* AXs, const double* AYs, std::size_t NA, const double* BXs, const double* BYs, std::size_t NB)
+	{
+		if (NA < 3 || NB < 3)
+		{
+			return false;
+		}
+		if (PointInPolygon(BXs, BYs, NB, AXs[0], AYs[0]) || PointInPolygon(AXs, AYs, NA, BXs[0], BYs[0]))
+		{
+			return true;
+		}
+		for (std::size_t i = 0, j = NA - 1; i < NA; j = i++)
+		{
+			for (std::size_t k = 0, l = NB - 1; k < NB; l = k++)
+			{
+				if (SegmentsIntersect(AXs[j], AYs[j], AXs[i], AYs[i], BXs[l], BYs[l], BXs[k], BYs[k]))
+				{
+					return true;
+				}
+			}
+		}
+		return false;
+	}
+
 	/**
 	 * Blocker plane axes (spec §3.1): height axis = zone +z projected onto the plane (or +y/north when the plane is
 	 * horizontal), width axis = height x normal. Inputs and outputs are zone-local ENU unit vectors.
