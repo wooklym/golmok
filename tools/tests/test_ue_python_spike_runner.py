@@ -549,7 +549,9 @@ def test_contact_sheet_and_report_written(fake, unreal, tmp_path):
     shot.parent.mkdir(parents=True)
     shot.write_bytes(fake_unreal.png_bytes(2560, 1440))
     path = sr.contact_sheet()
-    assert path == str(root / "contact_sheet.html") and fake.logs[-1] == (
+    # os.path.join of the UE-style "/" saved dir gives mixed separators on Windows: compare normalized.
+    assert os.path.normpath(path) == os.path.normpath(root / "contact_sheet.html")
+    assert fake.logs[-1] == (
         "log",
         f"spike_runner: contact sheet -> {path}",
     )
