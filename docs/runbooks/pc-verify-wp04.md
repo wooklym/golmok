@@ -116,16 +116,24 @@ golmok.zone.list
 | 24 | 패키징 | `FFileHelper::LoadFileToString`로 pak 안 UFS 스테이징 파일 읽기 | 경로 유지 여부 | `+DirectoriesToAlwaysStageAsNonUFS`(느슨한 파일)로 전환 |
 
 ## 7. 결과 기록
+V-03 PC 세션(Claude Desktop, 사용자 PC, Fable 5.1), 2026-09-25. UE 5.8.3, VS 2026(MSVC 14.51), 브랜치 `pc/v03-verify-wp04-05`.
+**검증 방식**: 사람이 없는 무인 세션이라 PIE 체크는 에디터 Python 드라이버(Slate 틱 콜백에서 `editor_request_begin_play` → 콘솔 명령·`set_actor_location` 텔레포트·`add_movement_input` 보행·`golmok.screenshot`/`shot showui` 스크린샷·액터 상태 프로브)로 돌리고, 로그·상태값·스크린샷으로 판정했다. 텔레포트는 오버랩 이벤트를 정상 발생시킨다(문 트리거·슬래브 낙하 확인). 헤드리스 `z.run()`은 `UnrealEditor-Cmd -unattended -nullrhi`로 실행(같은 로그).
+
 | 항목 | 결과 | 메모 |
 |---|---|---|
-| 빌드 | | 경고 목록 |
-| §2 생성 | | |
-| (1) 청크 위치 | | |
-| (2) 충돌 | | |
-| (3) blocker | | |
-| (4) 거리 로드/언로드 | | |
-| (5) 베이스맵 숨김 | | |
-| (6) selftest | | |
-| §4 원점 없음 | | |
-| §5 패키징 | | |
-| 고친 API(§6 번호) | | 커밋 해시 |
+| 빌드 | ✅ 수정 후 통과 | WP-04 코드 자체는 컴파일 오류 없음. 프로젝트 경고 1건: `GolmokZone.cpp(705)` `REN_ForceNoResetLoaders` C4996(5.8에서 no-op, 제거 → `e446504`). 나머지 C4996 경고 34건은 엔진 헤더(`Class.h`, `SkeletalMesh.h`, `Character.h` 등) — 프로젝트 무관 |
+| §2 생성 | ✅ 수정 2건 후 기대 로그 전부 일치 | ① UE 5.8 Interchange가 glTF 메시를 `<폴더>/<소스명>/StaticMeshes/<이름>`에 두어 `imported as …, but AGolmokZone loads …` 예외 → `_import`로 임포트 후 `rename_asset`로 규약 경로로 이동(`12e6bad`). ② 첫 실행이 ①에서 죽으면서 `new_level()`이 저장한 **빈** `L_ZoneTest`(조명 없음)가 남아 다음 실행이 그대로 열었다 → 조명 없는 맵을 열면 `_build_lighting()` 재실행(`dd2c538`). 로그: root (17670.59, −22198.00, 999.37) yaw −0.0012 · (10,0,0) m → (18670.59, −22198.02, 999.34) · chunk_01 (17670.61, −22198.02, 1599.37) · glass_1 → (16470.58, −23197.98, 1149.37) · door_1 → (18170.57, −23148.01, 999.32) yaw −90 · `loaded … chunks 3/3 (0 wire boxes), collision 1/1, blockers 1/1, portals 1`. 에셋 4개, 액터(GeoOrigin 0,0,0 / 37.56 / 126.923 / 40, Zone, Zone_Ground z 979.37, BM_dummy_inside/outside, 조명 5) 확인. 디테일: State LOADED, LastError 빈, Missing 0, Priority 10, Portals [door_1], Chunk 3(태그 chunk_00..02), Collision 1, Blocker_glass_1(태그 glass_1) |
+| (1) 청크 위치 | ✅ | PlayerStart에서 북쪽에 파사드 3조각이 이음새 없이 이어지고 서쪽 조각에 문 구멍(`pc-verify-wp04-facade.jpg`, `pc-verify-wp04-glass-opening.jpg`) |
+| (2) 충돌 | ✅ | 슬래브 위 캡슐 중심 z 94.2 cm → 남쪽 7 m 넘어 `Zone_Ground`로 내려가 74.1(−20 cm) → 북으로 걸어 다시 94.1. 달리기 500 cm/s(`vel=(500,0,0)`) |
+| (3) blocker | ✅ | x=−12 m 문 구멍으로 북진 → y=−952.9 cm에서 정지(유리 남면 −995 + 캡슐 반경 42 = −953). x=−8 m → −937.9(파사드 남면 −980 + 42). `interior=False`에서 x=+5 m 문 트리거에 서면 Warning `Portal door_1: no AGolmokZone 'z_synthetic_001_interior' … sublevel only` + `LevelStreaming: sublevel package missing` 2줄 → 무해 확인, 트리거를 벗어나면 `player left -> unload … was not streamed`. `show collision`으로 캡슐·문 트리거 초록 박스 확인(`pc-verify-wp04-collision.jpg`) |
+| (4) 거리 로드/언로드 | ✅ | `golmok.zone.radius 20 40` → 원점 남쪽 55 m(지면)로 이동 0.5 s 안에 `unloaded`, `list` `dist >= 45.0 m`, 벽 사라지고 `BM_dummy_inside` 다시 보임(`restored 1`, `pc-verify-wp04-unloaded.jpg`) → 25 m로 복귀 `loaded`, `dist 15.0 m`, 큐브 다시 숨김. `radius 150 250` 복구 |
+| (5) 베이스맵 숨김 | ✅ | 시작 로그 `basemap actors hidden +1, restored 0 (tagged 2, zones loaded 1)`; PIE에서 `BM_dummy_inside` hidden=True, outside False; PIE 종료 시 `restored 1`, 에디터로 돌아오면 둘 다 보임(dirty 없음) |
+| (6) selftest | ✅ | `golmok.geo.selftest (spec zone-manifest.md §4 B/C): PASS`, `Level origin: lat=37.5600000 lon=126.9230000 h=40.000` |
+| `unload`/`load` 콘솔 | ✅ | `unload` → unloaded(큐브 복원) → `load` → `loaded (pinned)`, `list`에 `pinned`; 90 m 밖에서도 `loaded dist 80.0 m pinned` |
+| §4 원점 없음 | ✅ | GeoOrigin 삭제 + Rebuild → Warning `No AGolmokGeoOrigin in L_ZoneTest …` 1회, zone (0,0,0) yaw 0, chunk_01 center (0,0,600). `z.run(import_assets=False)`로 복구(원점·zone·PlayerStart 원위치) |
+| §5 패키징 | ⏭ 미실행 | 선택 항목. WP-05 §9와 함께 V-06에서 |
+| (선택) 두 번째 zone 겹침 | ⏭ 미실행 | 실 Zone 2개가 생기면 V-06 |
+| PIE 종료 | ✅ | Error·ensure 없음(LogHttp 종료 경고만), Transient 액터 잔류 없음 |
+| 고친 API(§6 번호) | 표에 없던 3건 | `12e6bad` Interchange 폴더 배치(§6 #17·18 영역, Python) · `dd2c538` 빈 맵 조명 재생성(Python) · `e446504` #20 `REN_ForceNoResetLoaders` 제거(C++). §6 #0~#24의 C++ 호출은 전부 5.8에서 그대로 컴파일됨 |
+
+발견 메모(다음 세션용): `UnrealEditor-Cmd -ExecCmds="py …,Quit"`의 별도 `Quit`는 에디터를 끝내지 않는다(프로세스가 남음) — 스크립트 끝에서 `unreal.SystemLibrary.quit_editor()`를 부를 것. `test.ps1`의 `Automation RunTests …;Quit`는 자동화 컨트롤러가 처리하므로 정상.
