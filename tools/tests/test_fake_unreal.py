@@ -354,7 +354,9 @@ def test_path_play_and_csv(fake, unreal):
     fake_unreal.tick(fake, 4)  # 0.4 s < csv_delay_s
     assert not csv.exists()
     fake_unreal.tick(fake, 1)
-    assert csv.exists() and fake.logs[-1] == ("log", f"GolmokDebugSubsystem: csv: {csv}")
+    kind, msg = fake.logs[-1]
+    assert csv.exists() and kind == "log" and msg.startswith("GolmokDebugSubsystem: csv: ")
+    assert os.path.normpath(msg.removeprefix("GolmokDebugSubsystem: csv: ")) == os.path.normpath(csv)
     sample = {"t": 1, "p": [0, 0, 0], "r": [0, 0, 0]}
     back = json.dumps({"version": 1, "samples": [sample, {**sample, "t": 0}]})
     for name, text, problem in (
@@ -582,9 +584,9 @@ def test_viewpoints_capture_runs_on_the_fake(fake, unreal):
     assert [os.path.normpath(p) for p in capture.saved] == [os.path.normpath(shot)]
     assert capture.missing == [] and shot.exists()
     assert pure.png_size(shot.read_bytes()[:24]) == (viewpoints.RES_X, viewpoints.RES_Y)
-    assert not fake.callbacks and fake.logs[-1] == (
-        "log",
-        f"Capture 'a' done: 1 saved, 0 missing -> {shot.parent.parent}",
-    )
+    kind, msg = fake.logs[-1]
+    prefix, _, out_root = msg.rpartition(" -> ")
+    assert not fake.callbacks and kind == "log" and prefix == "Capture 'a' done: 1 saved, 0 missing"
+    assert os.path.normpath(out_root) == os.path.normpath(shot.parent.parent)
     shots = [(k, os.path.normpath(v)) for k, v in fake.calls_of("high_res_screenshot")]
     assert shots == [("high_res_screenshot", os.path.normpath(shot))]
