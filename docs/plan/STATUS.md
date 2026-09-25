@@ -3,7 +3,7 @@
 갱신 규칙: 각 세션이 시작·종료 시 자기 행을 고친다. 상태 기호:
 ⚪ 대기 · 🔵 진행 중 · 🟡 코드 완료·PC 검증 대기 · 🟢 완료 · 🔴 막힘 · ⏸ 보류
 
-마지막 갱신: 2026-09-25 (WP-11 🟢 완료 → PR #16 draft)
+마지막 갱신: 2026-09-25 (WP-10 🔵 시작)
 
 ## 마일스톤
 
@@ -30,7 +30,7 @@
 | WP-08 | (선택) 웹 검수 뷰어 | 🟢 완료 | session_01Cgm7f6oD6xSMpZ5jszj8Xi (Fable 5.1) | `golmok-viewer`(CesiumJS 1.145, ion 없음) + `tools/viewer` + Playwright 스모크(`npm test`, 합성 베이스맵 18타일). Zone manifest 오버레이(footprint·청크 bbox·포털·blockers, `?zone=…/manifest.json`) 포함. 충돌 메시 표시는 WP-03 산출물 나오면 추가 |
 
 | WP-09 | UE C++ 3: Zone Index 발견·비동기 로드 + V-03 디버그 표시 정리 | 🟡 코드 완료·PC 검증 대기 | session_016UiCeoD2Sytfh4nSweonbs (Fable 5.1 ultracode, 심판·검증·수정 Opus 5.5) | `Zones/GolmokZoneIndex`(순수 파서·셀 캐시·3×3) · `UGolmokZoneSubsystem::OnEvaluateTimer = DiscoverZones → Evaluate`(Transient 스폰·파괴·retire, 배치 우선, `bPortalManaged`, 재진입 카운터) · `AGolmokZone::LoadAsync`(FStreamableManager, `Loading`, 완료 항상 다음 틱, 세대 취소, `bAsyncLoad=True`) · 포털 선로드 + `Loading`이면 Pending 유지 · `GOLMOK_RENDER_TIME_SOURCE`+`HoldLastPositive` · 콘솔 `golmok.zone.index` · Python `zone_index.sync`/`zone_import(with_index=)` · 픽스처 `z_synthetic_002`+`index/`(생성기 `make_index_fixture.py --check`) · pytest +70(전체 569 passed) · UE 자동화 5개(전체 16) · 런북 `runbooks/pc-verify-wp09.md`(불확실 API §11 34행+). PR #15. 적대적 검증 1라운드 13→확정 13(실질 8, major 2) 전부 수정·반박 0·미검증 0. **PC(V-07)**: 런북 §1~§10 순서; §7에서 render 소스 매크로 기본값 확정, §6 히치 표. WP-04 "남은 것"(Index 발견·bAsyncLoad) 해소 **병합 전 Opus 보완 리뷰**: 블로킹 없음, 비블로킹 3건 반영(GeoOrigin 없는 레벨 경고 억제, `ResolveObject` 우선, index 동일 파일 복사 건너뜀), V-07 메모 6건(WP-09 문서 "결과") |
-| WP-10 | 애니메이션 평가·게임 기능 제안(문서) | ⚪ 대기 | (Opus) | 스펙 `plan/WP-10-animation-features-proposal.md`. ROADMAP 1.3 애니메이션 행, DEVELOPMENT-PLAN §11 #6(D-013~ 제안), night 프리셋 look-dev 메모. UE 코드 변경 없음, 제안 승인은 사용자 |
+| WP-10 | 애니메이션 평가·게임 기능 제안(문서) | 🔵 진행 중(2026-09-25 시작) | session_011Jdzkehx5EZRAV1kX7PnGD (Opus 5.5) | 스펙 `plan/WP-10-animation-features-proposal.md`. ROADMAP 1.3 애니메이션 행, DEVELOPMENT-PLAN §11 #6(D-013~ 제안), night 프리셋 look-dev 메모. UE 코드 변경 없음, 제안 승인은 사용자 |
 | WP-11 | 웹 검수 뷰어 2차(충돌·blocker 메시 오버레이) | 🟢 완료 | session_01CSQya6KM72tpKC8L7aowSx (Opus 5.5) | `tools/viewer/zonemath.js`(glTF Y-up → zone-local → ECEF 한 곳, Cesium 기본 축 보정 끔 — 기본값이면 90° 돌아감) · `app.js` collision/blockers GLB `Cesium.Model`·오버레이 체크박스 6개·원점 E·N·U 축 · `golmok-viewer --zone`(`/zones/<zone_id>/v<n>/`, 확장자 화이트리스트, 경로 탈출 거절) · pytest +49(전체 618 passed) · `npm test` 단위 5 + 스모크(zone 2·모델 4·배치 오차 < 5 cm·토글). OBJ 청크는 bbox만. CI에는 `npm test` 잡 없음(로컬 게이트). 병합 전 Opus 보완 리뷰 5건(스모크가 사용자 `GOLMOK_DATA` 폴더에 쓰지 않음, CORS 헤더 제거, Windows 예약 이름 거절, zone_id fullmatch·64자, transform 16개 검사) 반영. PR #16
 
 ## 트랙 1B — PC 검증 (PC Claude 세션)
