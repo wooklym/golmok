@@ -230,7 +230,8 @@
     var m, mat;
     try {
       m = await r.json();
-      if (!m || !m.origin || !m.footprint_wgs84 || !Array.isArray(m.transform)) throw new Error('origin / footprint_wgs84 / transform 없음');
+      if (!m || !m.origin || !m.footprint_wgs84 || !Array.isArray(m.transform) || m.transform.length !== 16 ||
+          !m.transform.every(Number.isFinite)) throw new Error('origin / footprint_wgs84 / transform(4×4 row-major) 없음');
       mat = zoneMatrix(m);
     } catch (e) {
       golmok.errors.push('zone manifest ' + url + ': ' + (e && e.message || e)); setStatus('실패: ' + url); throw e;

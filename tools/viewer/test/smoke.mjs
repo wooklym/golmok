@@ -1,8 +1,9 @@
 // Headless smoke test: serve a basemap folder with golmok-viewer, open the page, wait for tiles,
 // take a screenshot, fail on console errors or zero loaded tiles.
 // WP-11: also loads two zones with collision / blockers GLB meshes (golmok-mesh output, glTF Y-up):
-//   - the WP-02 fixture z_synthetic_001 (copied under /data/zones; collision.glb borrowed from the generator,
-//     blockers.glb built from its own blockers.json with golmok-mesh)
+//   - the WP-02 fixture z_synthetic_001 (copied under /data/zones of the synthetic basemap, or under test/out and
+//     mounted with --zone when GOLMOK_DATA names a real basemap folder, which the test never writes into;
+//     collision.glb borrowed from the generator, blockers.glb built from its own blockers.json with golmok-mesh)
 //   - the WP-06 generator zone z_synthetic_scan_001 (tools/scripts/make_synthetic_zone.py), mounted with
 //     golmok-viewer --zone, whose model placement is checked against the manifest bboxes (axis conversion)
 // and exercises the overlay toggles. Generated files stay in test/out (git-ignored).
@@ -59,17 +60,22 @@ await run(py, [resolve(toolsDir, 'scripts', 'make_synthetic_zone.py'), '--out', 
 const scanZone = resolve(synthOut, 'zones', 'z_synthetic_scan_001', 'v1');
 if (!existsSync(resolve(scanZone, 'collision.glb'))) throw new Error(`no collision.glb in ${scanZone}`);
 
-// Zone overlay: the WP-02 fixture zone next to the basemap (copied, never modified), with GLB meshes.
+// Zone overlay: the WP-02 fixture zone (copied, never modified) with GLB meshes. With the default synthetic
+// basemap the copy sits inside the basemap folder (/data/zones/..., the "zone next to the basemap" route);
+// with a user's GOLMOK_DATA folder it goes under test/out and is mounted with --zone instead.
+const userData = Boolean(process.env.GOLMOK_DATA);
 const fixtureZone = resolve(toolsDir, 'tests', 'fixtures', 'zones', 'z_synthetic_001');
-const fixtureCopy = resolve(data, 'zones', 'z_synthetic_001');
+const fixtureCopy = userData ? resolve(here, 'out', 'fixturezone', 'z_synthetic_001') : resolve(data, 'zones', 'z_synthetic_001');
 rmSync(fixtureCopy, { recursive: true, force: true });
 cpSync(fixtureZone, fixtureCopy, { recursive: true });
 copyFileSync(resolve(scanZone, 'collision.glb'), resolve(fixtureCopy, 'v1', 'collision.glb'));
 await run(py, ['-c', 'import sys; from golmok_tools.mesh.cli import main; sys.exit(main(sys.argv[1:]))',
   'blockers', 'build', resolve(fixtureCopy, 'v1', 'blockers.json')], { cwd: toolsDir });
-const zoneParam = '&zone=/data/zones/z_synthetic_001/v1/manifest.json&zone=/zones/z_synthetic_scan_001/v1/manifest.json';
+const fixtureUrl = userData ? '/zones/z_synthetic_001/v1/manifest.json' : '/data/zones/z_synthetic_001/v1/manifest.json';
+const zoneParam = `&zone=${fixtureUrl}&zone=/zones/z_synthetic_scan_001/v1/manifest.json`;
+const zoneArgs = ['--zone', scanZone, ...(userData ? ['--zone', resolve(fixtureCopy, 'v1')] : [])];
 
-const server = spawn(py, ['-m', 'golmok_tools.viewer_server', data, '--zone', scanZone, '--port', String(port), '--no-browser'],
+const server = spawn(py, ['-m', 'golmok_tools.viewer_server', data, ...zoneArgs, '--port', String(port), '--no-browser'],
   { cwd: toolsDir, stdio: ['ignore', 'pipe', 'inherit'] });
 await new Promise((res) => server.stdout.on('data', (d) => { if (String(d).includes('viewer:')) res(); }));
 

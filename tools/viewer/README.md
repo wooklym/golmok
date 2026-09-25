@@ -58,8 +58,8 @@ cd tools && python -m pytest -q tests/test_viewer_server.py tests/test_viewer_zo
 
 - `test/unit.mjs`(node:test, 의존성 없음): `zonemath.js` 축 변환·blocker 축·uri 규칙.
 - `tests/test_viewer_zonemath.py`: 같은 함수를 Node로 돌려 Python 정본(`enu_to_gltf`/`gltf_to_enu`, `blockers.plane_axes`/`plane_box`, `zone.transform`, 실제 `blockers.glb` 정점)과 비교(`node`가 없으면 skip).
-- `tests/test_viewer_server.py`: 라우팅, `--zone` 마운트, 경로 탈출(`..`·절대·드라이브·백슬래시·NUL·심볼릭 링크) 거절.
-- `test/smoke.mjs`(헤드리스 Chromium, `PLAYWRIGHT_BROWSERS_PATH`; `playwright install`은 하지 않는다): 합성 베이스맵(18타일) + WP-02 픽스처 zone(`/data/zones/…`, 생성기 collision.glb와 `golmok-mesh blockers build`로 만든 blockers.glb) + WP-06 생성기 zone(`make_synthetic_zone.py`, `--zone` 마운트). collision·blockers 모델 4개 생성, 배치(bounding sphere 중심 vs manifest bbox·blockers.json), 체크박스 토글·zone 행 토글·와이어프레임, `errors`·`warnings`·콘솔 오류 0. 생성물은 `test/out/`(git 무시). 환경변수 `GOLMOK_DATA`(베이스맵 폴더), `GOLMOK_PORT`, `GOLMOK_SHOT`, `PLAYWRIGHT_PROXY`, `PLAYWRIGHT_CHROMIUM`.
+- `tests/test_viewer_server.py`: 라우팅, `--zone` 마운트, 경로 탈출(`..`·절대·드라이브·백슬래시·NUL·Windows 예약 장치 이름·심볼릭 링크) 거절, zone_id 64자 제한, CORS 헤더 없음.
+- `test/smoke.mjs`(헤드리스 Chromium, `PLAYWRIGHT_BROWSERS_PATH`; `playwright install`은 하지 않는다): 합성 베이스맵(18타일) + WP-02 픽스처 zone(`/data/zones/…`, 생성기 collision.glb와 `golmok-mesh blockers build`로 만든 blockers.glb; `GOLMOK_DATA`로 실제 베이스맵을 주면 픽스처는 `test/out/`에 복사해 `--zone`으로 마운트하므로 그 폴더에는 쓰지 않는다) + WP-06 생성기 zone(`make_synthetic_zone.py`, `--zone` 마운트). collision·blockers 모델 4개 생성, 배치(bounding sphere 중심 vs manifest bbox·blockers.json), 체크박스 토글·zone 행 토글·와이어프레임, `errors`·`warnings`·콘솔 오류 0. 생성물은 `test/out/`(git 무시). 환경변수 `GOLMOK_DATA`(베이스맵 폴더), `GOLMOK_PORT`, `GOLMOK_SHOT`, `PLAYWRIGHT_PROXY`, `PLAYWRIGHT_CHROMIUM`.
 
 ## 라이선스
 

@@ -14,8 +14,9 @@ Routes:
     /cesium/...  tools/viewer/node_modules/cesium/Build/Cesium when installed (offline use);
                  otherwise the page falls back to the CDN build.
 
-Every route stays inside its root: `..` segments, absolute or drive paths, backslashes, NUL and symbolic
-links that lead outside the root are refused with 404 (resolve()).
+Every route stays inside its root: `..` segments, absolute or drive paths, backslashes, NUL, Windows
+reserved device names (CON, NUL, COM1 ...) and symbolic links that lead outside the root are refused with
+404 (resolve()). Only the page's own origin talks to the server (no CORS header).
 """
 
 from __future__ import annotations
@@ -45,7 +46,12 @@ EXTRA_TYPES = {
 
 
 ZONE_SUFFIXES = frozenset({".json", ".glb", ".gltf", ".bin", ".png", ".jpg", ".jpeg", ".ktx2"})
-ZONE_ID_RE = re.compile(r"^z_[a-z0-9]+(_[a-z0-9]+)*$")  # docs/spec/zone-manifest.md §2
+ZONE_ID_RE = re.compile(r"z_[a-z0-9]+(_[a-z0-9]+)*")  # docs/spec/zone-manifest.md §2 (fullmatch, <= 64 chars)
+ZONE_ID_MAX = 64
+# Windows device names: a path segment `CON`, `nul.json`, `com1.glb` ... opens the device, not a file.
+WIN_RESERVED = frozenset(
+    {"CON", "PRN", "AUX", "NUL", *(f"COM{i}" for i in range(1, 10)), *(f"LPT{i}" for i in range(1, 10))}
+)
 
 
 def _safe_rel(rel: str) -> bool:
@@ -54,7 +60,10 @@ def _safe_rel(rel: str) -> bool:
         return True
     if "\x00" in rel or "\\" in rel or ":" in rel or rel.startswith("/"):
         return False
-    return ".." not in rel.split("/")
+    for seg in rel.split("/"):
+        if seg == ".." or seg.split(".", 1)[0].rstrip(" ").upper() in WIN_RESERVED:
+            return False
+    return True
 
 
 def resolve(url_path: str, data_dir: Path | None, zones: dict[str, Path] | None = None) -> Path | None:
@@ -101,7 +110,7 @@ def zone_mount(path: Path) -> tuple[str, Path]:
     if not isinstance(doc, dict):
         raise ValueError(f"manifest가 객체가 아님: {manifest}")
     zone_id, version = doc.get("zone_id"), doc.get("version")
-    if not isinstance(zone_id, str) or not ZONE_ID_RE.match(zone_id):
+    if not isinstance(zone_id, str) or len(zone_id) > ZONE_ID_MAX or not ZONE_ID_RE.fullmatch(zone_id):
         raise ValueError(f"zone_id 형식 오류: {zone_id!r} ({manifest})")
     if not isinstance(version, int) or isinstance(version, bool) or version < 1:
         raise ValueError(f"version 형식 오류: {version!r} ({manifest})")
@@ -123,7 +132,6 @@ class Handler(SimpleHTTPRequestHandler):
 
     def end_headers(self):
         self.send_header("Cache-Control", "no-store")
-        self.send_header("Access-Control-Allow-Origin", "*")
         super().end_headers()
 
     def log_message(self, fmt, *args):  # quieter than the default

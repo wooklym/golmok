@@ -32,12 +32,12 @@
 |---|---|---|
 | 1 | `tools/viewer/zonemath.js` (신규) | Cesium 없는 순수 함수: `GLTF_TO_ZONE`·`gltfModelMatrix(transform)`(축 변환 **한 곳**), `blockerAxes/blockerCorners`(스펙 §3.1), `resolveZoneUri`(스펙 §2 uri 규칙), `blockersGlbUri`, `unionBoxes`. 브라우저 전역 `GolmokZoneMath` + Node `require` |
 | 1 | `tools/viewer/app.js`·`index.html`·`style.css` | `layers.collision.uri`(GLB) → `Cesium.Model.fromGltfAsync`(반투명 주황), `layers.blockers.uri`가 `blockers.json`이면 평면 + 옆 파생 `blockers.glb`(반투명 보라), `.glb`면 GLB만. 모델 매트릭스 = `transform × GLTF_TO_ZONE`, Cesium 기본 축 보정 끔(`upAxis: Z, forwardAxis: X`). "Zone 오버레이" 체크박스 footprint / 원점·축 / 청크 bbox / 충돌 메시 / blockers / 포털(모든 zone), zone 행 체크박스는 zone 전체(메시 포함). 원점 E(빨강)·N(초록)·U(파랑) 5 m 화살표. 와이어프레임 체크박스가 zone 메시에도 적용. OBJ 청크는 bbox만. `golmok.errors`(collision 없음·fetch 실패·잘못된 uri·모델 오류), `golmok.warnings`(파생 blockers.glb 없음). `zoneStats()`·`setOverlay()`. `ready`는 zone 모델 `ready`까지 기다림. zone만 열 때 `loadManifest` 예외(기존 버그) 수정, ENU 읽기는 첫 zone 원점 기준 |
-| 2 | `tools/golmok_tools/viewer_server.py` | `--zone <버전 폴더 또는 manifest.json>`(반복) → `/zones/<zone_id>/v<n>/`(manifest의 `zone_id` 정규식·`version` 검사, 중복 거절), `data_dir` 생략 가능. `/zones/`는 `.json .glb .gltf .bin .png .jpg .jpeg .ktx2`만. 모든 루트 공통: `..` 세그먼트·선행 `/`·백슬래시·`:`(드라이브·ADS)·NUL을 파일 시스템 접근 전에 거절, `resolve()`(심볼릭 링크 따라감) 뒤 루트 포함 검사 |
+| 2 | `tools/golmok_tools/viewer_server.py` | `--zone <버전 폴더 또는 manifest.json>`(반복) → `/zones/<zone_id>/v<n>/`(manifest의 `zone_id` 정규식·`version` 검사, 중복 거절), `data_dir` 생략 가능. `/zones/`는 `.json .glb .gltf .bin .png .jpg .jpeg .ktx2`만. 모든 루트 공통: `..` 세그먼트·선행 `/`·백슬래시·`:`(드라이브·ADS)·NUL·Windows 예약 장치 이름(CON·NUL·COM1…)을 파일 시스템 접근 전에 거절, `resolve()`(심볼릭 링크 따라감) 뒤 루트 포함 검사. zone_id는 `fullmatch`·64자 이하. CORS 헤더 없음(같은 origin만) |
 | 3 | `tools/viewer/test/smoke.mjs`·`test/unit.mjs`·`package.json` | `npm test` = 단위(node:test) → 스모크. 스모크: 합성 베이스맵 + WP-02 픽스처 zone(`/data/zones/…`; collision.glb는 생성기 것, blockers.glb는 `golmok-mesh blockers build`로 픽스처 blockers.json에서) + WP-06 생성기 zone(`make_synthetic_zone.py`, `--zone` 마운트). 검사: 모델 4개 `ready`·`bytes>0`, **배치**(모델 월드 bounding sphere 중심 vs manifest `collision.chunks` bbox 합집합 중심 / blockers.json 사각형 bbox 중심, < 5 cm) 그리고 Cesium 기본 보정이었다면 > 1 m 어긋남, 체크박스 6개·zone 행·와이어프레임 토글, `errors`·`warnings`·콘솔 오류 0. 생성물은 `test/out/`(git 무시) |
 | 4 | `tools/viewer/README.md` (신규) | 실행·화면·축 변환 근거·OBJ 미표시 이유·자동화 API·테스트 |
 
 ### 테스트
-- pytest **618 passed, 3 skipped**(이전 569 → +49: `test_viewer_server.py` 2 → 36, `test_viewer_zonemath.py` 14 신규). 심볼릭 링크 테스트는 권한 없는 Windows에서 skip, zonemath 교차검증은 `node`가 PATH에 없으면 skip(GitHub 러너에는 있음).
+- pytest **618 passed, 3 skipped**(이전 569 → +49: `test_viewer_server.py` 2 → 36, `test_viewer_zonemath.py` 14 신규). 병합 전 보완 뒤 626(`test_viewer_server.py` 36 → 44). 심볼릭 링크 테스트는 권한 없는 Windows에서 skip, zonemath 교차검증은 `node`가 PATH에 없으면 skip(GitHub 러너에는 있음).
 - `npm test`: 단위 5 pass, 스모크 OK — 18 타일, zone 2개·모델 4개, 배치 오차 collision 6e-9 m·blockers 0 m(Cesium 기본 보정이면 10.6 m), 토글 9항목 통과.
 - ruff check/format, `check_repo.py` OK.
 
@@ -52,6 +52,8 @@
 
 ### 리뷰
 읽기 전용 리뷰어 1명(34f6160): 블로킹 없음. 축 변환·Cesium 옵션(`upAxis Z/forwardAxis X` → 보정 항등, `gltf: Uint8Array`+`basePath` 유효, `show:false`여도 `ready`)과 Windows 경로(드라이브·UNC·ADS·예약 이름·8.3·끝 점/공백) 탈출 없음을 확인. minor 4건 반영: ① `resolve()`의 `is_dir()`가 긴 이름(ENAMETOOLONG)에서 예외 → 연결 끊김 대신 404(테스트 추가, 기존 `/data`·뷰어 경로도 해당) ② manifest JSON·필수 필드 오류를 `golmok.errors`에 기록 ③ GLB 로딩 중 zone 행 제거 시 모델 고아 방지(`zone.removed`) ④ `errorEvent`가 난 모델은 `ready` 대기에서 제외(60 초 대기 방지). 지적된 약점: 스모크 배치 검사는 중심만 비교 — 점 단위 대응은 `test_viewer_zonemath.py`가 맡는다.
+
+**병합 전 보완 리뷰**(오케스트레이터, Opus 읽기 전용 리뷰 2차): 블로킹 없음, 비블로킹 5건 반영. ① 스모크가 `GOLMOK_DATA`(사용자 실제 베이스맵 폴더)를 주면 그 안의 `zones/z_synthetic_001`을 지우고 다시 쓰던 것 → 그 경우 픽스처를 `test/out/fixturezone/`에 복사해 `--zone`으로 마운트(사용자 폴더에는 쓰지 않음; 기본 합성 베이스맵에서는 그대로 `/data/zones/…` 경로 검사) ② `Access-Control-Allow-Origin: *` 제거(뷰어는 같은 origin; 다른 사이트의 페이지가 로컬 데이터를 읽어갈 이유 없음) ③ `_safe_rel`이 Windows 예약 장치 이름 세그먼트(`CON`, `nul.json`, `com1.glb`, 끝 공백 포함)를 거절 — 장치 열기 대기 방지 ④ zone_id를 `fullmatch`(`$`는 끝 개행 허용)·64자 이하(스펙 §2)로 검사 ⑤ `app.js`가 `transform`이 유한 실수 16개인지 확인(짧은 배열이면 NaN 행렬로 조용히 잘못 배치). 테스트 +8 케이스(pytest 626 passed).
 
 ### 남은 것
 - CI에는 `npm test` 잡이 없다(WP-08부터 로컬 게이트). 축 변환은 CI python 잡의 `test_viewer_zonemath.py`(Node)로 검사된다. 필요하면 별도 WP로 Playwright CI 잡(브라우저 다운로드 포함) 추가.

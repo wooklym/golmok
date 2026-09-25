@@ -31,6 +31,18 @@ def get(url):
         return e.code, None, b""
 
 
+def test_zone_id_limit_is_64_chars(tmp_path: Path):
+    zdir = _zone(tmp_path / "z", zone_id="z_" + "a" * 62)
+    assert vs.zone_mount(zdir)[0] == "z_" + "a" * 62 + "/v1"
+
+
+def test_no_cors_header(served):
+    base, _ = served
+    with urllib.request.urlopen(base + "/data/tileset.json", timeout=5) as r:
+        assert r.headers.get("Access-Control-Allow-Origin") is None
+        assert r.headers.get("Cache-Control") == "no-store"
+
+
 def test_serves_viewer_and_data(served):
     base, _ = served
     status, ctype, body = get(base + "/")
@@ -91,6 +103,8 @@ def test_zone_mount_from_folder_or_manifest(tmp_path: Path):
     [
         {"zone_id": "../evil", "version": 1},
         {"zone_id": "Z_UPPER", "version": 1},
+        {"zone_id": "z_ok\n", "version": 1},
+        {"zone_id": "z_" + "a" * 63, "version": 1},
         {"zone_id": "z_ok", "version": 0},
         {"zone_id": "z_ok", "version": True},
         {"zone_id": "z_ok", "version": "1"},
@@ -149,6 +163,10 @@ def test_zone_serves_only_whitelisted_suffixes(zone_served):
         "/zones/z_test_001/v1/C:%5cWindows%5cwin.ini",
         "/zones/z_test_001/v1/collision.glb%00.json",
         "/zones/z_test_001/v1/collision.glb::$DATA",
+        "/zones/z_test_001/v1/CON.json",
+        "/zones/z_test_001/v1/nul",
+        "/zones/z_test_001/v1/visual/com1.glb",
+        "/zones/z_test_001/v1/LPT9%20.json",
         "/zones/z_test_001/v2/collision.glb",
         "/zones/z_other/v1/collision.glb",
         "/zones/z_test_001/collision.glb",
@@ -171,6 +189,8 @@ def test_data_path_escapes_are_refused(served):
         "/data/tiles/../../secret.txt",
         "/data/C:/Windows/win.ini",
         "/data/tileset.json%00",
+        "/data/tiles/AUX.glb",
+        "/data/prn",
     ):
         assert vs.resolve(path, data) is None, path
     assert os.path.normpath(vs.resolve("/data/tiles/b_0_0.glb", data)) == os.path.normpath(
