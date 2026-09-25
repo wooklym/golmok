@@ -37,15 +37,16 @@ RECORDS (fake.calls, design §5-0; "spawn" gets its label when set_actor_label i
     ("console", command) ("begin_play",) ("end_play",) ("load_level", path) ("new_level", path)
     ("save_current_level",) ("duplicate_asset", src, dst) ("play_settings", width, height)
     additive: ("hidden_in_editor", label, hidden) ("make_udim", output_path, [(u, v), ...])
-    ("add_level_to_world", package) ("high_res_screenshot", path)
+    ("add_level_to_world", package) ("high_res_screenshot", path) ("save_map", package)
 
 KNOBS (install(**cfg) keywords = Fake attributes): obj_mapping=(100.0, M_OBJ) glb_mapping=(100.0, M_GLB)
     obj_routes_ok={"fbx","interchange","legacy_flag"} udim_merge=True texture_vt_default=True
     vt_settable=True importer_makes_materials=True slot_names_from_usemtl=True fail_import=set()
     bounds_offset={} pie=False screenshot_delay_s=0.3 csv_delay_s=0.5 screenshot_fallback_name=False
     zone_transform=ZONE_ROOT_CM begin_play_starts_pie=True level=DEFAULT_LEVEL (registered as an existing
-    FakeLevel and opened, so synthetic_zone.open_or_create_level takes the load_level path instead of
-    building the L_Dev lighting)
+    FakeLevel and opened) lit=True (that level already holds the five L_Dev lighting actors, seeded without
+    spawn records, so synthetic_zone.open_or_create_level takes the plain load_level path; lit=False leaves
+    it empty and the V-03 "had no lighting; rebuilt" branch runs on the first open)
 
 Console (SystemLibrary.execute_console_command): "golmok.tod <preset>" picks the screenshot folder;
 "golmok.screenshot <tag> [name]" writes <Saved>/Screenshots/Golmok/<tag>/<preset or current>/<name>.png
@@ -101,8 +102,14 @@ KNOBS = {
     "texture_vt_default": True, "vt_settable": True, "importer_makes_materials": True,
     "slot_names_from_usemtl": True, "fail_import": frozenset(), "bounds_offset": {}, "pie": False,
     "screenshot_delay_s": 0.3, "csv_delay_s": 0.5, "screenshot_fallback_name": False,
-    "zone_transform": ZONE_ROOT_CM, "begin_play_starts_pie": True, "level": DEFAULT_LEVEL,
+    "zone_transform": ZONE_ROOT_CM, "begin_play_starts_pie": True, "level": DEFAULT_LEVEL, "lit": True,
 }  # fmt: skip
+# (class, label, tags) of setup_dev_level._build_lighting(), seeded into the initial level when lit=True.
+L_DEV_LIGHTING = (
+    ("DirectionalLight", "Sun", ("GolmokLighting",)), ("SkyAtmosphere", "SkyAtmosphere", ()),
+    ("SkyLight", "SkyLight", ("GolmokLighting",)), ("ExponentialHeightFog", "HeightFog", ("GolmokLighting",)),
+    ("PostProcessVolume", "PostProcess", ("GolmokLighting",)),
+)  # fmt: skip
 
 
 def _key(path) -> str:
@@ -123,7 +130,7 @@ def _map_bounds(bounds, scale, m, offset=(0.0, 0.0, 0.0)):
     return lo, hi
 
 
-def _png_bytes(w: int, h: int) -> bytes:
+def png_bytes(w: int, h: int) -> bytes:
     """Signature + IHDR + IEND: enough for _pure.png_size, not a viewable image."""
 
     def chunk(tag: bytes, data: bytes) -> bytes:
@@ -1084,7 +1091,7 @@ class FakeAutomationLibrary(_Bound):
     def take_high_res_screenshot(self, res_x, res_y, filename, *args, **kwargs):
         path = os.path.normpath(str(filename))
         self._fake.calls.append(("high_res_screenshot", path))
-        self._fake.schedule_file(self._fake.screenshot_delay_s, path, _png_bytes(res_x, res_y))
+        self._fake.schedule_file(self._fake.screenshot_delay_s, path, png_bytes(res_x, res_y))
         return True
 
 
@@ -1093,6 +1100,15 @@ class FakeEditorLevelUtils(_Bound):
         key = _key(level_package_name)
         self._fake.calls.append(("add_level_to_world", key))
         return LevelStreamingDynamic(world_asset=key)
+
+
+class FakeEditorLoadingAndSavingUtils(_Bound):
+    """save_map(world, asset_path) -> True; synthetic_zone.register_interior_sublevel saves the persistent
+    map by path with it (V-03) because add_level_to_world made the sublevel current."""
+
+    def save_map(self, world, asset_path):
+        self._fake.calls.append(("save_map", _key(asset_path)))
+        return True
 
 
 class ScopedSlowTask(Recorder):
@@ -1247,6 +1263,9 @@ class Fake:
         self.registry[level] = FakeLevel(self, level)
         self.levels[level] = []
         self.current_level = level
+        if self.lit:
+            for cls_name, label, tags in L_DEV_LIGHTING:
+                self.add_actor(cls_name, label, tags=list(tags))
         self.actor_subsystem, self.level_editor = EditorActorSubsystem(self), LevelEditorSubsystem(self)
         self.editor_subsystem, self.static_mesh_editor = (
             UnrealEditorSubsystem(self),
@@ -1329,7 +1348,7 @@ class Fake:
             path = pure.screenshot_fallback_path(path)
         w, h = self.play_settings.new_window_width, self.play_settings.new_window_height
         k = pure.SCREENSHOT_MULTIPLIER
-        self.schedule_file(self.screenshot_delay_s, path, _png_bytes(w * k, h * k))
+        self.schedule_file(self.screenshot_delay_s, path, png_bytes(w * k, h * k))
 
     def _path_command(self, args):
         sub = args[0] if args else ""
@@ -1437,6 +1456,7 @@ def _names(fake: Fake) -> dict:
         "GameplayStatics": FakeGameplayStatics(fake), "UDIMTextureFunctionLibrary": FakeUdimLibrary(fake),
         "Paths": FakePaths(fake), "AutomationLibrary": FakeAutomationLibrary(fake),
         "EditorLevelUtils": FakeEditorLevelUtils(fake),
+        "EditorLoadingAndSavingUtils": FakeEditorLoadingAndSavingUtils(fake),
     }  # fmt: skip
     names.update({n: _static_library(n, instance) for n, instance in libraries.items()})
     names.update({n: _marker(n) for n in MATERIAL_EXPRESSIONS + COMPONENT_CLASSES})

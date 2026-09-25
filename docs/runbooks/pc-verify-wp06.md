@@ -390,3 +390,6 @@ basemap_import: GeoOrigin lat=… lon=… h=… (basemap origin; ellipsoidal = D
 | 28 | zone_import | `StaticMesh.get_bounding_box()`가 Nanite 청크에서 원본 정점 bbox를 주는지 | `ExtendedBounds` 원천 | 허용 오차 `max(5 cm, 0.5 %)`; 반복 초과면 2 %로 올리고 기록 |
 | 29 | zone_import | GLB 임포트(`bm._import_glb` 경로, 옵션 없음)의 에셋 이름이 glTF mesh/node 이름을 따르는지(`destination_name`과 함께 둘 다 목표 이름으로) | V-02·WP-04는 mesh 이름으로 확인 | 다르면 `rename_asset` |
 | 30 | spike_runner | C++ `golmok.screenshot` 폴백 파일명 `<name>00000.png`(뷰포트 크기 없을 때) | HighResShot 경로 | `screenshot_fallback_path`를 받아 `<name>.png`로 개명 |
+| 31 | spike_runner | `unreal.Paths.convert_relative_path_to_full(path)`로 `project_saved_dir()`·`engine_dir()`·`get_project_file_path()`를 절대경로화(`.ps1`의 경로) | 에디터가 바이너리 폴더 기준 상대경로를 줄 수 있음; 함수 노출은 추정 | 없으면 `os.path.abspath`(에디터 작업 폴더 기준); `.ps1` 첫 줄의 경로가 틀리면 손으로 고치고 §11에 기록 |
+| 32 | spike_runner | `mode="editor"`: 이전 태그 `viewpoints.capture`의 `on_done`(slate post-tick 콜백 안)에서 다음 태그의 `unreal.register_slate_post_tick_callback`을 다시 등록 | 콜백 안에서의 재등록 허용 여부 | 두 번째 태그가 시작되지 않으면 태그마다 `s.capture_all(tags=("<tag>",), mode="editor")`를 따로 부른다 |
+| 33 | spike_runner | 태그 사이 PIE 재시작 간격 `PIE_RESTART_GAP_S = 1.0`(`editor_request_end_play()` 뒤 다음 `editor_request_begin_play()`까지) | 새 PIE 창이 같은 틱 근처에서 다시 뜨는지 | 두 번째 태그의 `PIE begin` 뒤 창이 안 뜨면 상수를 3~5 s로 올려 재시도(§11에 기록) |

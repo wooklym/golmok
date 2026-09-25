@@ -375,6 +375,7 @@ def test_pie_begin_end_and_worlds(fake, unreal):
     editor = unreal.get_editor_subsystem(unreal.UnrealEditorSubsystem)
     level_editor = unreal.get_editor_subsystem(unreal.LevelEditorSubsystem)
     statics = unreal.GameplayStatics
+    fake.actors = []  # drop the seeded L_Dev lighting (lit=True) so the actor lists below are exact
     zone = fake.add_actor("GolmokZone", "Zone_z_x", zone_id="z_x")
     spike = fake.add_actor(unreal.Actor, "Spike_b_lcc")
     assert editor.get_game_world() is None and level_editor.is_in_play_in_editor() is False
@@ -443,6 +444,7 @@ def test_registry_replace_rename_delete_list(fake, unreal, zone):
 def test_actors_levels_and_slate(fake, unreal, monkeypatch):
     actors = unreal.get_editor_subsystem(unreal.EditorActorSubsystem)
     level_editor = unreal.get_editor_subsystem(unreal.LevelEditorSubsystem)
+    fake.actors = []  # drop the seeded L_Dev lighting (lit=True) so the actor lists below are exact
     zone = actors.spawn_actor_from_class(unreal.GolmokZone, unreal.Vector(0, 0, 0))
     assert isinstance(zone, unreal.GolmokZone) and isinstance(zone, unreal.Actor)
     assert fake.calls[-1][:2] == ("spawn", "GolmokZone")
@@ -534,7 +536,15 @@ def test_existing_editor_modules_run_on_the_fake(fake, unreal, zone, monkeypatch
     assert first.get_folder_path() == "Golmok/Zones" and first.get_editor_property("version") == 1
     geo = sz.find_or_spawn_geo_origin(37.56, 126.923, 40.0)
     assert isinstance(geo, unreal.GolmokGeoOrigin) and geo.get_editor_property("latitude") == 37.56
+    # lit=True (default): the initial level already holds the L_Dev lighting, so opening it spawns nothing
+    lighting = [a for a in fake.actors if unreal.Name("GolmokLighting") in a.tags]
+    assert [a.get_actor_label() for a in lighting] == ["Sun", "SkyLight", "HeightFog", "PostProcess"]
+    assert [c[1] for c in fake.calls_of("spawn")] == ["GolmokZone", "GolmokGeoOrigin"]  # no lighting spawned
+    n = len(fake.calls)
+    assert sz.open_or_create_level(DEFAULT_LEVEL) is False
+    assert fake.calls[n:] == [("load_level", DEFAULT_LEVEL)]
     # V-03 PC fix (dd2c538): opening a level without a DirectionalLight rebuilds the L_Dev lighting.
+    fake.actors = [a for a in fake.actors if a not in lighting]
     n = len(fake.calls)
     assert sz.open_or_create_level(DEFAULT_LEVEL) is False and fake.calls[n] == ("load_level", DEFAULT_LEVEL)
     assert [c[1] for c in fake.calls[n:] if c[0] == "spawn"] == [
@@ -603,3 +613,14 @@ def test_viewpoints_capture_runs_on_the_fake(fake, unreal):
     assert os.path.normpath(out_root) == os.path.normpath(shot.parent.parent)
     shots = [(k, os.path.normpath(v)) for k, v in fake.calls_of("high_res_screenshot")]
     assert shots == [("high_res_screenshot", os.path.normpath(shot))]
+
+
+def test_lit_knob(monkeypatch, tmp_path):
+    lit = fake_unreal.install(monkeypatch, tmp_path / "lit")
+    assert [a.get_actor_label() for a in lit.actors] == [label for _, label, _ in fake_unreal.L_DEV_LIGHTING]
+    assert lit.calls == [] and any(isinstance(a, lit.module.DirectionalLight) for a in lit.actors)
+    dark = fake_unreal.install(monkeypatch, tmp_path / "dark", lit=False)
+    assert dark.actors == [] and dark.calls == []
+    world = dark.editor_world
+    assert dark.module.EditorLoadingAndSavingUtils.save_map(world, f"{DEFAULT_LEVEL}.L_ZoneTest") is True
+    assert dark.calls == [("save_map", DEFAULT_LEVEL)]

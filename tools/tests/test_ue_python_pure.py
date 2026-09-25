@@ -391,13 +391,29 @@ def test_modules_import_with_empty_stub(mods):
     for forbidden in ("unreal", "numpy", "golmok_tools"):
         assert forbidden not in src, f"_pure.py must not mention {forbidden}"
     assert callable(mods.pure.import_plan) and isinstance(mods.pure.LOG, dict)
-    # TODO(WP-06 integrator): once golmok.zone_import, golmok.interior_setup and golmok.spike_runner exist,
-    # import them here with the same empty stub (no unreal.X at import time) and assert the run signatures
-    # of design §3-2/§3-3:
-    #   zone_import.run(zone_dir, version=None, level=None, geo_origin=None, save=True, remeasure=False,
-    #                   reimport_textures=True)
-    #   interior_setup.run(zone_dir, version=None, level=None, save=True, register=False, remeasure=False,
-    #                      reimport_textures=True)
+    # WP-06 modules import on the same empty stub (no unreal.X at import time); signatures per design §3
+    sys.path.insert(0, str(PY_DIR))
+    try:
+        zi = importlib.import_module("golmok.zone_import")
+        it = importlib.import_module("golmok.interior_setup")
+        sr = importlib.import_module("golmok.spike_runner")
+        vp = importlib.import_module("golmok.viewpoints")
+    finally:
+        sys.path.remove(str(PY_DIR))
+    assert list(inspect.signature(zi.run).parameters) == [
+        "zone_dir", "version", "level", "geo_origin", "save", "remeasure", "reimport_textures",
+    ]  # fmt: skip
+    assert list(inspect.signature(it.run).parameters) == [
+        "zone_dir", "version", "level", "save", "register", "remeasure", "reimport_textures",
+    ]  # fmt: skip
+    assert issubclass(it.InteriorSetupError, zi.ZoneImportError)
+    assert list(inspect.signature(sr.capture_all).parameters) == ["tags", "presets", "names", "mode"]
+    assert list(inspect.signature(sr.game_scripts).parameters) == [
+        "paths", "tags", "presets", "res", "base_level", "timeout_s",
+    ]  # fmt: skip
+    assert list(inspect.signature(vp.capture).parameters) == [
+        "tag", "names", "presets", "game_view", "on_done",
+    ]  # fmt: skip
     # synthetic_zone.run keeps its signature (design D18):
     params = inspect.signature(mods.sz.run).parameters
     assert list(params) == ["geo_origin", "move_player_start", "import_assets", "level", "interior"]
@@ -1119,7 +1135,6 @@ def test_png_size(mods):
 # ---- logs, results ----------------------------------------------------------------------------------
 
 
-@pytest.mark.skip(reason="WP-06 runbooks/modules pending")
 def test_log_formats_are_quoted_in_runbook(mods):
     pure = mods.pure
     text = "\n".join(p.read_text("utf-8") for p in RUNBOOKS)
@@ -1582,7 +1597,6 @@ def test_report_template_matches_research_08(mods):
     )
 
 
-@pytest.mark.skip(reason="WP-06 runbooks/modules pending")
 def test_no_unreal_api_outside_touchpoint_list(mods):
     api = re.compile(r"unreal\.([A-Za-z_]\w*)")
     known = {"log", "log_warning", "log_error"}
