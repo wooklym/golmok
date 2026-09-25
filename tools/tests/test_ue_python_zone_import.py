@@ -641,9 +641,9 @@ def test_content_copy_exact_two_files(fake, zone, zi):
     assert sorted(p.name for p in dest.iterdir()) == ["blockers.json", "manifest.json"]
     for name in ("blockers.json", "manifest.json"):
         assert (dest / name).read_bytes() == (zone.version / name).read_bytes()
-    assert [p for p in (Path(fake.content_dir) / "Golmok" / "Zones").rglob("*") if p.is_file()] == sorted(
-        dest.iterdir()
-    )
+    # rglob order is filesystem order (differs between runners): sort both sides
+    zones_root = Path(fake.content_dir) / "Golmok" / "Zones"
+    assert sorted(p for p in zones_root.rglob("*") if p.is_file()) == sorted(dest.iterdir())
     files = [a for a in result["assets"] if a["kind"] == "file"]
     assert [a["asset"] for a in files] == [
         f"Golmok/Zones/{ZONE}/v1/blockers.json",
