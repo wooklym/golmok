@@ -9,6 +9,8 @@ unreal/Golmok/.vsconfig
 unreal/Golmok/Plugins/*/Binaries/
 unreal/Golmok/Plugins/*/Intermediate/
 build/
+# Cesium for Unreal's HTTP request cache (created in the project folder whenever the plugin loads)
+unreal/Golmok/cesium-request-cache.sqlite*
 
 # Recreated by script in each checkout: UE mannequin pack (tools/ue/add-mannequin.ps1)
 # and the movement test level (golmok.setup_dev_level, or tools/ue/test.ps1 -SetupDevLevel)
