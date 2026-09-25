@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "params": {
+    "fov":   {"label": "fov",   "unit": "deg", "default": 65.0, "min": 20.0,  "max": 110.0, "step": 5.0},
+    "ev":    {"label": "ev",    "unit": "EV",  "default": 0.0,  "min": -3.0,  "max": 3.0,   "step": 0.3333333333},
+    "focus": {"label": "focus", "unit": "m",   "default": 3.0,  "min": 0.3,   "max": 50.0,  "step_ratio": 1.25},
+    "fstop": {"label": "f/",    "unit": "",    "default": 2.8,  "values": [1.4, 2.0, 2.8, 4.0, 5.6, 8.0, 11.0, 16.0]},
+    "roll":  {"label": "roll",  "unit": "deg", "default": 0.0,  "min": -15.0, "max": 15.0,  "step": 1.0}
+  },
+  "toggles": {"dof": false, "character_hidden": false, "overlay_hidden": false},
+  "hints": {
+    "keyboard": ["P exit  Space shoot  R reset  F dof  H char  O overlay",
+                 "WASD/EQ move  Shift fast  mouse look  Z/C roll  wheel fov",
+                 "[ ] fov   - = ev   , . focus   N M f-stop"],
+    "gamepad":  ["View exit  A shoot  Menu reset  R3 dof  B char",
+                 "LS move  LT/RT down/up  RS look  L3 fast",
+                 "DPad L/R fov  DPad D/U ev  LB/RB focus  X/Y f-stop"]
+  }
+}

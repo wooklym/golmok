@@ -10,6 +10,7 @@
 #include "InputAction.h"
 #include "InputMappingContext.h"
 #include "Lighting/GolmokTimeOfDay.h"
+#include "Photo/GolmokPhotoModeSubsystem.h"
 
 AGolmokTimeOfDay* AGolmokPlayerController::GetTimeOfDay()
 {
@@ -57,6 +58,14 @@ void AGolmokPlayerController::SetupInputComponent()
 	Input->BindAction(NextPresetAction, ETriggerEvent::Started, this, &AGolmokPlayerController::OnNextPreset);
 	Input->BindAction(RecordAction, ETriggerEvent::Started, this, &AGolmokPlayerController::OnToggleRecord);
 	Input->BindAction(PlayAction, ETriggerEvent::Started, this, &AGolmokPlayerController::OnTogglePlay);
+
+	// WP-12: the toggle is ours; the photo actions live in the subsystem, which binds its own handlers on this
+	// component (it stays on the input stack across view-target changes: photo mode never re-possesses).
+	Input->BindAction(PhotoToggleAction, ETriggerEvent::Started, this, &AGolmokPlayerController::OnTogglePhoto);
+	if (UGolmokPhotoModeSubsystem* Photo = UGolmokPhotoModeSubsystem::Get(GetWorld()))
+	{
+		Photo->BindInput(Input);
+	}
 }
 
 void AGolmokPlayerController::OnPossess(APawn* InPawn)
@@ -102,21 +111,59 @@ void AGolmokPlayerController::EnsureInputAssets()
 	Context->MapKey(NextPresetAction, EKeys::F5);
 	Context->MapKey(RecordAction, EKeys::F9);
 	Context->MapKey(PlayAction, EKeys::F10);
+
+	// WP-12 photo toggle: its own context so it survives bDebugKeysEnabled = false, and it must fire while the game
+	// is paused (photo mode pauses it) to be able to leave again.
+	PhotoToggleAction = MakeBoolAction(TEXT("IA_GolmokPhotoToggle"));
+	PhotoToggleAction->bTriggerWhenPaused = true;
+	PhotoToggleAction->bConsumeInput = true;
+	PhotoToggleContext = NewObject<UInputMappingContext>(this, TEXT("IMC_GolmokPhotoToggle"));
+	PhotoToggleContext->MapKey(PhotoToggleAction, EKeys::P);
+	PhotoToggleContext->MapKey(PhotoToggleAction, EKeys::Gamepad_Special_Left);
 }
 
 void AGolmokPlayerController::AddMappingContext()
 {
-	if (!bDebugKeysEnabled)
-	{
-		return;
-	}
 	EnsureInputAssets();
-	if (!DebugMappingContext)
+	UEnhancedInputLocalPlayerSubsystem* Subsystem =
+		ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(GetLocalPlayer());
+	if (!Subsystem)
 	{
 		return;
 	}
-	if (UEnhancedInputLocalPlayerSubsystem* Subsystem =
-			ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(GetLocalPlayer()))
+	// The photo toggle is a player feature: always mapped, whatever bDebugKeysEnabled says (AddMappingContext is
+	// idempotent, so re-possession just re-asserts it).
+	if (PhotoToggleContext)
+	{
+		Subsystem->AddMappingContext(PhotoToggleContext, PhotoTogglePriority);
+	}
+	// Debug keys: never while photo mode holds them suspended (defensive: photo mode does not re-possess).
+	if (!bDebugKeysEnabled || bDebugKeysSuspended || !DebugMappingContext)
+	{
+		return;
+	}
+	Subsystem->AddMappingContext(DebugMappingContext, DebugMappingPriority);
+}
+
+void AGolmokPlayerController::SetDebugKeysSuspended(bool bSuspended)
+{
+	if (bDebugKeysSuspended == bSuspended)
+	{
+		return;
+	}
+	bDebugKeysSuspended = bSuspended;
+	UEnhancedInputLocalPlayerSubsystem* Subsystem =
+		ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(GetLocalPlayer());
+	if (!Subsystem || !DebugMappingContext)
+	{
+		return;
+	}
+	if (bSuspended)
+	{
+		// Removing a context that was never added (bDebugKeysEnabled = false) is harmless.
+		Subsystem->RemoveMappingContext(DebugMappingContext);
+	}
+	else if (bDebugKeysEnabled)
 	{
 		Subsystem->AddMappingContext(DebugMappingContext, DebugMappingPriority);
 	}
@@ -193,6 +240,25 @@ void AGolmokPlayerController::OnNextPreset()
 		return;
 	}
 	Tod->NextPreset();
+}
+
+void AGolmokPlayerController::OnTogglePhoto()
+{
+	UGolmokPhotoModeSubsystem* Photo = UGolmokPhotoModeSubsystem::Get(GetWorld());
+	if (!Photo)
+	{
+		UE_LOG(LogGolmok, Warning, TEXT("P: no photo mode subsystem in this world."));
+		return;
+	}
+	FString Message;
+	if (Photo->Toggle(Message))
+	{
+		UE_LOG(LogGolmok, Log, TEXT("P: %s"), *Message);
+	}
+	else
+	{
+		UE_LOG(LogGolmok, Warning, TEXT("P: %s"), *Message);
+	}
 }
 
 void AGolmokPlayerController::OnToggleRecord()

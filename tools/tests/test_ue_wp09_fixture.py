@@ -85,6 +85,10 @@ CONSOLE_COMMANDS = {
     "golmok.screenshot",
     "golmok.stats",
     "golmok.geo.selftest",
+    "golmok.photo",  # WP-12
+    "golmok.photo.shoot",
+    "golmok.photo.reset",
+    "golmok.photo.set",
 }
 
 # Golmok.Build.cs as WP-05 left it (PC fix e446504): no new module for WP-09 (StreamableManager is in Engine).

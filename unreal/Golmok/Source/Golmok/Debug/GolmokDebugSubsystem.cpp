@@ -39,6 +39,7 @@
 #include "Misc/DateTime.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
+#include "Photo/GolmokPhotoModeSubsystem.h"
 #include "Portals/GolmokPortal.h"
 #include "RenderTimer.h" // GGameThreadTime / GRenderThreadTime (RenderCore in UE 5.8)
 #include "ShowFlags.h"
@@ -683,6 +684,12 @@ FString UGolmokDebugSubsystem::DescribePaths() const
 
 bool UGolmokDebugSubsystem::StartRecording(const FString& Name, FString& OutMessage)
 {
+	// WP-12: the photo camera owns the view target and the game is paused; no recording underneath it.
+	if (UGolmokPhotoModeSubsystem::IsActiveIn(GetWorld()))
+	{
+		OutMessage = TEXT("photo mode is on (golmok.photo 0 first)");
+		return false;
+	}
 	if (!IsValidPathName(Name))
 	{
 		OutMessage = FString::Printf(TEXT("invalid path name '%s' (use [A-Za-z0-9_-], 1-64 chars)"), *Name);
@@ -781,6 +788,12 @@ bool UGolmokDebugSubsystem::StopRecording(FString& OutMessage)
 
 bool UGolmokDebugSubsystem::StartPlayback(const FString& Name, bool bCsv, FString& OutMessage)
 {
+	// WP-12: the photo camera owns the view target and the game is paused; no playback underneath it.
+	if (UGolmokPhotoModeSubsystem::IsActiveIn(GetWorld()))
+	{
+		OutMessage = TEXT("photo mode is on (golmok.photo 0 first)");
+		return false;
+	}
 	if (bRecording)
 	{
 		OutMessage = FString::Printf(TEXT("cannot play while recording '%s' (golmok.path stop first)"), *RecordName);
@@ -1016,18 +1029,26 @@ bool UGolmokDebugSubsystem::TakeScreenshot(const FString& Tag, const FString& Na
 		OutMessage = FString::Printf(TEXT("invalid name '%s' (use [A-Za-z0-9_-], 1-64 chars)"), *NameOrEmpty);
 		return false;
 	}
-	UWorld* World = GetWorld();
-	if (!World || !GEngine)
-	{
-		OutMessage = TEXT("no world / engine");
-		return false;
-	}
 	const AGolmokTimeOfDay* Tod = GetTimeOfDay();
 	const FString Preset = (Tod && !Tod->CurrentPreset.IsNone()) ? Tod->CurrentPreset.ToString() : FString(TEXT("current"));
 	const FString Dir = FPaths::ConvertRelativePathToFull(FPaths::Combine(FPaths::ProjectSavedDir(), ScreenshotFolder, Tag, Preset));
 	const FString File = NameOrEmpty.IsEmpty() ? FDateTime::Now().ToString(TEXT("%Y%m%d_%H%M%S")) : NameOrEmpty;
 	IFileManager::Get().MakeDirectory(*Dir, /*Tree*/ true);
 	const FString FullPath = FPaths::Combine(Dir, File);
+	int32 Effective = 0;
+	return RequestHighResScreenshot(FullPath, ScreenshotMultiplier, OutMessage, Effective);
+}
+
+bool UGolmokDebugSubsystem::RequestHighResScreenshot(const FString& InAbsolutePathNoExt, int32 InMultiplier, FString& OutMessage, int32& OutEffectiveMultiplier)
+{
+	const int32 Requested = FMath::Max(1, InMultiplier);
+	OutEffectiveMultiplier = Requested;
+	UWorld* World = GetWorld();
+	if (!World || !GEngine)
+	{
+		OutMessage = TEXT("no world / engine");
+		return false;
+	}
 
 	// Design section 11 #28: the sequence UAutomationBlueprintFunctionLibrary::TakeHighResScreenshot uses (the API
 	// viewpoints.py calls, PC-verified to write exactly <name>.png): SetResolution() stores GScreenshotResolutionX/Y,
@@ -1041,7 +1062,7 @@ bool UGolmokDebugSubsystem::TakeScreenshot(const FString& Tag, const FString& Na
 	{
 		FHighResScreenshotConfig& Config = GetHighResScreenshotConfig();
 		// SetResolution() refuses (and leaves the globals stale) when a side exceeds the max 2D texture size.
-		int32 Multiplier = ScreenshotMultiplier;
+		int32 Multiplier = Requested;
 		bool bSized = Config.SetResolution(ViewSize.X, ViewSize.Y, static_cast<float>(Multiplier));
 		if (!bSized && Multiplier > 1)
 		{
@@ -1050,19 +1071,37 @@ bool UGolmokDebugSubsystem::TakeScreenshot(const FString& Tag, const FString& Na
 		}
 		if (bSized)
 		{
-			Config.SetFilename(FullPath + TEXT(".png"));
-			View->TakeHighResScreenShot();
-			OutMessage = FString::Printf(TEXT("screenshot requested -> %s.png (%dx, written on the next frame)%s"), *FullPath, Multiplier,
-				Multiplier == ScreenshotMultiplier ? TEXT("") : TEXT(" [multiplier reduced: the requested size exceeds the max texture size]"));
-			return true;
+			Config.SetFilename(InAbsolutePathNoExt + TEXT(".png"));
+			// TakeHighResScreenShot() returns false when the requested size is too big for the GPU (WP-12 design
+			// section 0 #14): one retry at 1x, so the caller's effective multiplier is what will really be rendered.
+			bool bAccepted = View->TakeHighResScreenShot();
+			if (!bAccepted && Multiplier > 1)
+			{
+				Multiplier = 1;
+				if (Config.SetResolution(ViewSize.X, ViewSize.Y, 1.f))
+				{
+					Config.SetFilename(InAbsolutePathNoExt + TEXT(".png"));
+					bAccepted = View->TakeHighResScreenShot();
+				}
+			}
+			if (bAccepted)
+			{
+				OutEffectiveMultiplier = Multiplier;
+				OutMessage = FString::Printf(TEXT("screenshot requested -> %s.png (%dx, written on the next frame)%s"), *InAbsolutePathNoExt, Multiplier,
+					Multiplier == Requested ? TEXT("") : TEXT(" [multiplier reduced: the requested size exceeds the max texture size]"));
+				return true;
+			}
+			OutEffectiveMultiplier = Multiplier;
+			OutMessage = FString::Printf(TEXT("screenshot refused by the viewport at %dx (too big for the GPU)"), Multiplier);
+			return false;
 		}
 	}
 
 	// No sized game viewport (e.g. -nullrhi) or no valid resolution: the console command is the fallback. It is routed
 	// through the player so it reaches UGameViewportClient::Exec in PIE too; the engine then names the file
 	// <name>00000.png.
-	ExecConsole(World, FString::Printf(TEXT("HighResShot %d filename=\"%s\""), ScreenshotMultiplier, *FullPath));
-	OutMessage = FString::Printf(TEXT("screenshot requested via HighResShot -> %s00000.png (no viewport size; written on the next frame)"), *FullPath);
+	ExecConsole(World, FString::Printf(TEXT("HighResShot %d filename=\"%s\""), Requested, *InAbsolutePathNoExt));
+	OutMessage = FString::Printf(TEXT("screenshot requested via HighResShot -> %s00000.png (no viewport size; written on the next frame)"), *InAbsolutePathNoExt);
 	return true;
 }
 
