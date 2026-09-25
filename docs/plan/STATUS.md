@@ -3,7 +3,7 @@
 갱신 규칙: 각 세션이 시작·종료 시 자기 행을 고친다. 상태 기호:
 ⚪ 대기 · 🔵 진행 중 · 🟡 코드 완료·PC 검증 대기 · 🟢 완료 · 🔴 막힘 · ⏸ 보류
 
-마지막 갱신: 2026-09-25 (WP-09/10/11 병합 완료, D-013~D-017 승인 → WP-12 착수)
+마지막 갱신: 2026-09-25 (WP-12 진행 중)
 
 ## 마일스톤
 
@@ -32,7 +32,7 @@
 | WP-09 | UE C++ 3: Zone Index 발견·비동기 로드 + V-03 디버그 표시 정리 | 🟡 코드 완료·PC 검증 대기 | session_016UiCeoD2Sytfh4nSweonbs (Fable 5.1 ultracode, 심판·검증·수정 Opus 5.5) | `Zones/GolmokZoneIndex`(순수 파서·셀 캐시·3×3) · `UGolmokZoneSubsystem::OnEvaluateTimer = DiscoverZones → Evaluate`(Transient 스폰·파괴·retire, 배치 우선, `bPortalManaged`, 재진입 카운터) · `AGolmokZone::LoadAsync`(FStreamableManager, `Loading`, 완료 항상 다음 틱, 세대 취소, `bAsyncLoad=True`) · 포털 선로드 + `Loading`이면 Pending 유지 · `GOLMOK_RENDER_TIME_SOURCE`+`HoldLastPositive` · 콘솔 `golmok.zone.index` · Python `zone_index.sync`/`zone_import(with_index=)` · 픽스처 `z_synthetic_002`+`index/`(생성기 `make_index_fixture.py --check`) · pytest +70(전체 569 passed) · UE 자동화 5개(전체 16) · 런북 `runbooks/pc-verify-wp09.md`(불확실 API §11 34행+). PR #15. 적대적 검증 1라운드 13→확정 13(실질 8, major 2) 전부 수정·반박 0·미검증 0. **PC(V-07)**: 런북 §1~§10 순서; §7에서 render 소스 매크로 기본값 확정, §6 히치 표. WP-04 "남은 것"(Index 발견·bAsyncLoad) 해소 **병합 전 Opus 보완 리뷰**: 블로킹 없음, 비블로킹 3건 반영(GeoOrigin 없는 레벨 경고 억제, `ResolveObject` 우선, index 동일 파일 복사 건너뜀), V-07 메모 6건(WP-09 문서 "결과") |
 | WP-10 | 애니메이션 평가·게임 기능 제안(문서) | 🟢 완료(문서; 제안 승인·PC 평가는 별도) | session_011Jdzkehx5EZRAV1kX7PnGD (Opus 5.5) | `research/09-animation-ue58.md`(현행 `ABP_Unarmed` / GASP 로코모션 이식(**권장 시험**) / Motion Matching 최소 구성 3안, 5.8 릴리스 노트·Motion Matching·GASP·Chooser 공식 문서 인용; Mover는 5.8에서도 Experimental이라 제외) · `runbooks/pc-verify-animation.md`(V-08: §0 라이선스 확인 → GASP 둘러보기 → ① 기준선 → ② 이식(시험 폴더 `Golmok_AnimEval`, 커밋 금지) → ③ 필요 시, 채점표·실패 대안) · `design/game-features-proposal.md` + DECISIONS **D-013~D-017 제안**(포토 모드·Zone 지도·시간대/날씨·환경음·세이브) · `design/lighting-night-lookdev.md`(night 검정 원인 = 태양 숨김 × 대기 0 × real-time SkyLight 0, 후보 A 달빛+B 노출 상한 → E 가로등). **확인 못 함(403)**: Fab EULA, UE EULA, Epic Content License, GASP Fab 리스팅·5.8 블로그, 통신비밀보호법 원문 → 사용자 확인 항목. UE 코드·JSON 변경 없음. 병합 전 Opus 보완 리뷰: Chooser 플러그인 5.8 Experimental(② 리스크에 추가), UAF 노트 인용 정정, 런북 보강(충돌 해결·저장 위치·CSV 위치·성능 조건·정리). PR #17 |
 | WP-11 | 웹 검수 뷰어 2차(충돌·blocker 메시 오버레이) | 🟢 완료 | session_01CSQya6KM72tpKC8L7aowSx (Opus 5.5) | `tools/viewer/zonemath.js`(glTF Y-up → zone-local → ECEF 한 곳, Cesium 기본 축 보정 끔 — 기본값이면 90° 돌아감) · `app.js` collision/blockers GLB `Cesium.Model`·오버레이 체크박스 6개·원점 E·N·U 축 · `golmok-viewer --zone`(`/zones/<zone_id>/v<n>/`, 확장자 화이트리스트, 경로 탈출 거절) · pytest +49(전체 618 passed) · `npm test` 단위 5 + 스모크(zone 2·모델 4·배치 오차 < 5 cm·토글). OBJ 청크는 bbox만. CI에는 `npm test` 잡 없음(로컬 게이트). 병합 전 Opus 보완 리뷰 5건(스모크가 사용자 `GOLMOK_DATA` 폴더에 쓰지 않음, CORS 헤더 제거, Windows 예약 이름 거절, zone_id fullmatch·64자, transform 16개 검사) 반영. PR #16
-| WP-12 | 포토 모드 최소판(D-013) | ⚪ 대기 | — | 스펙 `plan/WP-12-photo-mode.md`. 일시정지·자유 카메라(반경·footprint 클램프)·FOV/노출/DOF·캐릭터 숨김·고해상도 PNG + 메타 JSON, `Config/Golmok/photo.json`, 순수 헤더 g++ 교차검증, 런북 V-09 |
+| WP-12 | 포토 모드 최소판(D-013) | 🔵 진행 중 (2026-09-25 시작) | session_01R7589q1vh4DRPq4NeCsZ4Q (Fable 5.1 ultracode, 심판·회의론자·수정 Opus 5.5) | 스펙 `plan/WP-12-photo-mode.md`. 일시정지·자유 카메라(반경·footprint 클램프)·FOV/노출/DOF·캐릭터 숨김·고해상도 PNG + 메타 JSON, `Config/Golmok/photo.json`, 순수 헤더 g++ 교차검증, 런북 V-09 |
 | WP-13 | 환경음 기본(D-016 (a)) | ⚪ 대기 | — | 스펙 `plan/WP-13-ambience-audio.md`. `research/10` 사운드 출처(라이선스 원문), `Audio/` 앰비언스 크로스페이드·발소리(거리 기반, 재질)·실내/시간대 전환, `audio.json`, `audio_import.py`, WAV(LFS ≤ 40 MB) 또는 플레이스홀더, 런북 V-10 |
 
 ## 트랙 1B — PC 검증 (PC Claude 세션)
