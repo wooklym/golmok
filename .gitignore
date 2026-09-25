@@ -60,3 +60,5 @@ unreal/Golmok/Content/Golmok/Maps/L_Spike_*
 # WP-06 runbook §0: the L_ZoneTest copy used for V-04 (fixture zone removed) and its viewpoints file
 unreal/Golmok/Content/Golmok/Maps/L_ZoneTest06*
 unreal/Golmok/Config/Golmok/Viewpoints/L_ZoneTest06.json
+# WP-09 runbook §4: the L_ZoneTest copy with the placed Zone_* actors removed (index discovery test), plus its _BuiltData
+unreal/Golmok/Content/Golmok/Maps/L_ZoneTest09*

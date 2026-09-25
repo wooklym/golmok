@@ -98,13 +98,13 @@ git pull
                                    [Info] async load finished after x.xx s: missing 0, error ''
   Golmok.Zone.AsyncCancel          [Info] asset packages: 4 existing, 0 missing
                                    [Info] second request finished after x.xx s
-  Golmok.Zone.InteriorNotBlocked   [Info]   z_synthetic_001_interior     v1   prio 20   unloaded  dist    >=  8.x m portal [placed]   (행 Info 3~4줄)
+  Golmok.Zone.InteriorNotBlocked   [Info]   z_synthetic_001_interior     v1   prio 20   unloaded  dist        8.x m portal [placed]   (행 Info 3~4줄)
   ```
   `asset packages: 0 existing, 4 missing` + `no assets: synchronous fallback exercised`가 나오면 `L_Dev`에서 001 에셋을 못 찾은 것(`/Game/Golmok/Zones/z_synthetic_001/v1/SM_chunk_*`·`SM_z_synthetic_001_collision` 확인) — 통과는 하지만 비동기 경로를 검증하지 못했으므로 §12에 기록. `Golmok.Zone.IndexDiscover`/`InteriorNotBlocked`가 `[Info] skipped: run synthetic_zone.run()`이면 `L_ZoneTest`가 없는 것(전제 위반).
 - [ ] 두 번째 명령: **16개** 전부 `Success` = WP-05까지 11개(`Golmok.Player.Movement`, `Lighting.PresetsFile/PresetApply`, `Debug.StatsMath/PathFormat/PathRoundTrip/HudStats`, `Portal.SpawnFromManifest/RoundTrip/PawnSwap/SharedInterior`) + 위 5개. 실내 서브레벨이 없으면 `Portal.RoundTrip/PawnSwap/SharedInterior` 3개는 skip Info(전제상 있어야 함). `test.ps1` 요약 줄 `Succeeded:`는 Warning이 있는 테스트를 따로 세므로(V-03) 상태 열이 전부 `Success`인지로 본다.
 - [ ] `Golmok.Portal.SpawnFromManifest`가 동기 경로(`Zone->bAsyncLoad = false;` — 로그 `Zone z_synthetic_001 v1 loaded in x ms: …`)로, `Golmok.Zone.AsyncLoad`가 비동기 경로(`AsyncLoadCount==1` — 로그 `Zone z_synthetic_001 v1: async load requested (4 assets, 0 missing, priority 0)` → `Zone z_synthetic_001 v1 loaded (async x.x ms wait + y.y ms build): …`)로 통과. `Golmok.Portal.RoundTrip`은 이제 실내를 비동기로 로드하므로 `[Info] cycle 1: interior ready after x.xx s …`의 시간이 V-03(0.03 s)보다 길 수 있다(`StreamInTimeoutSeconds` 5.0 안이면 정상; 넘으면 §11 #32).
 - [ ] `Golmok.log`에 `GolmokZoneSubsystem: … called while zone record pointers are held (depth …, violation …)`·`async finish of zone … called while zone record pointers are held …` **Error가 0건**(재진입 규약; 5개 테스트가 `GetReentrancyViolations()==0`을 단언).
-- [ ] 셀 공식 g++ 교차검증(`tools/tests/test_ue_geo_math.py`)은 클라우드 CI에서 이미 초록; MSVC `tan/asinh` 마지막 ulp 차이는 셀 경계 위의 점에서만 드러나므로(§11 #20) `Golmok.Zone.IndexParse`의 `LonLatToCell(126.9250, 37.5620, 16) == (55873, 25379)`·`(126.9272665, 37.5620) → (55874, 25379)` 단언 통과만 확인하고 §12에 "경계 점 없음"으로 적는다.
+- [ ] 셀 공식 g++ 교차검증(`tools/tests/test_ue_geo_math.py`)은 클라우드 CI에서 이미 초록; MSVC `tan/asinh` 마지막 ulp 차이는 셀 경계 위의 점에서만 드러나므로(§11 #20) `Golmok.Zone.IndexParse`의 `LonLatToCell(126.9250, 37.5620, 16) == (55873, 25379)`·`(126.9272636, 37.5620) → (55874, 25379)` 단언 통과만 확인하고 §12에 "경계 점 없음"으로 적는다.
 - [ ] 실패한 테스트는 `unreal\Golmok\Saved\Logs\Golmok.log`의 `[Error]` 줄을 §12에 옮겨 적는다.
 
 ## 4. PIE 발견(배치 액터 없이)
@@ -164,11 +164,11 @@ LogGolmok: GolmokZoneSubsystem: 0 zones registered; load < 150 m, unload > 250 m
   ```
   golmok.zone.list
   3 zones (load < 150 m, unload > 250 m), N basemap actors tagged, 3 discovered, 0 loading
-    z_synthetic_001_interior     v1   prio 20   unloaded  dist    >=  8.x m [index]
-    z_synthetic_001              v1   prio 10   loaded    dist      0.0 m [index]
-    z_synthetic_002              v1   prio 10   unloaded  dist    184.x m [index]
+    z_synthetic_001_interior     v1   prio 20   unloaded  dist        8.x m [index]
+    z_synthetic_001              v1   prio 10   loaded    dist        0.0 m [index]
+    z_synthetic_002              v1   prio 10   unloaded  dist >=   184.x m [index]
   ```
-  헤더는 WP-04 접두(`N zones (load < … m, unload > … m), K basemap actors tagged`) 뒤에 `, 3 discovered, 0 loading`만 붙는다. 로드 중인 순간에는 상태 열 `loading` + 행 끝 ` (loading 0.x s) [index]`, 헤더 `1 loading`.
+  헤더는 WP-04 접두(`N zones (load < … m, unload > … m), K basemap actors tagged`) 뒤에 `, 3 discovered, 0 loading`만 붙는다. 거리 열은 `dist %s%8.1f m`(`%s` = `>=` 또는 공백 2칸): `>=`는 `Evaluate()`가 싼 AABB(bounds) 거리만 재고 폴리곤 거리를 생략했다는 뜻이다 — Unloaded인데 bounds 거리가 이미 `LoadRadiusM`(150 m)보다 먼 zone(002: 184 m) 또는 Loaded/Loading인데 `UnloadRadiusM`(250 m) 이상인 zone. 실내(8 m < 150 m)와 001은 정확한 폴리곤 거리라 `>=`가 없다(`tools/tests/test_ue_wp09_fixture.py::test_runbook_zone_list_rows_match_describe_zones_format`가 이 문서의 행을 형식·규칙과 대조). 로드 중인 순간에는 상태 열 `loading` + 행 끝 ` (loading 0.x s) [index]`, 헤더 `1 loading`.
 - [ ] HUD `zones:` 첫 줄 = 같은 헤더(`zones: 3 zones (load < 150 m, unload > 250 m), N basemap actors tagged, 3 discovered, 0 loading`) + 위 3행(최대 4행).
 - [ ] 아웃라이너(PIE 월드) `Golmok/Zones/Discovered`에 라벨 `Zone_z_synthetic_001_interior (index)`·`Zone_z_synthetic_001 (index)`·`Zone_z_synthetic_002 (index)` 3개(Transient; 디테일 `SpawnedFromIndex` ✔). PIE 종료 뒤 에디터 월드에 남지 않고 `L_ZoneTest09`가 dirty가 아니다(`SetActorLabel(..., bMarkDirty=false)`).
 - [ ] `golmok.zone.radius 300 400` → `LogGolmok: GolmokZoneSubsystem: radii now load < 300 m, unload > 400 m` → 즉시 `Evaluate()` → 002(184 m) 로드. 002는 에셋 패키지가 없어 `CollectAssetPaths()`가 0개 → **`async load requested` 없이 동기 경로**:
@@ -178,7 +178,7 @@ LogGolmok: GolmokZoneSubsystem: 0 zones registered; load < 150 m, unload > 250 m
   LogGolmok: Zone z_synthetic_002: blocker glass_1 (glass) rel (…) cm yaw … extent (…) -> level (…)
   LogGolmok: Zone z_synthetic_002 v1 loaded in x.x ms: chunks 0/2 (2 wire boxes), collision 0/2, blockers 1/1, portals 0 (WP-05)
   ```
-  001 동쪽 200 m에 **주황 와이어 박스 2개**(청크 bbox). 위 4개 Warning은 우리 로그(`bDrawMissingAssetBoxes=True`)이고 정상; **엔진 `LogStreaming`/`LogStreamableManager`의 `Couldn't find file for package …` 경고는 없어야** 한다(`DoesPackageExist` 사전 검사로 없는 패키지는 요청하지 않음 — 나오면 §11 #8·#18). `golmok.zone.list` 002 행 `loaded    dist    184.x m [index]`.
+  001 동쪽 200 m에 **주황 와이어 박스 2개**(청크 bbox). 위 4개 Warning은 우리 로그(`bDrawMissingAssetBoxes=True`)이고 정상; **엔진 `LogStreaming`/`LogStreamableManager`의 `Couldn't find file for package …` 경고는 없어야** 한다(`DoesPackageExist` 사전 검사로 없는 패키지는 요청하지 않음 — 나오면 §11 #8·#18). `golmok.zone.list` 002 행 `loaded    dist      184.x m [index]`(이제 로드됐으므로 폴리곤 거리 — `>=` 없음).
 - [ ] `golmok.zone.refresh` → `golmok.zone.refresh: basemap rescanned, index discovery run and zones re-evaluated`(발견 → 평가 순서; 새 스폰 없음이면 `discovery:` 요약 줄은 안 찍힌다 — 스폰·파괴·retire가 0이면 침묵).
 
 ## 5. 걸어 나가서 파괴
@@ -272,17 +272,18 @@ HUD(F1) `game … ms  render … ms  gpu … ms` 줄과 `stat unit`의 `Draw`를
 - [ ] **문을 지나도 바닥이 있다**(방 안 낙하 없음): 포털은 실내가 `Loaded`가 될 때까지 `Active`가 되지 않으므로(Pending 유지) 방에 들어섰을 때 충돌 메시가 이미 있다. `golmok.portal list`가 대기 중이면 `door_1 (z_synthetic_001 -> z_synthetic_001_interior) pending(loading 0.3 s) outside; sublevel none (LevelInstance)`.
 - [ ] ⑤ 뒤 `golmok.zone.list` 실내 행:
   ```
-    z_synthetic_001_interior     v1   prio 20   unloaded  dist    >=  8.x m portal [placed]
+    z_synthetic_001_interior     v1   prio 20   unloaded  dist        8.x m portal [placed]
   ```
   ` blocked` 없음, HUD `zones:` 블록도 동일. 이후 `Evaluate()`가 실내를 다시 로드하지 않는다(`bPortalManaged`는 거리 관리 제외; `bAutoManageInterior=True`로 바꿔도 마찬가지 — 기본값 False라 기본 동작은 WP-04와 같다). 다시 문에 가면 ①부터 반복되고 ` portal`이 유지된다.
 - [ ] `golmok.zone.unload z_synthetic_001_interior` → `golmok.zone.unload: zone z_synthetic_001_interior unloaded (auto-load resumes after leaving the unload radius)` → 행 `unloaded … blocked [placed]`(콘솔 출처 회귀; ` portal` 사라짐). `golmok.zone.load z_synthetic_001_interior` → `golmok.zone.load: zone z_synthetic_001_interior loading (pinned)`(동기면 `loaded (pinned)`) → 행 `loading … pinned (loading 0.x s) [placed]` → 다음 틱 `loaded … pinned [placed]`. `golmok.zone.unload`로 정리.
 - [ ] **3 s 안에 되돌아 나오기**(트리거 진입 → 바로 후퇴): 로그 순서 `interior preload requested` → 디바운스 전에 나갔으면 `Portal door_1` 상태가 `Active`를 거쳐 Leaving(디테일 `LastEvent = left trigger outward while interior loading` 또는 `left before interior loaded`) → 3 s 뒤 실내가 아직 `Loading`이면:
   ```
   LogGolmok: Zone z_synthetic_001_interior v1: async load cancelled after x.x ms
-  LogGolmok: Portal door_1: player left -> unload z_synthetic_001_interior (zone z_synthetic_001_interior load cancelled); sublevel out
+  LogGolmok: Portal door_1: player left -> unload z_synthetic_001_interior (zone z_synthetic_001_interior load cancelled); sublevel /Game/Golmok/Zones/z_synthetic_001_interior/v1/L_z_synthetic_001_interior was not streamed
   ```
-  (합성 실내는 3 s 안에 로드되므로 대개 ⑤의 `unloaded` 줄이 나온다 — 취소 줄을 보려면 §10의 "Loading 중 PIE 종료"로 확인.) 3 s 안 재진입은 V-03과 같이 ⑤가 찍히지 않는다(`re-entered trigger; unload cancelled`).
-- [ ] `golmok.portal enter door_1`(걷지 않고): 실내가 `Loading`이면 `golmok.portal enter: Portal door_1 (z_synthetic_001 -> z_synthetic_001_interior): interior loading; activates when ready [zone z_synthetic_001_interior loading (pinned)]` → 폴링 → ③의 Portal 줄로 Active; 이미 Loaded면 `golmok.portal enter: Portal door_1 (…): active [zone z_synthetic_001_interior loaded (pinned)]; sublevel …`. 대기 중 `golmok.portal leave door_1` → `golmok.portal leave: portal door_1 leaving (interior was still loading); z_synthetic_001_interior unloads in 3.0 s`.
+  (합성 실내는 3 s 안에 로드되므로 대개 `Zone z_synthetic_001_interior v1 unloaded` 뒤 `Portal door_1: player left -> unload z_synthetic_001_interior (zone z_synthetic_001_interior unloaded (portal)); sublevel /Game/Golmok/Zones/z_synthetic_001_interior/v1/L_z_synthetic_001_interior was not streamed`가 나온다 — 취소 줄을 보려면 §10의 "Loading 중 PIE 종료"로 확인.) 두 경우 모두 끝이 ⑤의 `sublevel out`이 **아니다**: 이 경로는 `CompleteActivation`(서브레벨을 넣는 유일한 `StreamIn` 호출자)을 거치지 않아 뺄 서브레벨이 없으므로 `… was not streamed`가 정상이고 오류가 아니다.
+- [ ] **3 s 안 재진입**: ③을 거쳐 `Active`였던 포털(문을 지나갔다 나온 경우)은 V-03과 같이 ⑤가 찍히지 않고 `Active`로 돌아간다(`LastEvent = re-entered trigger; unload cancelled`). 위처럼 **디바운스 전에 나갔다가** 3 s 안에 다시 들어오면(활성화된 적 없는 Leaving) 포털은 `Pending`으로 돌아가(`LastEvent = re-entered trigger; interior still pending`, `golmok.portal list` → `pending(loading x.x s)`) 디바운스(0.25 s) 뒤 ③의 Portal 줄(`… player within 150 cm -> load [zone z_synthetic_001_interior loaded (pinned)]; sublevel /Game/Golmok/Zones/z_synthetic_001_interior/v1/L_z_synthetic_001_interior (LevelInstance)`)로 `Active`가 된다 — `interior preload requested`·`async load requested`는 다시 찍히지 않는다(요청 유지). 방에 들어가면 서브레벨·충돌이 있어야 하고, 곧바로 `Active`가 되거나 방이 비어 있으면 §12에 기록.
+- [ ] `golmok.portal enter door_1`(걷지 않고): 실내가 `Loading`이면 `golmok.portal enter: Portal door_1 (z_synthetic_001 -> z_synthetic_001_interior): interior loading; activates when ready [zone z_synthetic_001_interior loading (pinned)]` → 폴링 → ③의 Portal 줄로 Active; 이미 Loaded면 `golmok.portal enter: Portal door_1 (…): active [zone z_synthetic_001_interior loaded (pinned)]; sublevel …`. 위 왕복 뒤 10 s 넘게 지나 `enter`해도 대기 상한은 이 요청부터 센다(Idle에서의 `Activate`는 새 사이클 — 이전 방문의 요청 시각을 지운다); 곧바로 `interior still loading after …; activating anyway` Warning이 나오면 §12에. 대기 중 `golmok.portal leave door_1` → `golmok.portal leave: portal door_1 leaving (interior was still loading); z_synthetic_001_interior unloads in 3.0 s`.
 - [ ] 10 s 상한(`InteriorLoadTimeoutSeconds`, .cpp 상수): 실내 로드가 10 s를 넘기면 Warning `Portal door_1: interior still loading after 10.0 s; activating anyway` 뒤 ③의 Portal 줄이 `-> load [zone z_synthetic_001_interior loading (pinned)]`로 찍힌다 — 합성 실내에서는 나오면 안 된다(나오면 §12에 원인).
 - [ ] `bAsyncLoad=False`(§6-2 상태)에서 같은 왕복: ①이 `Zone … loaded in x ms` + `interior preload requested -> zone z_synthetic_001_interior loaded (pinned)`, ③의 `waiting` 줄 없음, 나머지 동일(WP-05 타이밍).
 
@@ -297,7 +298,12 @@ HUD(F1) `game … ms  render … ms  gpu … ms` 줄과 `stat unit`의 `Draw`를
   LogGolmok: Zone z_synthetic_001 v1: async load cancelled after x.x ms
   ```
   (`EndPlay` → `Unload()` → `CancelAsyncLoad()`; `Deinitialize`가 남은 핸들을 전부 취소) 외에 Warning·Error·ensure 없음. `Zone … v1 loaded (async …)`가 종료 뒤에 찍히면 취소가 안 된 것(§11 #3·#4).
-- [ ] **방 안(오버레이 on)에서 종료**: V-03 §10과 같이 `Portal door_1: end play while active -> sublevel out; zone unload scheduled`, `TimeOfDay: interior overlay off -> …`, zone `unloaded`, Error·ensure 없음. Pending(선로드 요청 후, `pending(loading …)`) 상태에서 종료해도 같다(`IsHoldingInterior()` → 다음 틱 `Portal door_1: gone -> zone z_synthetic_001_interior unloaded (portal)` 또는 `… load cancelled`).
+- [ ] **방 안(오버레이 on)에서 종료**: V-03 §10(`pc-verify-wp05.md` §12 기록)과 같이 `Portal door_1: end play while active -> sublevel out`(뒤에 아무것도 없음), `TimeOfDay: interior overlay off -> …`, 실내 zone은 자기 `EndPlay`로 `Zone z_synthetic_001_interior v1 unloaded`(아직 Loading이었으면 `Zone z_synthetic_001_interior v1: async load cancelled after x.x ms`), Error·ensure 없음. PIE 종료 때는 `EndPlay(EndPlayInEditor)`/`bIsTearingDown`이라 `bWorldAlive`가 false → 다음 틱 반납을 예약하지 않으므로 `; zone unload scheduled` 꼬리와 `Portal door_1: gone -> …` 줄은 **나오지 않는다**(나와도 무해하나 §12에).
+  ```
+  LogGolmok: Portal door_1: end play while active -> sublevel out
+  ```
+  Pending(선로드 요청 후, `golmok.portal list` → `pending(loading …)`) 상태에서 종료하면 `Portal door_1: end play while pending -> sublevel /Game/Golmok/Zones/z_synthetic_001_interior/v1/L_z_synthetic_001_interior was not streamed`(서브레벨이 이미 들어와 있었으면 `-> sublevel out`) 뒤 실내 zone 자신의 `… async load cancelled after x.x ms`(또는 `… v1 unloaded`); 역시 `gone ->` 줄 없음.
+- [ ] (선택, PIE 중) 포털 소멸 반납: 방 안에서(또는 선로드 요청 직후 Pending에서) `golmok.zone.unload z_synthetic_001` → 실외 언로드가 포털을 파괴하고 월드가 살아 있으므로 `Portal door_1: end play while active -> sublevel out; zone unload scheduled`(Pending이면 `while pending -> sublevel … was not streamed; zone unload scheduled`) → 다음 틱 `Portal door_1: gone -> zone z_synthetic_001_interior unloaded (portal)`(Loading이었으면 `… load cancelled`) — WP-05 런북 §5의 실외 언로드와 같은 경로. `golmok.zone.load z_synthetic_001`로 복구.
 - [ ] 종료 뒤 에디터 월드: 아웃라이너에 `Golmok/Zones/Discovered` 폴더·`Zone_* (index)` 액터 없음, Transient 포털·재생 폰 없음, `L_ZoneTest09`·`L_ZoneTest` dirty 아님(저장 프롬프트 없음).
 - [ ] 다시 PIE → 발견·로드가 처음처럼 반복된다(`AsyncLoadCount`는 BeginPlay마다 0부터).
 

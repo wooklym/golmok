@@ -21,6 +21,8 @@
 from __future__ import annotations
 
 import re
+import shutil
+import subprocess
 import sys
 from pathlib import Path
 
@@ -528,3 +530,206 @@ def test_wp05_portal_test_edit_is_the_documented_one():
     assert text.count("Zone->bAsyncLoad = false;") == 1
     assert text.count("StreamInTimeoutSeconds = 5.0") == 3
     assert "StreamInTimeoutSeconds = 2.0" not in text
+
+
+# ---- review fixes (round 1): portal cycle state, retire of loaded twins, runbook expectations -------------
+
+PORTAL_CPP = SOURCE / "Portals" / "GolmokPortal.cpp"
+PORTAL_H = SOURCE / "Portals" / "GolmokPortal.h"
+LEVEL_STREAMING_CPP = SOURCE / "Portals" / "GolmokLevelStreaming.cpp"
+RUNBOOK = REPO / "docs" / "runbooks" / "pc-verify-wp09.md"
+DESIGN = REPO / "docs" / "plan" / "WP-09-ue-zone-index-async.md"
+ZONE_TEST_COPY = "unreal/Golmok/Content/Golmok/Maps/L_ZoneTest09"
+INTERIOR_SUBLEVEL = "/Game/Golmok/Zones/z_synthetic_001_interior/v1/L_z_synthetic_001_interior"
+
+
+def _if_block(body: str, condition: str) -> str:
+    """Body of the single `if (<condition>)` block in body (condition text matched literally)."""
+    masked = _mask_literals(body)
+    hits = [m.start() for m in re.finditer(r"if\s*\(" + re.escape(condition) + r"\)", masked)]
+    assert len(hits) == 1, f"if ({condition}): {len(hits)} occurrences (expected exactly one)"
+    open_idx = masked.index("{", hits[0])
+    return body[open_idx + 1 : _matching(masked, open_idx)]
+
+
+def _runbook_section(number: int) -> str:
+    text = _read(RUNBOOK)
+    start = text.index(f"\n## {number}. ")
+    end = text.find("\n## ", start + 1)
+    return text[start : end if end >= 0 else len(text)]
+
+
+def test_portal_reentry_after_preload_shortcut_resumes_activation():
+    """Leaving reached without CompleteActivation (preload + early exit) must not turn Active on re-entry.
+
+    EndPlayerOverlap / OnDebounceElapsed / LeaveInterior send a Pending portal that already requested the
+    interior through State = Active + StartLeaving to return the pin; re-entering within the unload delay
+    used to set Active with no StreamIn and a possibly Loading interior. `bActivated` tells a real activation
+    from that shortcut.
+    """
+    header = _strip_comments(_read(PORTAL_H))
+    assert re.search(r"^\s*bool bActivated = false;$", header, re.M)
+    code = _strip_comments(_read(PORTAL_CPP))
+    assert code.count("bActivated = true;") == 1
+    assert "bActivated = true;" in _function_body(code, "AGolmokPortal::CompleteActivation")
+    leaving = _if_block(
+        _function_body(code, "AGolmokPortal::BeginPlayerOverlap"), "State == EGolmokPortalState::Leaving"
+    )
+    assert "bActivated" in leaving
+    assert "State = EGolmokPortalState::Pending;" in leaving
+    assert "&AGolmokPortal::OnDebounceElapsed" in leaving, "the Pending wait (IsInteriorReady) resumes"
+    assert 'TEXT("re-entered trigger; unload cancelled")' in leaving  # the WP-05 path of an activated portal
+    for fn in ("EndPlay", "OnUnloadDelayElapsed", "Activate"):
+        assert "bActivated = false;" in _function_body(code, f"AGolmokPortal::{fn}"), fn
+
+
+def test_portal_interior_request_stamp_is_per_cycle():
+    """InteriorRequestSeconds (the 10 s Pending timeout) starts over with every cycle that clears the request.
+
+    Activate() from Idle (golmok.portal enter) is a cycle start like BeginPlayerOverlap's Idle -> Pending; a
+    stale stamp from an earlier visit made IsInteriorReady time out at once (Active while the interior was
+    Loading).
+    """
+    code = _strip_comments(_read(PORTAL_CPP))
+    masked = _mask_literals(code)
+    clears = [m.end() for m in re.finditer(r"bInteriorRequested = false;", masked)]
+    assert len(clears) >= 4
+    for end in clears:
+        block_end = masked.find("}", end)
+        assert "InteriorRequestSeconds = 0.0;" in code[end:block_end], code[max(0, end - 200) : block_end]
+    activate = _function_body(code, "AGolmokPortal::Activate")
+    idle = _if_block(activate, "State == EGolmokPortalState::Idle")
+    assert "InteriorRequestSeconds = 0.0;" in idle and "bInteriorRequested = false;" in idle
+    assert activate.index("State == EGolmokPortalState::Idle") < activate.index("RequestInterior(")
+
+
+def test_evaluate_unloads_retire_pending_twins():
+    """A discovered zone whose placed twin registered is unloaded by Evaluate (then retired by DiscoverZones).
+
+    bRetirePending keeps it out of the load rule (bManaged), but it must still be an unload reason; otherwise
+    a Loaded / Loading discovered twin never becomes idle and is never destroyed.
+    """
+    code = _strip_comments(_read(SUBSYSTEM_CPP))
+    evaluate = _function_body(code, "UGolmokZoneSubsystem::Evaluate")
+    assert "!R.bRetirePending" in evaluate, "retire-pending records are never (re)loaded"
+    masked = _mask_literals(evaluate)
+    add = masked.index("ToUnload.Add(&R)")
+    cond_start = masked.rindex("if (", 0, add)
+    condition = evaluate[cond_start : _matching(masked, cond_start + 3) + 1]
+    assert "bRetireNow" in condition, condition
+    assert re.search(r"if \(R\.bRetirePending\)\s*\{[^}]*bRetireNow = ", evaluate)
+    discover = _function_body(code, "UGolmokZoneSubsystem::DiscoverZones")
+    twin = _if_block(discover, "bTwin")
+    assert "EGolmokZoneState::Unloaded" in twin and "ToRetire.Add(" in twin
+    assert "bIdle" not in twin, (
+        "a pinned twin cannot be unpinned (FindZone resolves the id to the placed actor)"
+    )
+    test = _read(ZONE_TEST_CPP)
+    assert (
+        "placed twin" in test and "bRetire" not in test
+    )  # the automation test drives it through the public API
+
+
+_ROW_HEAD_RE = re.compile(
+    r"(?P<id>z_\w+)(?P<idpad> +)v(?P<ver>\d+)(?P<verpad> +)prio (?P<prio>\d+)(?P<priopad> +)(?=[a-zA-Z])"
+)
+_ROW_DIST_RE = re.compile(
+    r"(?P<state>loaded|unloaded|loading|FAILED)(?P<statepad> +)dist (?P<field>[ >=]*[0-9][0-9.x]*) m"
+)
+
+
+def test_runbook_zone_list_rows_match_describe_zones_format():
+    """golmok.zone.list rows quoted in the runbook follow DescribeZones' Printf and Evaluate's `>=` rule.
+
+    `  %-28s v%-3d prio %-4d %-9s dist %s%8.1f m…` with `%s` = `>=` or two spaces; `>=` = only the bounds
+    distance was measured: an unloaded zone farther than LoadRadiusM or a loaded one at / beyond UnloadRadiusM
+    (ini defaults; the runbook's rows are taken with them or with the wider `golmok.zone.radius 300 400`,
+    which flips no row).
+    """
+    code = _strip_comments(_read(SUBSYSTEM_CPP))
+    assert 'TEXT("  %-28s v%-3d prio %-4d %-9s dist %s%8.1f m' in code
+    zone = parse_ue_ini(INI.read_text(encoding="utf-8-sig"))["/Script/Golmok.GolmokZoneSubsystem"]
+    load_m, unload_m = float(zone["LoadRadiusM"]), float(zone["UnloadRadiusM"])
+    text = _read(RUNBOOK)
+    heads = list(_ROW_HEAD_RE.finditer(text))
+    assert len(heads) >= 5
+    for m in heads:
+        assert len(m.group("id") + m.group("idpad")) == 29, m.group(0)
+        assert len(m.group("ver") + m.group("verpad")) == 4, m.group(0)
+        assert len(m.group("prio") + m.group("priopad")) == 5, m.group(0)
+    rows = list(_ROW_DIST_RE.finditer(text))
+    assert len(rows) >= 6
+    for m in rows:
+        row, field = m.group(0), m.group("field")
+        assert len(m.group("state") + m.group("statepad")) == 10, row
+        flag, number = field[:2], field[2:]
+        assert flag in (">=", "  ") and len(number) == 8 and ">" not in number, row
+        distance = float(number.strip().replace("x", "0"))
+        lower_bound = distance > load_m if m.group("state") == "unloaded" else distance >= unload_m
+        assert (flag == ">=") == lower_bound, row
+
+
+def test_docs_quote_index_parse_longitudes_that_the_test_asserts():
+    """Runbook section 3 / design section 8-2 name Golmok.Zone.IndexParse assertions by their literals."""
+    test = _read(ZONE_TEST_CPP)
+    runbook_line = next(
+        line for line in _read(RUNBOOK).splitlines() if "`Golmok.Zone.IndexParse`의 `LonLatToCell" in line
+    )
+    design_row = next(
+        line for line in _read(DESIGN).splitlines() if line.startswith("| `Golmok.Zone.IndexParse`")
+    )
+    for where, line in (("runbook", runbook_line), ("design 8-2", design_row)):
+        lons = re.findall(r"\((12\d\.\d+), 37\.5620", line)
+        assert len(lons) == 2, (where, line)
+        for lon in lons:
+            assert f"LonLatToCell({lon}, 37.5620, 16" in test, (where, lon)
+
+
+def test_gitignore_covers_the_runbook_map_copy():
+    """Runbook section 4 saves L_ZoneTest09 (placed zones removed) and says .gitignore covers it."""
+    assert "(`.gitignore`에 사본 포함)" in _read(RUNBOOK)
+    lines = (REPO / ".gitignore").read_text(encoding="utf-8").splitlines()
+    assert f"{ZONE_TEST_COPY}*" in lines
+    git = shutil.which("git")
+    if git is None or not (REPO / ".git").exists():
+        return
+    for rel in (f"{ZONE_TEST_COPY}.umap", f"{ZONE_TEST_COPY}_BuiltData.uasset"):
+        assert subprocess.run([git, "check-ignore", "-q", rel], cwd=REPO).returncode == 0, rel
+    other = "unreal/Golmok/Content/Golmok/Maps/L_ZoneTest10.umap"  # the pattern covers only the WP-09 copy
+    assert subprocess.run([git, "check-ignore", "-q", other], cwd=REPO).returncode == 1
+
+
+def test_runbook_portal_exit_lines_match_the_code():
+    """PIE end skips the next-tick unload (world torn down); an early exit never streamed the sublevel in."""
+    code = _strip_comments(_read(PORTAL_CPP))
+    end_play = _function_body(code, "AGolmokPortal::EndPlay")
+    assert "Reason != EEndPlayReason::EndPlayInEditor" in end_play
+    scheduled = _if_block(end_play, "bWorldAlive && Subsystem && Subsystem->FindZone(TargetZoneId)")
+    assert '"; zone unload scheduled"' in scheduled and "SetTimerForNextTick" in scheduled
+    calls = re.findall(r"(?<![:\w])StreamIn\(", code)
+    assert len(calls) == 1, "CompleteActivation is the only StreamIn caller"
+    assert "StreamIn(" in _function_body(code, "AGolmokPortal::CompleteActivation")
+    assert 'TEXT("sublevel %s was not streamed")' in _strip_comments(_read(LEVEL_STREAMING_CPP))
+
+    pie_end = _runbook_section(10)
+    in_room = next(line for line in pie_end.splitlines() if "**방 안(오버레이 on)에서 종료**" in line)
+    assert "`Portal door_1: end play while active -> sublevel out`" in in_room
+    assert "sublevel out; zone unload scheduled" not in in_room
+    assert re.search(r"^\s*LogGolmok: Portal door_1: end play while active -> sublevel out$", pie_end, re.M)
+    pending = next(
+        line for line in pie_end.splitlines() if "`Portal door_1: end play while pending -> " in line
+    )
+    assert "was not streamed`" in pending and "zone unload scheduled" not in pending
+    # the scheduled unload + `gone ->` belong to the optional in-PIE exterior unload (world alive)
+    mid_pie = next(
+        line
+        for line in pie_end.splitlines()
+        if "golmok.zone.unload z_synthetic_001`" in line and "gone ->" in line
+    )
+    assert "sublevel out; zone unload scheduled" in mid_pie
+
+    early = _runbook_section(8)
+    lines = [line.strip() for line in early.splitlines() if "load cancelled); sublevel" in line]
+    assert lines, "section 8 quotes the early-exit line"
+    for line in lines:
+        assert line.endswith(f"; sublevel {INTERIOR_SUBLEVEL} was not streamed"), line

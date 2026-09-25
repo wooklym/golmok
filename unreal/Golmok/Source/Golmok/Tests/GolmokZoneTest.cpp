@@ -9,7 +9,9 @@
 // z_synthetic_002 actor from the index within DiscoveryIntervalSeconds + 1 s while the placed z_synthetic_001 stays
 // the only actor with its id; golmok.zone.list shows [index] / [placed] and the "discovered" header column;
 // golmok.zone.index runs; then the pawn is moved 3 km east and, with DespawnGraceSeconds = 0, two discovery passes
-// destroy z_synthetic_002 again. GetReentrancyViolations() must stay 0.
+// destroy z_synthetic_002 again. Back at the start the rediscovered z_synthetic_002 is loaded, a placed twin with the
+// same id is spawned and loaded, and Evaluate() + DiscoverZones() must unload and retire the discovered one (exactly one
+// z_synthetic_002 actor left, the placed twin). GetReentrancyViolations() must stay 0.
 // Golmok.Zone.AsyncLoad: on L_Dev (skipped when missing) a z_synthetic_001 actor with bAsyncLoad is spawned. With
 // existing asset packages (PC) Load() must go Loading (no portals yet), RequestLoad must report "loading", and within
 // 5 s the zone is Loaded with AsyncLoadCount == 1 and one portal; without assets the synchronous fallback loads at once
@@ -268,6 +270,100 @@ namespace GolmokZoneTest
 				Test->TestNull(TEXT("z_synthetic_002 despawned after two discovery passes 3 km away"), Subsystem->FindZone(SecondZoneId));
 				Test->TestNotNull(TEXT("placed z_synthetic_001 kept"), Subsystem->FindZone(ExteriorZoneId));
 				Test->TestEqual(TEXT("no re-entrancy violations"), Subsystem->GetReentrancyViolations(), 0);
+
+				// Back to the start for the placed-twin retire check: z_synthetic_002 is discovered again and loaded.
+				if (APawn* Pawn = UGameplayStatics::GetPlayerPawn(World, 0))
+				{
+					Pawn->SetActorLocation(Pawn->GetActorLocation() - FVector(300000.0, 0.0, 0.0), false, nullptr, ETeleportType::TeleportPhysics);
+				}
+				Subsystem->DiscoverZones();
+				AGolmokZone* Discovered = Subsystem->FindZone(SecondZoneId);
+				if (!Test->TestNotNull(TEXT("z_synthetic_002 discovered again after walking back"), Discovered))
+				{
+					return true;
+				}
+				Test->TestTrue(TEXT("rediscovered z_synthetic_002 has bSpawnedFromIndex"), Discovered->bSpawnedFromIndex);
+				DiscoveredActor = Discovered;
+				FString Msg;
+				Test->TestTrue(TEXT("RequestLoad(z_synthetic_002) loads the discovered actor"),
+					Subsystem->RequestLoad(SecondZoneId, /*bPin*/ false, Msg));
+				Test->AddInfo(Msg);
+				return Next(3);
+			}
+
+			case 3: // discovered z_synthetic_002 Loaded; then a placed twin with the same id registers and loads
+			{
+				AGolmokZone* Discovered = DiscoveredActor.Get();
+				if (!Discovered)
+				{
+					Test->AddError(TEXT("discovered z_synthetic_002 disappeared before its placed twin arrived"));
+					return true;
+				}
+				if (!Discovered->IsLoaded())
+				{
+					return Fail(TEXT("discovered z_synthetic_002 not Loaded after RequestLoad"), AsyncTimeoutSeconds, Elapsed);
+				}
+				// A runtime-registered, non-index actor = what a streamed sublevel's placed zone looks like to the subsystem.
+				AGolmokZone* Placed = World->SpawnActorDeferred<AGolmokZone>(AGolmokZone::StaticClass(), FTransform::Identity, nullptr, nullptr,
+					ESpawnActorCollisionHandlingMethod::AlwaysSpawn);
+				if (!Placed)
+				{
+					Test->AddError(TEXT("could not spawn the placed z_synthetic_002 twin"));
+					return true;
+				}
+				Placed->ZoneId = SecondZoneId;
+				Placed->Version = Discovered->Version;
+				Placed->FinishSpawning(FTransform::Identity); // BeginPlay -> RegisterZone: the discovered record retires
+				PlacedActor = Placed;
+				Test->TestFalse(TEXT("placed twin is not from the index"), Placed->bSpawnedFromIndex);
+				Test->TestTrue(TEXT("FindZone(z_synthetic_002) resolves to the placed twin"), Subsystem->FindZone(SecondZoneId) == Placed);
+				FString Msg;
+				Test->TestTrue(TEXT("RequestLoad(z_synthetic_002) loads the placed twin"), Subsystem->RequestLoad(SecondZoneId, /*bPin*/ false, Msg));
+				Test->AddInfo(Msg);
+				return Next(4);
+			}
+
+			case 4: // placed twin Loaded -> Evaluate() unloads the discovered one; the next discovery pass destroys it
+			{
+				AGolmokZone* Placed = PlacedActor.Get();
+				if (!Placed)
+				{
+					Test->AddError(TEXT("placed z_synthetic_002 twin disappeared"));
+					return true;
+				}
+				if (!Placed->IsLoaded())
+				{
+					return Fail(TEXT("placed z_synthetic_002 twin not Loaded after RequestLoad"), AsyncTimeoutSeconds, Elapsed);
+				}
+				Subsystem->Evaluate();
+				const AGolmokZone* Discovered = DiscoveredActor.Get();
+				Test->TestTrue(TEXT("Evaluate() unloads the Loaded discovered twin once the placed twin is Loaded"),
+					!Discovered || Discovered->State == EGolmokZoneState::Unloaded);
+				Subsystem->DiscoverZones();
+				return Next(5);
+			}
+
+			case 5: // next tick: one z_synthetic_002 actor left, the placed twin
+			{
+				int32 NumSecond = 0;
+				bool bOnlyPlaced = true;
+				for (TActorIterator<AGolmokZone> It(World); It; ++It)
+				{
+					if (It->ZoneId == SecondZoneId)
+					{
+						++NumSecond;
+						bOnlyPlaced = bOnlyPlaced && !It->bSpawnedFromIndex;
+					}
+				}
+				Test->AddInfo(Subsystem->DescribeZones());
+				Test->TestEqual(TEXT("exactly one z_synthetic_002 actor after the retire"), NumSecond, 1);
+				Test->TestTrue(TEXT("the remaining z_synthetic_002 actor is the placed twin"), bOnlyPlaced);
+				Test->TestFalse(TEXT("the discovered twin was destroyed"), DiscoveredActor.IsValid());
+				Test->TestEqual(TEXT("no re-entrancy violations"), Subsystem->GetReentrancyViolations(), 0);
+				if (AGolmokZone* Placed = PlacedActor.Get())
+				{
+					Placed->Destroy();
+				}
 				return true;
 			}
 
@@ -278,6 +374,8 @@ namespace GolmokZoneTest
 
 	private:
 		double Deadline = 3.0;
+		TWeakObjectPtr<AGolmokZone> DiscoveredActor;
+		TWeakObjectPtr<AGolmokZone> PlacedActor;
 	};
 
 	// ---- Golmok.Zone.AsyncLoad ----------------------------------------------------------------------------------

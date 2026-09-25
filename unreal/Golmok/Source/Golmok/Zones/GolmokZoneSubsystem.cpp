@@ -191,8 +191,9 @@ void UGolmokZoneSubsystem::RegisterZone(AGolmokZone* Zone)
 		}
 		else if (!Zone->bSpawnedFromIndex)
 		{
-			// A level-placed actor arrives after its discovered twin (streamed sublevel): the discovered one retires in
-			// the next discovery pass. No array change and no actor destruction here (BeginPlay stack).
+			// A level-placed actor arrives after its discovered twin (streamed sublevel): Evaluate() unloads the discovered
+			// one if it is Loaded / Loading, and the next discovery pass after that destroys it. No array change and no
+			// actor destruction here (BeginPlay stack).
 			Other.bRetirePending = true;
 		}
 	}
@@ -391,7 +392,17 @@ void UGolmokZoneSubsystem::Evaluate()
 					bOrphanInterior = !Parent->IsLoadedOrLoading();
 				}
 			}
-			if (!R.bPinned && ((bManaged && bFar) || bOrphanInterior))
+			// A discovered zone whose level-placed twin registered (bRetirePending) is never loaded again (bManaged is
+			// false) and is unloaded here once the placed actor is Loaded (no moment without a mesh) or the player is out
+			// of range, pinned or not: the console and portals address the placed actor (FindZone), so nothing else could
+			// unpin or unload it. The next DiscoverZones() pass then destroys it.
+			bool bRetireNow = false;
+			if (R.bRetirePending)
+			{
+				const AGolmokZone* Placed = FindZone(Zone->ZoneId);
+				bRetireNow = bFar || (Placed && Placed != Zone && Placed->IsLoaded());
+			}
+			if ((!R.bPinned && ((bManaged && bFar) || bOrphanInterior)) || bRetireNow)
 			{
 				ToUnload.Add(&R);
 			}
@@ -679,9 +690,11 @@ void UGolmokZoneSubsystem::DiscoverZones()
 		const bool bIdle = Zone->State == EGolmokZoneState::Unloaded && !R.bPinned;
 		if (bTwin)
 		{
-			// A placed actor with the same id exists: retire the discovered one, but only once it is idle.
+			// A placed actor with the same id exists: retire the discovered one once it is Unloaded (Evaluate() unloads a
+			// Loaded / Loading twin first). Its pin does not count: FindZone resolves the id to the placed actor, so no
+			// console or portal request could ever release it.
 			R.bRetirePending = true;
-			if (bIdle)
+			if (Zone->State == EGolmokZoneState::Unloaded)
 			{
 				ToRetire.Add(Zone);
 			}

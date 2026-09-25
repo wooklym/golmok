@@ -197,6 +197,8 @@ void AGolmokPortal::EndPlay(const EEndPlayReason::Type Reason)
 	}
 	State = EGolmokPortalState::Idle;
 	bInteriorRequested = false;
+	InteriorRequestSeconds = 0.0;
+	bActivated = false;
 	bPlayerOverlapping = false;
 	bPlayerInside = false;
 	OverlappingPawn.Reset();
@@ -300,14 +302,28 @@ void AGolmokPortal::BeginPlayerOverlap(APawn* Pawn)
 	World->GetTimerManager().ClearTimer(UnloadTimer);
 	if (State == EGolmokPortalState::Leaving)
 	{
-		State = EGolmokPortalState::Active;
-		LastEvent = TEXT("re-entered trigger; unload cancelled");
+		if (bActivated)
+		{
+			State = EGolmokPortalState::Active;
+			LastEvent = TEXT("re-entered trigger; unload cancelled");
+		}
+		else
+		{
+			// WP-09: Leaving only to return a preloaded pin (EndPlayerOverlap / OnDebounceElapsed / LeaveInterior while
+			// Pending): CompleteActivation never ran, so there is no sublevel and the interior may still be Loading.
+			// Resume the Pending wait instead of going Active; the request (bInteriorRequested and its stamp) stands, so
+			// OnDebounceElapsed -> IsInteriorReady -> CompleteActivation finishes the activation without a second load.
+			State = EGolmokPortalState::Pending;
+			LastEvent = TEXT("re-entered trigger; interior still pending");
+			World->GetTimerManager().SetTimer(DebounceTimer, this, &AGolmokPortal::OnDebounceElapsed, TimerRate(DebounceSeconds), false);
+		}
 	}
 	if (State == EGolmokPortalState::Idle)
 	{
 		State = EGolmokPortalState::Pending;
 		bInteriorRequested = false;
 		InteriorRequestSeconds = 0.0;
+		bActivated = false;
 		LastEvent = TEXT("entered trigger");
 		World->GetTimerManager().SetTimer(DebounceTimer, this, &AGolmokPortal::OnDebounceElapsed, TimerRate(DebounceSeconds), false);
 		// WP-09: start the (async) interior load next tick, not on this overlap-callback stack, so it is usually
@@ -593,6 +609,8 @@ void AGolmokPortal::OnUnloadDelayElapsed()
 		// the sublevel was kept by StreamOut() for the same reason.
 		State = EGolmokPortalState::Idle;
 		bInteriorRequested = false;
+		InteriorRequestSeconds = 0.0;
+		bActivated = false;
 		LastEvent = TEXT("released; interior kept by another portal");
 		UE_LOG(LogGolmok, Log, TEXT("Portal %s: player left -> %s kept (another portal is active); %s"), *PortalId, *TargetZoneId, *StreamMsg);
 	}
@@ -610,6 +628,8 @@ void AGolmokPortal::OnUnloadDelayElapsed()
 		}
 		State = EGolmokPortalState::Idle;
 		bInteriorRequested = false;
+		InteriorRequestSeconds = 0.0;
+		bActivated = false;
 		LastEvent = TEXT("unloaded");
 		UE_LOG(LogGolmok, Log, TEXT("Portal %s: player left -> unload %s (%s); %s"), *PortalId, *TargetZoneId, *ZoneMsg, *StreamMsg);
 	}
@@ -737,6 +757,7 @@ void AGolmokPortal::CompleteActivation(const FString& ZoneMsg)
 	}
 
 	State = EGolmokPortalState::Active;
+	bActivated = true; // a real activation (sublevel streamed in); the pin-return shortcut sets Active without it
 	LastEvent = TEXT("interior loaded");
 	UE_LOG(LogGolmok, Log, TEXT("Portal %s (%s -> %s): player within %.0f cm -> load [%s]; %s"), *PortalId, *OwnerZoneId, *TargetZoneId, RadiusCm,
 		*ZoneMsg, *SublevelMsg);
@@ -744,6 +765,13 @@ void AGolmokPortal::CompleteActivation(const FString& ZoneMsg)
 
 bool AGolmokPortal::Activate(FString& OutMessage)
 {
+	if (State == EGolmokPortalState::Idle)
+	{
+		// A new cycle (golmok.portal enter from Idle), like BeginPlayerOverlap's Idle -> Pending: the Pending wait
+		// (InteriorLoadTimeoutSeconds) counts from this request, never from the stamp an earlier visit left behind.
+		bInteriorRequested = false;
+		InteriorRequestSeconds = 0.0;
+	}
 	FString ZoneMsg;
 	RequestInterior(ZoneMsg);
 	FString Why;
@@ -751,6 +779,7 @@ bool AGolmokPortal::Activate(FString& OutMessage)
 	{
 		// EnterInterior while the interior streams: Pending + poll, exactly like the debounce path.
 		State = EGolmokPortalState::Pending;
+		bActivated = false;
 		LastEvent = TEXT("interior loading");
 		if (UWorld* World = GetWorld())
 		{

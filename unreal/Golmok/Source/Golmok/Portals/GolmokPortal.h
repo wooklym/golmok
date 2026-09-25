@@ -276,7 +276,7 @@ private:
 	/** Next tick after Idle -> Pending (PreloadTimer): RequestInterior() while still Pending, so the async load starts before the debounce ends. Never on the overlap-callback stack. */
 	void PreloadInterior();
 
-	/** RequestLoad(TargetZoneId, true, Msg, Portal) once per cycle; sets bInteriorRequested / InteriorRequestSeconds. False when there is no zone subsystem (or no registered interior zone yet). */
+	/** RequestLoad(TargetZoneId, true, Msg, Portal) once per cycle; sets bInteriorRequested / InteriorRequestSeconds (both cleared at every cycle start / end). False when there is no zone subsystem (or no registered interior zone yet). */
 	bool RequestInterior(FString& OutZoneMsg);
 
 	/** Interior zone Loaded, or absent / Failed / timed out (InteriorLoadTimeoutSeconds) -> ready to StreamIn. Loading -> false ("interior loading"). */
@@ -293,7 +293,7 @@ private:
 	 */
 	void OnUnloadDelayElapsed();
 
-	/** EnterInterior(): RequestInterior, then CompleteActivation when IsInteriorReady, else Pending + poll (activates when ready). */
+	/** EnterInterior(): from Idle a new cycle (request stamp cleared); RequestInterior, then CompleteActivation when IsInteriorReady, else Pending + poll (activates when ready). */
 	bool Activate(FString& OutMessage);
 
 	bool StreamIn(FString& Msg);
@@ -327,6 +327,12 @@ private:
 	FTimerHandle PreloadTimer;
 	/** World time of the first RequestInterior() attempt in this cycle (0 = none yet); the Pending wait times out from here. */
 	double InteriorRequestSeconds = 0.0;
+	/**
+	 * CompleteActivation ran in this cycle (sublevel streamed in, interior ready). False for the Active + StartLeaving
+	 * shortcut that returns a preloaded pin (EndPlayerOverlap / OnDebounceElapsed / LeaveInterior while Pending), so a
+	 * re-entry during that Leaving resumes the Pending wait instead of going Active without StreamIn.
+	 */
+	bool bActivated = false;
 	double LastCrossingSeconds = -1.0e9;
 	bool bWarnedNoTargetZone = false;
 };
