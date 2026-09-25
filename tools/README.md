@@ -160,7 +160,7 @@ $env:GOLMOK_DATA="D:\golmok_basemap\yeonnam"; npm test   # 실데이터로 검�
 | `import golmok.spike_runner as s; s.prepare(); s.capture_all(); s.save_layer_levels(); s.game_scripts(); s.contact_sheet(); s.report_template()` | 스파이크 1.1: 시점 10곳 PIE 무인 캡처(태그 a/b/c/ac × 프리셋), `-game` 성능 스크립트, 컨택트 시트, research/08 표 템플릿 |
 | `python scripts/make_synthetic_zone.py --out <폴더> --interior` | 합성 zone 생성기(클라우드·CI에서 실행): RealityScan 흉내 OBJ+MTL+UDIM PNG → 실제 `golmok-mesh` 파이프라인 → `zones/z_synthetic_scan_001/v1/` + `expected.json`(런북 기대값) |
 
-절차: `docs/runbooks/pc-verify-wp06.md`(검증, 작성 중), [docs/runbooks/pc-spike.md](../docs/runbooks/pc-spike.md)(스파이크 전체).
+절차: [docs/runbooks/pc-verify-wp06.md](../docs/runbooks/pc-verify-wp06.md)(검증), [docs/runbooks/pc-spike.md](../docs/runbooks/pc-spike.md)(스파이크 전체).
 
 ## 검사 실행
 

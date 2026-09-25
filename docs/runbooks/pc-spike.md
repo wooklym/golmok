@@ -1,7 +1,7 @@
 # 런북: 스파이크 1.1 전체 절차 — 환경 표현 방식 비교 → D-010 (V-05)
 
 작성: 2026-09-25 (WP-06) · 대상: PC Claude 세션 + 사용자 · 결과는 `docs/research/08-spike-results.md`에 채우고 D-010을 결정한다.
-관련: [ROADMAP §1.1](../ROADMAP.md), [research/07](../research/07-ue5-toolchain.md) §3~§6, [research/08](../research/08-spike-results.md), [recon-postprocess.md](recon-postprocess.md), [align.md](align.md), `pc-verify-wp06.md`(WP-06 검증 런북, 같은 폴더), D-005·D-006·D-007·D-010.
+관련: [ROADMAP §1.1](../ROADMAP.md), [research/07](../research/07-ue5-toolchain.md) §3~§6, [research/08](../research/08-spike-results.md), [recon-postprocess.md](recon-postprocess.md), [align.md](align.md), [pc-verify-wp06.md](pc-verify-wp06.md)(WP-06 검증 런북, 같은 폴더), D-005·D-006·D-007·D-010.
 
 이 런북은 **한 골목 청크(30~50 m)를 세 방식 (a) 메시 Nanite+Lumen (b) Cesium splat (c) XGRIDS LCC(+ (a+c) 하이브리드)으로 만들어 같은 조명·같은 시점·같은 경로로 비교**하는 전 과정이다. 단계마다 입력·명령·예상 시간·실패 시 대안을 적었다. 한 단계가 막히면 대안으로 넘어가고 [미확인] 칸에 관찰을 남긴다.
 
@@ -10,7 +10,7 @@
 |---|---|
 | 촬영 | C-02 골목 사진 ≥ 1,000장 + 영상(가이드 #1 §5·§6), `docs/captures/INDEX.md`에 촬영 ID 등록 |
 | 결정 | D-006(PC 사양·클라우드 보조), D-005(RealityScan + Postshot), D-007(블러 전 데이터 외부 업로드 금지) |
-| PC | 디스크 여유 ≥ 200 GB(원본 100~150 GB + RealityScan 캐시 + UE DDC), UE 5.8.3 빌드 OK(V-03), `pc-verify-wp06.md` §1~§7 통과(합성 zone으로 임포트·PIE 캡처 리허설 완료) |
+| PC | 디스크 여유 ≥ 200 GB(원본 100~150 GB + RealityScan 캐시 + UE DDC), UE 5.8.3 빌드 OK(V-03), [pc-verify-wp06.md](pc-verify-wp06.md) §1~§7 통과(합성 zone으로 임포트·PIE 캡처 리허설 완료) |
 | 도구 | `cd tools; .\.venv\Scripts\Activate.ps1; pip install -e ".[raw,heic,basemap,zone,mesh,splat,align,dev]"; pytest -q` 초록. EgoBlur 모델 `tools\models\`(사용자 라이선스 동의) |
 | 계정·구독 | Postshot **Studio**(CLI·4K 초과 이미지, D-005), XGRIDS 라이선스 문의 결과(C-04·D-009), Cesium ion은 쓰지 않는다(로컬 타일셋) |
 | 작업 폴더(git 밖) | `D:\golmok_capture\<촬영ID>\`, `D:\golmok_recon\<촬영ID>\`, `D:\golmok_zones\zones\<zone_id>\v1\`, `D:\golmok_basemap\yeonnam\`(V-02 베이스맵) |
@@ -104,9 +104,9 @@ golmok-align run ... --ground --write                                           
 import golmok.zone_import as zi
 r = zi.run(r"D:\golmok_zones\zones\z_yeonnam_alley_001", level="/Game/Golmok/Maps/L_Basemap_Yeonnam", geo_origin=r"D:\golmok_basemap\yeonnam")
 ```
-- 기대 로그 형식과 확인 항목은 `pc-verify-wp06.md`(WP-06 검증 런북, 같은 폴더) §2와 같다(합성 zone 대신 실 zone 이름·수치). `geo_origin=<베이스맵 폴더>`는 베이스맵 manifest의 `origin`(타원체고 = DEM 정표고 + `--geoid-offset`)을 `GeoOrigin`에 쓴다.
+- 기대 로그 형식과 확인 항목은 [pc-verify-wp06.md](pc-verify-wp06.md) §2와 같다(합성 zone 대신 실 zone 이름·수치). `geo_origin=<베이스맵 폴더>`는 베이스맵 manifest의 `origin`(타원체고 = DEM 정표고 + `--geoid-offset`)을 `GeoOrigin`에 쓴다.
 - 시간: OBJ 사본 쓰기(2천만 tri ≈ 1.5 GB 텍스트, 1~2분) + Nanite 빌드(청크당 수 분) + 8K UDIM VT 빌드. 디스크는 원본 OBJ 크기의 2배.
-- 실패: `zone_import: ERROR chunk …` bounds → `zi.run(..., remeasure=True)`; 텍스처 `vt=off` → `M_ZoneScan_NoVT`가 자동 생성되며 8K 여러 장이 VRAM에 통째로 올라오므로 fps가 떨어진다(기록); `tile 1001 only (WARNING)` → pc-verify-wp06 §12 #4.
+- 실패: `zone_import: ERROR chunk …` bounds → `zi.run(..., remeasure=True)`; 텍스처 `vt=off` → `M_ZoneScan_NoVT`가 자동 생성되며 8K 여러 장이 VRAM에 통째로 올라오므로 fps가 떨어진다(기록); `tile 1001 only (WARNING)` → [pc-verify-wp06.md](pc-verify-wp06.md) §12 #4.
 - 8K UDIM 6장 이상이면 `r.VT.MaxUploadsPerFrame`·VT 풀 크기(`r.VT.PoolSizeScale`) 튜닝이 필요할 수 있다[추정] → 텍스처가 흐리게 남으면 콘솔 `stat virtualtexturing`.
 
 ### S8. (b) Cesium for Unreal splat
@@ -145,7 +145,7 @@ s.capture_all(tags=("a","c"), presets=("night",))            # 선택: 야간
 s.contact_sheet(photos_dir=r"D:\golmok_capture\<ID>\reference")   # 시점별 원본 사진 <name>.jpg를 두면 열이 추가된다
 ```
 - PIE 새 창 1280×720 × 2 = **2560×1440** PNG가 `Saved/Screenshots/Golmok/<tag>/<preset>/<name>.png`에 생긴다. 태그마다 PIE를 새로 시작하므로 (b)·(c) 액터가 없는 태그는 zone만 보인다.
-- 기대 로그·실패 대응은 pc-verify-wp06.md §7. 한 시점이 `missing`이면 그 시점만 `s.capture_all(tags=(...), names=("mid_02",))`로 다시 찍는다.
+- 기대 로그·실패 대응은 [pc-verify-wp06.md](pc-verify-wp06.md) §7. 한 시점이 `missing`이면 그 시점만 `s.capture_all(tags=(...), names=("mid_02",))`로 다시 찍는다.
 - 창을 뒤로 보내면 PIE가 8 fps로 떨어져 느려질 뿐 결과는 같다(dwell 경로 600 s). 그래도 빠지면 창을 앞에 두고 `mode="editor"`.
 - 컨택트 시트 `Saved/Screenshots/Golmok/contact_sheet.html`을 브라우저로 열어 프리셋별 표(시점 × (a)(b)(c)(a+c))를 채점에 쓴다. 사용자와 함께 1~5점.
 
@@ -162,7 +162,7 @@ s.game_scripts(paths=("walk_01",), tags=("a","b","c","ac"), presets=("clear_noon
 PowerShell(에디터를 닫고): `& "<Project>\Saved\Golmok\spike\run_game_perf.ps1"` → `Saved\Golmok\spike\csv\<tag>_<preset>_<walk>.csv` → 마지막 줄에 출력되는 `golmok-perf … --markdown` 명령을 실행해 표를 얻는다.
 - 확인: CSV 프레임 수 ≈ 경로 길이 × fps(60 s × 150 fps ≈ 9,000). 3,000 근처면 `-csvCaptureFrames`가 섞인 것(있어서는 안 된다).
 - DLSS 켬/끔은 `-ExecCmds`가 아니라 `DefaultEngine.ini`/콘솔 변수로 두 번 돌린다(연구 08 조건). 4K는 클라우드 인스턴스(선택).
-- 실패: 로그에 `golmok.*: no debug subsystem` → `-ExecCmds` 실행 시점 문제(pc-verify-wp06 §12 #17) → PIE 참고치 `s.perf_all(paths=("walk_01",))`로 대체하고 표에 "PIE"를 적는다.
+- 실패: 로그에 `golmok.*: no debug subsystem` → `-ExecCmds` 실행 시점 문제([pc-verify-wp06.md](pc-verify-wp06.md) §12 #17) → PIE 참고치 `s.perf_all(paths=("walk_01",))`로 대체하고 표에 "PIE"를 적는다.
 
 ### S13. 캐릭터 그림자·조명 반응 (유인)
 태그별로(레이어를 손으로 켜고) PIE에서 `near_03` 위치에 서서: 캐릭터 그림자가 바닥·벽에 떨어지는지(1~4 키로 프리셋 바꾸며), splat 레이어는 조명에 반응하지 않는 것이 정상(research/07 §5 — Unlit)임을 감안해 채점. 재생 캡처에는 캐릭터가 없으므로 이 항목만 유인으로 본다. 스크린샷은 `golmok.screenshot shadow_<tag> near_03`.
