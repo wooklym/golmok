@@ -222,10 +222,11 @@ def test_main_rejects_duplicate_zone(tmp_path: Path, capsys):
 
 
 def test_overlong_names_give_404_not_a_dropped_connection(zone_served, served):
-    base, zones, _ = zone_served
+    # Linux raises ENAMETOOLONG in is_dir() (resolve() returns None); Windows just finds no such file.
+    # Either way the client must get a 404, not a dropped connection.
+    base, _, _ = zone_served
     long = "a" * 300
-    assert vs.resolve(f"/zones/z_test_001/v1/{long}.json", None, zones) is None
     assert get(f"{base}/zones/z_test_001/v1/{long}.json")[0] == 404
-    dbase, data = served
-    assert vs.resolve(f"/data/{long}", data) is None
+    dbase, _ = served
+    assert get(f"{dbase}/data/{long}")[0] == 404
     assert get(f"{dbase}/{long}")[0] == 404
