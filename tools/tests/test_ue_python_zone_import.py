@@ -1062,3 +1062,17 @@ def test_basemap_import_sets_geo_origin(fake, unreal):
         r'_set_georeference\(manifest\["origin"\]\)\n\s+_set_geo_origin\(manifest\["origin"\]\)', src
     )
     assert "--exclude" in src.split('"""', 2)[1]  # documented in the module docstring
+
+
+def test_legacy_flag_rearmed_on_cache_hit(fake, unreal, zone, zi):
+    """Review A2: the OBJ CVar is per editor session, so a cache hit on route legacy_flag must re-send it."""
+    fake.obj_routes_ok = {"legacy_flag"}
+    _run(zi, zone)
+    assert [c[4] for c in _imports(fake, ".obj")][-2:] == ["legacy_flag", "legacy_flag"]
+    fake.legacy_flag = False  # a new editor session: CVar back to its default, mapping cache still valid
+    fake.calls.clear()
+    fake.logs.clear()
+    _run(zi, zone)
+    assert _imports(fake, "_probe.obj") == []  # cache hit: no probe
+    assert ("console", "Interchange.FeatureFlags.Import.OBJ 0") in fake.calls
+    assert [c[4] for c in _imports(fake, ".obj")] == ["legacy_flag", "legacy_flag"]

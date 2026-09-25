@@ -54,7 +54,7 @@ golmok-blur D:\golmok_capture\<ID>\frames D:\golmok_capture\<ID>\frames_blurred 
 | 정렬 | 기본. GPS prior 사용(iPhone EXIF). 조각(component)이 여러 개면 영상 프레임을 더해 재정렬 | [확인] |
 | 지오레퍼런싱 | GPS 자동 → 출력 좌표계 **EPSG:5186**(방법 A) 또는 로컬(방법 B) — recon-postprocess.md §2 | [미확인: 메뉴 이름] |
 | 메시 | **High detail**, Simplify로 스파이크 청크(30~50 m) 기준 **5~15M tri** | 판단 |
-| 텍스처 | **8K, UDIM 타일**, PNG(또는 TIF). 파일명이 `<이름>.1001.png` 형식인지 확인(UE UDIM 규약, [확인]: Streaming Virtual Texturing 문서 "UDIM Support") | [확인] |
+| 텍스처 | **8K, UDIM 타일**, **PNG**(TIF/JPG는 `zone_import`의 UDIM 병합 검증이 PNG 헤더만 읽어 `size unknown` 경고로 빠진다 → PNG로 내보낸다). 파일명이 `<이름>.1001.png` 형식인지 확인(UE UDIM 규약, [확인]: Streaming Virtual Texturing 문서 "UDIM Support") | [확인] |
 | 내보내기 | OBJ + MTL, 한 조각 2천만 tri 이하 | |
 | 예상 시간 | 정렬 30분~1시간, 메시 1~3시간, 텍스처 1~2시간(6코어·8 GB VRAM 기준, 실측 기록) | [미확인] |
 실패 시: 정렬이 두 조각 이상 → 겹치는 구간 사진 추가·재촬영(가이드 #1 P2·P3 패스); 메모리 부족 → 구역을 나눠 내보내고 `chunk`/`collision`에 조각들을 한꺼번에 넘긴다.

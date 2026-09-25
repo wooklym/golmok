@@ -77,7 +77,9 @@ CHUNK_SIZE_M = 15.0
 ZONE_ORIGIN = (37.5620, 126.9250, 50.0)  # lat, lon, ellipsoidal h (spec §4 B)
 AREA_ORIGIN = (37.5600, 126.9230, 40.0)  # level (CesiumGeoreference) origin, spec §4 C
 FOOTPRINT_M = (32.0, 17.0, 0.0, 7.5)  # w, h, dx, dy: x -16..16, y -1..16
-ZONE_TEST_MAP = "/Game/Golmok/Maps/L_ZoneTest"
+ZONE_TEST_MAP = (
+    "/Game/Golmok/Maps/L_ZoneTest06"  # copy of L_ZoneTest without the WP-04/05 fixture (runbook §0)
+)
 MASTER_MATERIAL = "/Game/Golmok/Materials/M_ZoneScan"
 OBJ_HEADER = "make_synthetic_zone.py (WP-06 synthetic scan, not a real capture)"
 

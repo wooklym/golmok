@@ -1636,3 +1636,75 @@ def test_no_unreal_api_outside_touchpoint_list(mods):
             f"materials.py (new functions) line {no}: unreal.{n}" for n in api.findall(line) if n not in known
         ]
     assert violations == []
+
+
+# ---- merge review (orchestrator, 2026-09-25) --------------------------------------------------------------
+
+
+def _pack_glb(gltf: dict, blob: bytes) -> bytes:
+    json_b = json.dumps(gltf, separators=(",", ":")).encode("utf-8")
+    json_b += b" " * (-len(json_b) % 4)
+    bin_b = blob + b"\0" * (-len(blob) % 4)
+    total = 12 + 8 + len(json_b) + 8 + len(bin_b)
+    return (
+        struct.pack("<4sII", b"glTF", 2, total)
+        + struct.pack("<I4s", len(json_b), b"JSON")
+        + json_b
+        + struct.pack("<I4s", len(bin_b), b"BIN\0")
+        + bin_b
+    )
+
+
+def test_plan_material_instance_name_collision(mods):
+    """MTL materials whose MI_ names differ only in case would share one asset path (UE names are
+    case-insensitive)."""
+    scn = build_scenario()
+    scn.fs.add(
+        f"{scn.vdir}/visual/scan.mtl", MTL_TEXT + f"\nnewmtl Facade\nKd 1 1 1\nmap_Kd -bm 1 {FACADE_REL}\n"
+    )
+    header = OBJ_HEADER.format(cid="c_w001_n000").replace("usemtl facade", "usemtl Facade")
+    scn.fs.add(f"{scn.vdir}/visual/c_w001_n000.obj", header)
+    entry = next(c for c in scn.chunk_manifest["chunks"] if c["id"] == "c_w001_n000")
+    entry["materials"] = ["Facade" if m == "facade" else m for m in entry["materials"]]
+    plan = run_plan(mods.pure, scn)
+    assert plan["problems"] == ["material Facade: asset name collision MI_Facade (with material facade)"]
+
+
+def test_plan_texture_name_collision_is_case_insensitive(mods):
+    scn = build_scenario()
+    scn.fs.add(f"{ROOT}/recon/{ZONE}/tex2/Ground.png", "png")
+    other = FACADE_REL.replace("tex/facade.<UDIM>.png", "tex2/Ground.png")
+    scn.fs.add(f"{scn.vdir}/visual/scan.mtl", MTL_TEXT.replace(FACADE_REL, other))
+    plan = run_plan(mods.pure, scn)
+    assert plan["problems"] == [
+        "texture ground: asset name collision T_ground"
+    ]  # T_Ground was registered first
+
+
+def test_plan_warns_on_non_png_udim(mods):
+    scn = build_scenario()
+    for tile in ("1001", "1002", "1011"):
+        scn.fs.remove(f"{TEX_DIR}/facade.{tile}.png")
+        scn.fs.add(f"{TEX_DIR}/facade.{tile}.tif", "tif")
+    scn.fs.add(f"{scn.vdir}/visual/scan.mtl", MTL_TEXT.replace("facade.<UDIM>.png", "facade.<UDIM>.tif"))
+    plan = run_plan(mods.pure, scn)
+    assert plan["problems"] == []
+    assert plan["warnings"] == [
+        "texture T_facade: UDIM tiles are .tif; the merge check reads PNG headers only (runbook #4) "
+        "- export PNG"
+    ]
+
+
+def test_pretransform_glb_rejects_non_indexed_primitive_with_mirroring(mods):
+    pure, sz = mods.pure, mods.sz
+    data = sz.boxes_glb([((0.0, 0.0, 0.0), (1.0, 2.0, 3.0))], "box")
+    gltf, blob = pure._glb_parts(data)
+    for mesh in gltf["meshes"]:
+        for prim in mesh["primitives"]:
+            prim.pop("indices", None)
+    stripped = _pack_glb(gltf, bytes(blob))
+    a_flip = FLIP_Y  # a mirroring A (det < 0) given in ENU
+    assert pure.det3(a_flip) < 0
+    with pytest.raises(ValueError, match="non-indexed"):
+        pure.pretransform_glb(stripped, a_flip)
+    pure.pretransform_glb(stripped, IDENTITY)  # no mirroring: accepted

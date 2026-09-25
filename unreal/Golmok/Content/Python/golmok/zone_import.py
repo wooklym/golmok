@@ -506,7 +506,10 @@ def _importer_mappings(work: str, asset_folder: str, remeasure: bool):
             cache = None
     if not remeasure and engine != "unknown" and _pure.importer_cache_valid(cache, engine):
         _log("zi.cache", state="hit", path=cache_path)
-        return str(cache["obj"]["route"]), _mapping_triple(cache["obj"]), _mapping_triple(cache["glb"])
+        route = str(cache["obj"]["route"])
+        if route == "legacy_flag":
+            _console(LEGACY_FLAG_COMMAND)  # the CVar is per editor session: re-arm it on a cache hit (runbook #1)
+        return route, _mapping_triple(cache["obj"]), _mapping_triple(cache["glb"])
     _log("zi.cache", state="miss", path=cache_path)
     route, obj_mapping = _measure_obj_mapping(work, asset_folder)
     glb_mapping = _measure_glb_mapping(work, asset_folder)
@@ -604,7 +607,7 @@ def _import_texture(tex: dict, asset_folder: str, reimport: bool) -> tuple[objec
         how = "single texture"
         if not tiles:
             size, file_size = _texture_size(texture), _png_tile_size(tex["anchor"])
-            if size is not None and file_size is not None and size != file_size:
+            if size is not None and file_size is not None and 0 not in size and size != file_size:
                 how = "imported as UDIM by the engine (WARNING)"
                 file = os.path.basename(os.path.normpath(tex["anchor"]))
                 _warn(
@@ -614,7 +617,7 @@ def _import_texture(tex: dict, asset_folder: str, reimport: bool) -> tuple[objec
                 )
         elif len(tiles) > 1:
             size, tile = _texture_size(texture), _png_tile_size(tex["anchor"])
-            if size is None or tile is None:
+            if size is None or tile is None or 0 in size:
                 how = "merged by importer (size unknown)"
                 _warn(f"texture {tex['name']}: UDIM merge could not be verified by size (runbook #4)")
             elif size == tile:

@@ -568,7 +568,10 @@ class _PieCapture(_PieSession):
             fallback = _pure.screenshot_fallback_path(path)
             if not _fresh(fallback, self.requested_at):
                 return None
-            os.replace(fallback, path)  # runbook #30
+            try:
+                os.replace(fallback, path)  # runbook #30
+            except OSError:
+                return None  # the engine may still hold the fallback file open (Windows); retry next tick
         try:
             with open(path, "rb") as f:
                 return _pure.png_size(f.read(24))

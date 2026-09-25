@@ -27,7 +27,19 @@
 
 전제 확인:
 - [ ] `git pull` 후 `cd tools; .\.venv\Scripts\Activate.ps1; pip install -e ".[zone,mesh,dev]"; pytest -q` 초록(`test_ue_python_*.py`·`test_make_synthetic_zone.py` 포함). 여기서 빨간 것은 PC 문제가 아니라 코드 문제 — 클라우드 세션에 돌려보낸다.
-- [ ] 에디터 `.\tools\ue\open-editor.ps1` → `L_ZoneTest`(`/Game/Golmok/Maps/L_ZoneTest`)를 연다. WP-04/05 런북이 만든 `z_synthetic_001` 에셋·액터는 그대로 두어도 된다(zone id가 다르다).
+- [ ] 에디터 `.\tools\ue\open-editor.ps1` → **검증용 맵 사본 `L_ZoneTest06`**을 만든다. WP-04/05 픽스처 `z_synthetic_001`은 합성 zone과 **같은 원점·겹치는 footprint**라 한 맵에 두면 겹침 해소 규칙(우선순위·버전 동률 → zone id 순, `z_synthetic_001` < `z_synthetic_scan_001`)으로 WP-06 zone의 시각 레이어가 숨겨지고 WP-04 벽·포털이 §3/§5/§7에 섞인다. 원본 `L_ZoneTest`는 WP-05 `Golmok.Portal.*` 자동화 테스트가 계속 쓰므로 건드리지 않는다. Output Log → Python:
+  ```python
+  import unreal
+  unreal.EditorAssetLibrary.duplicate_asset("/Game/Golmok/Maps/L_ZoneTest06", "/Game/Golmok/Maps/L_ZoneTest06")
+  les = unreal.get_editor_subsystem(unreal.LevelEditorSubsystem); les.load_level("/Game/Golmok/Maps/L_ZoneTest06")
+  eas = unreal.get_editor_subsystem(unreal.EditorActorSubsystem)
+  for a in eas.get_all_level_actors():
+      if a.get_actor_label() in ("Zone_z_synthetic_001", "Zone_z_synthetic_001_interior"):
+          eas.destroy_actor(a)
+  world = unreal.get_editor_subsystem(unreal.UnrealEditorSubsystem).get_editor_world()
+  unreal.EditorLoadingAndSavingUtils.save_map(world, "/Game/Golmok/Maps/L_ZoneTest06")
+  ```
+  기대: `L_ZoneTest06`에 `GeoOrigin`·`Zone_Ground`·`PlayerStart`·조명만 남고 `AGolmokZone`은 0개(§4 뒤에는 실외+실내 방 = 2개; `spike_runner` 로그의 `actors N`이 그 수). 이후 이 런북의 `level=` 인자와 `-game` 맵은 전부 `/Game/Golmok/Maps/L_ZoneTest06`(생성기 `next:` 안내도 같다). `.gitignore`에 사본·시점 파일이 있다(커밋되지 않음). V-03에서 경로 B 등록을 했다면 사본에도 `L_z_synthetic_001_interior` 스트리밍 항목이 남지만 부모 zone 액터가 없어 무해하다.
 - [ ] 디스크 여유: OBJ 사본(`<Saved>\Golmok\zone_import\…`)은 원본 텍스트 크기와 같다(합성 zone은 수백 KB; 실 zone은 원본의 2배 확보).
 - [ ] 작업 폴더(git 밖): `D:\golmok_synth`(없으면 생성기가 만든다).
 
@@ -49,7 +61,7 @@ wrote recon/z_synthetic_scan_001/tex/facade.1011.png
 wrote zones/z_synthetic_scan_001/v1/manifest.json
 …
 wrote zones/z_synthetic_scan_001_room/v1/expected.json
-next: import golmok.zone_import as zi; zi.run(r"D:\golmok_synth\zones\z_synthetic_scan_001", level="/Game/Golmok/Maps/L_ZoneTest", geo_origin="area")
+next: import golmok.zone_import as zi; zi.run(r"D:\golmok_synth\zones\z_synthetic_scan_001", level="/Game/Golmok/Maps/L_ZoneTest06", geo_origin="area")
 ```
 `golmok-zone validate`는 두 manifest 모두 `OK`(경고 0).
 - [ ] 파일 목록이 정확히 다음과 같다(대소문자 포함): `recon\z_synthetic_scan_001\{scan.obj, scan.mtl, tex\ground.png, tex\facade.1001.png, tex\facade.1002.png, tex\facade.1011.png}`, `zones\z_synthetic_scan_001\v1\{manifest.json, expected.json, blockers.json, blockers.glb, collision.glb, collision\c_e000_n000.glb, collision\c_w001_n000.glb, visual\c_e000_n000.obj, visual\c_w001_n000.obj, visual\scan.mtl, visual\chunk_manifest.json}`, `recon\z_synthetic_scan_001_room\{room.obj, room.mtl, tex\room.1001.png}`, `zones\z_synthetic_scan_001_room\v1\{manifest.json, expected.json, collision.glb, collision\c_e000_n000.glb, visual\c_e000_n000.obj, visual\room.mtl, visual\chunk_manifest.json}`.
@@ -59,10 +71,10 @@ next: import golmok.zone_import as zi; zi.run(r"D:\golmok_synth\zones\z_syntheti
 
 실패 시: pytest가 초록인데 여기서 실패하면 환경 문제(권한·경로·비ASCII 콘솔). 이미 폴더가 있으면 `exists; use --force`(rc 2) → `--force`(네 출력 폴더를 지우고 다시 만든다). `ERROR install tools with pip install -e ".[zone,mesh]"` → extras 설치. 검증 실패(rc 1)는 stderr의 메시지대로.
 
-## 2. `zone_import.run` (에디터 Python, `L_ZoneTest`)
+## 2. `zone_import.run` (에디터 Python, `L_ZoneTest06`)
 ```python
 import golmok.zone_import as zi
-r = zi.run(r"D:\golmok_synth\zones\z_synthetic_scan_001", level="/Game/Golmok/Maps/L_ZoneTest", geo_origin="area")
+r = zi.run(r"D:\golmok_synth\zones\z_synthetic_scan_001", level="/Game/Golmok/Maps/L_ZoneTest06", geo_origin="area")
 ```
 기대 로그(값은 `expected.json`; `…` = 매핑 실측. 계획 단계는 에디터 호출 0회이므로 첫 줄이 안 나오면 파일 문제다):
 ```
@@ -136,10 +148,10 @@ PlayerStart가 `expected.json.player_start_ue_cm` = (17670.59, −22398.00, 1149
 
 실패 시: 지면을 뚫으면 충돌 에셋의 Collision Complexity 확인(§2 체크·§12 #9); 유리를 지나가면 `Content\Golmok\Zones\z_synthetic_scan_001\v1\blockers.json` 복사 여부와 `Blocker_glass_1` 컴포넌트 확인; 문이 막히면 청크 임포트가 문 구멍 없는 다른 파일을 읽은 것(사본 폴더 확인).
 
-## 4. `interior_setup.run` (에디터 Python, `L_ZoneTest`)
+## 4. `interior_setup.run` (에디터 Python, `L_ZoneTest06`)
 ```python
 import golmok.interior_setup as it
-r = it.run(r"D:\golmok_synth\zones\z_synthetic_scan_001_room", level="/Game/Golmok/Maps/L_ZoneTest")
+r = it.run(r"D:\golmok_synth\zones\z_synthetic_scan_001_room", level="/Game/Golmok/Maps/L_ZoneTest06")
 ```
 기대 로그(①~⑤ 포털 검사·계획까지는 레벨 열기와 `Zone_<parent>`의 `version` 읽기뿐 — 임포트·스폰 0회. 부모는 **레벨 액터의 `version`**(Content의 최신 v<n>이 아님)으로 검사·재빌드하고, 그 액터의 `version`은 바꾸지 않는다):
 ```
@@ -202,7 +214,7 @@ LogGolmok: Portal door_1: player left -> unload z_synthetic_scan_001_room; suble
 
 ## 6. 재실행 idempotency
 1. 서브레벨 `L_z_synthetic_scan_001_room`을 열어 큐브 액터 하나(라벨 `ManualProp`, 태그 없음)를 놓고 저장, `L_ZoneTest`로 복귀.
-2. §2를 `zi.run(r"D:\golmok_synth\zones\z_synthetic_scan_001", level="/Game/Golmok/Maps/L_ZoneTest", geo_origin="area", reimport_textures=False)`로 다시, §4를 그대로 다시.
+2. §2를 `zi.run(r"D:\golmok_synth\zones\z_synthetic_scan_001", level="/Game/Golmok/Maps/L_ZoneTest06", geo_origin="area", reimport_textures=False)`로 다시, §4를 그대로 다시.
 ```
 zone_import: importer mapping cache hit -> <Project>\Saved\Golmok\zone_import\importer_mapping.json
 zone_import: texture /Game/Golmok/Zones/z_synthetic_scan_001/v1/Textures/T_facade tiles=[1001, 1002, 1011] size=512x512 vt=on (skipped: exists)
@@ -215,12 +227,12 @@ interior_setup: sublevel /Game/Golmok/Zones/z_synthetic_scan_001_room/v1/L_z_syn
 - [ ] 아웃라이너에 `GeoOrigin`·`Zone_z_synthetic_scan_001`·`Zone_z_synthetic_scan_001_room`이 각 1개(중복 스폰 없음).
 - [ ] 서브레벨에 `ManualProp`이 **살아남고** `Interior_Light_…`는 1개(태그 `GolmokInteriorSetup`만 지우고 다시 만든다).
 - [ ] §5 왕복이 그대로 동작.
-3. 텍스처까지 다시 임포트하는 기본 재실행: `zi.run(r"D:\golmok_synth\zones\z_synthetic_scan_001", level="/Game/Golmok/Maps/L_ZoneTest", geo_origin="area")`(`reimport_textures` 기본 True — 이전 `T_facade`·`T_ground`·`SM_*`를 지우고 새 임포트로 바꾼다; `delete_asset`은 참조를 확인하지 않는 강제 삭제).
+3. 텍스처까지 다시 임포트하는 기본 재실행: `zi.run(r"D:\golmok_synth\zones\z_synthetic_scan_001", level="/Game/Golmok/Maps/L_ZoneTest06", geo_origin="area")`(`reimport_textures` 기본 True — 이전 `T_facade`·`T_ground`·`SM_*`를 지우고 새 임포트로 바꾼다; `delete_asset`은 참조를 확인하지 않는 강제 삭제).
 - [ ] `zone_import: done … 8 assets, 0 warnings`(`M_ZoneScan … default was …` 경고 없음), 그 사이 `moved` 줄 7개가 아니라 6개(`T_ZoneScanDefault`는 이미 있어 다시 만들지 않음).
 - [ ] `M_ZoneScan` 더블클릭: 기본 텍스처 여전히 `T_ZoneScanDefault`, 컴파일 오류 없음. `MI_facade`·`MI_ground`의 `BaseColor`가 새 `T_facade`·`T_ground`이고 뷰포트의 벽 색·타일 숫자가 §2와 같다(회색 격자 기본 머티리얼이면 §12 #10).
 - [ ] UDIM 폴백 PC(§2에서 `packed from 3 tiles`였던 경우)에서도 같다: `T_facade`는 제자리에서 다시 묶인다(`deleted importer-created asset …/Textures/T_facade` 줄 없음).
 
-## 7. spike_runner 리허설 (합성 zone, `L_ZoneTest`)
+## 7. spike_runner 리허설 (합성 zone, `L_ZoneTest06`)
 시점 10개를 저장한다(이름 고정: research/08 조건 3/4/3). 뷰포트를 옮겨 가며:
 ```python
 import golmok.viewpoints as v
@@ -230,9 +242,9 @@ v.save("near_01"); v.save("near_02"); v.save("near_03")      # 근경 0.5 m: 타
 import golmok.spike_runner as s; s.prepare()
 ```
 ```
-spike_runner: viewpoints L_ZoneTest: 10 saved, missing=[]
+spike_runner: viewpoints L_ZoneTest06: 10 saved, missing=[]
 ```
-(빠진 이름은 `missing=['mid_04']`처럼 나온다. 시점 파일 `Config\Golmok\Viewpoints\L_ZoneTest.json`.)
+(빠진 이름은 `missing=['mid_04']`처럼 나온다. 시점 파일 `Config\Golmok\Viewpoints\L_ZoneTest06.json`.)
 
 무인 캡처(PIE 상태기계; 태그 `a`만, 프리셋 2개 → 20장):
 ```python
@@ -240,10 +252,10 @@ s.capture_all(tags=("a",), presets=("clear_noon", "night"), mode="pie")
 ```
 기대 로그(시점마다 `>` 3줄 + `captured` 1줄; 프리셋이 바뀔 때만 `golmok.tod`):
 ```
-spike_runner: layers tag=a zone_visual=True Spike_b=False Spike_c=False (actors 1, editor)
+spike_runner: layers tag=a zone_visual=True Spike_b=False Spike_c=False (actors 2, editor)
 spike_runner: PIE begin tag=a
 spike_runner: > golmok.hud 0
-spike_runner: layers tag=a zone_visual=True Spike_b=False Spike_c=False (actors 1, pie)
+spike_runner: layers tag=a zone_visual=True Spike_b=False Spike_c=False (actors 2, pie)
 spike_runner: > golmok.tod clear_noon
 spike_runner: > golmok.path play vp_far_01
 spike_runner: > HighResShot 2560x1440 filename="<Project>/Saved/Screenshots/Golmok/a/clear_noon/far_01"
@@ -262,7 +274,7 @@ spike_runner: done capture: 20 saved, 0 missing -> <Project>\Saved\Screenshots\G
 - [ ] **무인 실행(§12 #34)**: `-ExecCmds`는 쉼표로 명령을 나누므로(pc-setup.md) 인자에 쉼표가 있는 호출은 파일로 넘긴다. 에디터를 닫고 PowerShell에서
   ```powershell
   Set-Content -Encoding utf8 "$env:TEMP\golmok_capture_a.py" 'import golmok.spike_runner as s; s.capture_all(tags=("a",), presets=("clear_noon",), quit_editor=True)'
-  & "$env:UE_ROOT\Engine\Binaries\Win64\UnrealEditor.exe" "<Project>\Golmok.uproject" /Game/Golmok/Maps/L_ZoneTest -ExecCmds="py $env:TEMP\golmok_capture_a.py"
+  & "$env:UE_ROOT\Engine\Binaries\Win64\UnrealEditor.exe" "<Project>\Golmok.uproject" /Game/Golmok/Maps/L_ZoneTest06 -ExecCmds="py $env:TEMP\golmok_capture_a.py"
   ```
   GUI 에디터(`UnrealEditor.exe`)여야 한다 — PIE는 렌더링이 필요하므로 `UnrealEditor-Cmd`·`-nullrhi`로는 안 된다. 끝에 `, Quit`/`QUIT_EDITOR`를 붙이지 않는다: `Quit`는 에디터를 끝내지 않고(V-03), `QUIT_EDITOR`는 비동기 상태기계가 끝나기 전에 에디터를 닫는다. 기대 로그 끝:
   ```
@@ -298,14 +310,14 @@ spike_runner: done capture: 20 saved, 0 missing -> <Project>\Saved\Screenshots\G
    s.save_layer_levels()
    ```
    ```
-   spike_runner: layers tag=b zone_visual=False Spike_b=True Spike_c=False (actors 1, editor)
+   spike_runner: layers tag=b zone_visual=False Spike_b=True Spike_c=False (actors 2, editor)
    spike_runner: layer level /Game/Golmok/Maps/L_Spike_b saved (tag b)
-   spike_runner: layers tag=c zone_visual=False Spike_b=False Spike_c=True (actors 1, editor)
+   spike_runner: layers tag=c zone_visual=False Spike_b=False Spike_c=True (actors 2, editor)
    spike_runner: layer level /Game/Golmok/Maps/L_Spike_c saved (tag c)
-   spike_runner: layers tag=ac zone_visual=True Spike_b=False Spike_c=True (actors 1, editor)
+   spike_runner: layers tag=ac zone_visual=True Spike_b=False Spike_c=True (actors 2, editor)
    spike_runner: layer level /Game/Golmok/Maps/L_Spike_ac saved (tag ac)
    ```
-   - [ ] `/Game/Golmok/Maps/L_Spike_b`·`L_Spike_c`·`L_Spike_ac` 3개, 끝에 `L_ZoneTest`로 복귀. `L_Spike_b`를 열면 `Zone_z_synthetic_scan_001`의 Visual 레이어가 꺼져 있고(충돌만) 디테일 `AutoManaged` ✖.
+   - [ ] `/Game/Golmok/Maps/L_Spike_b`·`L_Spike_c`·`L_Spike_ac` 3개, 끝에 `L_ZoneTest06`로 복귀. `L_Spike_b`를 열면 `Zone_z_synthetic_scan_001`의 Visual 레이어가 꺼져 있고(충돌만) 디테일 `AutoManaged` ✖.
 3. 스크립트 생성·실행:
    ```python
    s.game_scripts(paths=("walk_01",), tags=("a", "b"))
@@ -335,10 +347,10 @@ spike_runner: done capture: 20 saved, 0 missing -> <Project>\Saved\Screenshots\G
 s.perf_all(paths=("walk_01",), tags=("a",))
 ```
 ```
-spike_runner: layers tag=a zone_visual=True Spike_b=False Spike_c=False (actors 1, editor)
+spike_runner: layers tag=a zone_visual=True Spike_b=False Spike_c=False (actors 2, editor)
 spike_runner: PIE begin tag=a
 spike_runner: > golmok.hud 0
-spike_runner: layers tag=a zone_visual=True Spike_b=False Spike_c=False (actors 1, pie)
+spike_runner: layers tag=a zone_visual=True Spike_b=False Spike_c=False (actors 2, pie)
 spike_runner: > golmok.tod clear_noon
 spike_runner: > golmok.path play walk_01 --csv
 spike_runner: csv <Project>\Saved\Profiling\CSV\Profile(…).csv -> golmok-perf "<Project>\Saved\Profiling\CSV\Profile(…).csv" --label a_clear_noon_walk_01 --markdown
@@ -361,7 +373,7 @@ basemap_import: GeoOrigin lat=… lon=… h=… (basemap origin; ellipsoidal = D
 ## 11. 결과 기록
 | 항목 | 결과 | 메모·실측 |
 |---|---|---|
-| 전제(pytest·L_ZoneTest) | | |
+| 전제(pytest·`L_ZoneTest06` 사본) | | |
 | §1 생성(파일 27개·PNG·validate OK) | | |
 | §2 route / obj mapping / glb mapping | | `import_result.json`의 `route`, `scale`·`m`·`err` 그대로 |
 | §2 텍스처(`size=` 표기, `merged by importer`/`packed`/`tile 1001 only`, VT, 숫자 방향) | | |
@@ -389,7 +401,7 @@ basemap_import: GeoOrigin lat=… lon=… h=… (basemap origin; ellipsoidal = D
 
 | # | 파일 | API | 불확실한 점 | 대안 |
 |---|---|---|---|---|
-| 1 | zone_import | `unreal.AssetImportTask` + `factory=unreal.FbxFactory()` + `unreal.FbxImportUI`(`is_obj_import=True`, `import_materials/import_textures=False`, `mesh_type_to_import=unreal.FBXImportType.FBXIT_STATIC_MESH`, `static_mesh_import_data.build_nanite/combine_meshes`)가 OBJ에 적용되는지 | 5.8에서 OBJ가 레거시 FBX인지 Interchange인지(citations: Interchange 문서에 OBJ 없음, `FbxImportUI.is_obj_import`는 있음); `factory` 지정이 Interchange 라우팅을 우회하는지 | 사다리(D4): 프로브가 비면 `interchange` → 콘솔 `Interchange.FeatureFlags.Import.OBJ 0` 뒤 `legacy_flag`; 옵션이 무시돼도 부산물 삭제·슬롯 재할당으로 결과 동일 |
+| 1 | zone_import | `unreal.AssetImportTask` + `factory=unreal.FbxFactory()` + `unreal.FbxImportUI`(`is_obj_import=True`, `import_materials/import_textures=False`, `mesh_type_to_import=unreal.FBXImportType.FBXIT_STATIC_MESH`, `static_mesh_import_data.build_nanite/combine_meshes`)가 OBJ에 적용되는지 | 5.8에서 OBJ가 레거시 FBX인지 Interchange인지(citations: Interchange 문서에 OBJ 없음, `FbxImportUI.is_obj_import`는 있음); `factory` 지정이 Interchange 라우팅을 우회하는지 | 사다리(D4): 프로브가 비면 `interchange` → 콘솔 `Interchange.FeatureFlags.Import.OBJ 0` 뒤 `legacy_flag`; 옵션이 무시돼도 부산물 삭제·슬롯 재할당으로 결과 동일 `legacy_flag` 경로는 캐시 적중 때도 콘솔 플래그를 다시 보낸다(CVar는 에디터 세션마다 초기화; 그 세션 동안 OBJ CVar가 0으로 남는다) |
 | 2 | zone_import | OBJ 임포터 축·단위(Z-up 유지? cm 변환?) | 측정으로 상쇄(프로브) | fit error > 1 cm → `ZoneImportError probe`; 청크 bounds 오류면 `remeasure=True`; 실측 (s, M)·route를 결과 표에 |
 | 3 | zone_import | `unreal.InterchangeGenericAssetsPipeline` 하위 `material_pipeline.texture_pipeline.import_udi_ms`, `material_pipeline.import_materials`, `mesh_pipeline.import_static_meshes/build_nanite`, `common_meshes_properties.force_all_mesh_as_type=unreal.InterchangeForceMeshType.IFMT_STATIC_MESH` | 속성 이름은 citations 확인, `AssetImportTask.options`로 전달되는지는 미확인 | hop마다 hasattr; 옵션 None(프로젝트 기본 UDIM 감지) → 병합 판정 → #4 폴백 |
 | 4 | zone_import | UDIM 자동 병합·`blueprint_get_size_x()`가 캔버스(512)인지 타일(256)인지; 결과 이름이 `T_<base>`(`destination_name`) | Python에 UDIM 크기 API 없음; UDIM 접미사 제거 규칙 | 크기로 판정하되 런북에 실제 표기 기록; `unreal.UDIMTextureFunctionLibrary.make_udim_virtual_texture_from_texture2_ds(name, textures, [unreal.IntPoint…])` 폴백 — 병합 안 된 앵커 `T_<base>` 위에 **제자리로** 묶는다(삭제하지 않음; `keep_existing_settings`: "if a texture with the same path name exists"), 타일 임포트는 `import_udi_ms=False`; `None`이 돌아오면 ERROR(앵커가 있는 경로를 함수가 거부한 것 — §11에 기록); 이름 다르면 `EditorAssetLibrary.rename_asset`; 최후 첫 타일 + WARNING |

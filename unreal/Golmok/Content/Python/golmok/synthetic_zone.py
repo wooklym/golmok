@@ -659,11 +659,11 @@ def register_interior_sublevel(zone_id=INTERIOR_ZONE_ID, version=INTERIOR_VERSIO
     return streaming
 
 
-def unregister_interior_sublevel():
+def unregister_interior_sublevel(zone_id=INTERIOR_ZONE_ID, version=INTERIOR_VERSION):
     """Undo register_interior_sublevel(): remove the interior sublevel from the open persistent level's Levels
     list and save the persistent map, so the default LevelInstance path goes back through LoadLevelInstance
     instead of reusing the registered entry. Returns True when an entry was removed."""
-    int_manifest = _load_manifest(INTERIOR_ZONE_ID, INTERIOR_VERSION)
+    int_manifest = _load_manifest(zone_id, version)
     path = sublevel_path(int_manifest)
     world = unreal.get_editor_subsystem(unreal.UnrealEditorSubsystem).get_editor_world()
     persistent = world.get_path_name().split(".")[0]

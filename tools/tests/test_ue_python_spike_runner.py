@@ -803,6 +803,9 @@ def _spike_lines(fake):
 
 def test_layer_level_log_block_matches_runbook(fake, unreal):
     fake.add_actor("GolmokZone", "Zone_z_synthetic_scan_001", zone_id="z_synthetic_scan_001")
+    fake.add_actor(
+        "GolmokZone", "Zone_z_synthetic_scan_001_room", zone_id="z_synthetic_scan_001_room"
+    )  # after §4
     fake.logs.clear()
     sr.save_layer_levels()
     assert _spike_lines(fake) == _runbook_block("spike_runner: layer level /Game/Golmok/Maps/L_Spike_b saved")
@@ -810,6 +813,9 @@ def test_layer_level_log_block_matches_runbook(fake, unreal):
 
 def test_pie_perf_log_block_matches_runbook(fake, unreal):
     fake.add_actor("GolmokZone", "Zone_z_synthetic_scan_001", zone_id="z_synthetic_scan_001")
+    fake.add_actor(
+        "GolmokZone", "Zone_z_synthetic_scan_001_room", zone_id="z_synthetic_scan_001_room"
+    )  # after §4
     _write_walk(fake, "walk_01", length_s=5.0)
     fake.logs.clear()
     perf = sr.perf_all(paths=("walk_01",), tags=("a",))

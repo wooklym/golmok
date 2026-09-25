@@ -1094,6 +1094,22 @@ def tick(fake, n: int, dt: float = 0.1)           # 등록된 slate 콜백을 n�
 
 **판단한 것(스펙과 다른 점, 되돌리기 쉬움)** — 설계 §8 끝 목록 그대로: `blockers.glb` 미임포트(C++는 `blockers.json`만 읽음)·Content 복사는 `manifest.json`+`blockers.json`뿐 · MI는 청크당이 아니라 MTL 머티리얼당 · `collision.chunks`가 있으면 단일 `collision.glb` 미임포트 · 실내 서브레벨에 PostProcessVolume 없음(WP-05 오버레이가 실내 룩 담당) · Python은 `AGolmokPortal`을 놓지 않음 · 시점 이름 3/4/3·기본 프리셋 night 제외 · `-game`은 CSV 전용(스크린샷은 PIE; C++ `golmok.later` 미추가) · UDIM 파일명은 공식 규약만 인정 · 합성 실내 원점 = 방 남서 모서리.
 
+**병합 전 보완 리뷰(오케스트레이터, Opus 읽기 전용, 2026-09-25)** — 위 2라운드 미검증 6건 판정과 추가 발견. 블로킹 2건은 병합 전에 수정했다.
+| # | 발견 | 판정 | 조치 |
+|---|---|---|---|
+| A1 | 합성 zone(`ZONE_ORIGIN` = 스펙 §4 B)이 `L_ZoneTest`의 WP-04/05 픽스처 `z_synthetic_001`과 같은 원점·겹치는 footprint → PIE에서 겹침 해소(우선순위·버전 동률 → id 순)로 WP-06 zone의 시각 레이어가 숨겨지고 WP-04 벽·`door_1`이 §3/§5/§7에 섞임 | **블로킹** | 런북 §0: `L_ZoneTest`를 `L_ZoneTest06`으로 복제하고 픽스처 zone 액터 2개를 지운 사본에서 검증(`ZONE_TEST_MAP`, `.gitignore`, `actors 2` 로그 갱신). 원본 맵은 WP-05 자동화 테스트용으로 유지 |
+| A2 | `legacy_flag` 경로가 캐시 적중 시 콘솔 플래그를 다시 보내지 않음 → 새 에디터 세션에서 청크 임포트가 Interchange로 가서 실패(V-05에서 드러남) | **블로킹** | `_importer_mappings` 캐시 적중 분기에서 `Interchange.FeatureFlags.Import.OBJ 0` 재전송 + 테스트 `test_legacy_flag_rearmed_on_cache_hit` |
+| ① | UDIM 병합 판정이 컴파일 전 크기를 읽을 가능성 | 결함 아님(에디터 빌드의 `GetPlatformData`는 비동기 컴파일을 기다림; 타일 크기를 돌려줘도 중복 팩 1회뿐) | (0, 0)만 유해 → `size`에 0이 있으면 "unknown"으로 처리 |
+| ② | Full Precision UV 미설정(half-float UV, UDIM u/v ≤ 10에서 8K 타일 기준 8~64 texel 계단) | 실제·잠재 품질 문제(V-04 256 px에서는 안 보임; Nanite 외 소비자 — 폴백 메시·HWRT·Lumen hit lighting) | **V-05 전** `StaticMeshEditorSubsystem.get/set_lod_build_settings`로 LOD0 `use_full_precision_u_vs=True`(hasattr 가드, 런북 §12 행 추가) — 미반영, V-04 인계 |
+| ③ | TIF/JPG UDIM 앵커 크기 판정(PNG IHDR만) | 실제(pc-spike가 TIF를 허용했음) | pc-spike.md 텍스처 행을 **PNG만**으로, `_pure.import_plan`이 PNG 아닌 UDIM 세트에 경고 |
+| ④ | `MI_<safe(material)>` 이름 충돌 미검출(대소문자만 다른 MTL 재질이 한 MI를 공유 → 뒤 텍스처가 이김) | 실제(드묾) | `tex_names`/`mi_names`를 소문자 키로, 충돌은 plan problem |
+| ⑤ | 비인덱스 TRIANGLES의 감김 반전 누락 | 실제이나 현재 도달 불가(golmok-mesh GLB는 항상 인덱스) | 거울 매핑 + 비인덱스 프리미티브면 `ValueError` |
+| ⑥ | 설계 §3-1/§3-2 UDIM 문구 ≠ 코드 | 코드 결함 아님 | "설계 대비 변경" 표가 우선(그대로) |
+| B2 | `spike_runner._screenshot_ready`의 `os.replace`가 Windows에서 파일이 열려 있으면 PermissionError → 전체 캡처 중단 | 실제(드묾) | `OSError`면 다음 틱 재시도 |
+| B4 | `synthetic_zone.unregister_interior_sublevel()`이 WP-05 픽스처 고정 | 사소 | `zone_id`/`version` 인자 추가(register와 대칭) |
+
+V-04/V-05 메모(코드 미변경): (B3) `ResolveOverlaps`는 로드/언로드 이벤트마다 `apply_layers`가 숨긴 zone을 다시 보이게 할 수 있으므로 태그 b/c 캡처 중 zone 로드·언로드가 없어야 한다(`BasemapRescanSeconds=0`); (B5) `route=fbx`에서 임포터가 옵션을 무시하면 청크마다 MTL의 8K 텍스처를 임포트했다 지운다 — 실데이터에서 느리면 Saved MTL 사본에서 `map_*` 줄을 빼는 방안; (B6) `_set_nanite(mesh, True)`는 100 % 폴백 메시(5~15M tri 청크에서 디스크·메모리 2배) — 스파이크 수치에 반영; (B8) `legacy_flag` 경로는 그 에디터 세션 동안 OBJ CVar를 0으로 남긴다(런북 §12 #1).
+
 **남은 것 / PC 인계(V-04, `pc-verify-wp06.md`)**
 - §1 생성기 → §2 `zi.run(...)`(route·매핑 실측·UDIM 병합 표기·Nanite 청크 bbox를 결과 표에) → §3 PIE 걷기 → §4 `it.run(...)` → §5 포털 왕복 → §6 재실행 → §7 `capture_all` 리허설(에디터 창 뒤로 보낸 채 한 번 더) → §8 `-game` 성능 스크립트 → §11 결과 표. 컴파일/실행 오류는 §12 표 번호로 고치고 `WP-06: PC fix …` 커밋.
 - 미검증 2라운드 소견 6건(위 표)은 병합 전 Opus 보완 리뷰 또는 V-04에서 판정. 특히 ③(TIF UDIM)·④(MI 이름 충돌)는 실데이터에서 먼저 드러날 수 있다.

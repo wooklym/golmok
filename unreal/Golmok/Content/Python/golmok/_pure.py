@@ -602,7 +602,8 @@ def import_plan(
 
     mtl_cache: dict[str, dict] = {}
     tex_sets: dict[tuple, dict] = {}  # (dir, base, ext.lower()) -> texture entry
-    tex_names: dict[str, tuple] = {}  # T_<name> -> set key
+    tex_names: dict[str, tuple] = {}  # T_<name>.lower() -> set key (UE package names are case-insensitive)
+    mi_names: dict[str, str] = {}  # MI_<name>.lower() -> MTL material name
     materials: dict[str, dict] = {}  # MTL material name -> plan entry (resolved)
     failed: set[str] = set()  # material names already reported
     chunk_entries: list[dict] = []
@@ -614,6 +615,13 @@ def import_plan(
             failed.add(mat)
             return
         mtl_path, props = found
+        mi_name = "MI_" + asset_name_safe(mat)
+        other = mi_names.get(mi_name.lower())
+        if other is not None and other != mat:
+            problems.append(f"material {mat}: asset name collision {mi_name} (with material {other})")
+            failed.add(mat)
+            return
+        mi_names[mi_name.lower()] = mat
         map_kd = props.get("map_Kd")
         if not map_kd:
             problems.append(f"material {mat}: no map_Kd (chunk {cid})")
@@ -639,11 +647,11 @@ def import_plan(
                 problems.append(f"material {mat}: {e} ({map_path})")
                 failed.add(mat)
                 return
-            if name in tex_names:
+            if name.lower() in tex_names:
                 problems.append(f"texture {group['base']}: asset name collision {name}")
                 failed.add(mat)
                 return
-            tex_names[name] = key
+            tex_names[name.lower()] = key
             tiles = list(group["tiles"])
             tex_sets[key] = {
                 "name": name,
@@ -664,6 +672,11 @@ def import_plan(
                     f"texture {name}: '{file}' matches the engine UDIM name rule ([._]####, >= 1001) but "
                     "not BaseName.1001..1999.ext; imported as a single texture with UDIM detection off "
                     "(runbook #38)"
+                )
+            if tiles and group["ext"].lower() != "png":
+                warnings.append(
+                    f"texture {name}: UDIM tiles are .{group['ext']}; the merge check reads PNG headers only "
+                    "(runbook #4) - export PNG"
                 )
             if tiles and UDIM_MIN not in tiles:
                 warnings.append(f"texture {group['base']}: tile 1001 missing; anchor is tile {tiles[0]}")
@@ -718,7 +731,9 @@ def import_plan(
             resolve_material(mat, cid, mtl_docs)
         # tile coverage is only meaningful once every material of the chunk resolved to a texture set
         resolved_all = all(m in materials for m in chunk_mats)
-        chunk_tex = [tex_sets[tex_names[materials[m]["texture"]]] for m in chunk_mats] if resolved_all else []
+        chunk_tex = (
+            [tex_sets[tex_names[materials[m]["texture"].lower()]] for m in chunk_mats] if resolved_all else []
+        )
         udim_tiles = [int(t) for t in entry.get("udim_tiles", [])]
         for tile in udim_tiles:
             covered = any(tile in t["tiles"] or (not t["tiles"] and tile == UDIM_MIN) for t in chunk_tex)
@@ -1190,6 +1205,8 @@ def pretransform_glb(data: bytes, a_enu: Mat3, rename: str | None = None) -> byt
             rewrite(attributes["POSITION"], ag, minmax=True)
         if "NORMAL" in attributes:
             rewrite(attributes["NORMAL"], ug, minmax=False)
+        if flip and "indices" not in prim:
+            raise ValueError("non-indexed primitive with a mirroring mapping (winding cannot be flipped)")
         if flip and "indices" in prim and prim["indices"] not in done:
             index = prim["indices"]
             done.add(index)

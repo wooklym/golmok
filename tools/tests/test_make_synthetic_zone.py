@@ -226,7 +226,7 @@ def test_script_runs_in_subprocess_with_unicode_path(run):
     arg = lines[-1][len(prefix) : lines[-1].index(", level=")]
     got = os.path.normpath(ast.literal_eval(arg))
     assert got == os.path.normpath(str(run.out / "zones" / ZONE))  # pasteable for a non-ASCII folder
-    assert lines[-1].endswith('level="/Game/Golmok/Maps/L_ZoneTest", geo_origin="area")')
+    assert lines[-1].endswith('level="/Game/Golmok/Maps/L_ZoneTest06", geo_origin="area")')
     assert len(lines) == len(EXPECTED_FILES) + 1
     assert _tree(run.out) == EXPECTED_FILES  # exact set, case included, no extras
 
