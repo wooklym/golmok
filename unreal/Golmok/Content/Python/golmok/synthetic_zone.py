@@ -586,12 +586,16 @@ def register_interior_sublevel():
     path = sublevel_path(int_manifest)
     try:
         world = unreal.get_editor_subsystem(unreal.UnrealEditorSubsystem).get_editor_world()
+        persistent = world.get_path_name().split(".")[0]
         streaming = unreal.EditorLevelUtils.add_level_to_world(world, path, unreal.LevelStreamingDynamic)
         if streaming is None:
             raise RuntimeError(f"add_level_to_world({path}) returned None")
         streaming.set_editor_property("initially_loaded", False)
         streaming.set_editor_property("initially_visible", False)
-        unreal.get_editor_subsystem(unreal.LevelEditorSubsystem).save_current_level()
+        # add_level_to_world makes the new sublevel the *current* level, so save_current_level() would save
+        # the sublevel and leave the persistent map (which now references it) unsaved (V-03). Save by path.
+        if not unreal.EditorLoadingAndSavingUtils.save_map(world, persistent):
+            raise RuntimeError(f"save_map({persistent}) failed")
     except Exception as e:
         unreal.log_warning(
             "synthetic_zone: could not register the sublevel; add it in Window > Levels, "
@@ -600,6 +604,31 @@ def register_interior_sublevel():
         return None
     unreal.log(f"synthetic_zone: sublevel {path} registered in Levels (initially unloaded, hidden)")
     return streaming
+
+
+def unregister_interior_sublevel():
+    """Undo register_interior_sublevel(): remove the interior sublevel from the open persistent level's Levels
+    list and save the persistent map, so the default LevelInstance path goes back through LoadLevelInstance
+    instead of reusing the registered entry. Returns True when an entry was removed."""
+    int_manifest = _load_manifest(INTERIOR_ZONE_ID, INTERIOR_VERSION)
+    path = sublevel_path(int_manifest)
+    world = unreal.get_editor_subsystem(unreal.UnrealEditorSubsystem).get_editor_world()
+    persistent = world.get_path_name().split(".")[0]
+    streaming = unreal.GameplayStatics.get_streaming_level(world, path)
+    if streaming is None:
+        unreal.log(f"synthetic_zone: sublevel {path} is not registered in {persistent}")
+        return False
+    level = streaming.get_loaded_level()
+    if level is None:
+        raise RuntimeError(
+            f"synthetic_zone: {path} is registered but not loaded; remove it in Window > Levels"
+        )
+    if not unreal.EditorLevelUtils.remove_level_from_world(level):
+        raise RuntimeError(f"synthetic_zone: remove_level_from_world({path}) failed")
+    if not unreal.EditorLoadingAndSavingUtils.save_map(world, persistent):
+        raise RuntimeError(f"synthetic_zone: save_map({persistent}) failed")
+    unreal.log(f"synthetic_zone: sublevel {path} removed from the Levels list of {persistent}")
+    return True
 
 
 def run(geo_origin="area", move_player_start=True, import_assets=True, level=ZONE_TEST_MAP, interior=False):
