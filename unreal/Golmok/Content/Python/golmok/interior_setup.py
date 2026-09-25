@@ -5,14 +5,16 @@ parent zone is rebuilt.
     r = it.run(r"D:\\golmok_synth\\zones\\z_synthetic_scan_001_room", level="/Game/Golmok/Maps/L_ZoneTest")
     it.run(..., register=True)     # NamedStreamingLevel path only (DefaultGame.ini InteriorStreamingMode)
 
-What it does (docs/runbooks/pc-verify-wp06.md §4; WP-06 design §3-3). Steps 1-4 make no editor call:
-1. Reads the interior manifest: kind must be "interior" and parent_zone must be set.
-2. Reads the parent's Content manifest <Content>/Golmok/Zones/<parent>/v<max n>/manifest.json, the file
-   zone_import.run copied there (the C++ AGolmokZone reads the same file).
-3. Portal round trip (design D9): the parent's door to this zone and this zone's door back must meet at the
+What it does (docs/runbooks/pc-verify-wp06.md §4; WP-06 design §3-3). Nothing is imported or spawned
+before step 6, and only step 2 touches the editor (it opens `level` and reads one actor property):
+1. Reads the interior manifest (no editor call): kind must be "interior" and parent_zone must be set.
+2. Opens `level` (when given) and requires the parent's Zone_<parent> actor in it; its `version` is the
+   parent version everything below uses (the level's choice, not the newest Content folder).
+3. Reads the parent's Content manifest <Content>/Golmok/Zones/<parent>/v<that version>/manifest.json, the
+   file zone_import.run copied there (the C++ AGolmokZone reads the same file).
+4. Portal round trip (design D9): the parent's door to this zone and this zone's door back must meet at the
    same point (<= 5 cm) facing opposite ways (yaw error <= 1 deg); otherwise nothing is imported.
-4. Import plan (_pure.import_plan), exactly like zone_import.
-5. Opens `level` (when given) and requires the parent's Zone_<parent> actor in it.
+5. Import plan (_pure.import_plan), exactly like zone_import.
 6. zone_import.import_assets: textures, M_ZoneScan / MI_*, chunks, collision, manifest.json copy.
 7. Finds or spawns Zone_<zone_id>, rebuild_in_editor() as an editor check, takes its transform and
    unload_in_editor() (in PIE the parent's door portal loads it; runbook #11).
@@ -20,9 +22,14 @@ What it does (docs/runbooks/pc-verify-wp06.md §4; WP-06 design §3-3). Steps 1-
    Interior_Light_<zone_id> in *level* coordinates, tagged GolmokInteriorSetup; a re-run removes only the
    actors carrying that tag (design D10). No AGolmokZone, PostProcessVolume, DirectionalLight or
    AGolmokPortal goes in (C++ spawns the portals from the manifests).
-9. register=True adds the sublevel to the persistent level's Levels list (NamedStreamingLevel path only).
-10. Rebuilds the parent zone: reopening the persistent level dropped its transient components and portals.
-11. Saves the level and writes <Saved>/Golmok/zone_import/<zone_id>/v<n>/import_result.json with an
+9. Rebuilds the parent zone at its level version (its `version` is not touched): reopening the persistent
+   level dropped its transient components and portals.
+10. Saves the level (the reopened persistent level is the current one) with save_current_level().
+11. register=True (NamedStreamingLevel path only), last editor step: synthetic_zone.register_interior_sublevel
+    adds the sublevel to the persistent level's Levels list; add_level_to_world makes the sublevel the current
+    level, so sz makes the persistent level current again and saves the persistent map by path with
+    EditorLoadingAndSavingUtils.save_map (V-03, pc-findings #4: never save_current_level() after
+    add_level_to_world). Then writes <Saved>/Golmok/zone_import/<zone_id>/v<n>/import_result.json with an
     "interior" block (sublevel, round_trip, parent, parent_version, actors).
 
 Failures raise InteriorSetupError, a zone_import.ZoneImportError whose text is the
@@ -70,7 +77,7 @@ def _read_json(path: str) -> dict:
         return json.load(f)
 
 
-# ---- steps 1-4: files only, no editor call -------------------------------------------------------------
+# ---- steps 1-5: files, plus the parent actor's version (step 2); nothing is imported --------------------
 
 
 def _interior_manifest(zone_dir, version) -> tuple[str, int, dict]:
@@ -95,18 +102,31 @@ def _interior_manifest(zone_dir, version) -> tuple[str, int, dict]:
     return version_dir, version, manifest
 
 
-def _parent_manifest(parent: str) -> tuple[dict, int]:
-    """(manifest, version) of the parent's newest Content manifest, copied there by zone_import (step 2)."""
+def _parent_version(parent: str) -> int:
+    """Step 2: the `version` of the level's Zone_<parent> actor (the parent version the level uses)."""
+    with _step("parent"):
+        actor = _find_zone_actor(parent)
+    if actor is None:
+        raise InteriorSetupError(
+            "parent", f"Zone_{parent} not in level: run zone_import.run on the parent zone first"
+        )
+    with _step("parent"):
+        return int(actor.get_editor_property("version"))
+
+
+def _parent_manifest(parent: str, version: int) -> dict:
+    """Step 3: the parent's Content manifest of `version` (the level actor's), copied there by zone_import."""
     content = os.path.normpath(unreal.Paths.project_content_dir())
     root = os.path.join(content, *_pure.CONTENT_ZONES_REL.split("/"), parent)
     try:
-        version_dir, version = _pure.resolve_zone_dir(root, None, os.listdir, os.path.isdir, os.path.isfile)
-        manifest = _read_json(f"{version_dir}/manifest.json")
+        version_dir, _v = _pure.resolve_zone_dir(root, version, os.listdir, os.path.isdir, os.path.isfile)
+        return _read_json(f"{version_dir}/manifest.json")
     except (OSError, ValueError) as e:
         raise InteriorSetupError(
-            "parent", f"no Content manifest for {parent}: run zone_import.run on the parent zone first"
+            "parent",
+            f"Zone_{parent} is v{version} but <Content>/{_pure.CONTENT_ZONES_REL}/{parent}/v{version}/"
+            "manifest.json is missing: run zone_import.run on that version",
         ) from e
-    return manifest, version
 
 
 def _portal_check(parent: dict, interior: dict) -> dict:
@@ -179,19 +199,13 @@ def run(
     """
     version_dir, version, manifest = _interior_manifest(zone_dir, version)
     parent = manifest["parent_zone"]
-    parent_manifest, parent_version = _parent_manifest(parent)
-    check = _portal_check(parent_manifest, manifest)
-    plan = _plan(version_dir, version)
-    zone_id = plan["zone_id"]
     if level:
         with _step("level"):
             sz.open_or_create_level(level)
-    with _step("parent"):
-        parent_actor = _find_zone_actor(parent)
-    if parent_actor is None:
-        raise InteriorSetupError(
-            "parent", f"Zone_{parent} not in level: run zone_import.run on the parent zone first"
-        )
+    parent_version = _parent_version(parent)
+    check = _portal_check(_parent_manifest(parent, parent_version), manifest)
+    plan = _plan(version_dir, version)
+    zone_id = plan["zone_id"]
     work = zone_import.work_dir(plan)
     mappings, assets, warnings, route = zone_import.import_assets(plan, work, remeasure, reimport_textures)
     with _step("zone"):
@@ -215,15 +229,22 @@ def run(
         if built != package:
             raise RuntimeError(f"sublevel package {built} != {package}")
     _log("is.sublevel", package=package, actors=labels)
-    if register:
-        with _step("register"):
-            sz.register_interior_sublevel(zone_id, plan["version"])
     with _step("exterior"):
-        sz.find_or_spawn_zone(parent, parent_version).rebuild_in_editor()
+        # the actor of the reopened level, at the version it has there (never switched to another version)
+        exterior = _find_zone_actor(parent)
+        if exterior is None:
+            raise RuntimeError(f"Zone_{parent} not in {return_level} after reopening it")
+        exterior.rebuild_in_editor()
     _log("is.exterior", zone_id=parent)
     if save:
         with _step("save"):
+            # the persistent level is current again (_spawn_interior_sublevel reopened return_level)
             unreal.get_editor_subsystem(unreal.LevelEditorSubsystem).save_current_level()
+    if register:
+        with _step("register"):
+            # last: add_level_to_world makes the sublevel current; sz restores the persistent level as current
+            # and saves the persistent map by path with save_map (V-03, pc-findings #4)
+            sz.register_interior_sublevel(zone_id, plan["version"])
     result = _pure.result_json(plan, mappings, assets, warnings, route)
     result["interior"] = {
         "sublevel": package,

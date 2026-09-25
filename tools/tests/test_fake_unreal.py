@@ -181,6 +181,40 @@ def test_glb_import_uses_gltf_axes_and_mesh_name(fake, unreal, zone):
     assert _box(unreal.EditorAssetLibrary.load_asset(paths[0])) == ((0.0, 0.0, -15.0), (15.0, 6.0, 0.0))
 
 
+def test_nested_glb_engine_udim_and_force_delete_knobs(fake, unreal, zone, tmp_path):
+    # nested_glb: V-03 Interchange layout <dest>/<source stem>/StaticMeshes/<name>, material instances beside
+    fake.nested_glb = True
+    paths = _import(unreal, zone.version / "collision" / "c_e000_n000.glb", FOLDER, "SM_col")
+    assert paths == [f"{FOLDER}/c_e000_n000/StaticMeshes/SM_col.SM_col"]
+    mi = f"{FOLDER}/c_e000_n000/Materials/collision_c_e000_n000_mat"
+    assert isinstance(fake.registry[mi], unreal.MaterialInstanceConstant)  # not in imported_object_paths
+    # engine_udim_regex: '<stem>[._]####' (>= 1001) is one UDIM block unless import_udi_ms is False
+    fake.engine_udim_regex = True
+    png = tmp_path / "wall_1002.png"
+    png.write_bytes(fake_unreal.png_bytes(64, 32))
+    tex = unreal.EditorAssetLibrary.load_asset(_import(unreal, png, f"{FOLDER}/Textures", "T_wall")[0])
+    assert tex.size == (128, 32)  # block (1, 0) of a 2 x 1 canvas
+    options = unreal.InterchangeGenericAssetsPipeline()
+    options.material_pipeline.texture_pipeline.import_udi_ms = False
+    tex = unreal.EditorAssetLibrary.load_asset(
+        _import(unreal, png, f"{FOLDER}/Textures", "T_wall", options=options)[0]
+    )
+    assert tex.size == (64, 32)
+    # make_udim over an existing texture keeps the object; delete_asset nulls what pointed at the asset
+    tiles = [fake_unreal.FakeTexture2D(fake, f"{FOLDER}/t{i}") for i in (0, 1)]
+    coords = [unreal.IntPoint(0, 0), unreal.IntPoint(1, 0)]
+    packed = unreal.UDIMTextureFunctionLibrary.make_udim_virtual_texture_from_texture2_ds(
+        tex.path, tiles, coords
+    )
+    assert packed is tex and tex.size == (512, 256) and tex.tiles == [1001, 1002]
+    mic = fake_unreal.FakeMaterialInstanceConstant(fake, f"{FOLDER}/MI_wall")
+    mic.texture_params["BaseColor"], mic.parent = tex, fake.registry[mi]
+    fake.registry[mic.path] = mic
+    unreal.EditorAssetLibrary.delete_asset(tex.path)
+    unreal.EditorAssetLibrary.delete_directory(f"{FOLDER}/c_e000_n000")
+    assert mic.texture_params["BaseColor"] is None and mic.parent is None
+
+
 def test_png_import_udim_merge_and_single(fake, unreal, zone):
     textures = f"{FOLDER}/Textures"
     paths = _import(unreal, zone.tex / "facade.1001.png", textures, "T_facade")
@@ -290,15 +324,18 @@ def test_screenshot_files_appear_after_tick(fake, unreal, tmp_path):
     assert not path.exists()
     fake_unreal.tick(fake, 2)
     assert path.exists() and fake.clock == pytest.approx(0.4)
-    assert pure.png_size(path.read_bytes()[:24]) == (2560, 1440)  # PIE window 1280 x 720 x multiplier 2
+    # the level viewport (editor_request_begin_play) x multiplier 2, whatever the new-window play settings say
+    assert pure.png_size(path.read_bytes()[:24]) == (2028, 1100)
     settings = unreal.get_default_object(unreal.LevelEditorPlaySettings)
     settings.set_editor_property("new_window_width", 640)
     settings.set_editor_property("new_window_height", 360)
     settings.set_editor_property(
-        "last_executed_play_mode_type", unreal.PlayModeType.PLAY_MODE_TYPE_PLAY_IN_EDITOR_FLOATING
+        "last_executed_play_mode_type", unreal.PlayModeType.PLAY_MODE_IN_EDITOR_FLOATING
     )
     assert fake.calls_of("play_settings") == [("play_settings", 640, 360)]  # one record for the pair
+    assert not hasattr(unreal.PlayModeType, "PLAY_MODE_TYPE_PLAY_IN_EDITOR_FLOATING")  # not the 5.8 spelling
     fake.screenshot_fallback_name = True
+    fake.viewport_size = (640, 360)
     system.execute_console_command(pie, "golmok.screenshot b near_03")
     fake_unreal.tick(fake, 4)
     fallback = Path(
@@ -308,6 +345,14 @@ def test_screenshot_files_appear_after_tick(fake, unreal, tmp_path):
     assert pure.png_size(fallback.read_bytes()[:24]) == (1280, 720)
     system.execute_console_command(pie, "golmok.screenshot a,b x")
     assert fake.logged("error")[-1].startswith("golmok.screenshot: ERROR usage")
+    # HighResShot <W>x<H> filename="<stem>": explicit size, engine counter name (next unused counter)
+    stem = (tmp_path / "hr" / "far_01").as_posix()
+    system.execute_console_command(pie, f'HighResShot 2560x1440 filename="{stem}"')
+    system.execute_console_command(pie, f'HighResShot 2 filename="{stem}"')
+    fake_unreal.tick(fake, 4)
+    first, second = Path(f"{stem}00000.png"), Path(f"{stem}00001.png")
+    assert pure.png_size(first.read_bytes()[:24]) == (2560, 1440)
+    assert pure.png_size(second.read_bytes()[:24]) == (1280, 720)  # viewport 640 x 360 x 2
     assert fake.calls_of("console") == [
         ("console", "golmok.screenshot a far_01"),
         ("console", "golmok.tod clear_noon"),
@@ -315,7 +360,11 @@ def test_screenshot_files_appear_after_tick(fake, unreal, tmp_path):
         ("console", "golmok.screenshot a far_01"),
         ("console", "golmok.screenshot b near_03"),
         ("console", "golmok.screenshot a,b x"),
+        ("console", f'HighResShot 2560x1440 filename="{stem}"'),
+        ("console", f'HighResShot 2 filename="{stem}"'),
     ]
+    unreal.SystemLibrary.quit_editor()
+    assert fake.calls[-1] == ("quit_editor",)
     # the attended editor path (viewpoints.py) goes through AutomationLibrary and needs no PIE
     level_editor.editor_request_end_play()
     shot = tmp_path / "editor" / "shot.png"

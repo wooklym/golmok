@@ -161,6 +161,13 @@ def _say(line: str) -> None:
     sys.stdout.write(_ascii(line) + "\n")
 
 
+def _path_literal(path: str) -> str:
+    """Python literal for `path` that survives _ascii: r"..." when plain ASCII, else ascii() escapes."""
+    if path.isascii() and not path.endswith("\\") and '"' not in path:
+        return f'r"{path}"'
+    return ascii(path)
+
+
 def _err(line: str) -> None:
     sys.stderr.write(_ascii(line) + "\n")
 
@@ -826,8 +833,8 @@ def main(argv: list[str] | None = None) -> int:
     if not args.quiet:
         for rel in files:
             _say(f"wrote {rel}")
-    zone_dir = out / "zones" / args.zone_id
-    call = f'zi.run(r"{zone_dir}", level="{ZONE_TEST_MAP}", geo_origin="area")'
+    zone_dir = _path_literal(str(out / "zones" / args.zone_id))
+    call = f'zi.run({zone_dir}, level="{ZONE_TEST_MAP}", geo_origin="area")'
     _say(f"next: import golmok.zone_import as zi; {call}")
     return 0
 

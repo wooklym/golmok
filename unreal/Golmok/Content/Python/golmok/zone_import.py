@@ -18,8 +18,9 @@ What it does (docs/runbooks/pc-verify-wp06.md §2; WP-06 design §3-2):
 3. Textures: the UDIM anchor tile (BaseName.1001.ext) or the single file is imported as Textures/T_<base>,
    sRGB and virtual texture streaming are forced on, and tiles the importer did not merge are packed with
    UDIMTextureFunctionLibrary (last resort: tile 1001 only + WARNING).
-4. Materials: /Game/Golmok/Materials/M_ZoneScan (VT sampler; default texture = the first VT texture of this
-   run) and M_ZoneScan_NoVT when a texture could not be made VT; one MI_<material> per MTL material.
+4. Materials: /Game/Golmok/Materials/M_ZoneScan (VT sampler; default texture = its own T_ZoneScanDefault,
+   repaired in place on an existing master) and M_ZoneScan_NoVT (T_ZoneScanDefault_NoVT) when a texture
+   could not be made VT; one MI_<material> per MTL material.
 5. Chunks: every visual/<chunk>.obj is rewritten into <Saved>/Golmok/zone_import/<id>/v<n>/visual/ with the
    inverse importer mapping baked into positions, normals and winding, imported as SM_<chunk_id>, its
    bounds checked against bbox_enu in UE cm, Nanite on, MI_* assigned by slot name.
@@ -29,8 +30,10 @@ What it does (docs/runbooks/pc-verify-wp06.md §2; WP-06 design §3-2):
    AGolmokZone reads); nothing else of the zone folder goes into Content.
 8. GeoOrigin (find or spawn), AGolmokZone (find or spawn) + rebuild_in_editor(), save, import_result.json.
 
-Re-running is the normal workflow (assets are replaced in place); the OBJ copies stay in Saved and are
-overwritten. interior_setup reuses import_assets() for the asset part.
+Every import goes to a scratch <folder>/_import and is moved to its convention path (V-03: Interchange puts
+glTF at <dest>/<source>/StaticMeshes/<name>; runbook #37). Re-running is the normal workflow (the previous
+asset at the path is replaced); the OBJ copies stay in Saved and are overwritten. interior_setup reuses
+import_assets() for the asset part.
 """
 
 from __future__ import annotations
@@ -39,6 +42,8 @@ import contextlib
 import json
 import os
 import shutil
+import struct
+import zlib
 
 import unreal
 
@@ -53,6 +58,9 @@ CACHE_NAME = "importer_mapping.json"
 RESULT_NAME = "import_result.json"
 OBJ_HEADER_LINES = 4096  # import_plan only needs the lines before the first face (mtllib is at the top)
 _BYPRODUCT_CLASSES = ("Material", "MaterialInstanceConstant", "Texture2D")  # importer by-products
+SCRATCH = "_import"  # V-03: every import goes to <folder>/_import and is moved to its convention path
+MASTER_DEFAULT_NAME = "T_ZoneScanDefault"  # the masters' own default texture (never a zone texture)
+MASTER_DEFAULT_PX = 256  # >= the virtual texture tile size
 
 _warnings: list[str] = []  # messages of the zi.warn lines of the current import_assets() call
 
@@ -314,8 +322,10 @@ def _obj_options(route: str):
     raise ValueError(f"unknown OBJ route {route!r}")
 
 
-def _texture_options():
-    """Interchange texture import: UDIM detection on, no materials (runbook #3); None without the class."""
+def _texture_options(udim: bool = True):
+    """Interchange texture import: no materials; UDIM detection only for plan UDIM sets (udim=True). Single
+    textures turn it off, because the engine rule [._]#### (>= 1001) would take 'wall_1002.png' or
+    'photo.2048.png' for a UDIM tile (runbook #3, #38). None without the class."""
     if not hasattr(unreal, "InterchangeGenericAssetsPipeline"):
         return None
     pipeline = unreal.InterchangeGenericAssetsPipeline()
@@ -324,7 +334,7 @@ def _texture_options():
         _try_set(material, "import_materials", False, 3)
         texture = _try_get(material, "texture_pipeline", 3)
         if texture is not None:
-            _try_set(texture, "import_udi_ms", True, 3)
+            _try_set(texture, "import_udi_ms", bool(udim), 3)
     return pipeline
 
 
@@ -374,24 +384,51 @@ def _delete_assets(paths: list[str], keep: set[str]) -> list[str]:
     return deleted
 
 
-def _ensure_path(asset, target: str, row: int):
-    """The imported asset at exactly `target`: rename when the importer chose another name (runbook #8)."""
+def _ensure_path(asset, target: str, row: int, scratch: str | None = None):
+    """The imported asset at exactly `target` (runbook #8): an existing asset there (the previous import) is
+    replaced, like synthetic_zone._move_asset. A move out of `scratch` that keeps the name is the expected
+    importer placement (zi.moved, runbook #37); any other rename is a warning (importer naming, row `row`)."""
     lib = unreal.EditorAssetLibrary
     current = _asset_key(asset.get_path_name())
     if current == target:
         return asset
-    if lib.does_asset_exist(target):
-        lib.delete_asset(target)
-        _log("zi.cleanup", asset=target)
+    if lib.does_asset_exist(target) and not lib.delete_asset(target):
+        raise RuntimeError(f"{target} exists and could not be deleted (referenced?)")
     if not lib.rename_asset(current, target):
         if lib.duplicate_asset(current, target) is None:
             raise RuntimeError(f"could not rename {current} to {target}")
         lib.delete_asset(current)
-    _warn(f"{current} renamed to {target} (importer naming; runbook #{row})")
+    same_name = current.rsplit("/", 1)[-1] == target.rsplit("/", 1)[-1]
+    if scratch is not None and current.startswith(scratch + "/") and same_name:
+        _log("zi.moved", src=current, dst=target)
+    else:
+        _warn(f"{current} renamed to {target} (importer naming; runbook #{row})")
     moved = lib.load_asset(target)
     if moved is None:
         raise RuntimeError(f"{target} missing after renaming {current}")
     return moved
+
+
+def _import_moved(filename, folder: str, name: str, target: str, cls, row: int, options=None, factory=None):
+    """V-03 pattern (pc-findings #1, synthetic_zone._import_geometry): import into <folder>/_import, move the
+    `cls` asset to `target`, delete the by-products it listed, then drop the scratch folder with whatever the
+    importer left there unlisted (Interchange glTF: <source>/StaticMeshes/<name> + sibling Materials/)."""
+    lib = unreal.EditorAssetLibrary
+    scratch = f"{folder}/{SCRATCH}"
+    try:
+        paths = _import_task(filename, scratch, destination_name=name, options=options, factory=factory)
+        picked = _pick(paths, cls)
+        src = _asset_key(picked.get_path_name())
+        asset = _ensure_path(picked, target, row, scratch)
+        _delete_assets(paths, keep={target, src})
+    finally:
+        if lib.does_directory_exist(scratch):
+            for path in lib.list_assets(scratch, recursive=True, include_folder=False):
+                _log("zi.cleanup", asset=_asset_key(path))
+            lib.delete_directory(scratch)
+    if _asset_key(asset.get_path_name()) != target:
+        raise RuntimeError(f"imported as {asset.get_path_name()}, but the convention path is {target}")
+    return asset
 
 
 def _find_geo_origin() -> tuple | None:
@@ -527,14 +564,16 @@ def _pack_udim_tiles(tex: dict, asset_folder: str, single):
     tiles_folder = f"{asset_folder}/Textures/_tiles"
     tile_textures = []
     for tile in tiles:
-        paths = _import_task(tex["files"][str(tile)], tiles_folder, destination_name=f"{name}_{tile}")
+        options = _texture_options(False)  # one plain tile each
+        paths = _import_task(
+            tex["files"][str(tile)], tiles_folder, destination_name=f"{name}_{tile}", options=options
+        )
         texture = _pick(paths, unreal.Texture2D)
         _delete_assets(paths, keep={_asset_key(texture.get_path_name())})
         tile_textures.append(texture)
     coords = [unreal.IntPoint(int(u), int(v)) for u, v in tex["block_coords"]]
-    if lib.does_asset_exist(tex["asset"]):
-        lib.delete_asset(tex["asset"])  # the unmerged anchor import makes room for the packed texture
-        _log("zi.cleanup", asset=tex["asset"])
+    # Packed onto the unmerged anchor at T_<base> in place (keep_existing_settings: "if a texture with the
+    # same path name exists"): no force delete, so what references T_<base> keeps a texture (runbook #4, #10).
     packed = unreal.UDIMTextureFunctionLibrary.make_udim_virtual_texture_from_texture2_ds(
         tex["asset"], tile_textures, coords, keep_existing_settings=False, check_out_and_save=True
     )
@@ -553,16 +592,27 @@ def _import_texture(tex: dict, asset_folder: str, reimport: bool) -> tuple[objec
         vt = bool(_try_get(texture, "virtual_texture_streaming", 5))
         how = "skipped: exists"
     else:
-        paths = _import_task(
+        texture = _import_moved(
             tex["anchor"],
             f"{asset_folder}/Textures",
-            destination_name=tex["name"],
-            options=_texture_options(),
+            tex["name"],
+            tex["asset"],
+            unreal.Texture2D,
+            4,
+            options=_texture_options(udim=bool(tiles)),
         )
-        texture = _ensure_path(_pick(paths, unreal.Texture2D), tex["asset"], 4)
-        _delete_assets(paths, keep={tex["asset"]})
         how = "single texture"
-        if len(tiles) > 1:
+        if not tiles:
+            size, file_size = _texture_size(texture), _png_tile_size(tex["anchor"])
+            if size is not None and file_size is not None and size != file_size:
+                how = "imported as UDIM by the engine (WARNING)"
+                file = os.path.basename(os.path.normpath(tex["anchor"]))
+                _warn(
+                    f"texture {tex['name']}: engine imported {file} "
+                    f"as a UDIM ({size[0]}x{size[1]} != file {file_size[0]}x{file_size[1]}; name matches "
+                    "[._]####); rename the file (runbook #38)"
+                )
+        elif len(tiles) > 1:
             size, tile = _texture_size(texture), _png_tile_size(tex["anchor"])
             if size is None or tile is None:
                 how = "merged by importer (size unknown)"
@@ -582,15 +632,101 @@ def _import_texture(tex: dict, asset_folder: str, reimport: bool) -> tuple[objec
     return texture, detail
 
 
+def _grey_png(px: int, value: int = 128) -> bytes:
+    """px x px 8-bit RGB mid-grey PNG (signature, IHDR, one IDAT of filter-0 rows, IEND)."""
+
+    def chunk(tag: bytes, data: bytes) -> bytes:
+        crc = zlib.crc32(tag + data) & 0xFFFFFFFF
+        return struct.pack(">I", len(data)) + tag + data + struct.pack(">I", crc)
+
+    rows = (b"\x00" + bytes([value]) * (3 * px)) * px
+    ihdr = struct.pack(">IIBBBBB", px, px, 8, 2, 0, 0, 0)
+    idat = zlib.compress(rows, 9)
+    return b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", ihdr) + chunk(b"IDAT", idat) + chunk(b"IEND", b"")
+
+
+def _master_default(vt: bool):
+    """/Game/Golmok/Materials/T_ZoneScanDefault (VT on) or T_ZoneScanDefault_NoVT (VT off): a mid-grey texture
+    owned by the master, created once from a generated PNG. A zone texture as the master's default would be
+    nulled by the next re-import of that zone (delete_asset is a force delete) and would tie the committed
+    master to one zone's assets (runbook #10). None when the VT setting cannot be made to match."""
+    lib = unreal.EditorAssetLibrary
+    name = MASTER_DEFAULT_NAME + ("" if vt else "_NoVT")
+    path = f"{materials.MATERIAL_DIR}/{name}"
+    changed = False
+    if lib.does_asset_exist(path):
+        texture = lib.load_asset(path)
+    else:
+        png = os.path.join(_zone_import_dir(), f"{MASTER_DEFAULT_NAME}.png")
+        os.makedirs(os.path.dirname(png), exist_ok=True)
+        with open(png, "wb") as f:
+            f.write(_grey_png(MASTER_DEFAULT_PX))
+        options = _texture_options(udim=False)
+        texture = _import_moved(
+            png, materials.MATERIAL_DIR, name, path, unreal.Texture2D, 10, options=options
+        )
+        _try_set(texture, "srgb", True, 5)
+        changed = True
+    is_vt = bool(_try_get(texture, "virtual_texture_streaming", 5))
+    if is_vt != vt:
+        _try_set(texture, "virtual_texture_streaming", vt, 5)
+        is_vt, changed = bool(_try_get(texture, "virtual_texture_streaming", 5)), True
+    if changed:
+        lib.save_loaded_asset(texture)
+    return texture if is_vt == vt else None
+
+
+def _repair_master_default(master, name: str, default) -> None:
+    """An existing master (e.g. built before T_ZoneScanDefault existed) gets `default` back as its BaseColor
+    sampler texture, in place: other zones' MI_* keep their parent (runbook #10)."""
+    mel = unreal.MaterialEditingLibrary
+    want = _asset_key(default.get_path_name())
+    if not hasattr(mel, "get_material_property_input_node"):
+        _warn(
+            f"MaterialEditingLibrary.get_material_property_input_node unavailable: check that {name}'s "
+            f"BaseColor default is {want} by hand (runbook #10)"
+        )
+        return
+    node = mel.get_material_property_input_node(master, unreal.MaterialProperty.MP_BASE_COLOR)
+    current = _try_get(node, "texture", 10) if node is not None else None
+    was = _asset_key(current.get_path_name()) if current is not None else "None"
+    if was == want:
+        return
+    if node is None or not _try_set(node, "texture", default, 10):
+        _warn(f"{name} BaseColor default is {was}, not {want}: set it by hand (runbook #10)")
+        return
+    mel.recompile_material(master)
+    unreal.EditorAssetLibrary.save_loaded_asset(master)
+    _warn(f"{name} BaseColor default was {was}; set to {want} (runbook #10)")
+
+
+def _build_master(vt: bool, fallback):
+    """M_ZoneScan (vt) / M_ZoneScan_NoVT whose default is its own T_ZoneScanDefault[_NoVT]; `fallback` (a
+    zone texture) only when that texture cannot get the right VT setting."""
+    name = materials.ZONE_SCAN_NAME if vt else materials.ZONE_SCAN_NOVT_NAME
+    default = _master_default(vt)
+    if default is None:
+        default = fallback
+        _warn(
+            f"{MASTER_DEFAULT_NAME}{'' if vt else '_NoVT'}: virtual texture streaming could not be set to "
+            f"{'on' if vt else 'off'}; {name} default is {_asset_key(fallback.get_path_name())} (runbook #10)"
+        )
+    existed = unreal.EditorAssetLibrary.does_asset_exist(f"{materials.MATERIAL_DIR}/{name}")
+    master = materials.build_zone_scan_material(default, vt=vt)
+    if existed:
+        _repair_master_default(master, name, default)
+    return master
+
+
 def _build_masters(textures: dict) -> dict:
     """{"vt": M_ZoneScan | None, "novt": M_ZoneScan_NoVT | None} from the imported textures (design D6)."""
     first_vt = next((t for t, vt in textures.values() if vt), None)
     first_novt = next((t for t, vt in textures.values() if not vt), None)
     masters = {"vt": None, "novt": None}
     if first_vt is not None:
-        masters["vt"] = materials.build_zone_scan_material(first_vt, vt=True)
+        masters["vt"] = _build_master(True, first_vt)
     if first_novt is not None:
-        masters["novt"] = materials.build_zone_scan_material(first_novt, vt=False)
+        masters["novt"] = _build_master(False, first_novt)
     return masters
 
 
@@ -649,11 +785,9 @@ def _import_chunk(chunk: dict, plan: dict, work: str, a_obj, instances: dict, fa
             os.path.join(work, "visual", name), "w", encoding="utf-8", errors="surrogateescape", newline=""
         ) as f:
             f.write(_pure.mtl_with_absolute_textures(text, obj_dir.replace("\\", "/")))
-    paths = _import_task(
-        copy, plan["asset_folder"], destination_name=chunk["name"], options=options, factory=factory
+    mesh = _import_moved(
+        copy, plan["asset_folder"], chunk["name"], chunk["asset"], unreal.StaticMesh, 8, options, factory
     )
-    mesh = _ensure_path(_pick(paths, unreal.StaticMesh), chunk["asset"], 8)
-    _delete_assets(paths, keep={chunk["asset"]})
     err = _check_bounds(f"chunk {chunk['id']}", mesh, chunk["expected_ue_bounds_cm"])
     bm._set_nanite(mesh, True)
     slots, unmatched = _assign_slots(mesh, chunk, instances)
@@ -698,12 +832,10 @@ def _import_collision(col: dict, asset_folder: str, work: str, a_glb) -> dict:
     copy = os.path.join(work, "collision", f"{col['name']}.glb")
     with open(copy, "wb") as f:
         f.write(_pure.pretransform_glb(data, a_glb, rename=col["name"]))
-    paths = _import_task(copy, asset_folder, destination_name=col["name"])
-    mesh = _ensure_path(_pick(paths, unreal.StaticMesh), col["asset"], 29)
+    mesh = _import_moved(copy, asset_folder, col["name"], col["asset"], unreal.StaticMesh, 29)
     err = _check_bounds(f"collision {col['id'] or 'single'}", mesh, want)
     bm._complex_collision(mesh)
     bm._set_nanite(mesh, False)
-    _delete_assets(paths, keep={col["asset"]})
     unreal.EditorAssetLibrary.save_loaded_asset(mesh)
     _log("zi.collision", asset=col["asset"], err=err)
     return {
@@ -777,11 +909,11 @@ def import_assets(plan: dict, work_dir: str, remeasure=False, reimport_textures=
             task.enter_progress_frame(1, chunk["name"])
             with _step(f"chunk {chunk['id']}"):
                 assets.append(_import_chunk(chunk, plan, work, a_obj, instances, factory, options))
-    with _step("cleanup"):
-        _cleanup_folder(plan)
     for col in plan["collision"]:
         with _step(f"collision {col['id'] or 'single'}"):
             assets.append(_import_collision(col, asset_folder, work, a_glb))
+    with _step("cleanup"):  # after the last import, so collision by-products are swept too
+        _cleanup_folder(plan)
     with _step("copy"):
         assets.extend(_copy_files(plan))
     mappings = {"obj": obj_mapping, "glb": glb_mapping}

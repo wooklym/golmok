@@ -7,7 +7,11 @@ every name is restored, or removed again, after the test. It returns a Fake the 
     calls      ordered records of the editor calls that matter (RECORDS); fake.calls_of("save") filters
     registry   "/Game/..." asset path -> FakeStaticMesh | FakeTexture2D | FakeMaterial |
                FakeMaterialInstanceConstant | FakeLevel (object paths "/Game/A/B.B" are accepted everywhere)
-    levels     level package -> list of FakeActor; current_level; actors = the open level's list
+    levels     level package -> list of FakeActor; persistent_level = the open map (the editor world's path);
+               current_level = the level spawns go to (load_level/new_level set both; add_level_to_world
+               makes the added sublevel current, like UEditorLevelUtils::AddLevelToWorld; V-03);
+               actors = the current level's list; saved_levels = level packages written to disk, in order
+               (save_current_level -> current_level, save_map -> its path)
     logs       ("log" | "warning" | "error", text) from unreal.log/log_warning/log_error plus the errors
                the C++ console commands would print (golmok.path play without a path file, ...)
     clock      fake seconds; tick() advances it and fake.now replaces golmok.spike_runner._now
@@ -27,6 +31,9 @@ Importer (AssetToolsHelpers.get_asset_tools().import_asset_tasks) parses the rea
           udim_merge (asset BaseName), otherwise a single texture named after the file (facade_1001).
     Name clashes: replace_existing overwrites, otherwise "_2". fail_import (basenames) or a missing file:
     empty result. imported_object_paths and list_assets return object paths "/Game/A/B.B".
+    delete_asset / delete_directory are force deletes (UE 5.8 API: "doesn't check if the asset has
+    references"): material expression textures, MI texture parameters and MI parents that pointed at a
+    deleted object become None. rename_asset keeps the object (references follow it).
 
 RECORDS (fake.calls, design §5-0; "spawn" gets its label when set_actor_label is called):
     ("import", basename, dest, dest_name, route)  route None for .glb/.png   ("delete_directory", path)
@@ -37,12 +44,20 @@ RECORDS (fake.calls, design §5-0; "spawn" gets its label when set_actor_label i
     ("console", command) ("begin_play",) ("end_play",) ("load_level", path) ("new_level", path)
     ("save_current_level",) ("duplicate_asset", src, dst) ("play_settings", width, height)
     additive: ("hidden_in_editor", label, hidden) ("make_udim", output_path, [(u, v), ...])
-    ("add_level_to_world", package) ("high_res_screenshot", path) ("save_map", package)
+    ("add_level_to_world", package) ("get_streaming_level", package) ("high_res_screenshot", path)
+    ("save_map", package) ("quit_editor",)
+    ("set_current_level", package) (LevelEditorSubsystem.set_current_level_by_name)
 
 KNOBS (install(**cfg) keywords = Fake attributes): obj_mapping=(100.0, M_OBJ) glb_mapping=(100.0, M_GLB)
     obj_routes_ok={"fbx","interchange","legacy_flag"} udim_merge=True texture_vt_default=True
     vt_settable=True importer_makes_materials=True slot_names_from_usemtl=True fail_import=set()
     bounds_offset={} pie=False screenshot_delay_s=0.3 csv_delay_s=0.5 screenshot_fallback_name=False
+    viewport_size=(1014, 550) (the level viewport a PIE from editor_request_begin_play plays in; V-03 size)
+    nested_glb=False (True: V-03 Interchange layout, a .glb lands at <dest>/<source stem>/StaticMeshes/<name>
+    and each glTF material as a MaterialInstanceConstant at <dest>/<source stem>/Materials/<material> that is
+    NOT in imported_object_paths; runbook §12 #37) engine_udim_regex=False (True: a .png whose stem ends in
+    [._]#### with #### >= 1001 is placed as one UDIM block like UTextureFactory's default UdimRegexPattern,
+    unless the task options carry import_udi_ms=False; runbook §12 #38)
     zone_transform=ZONE_ROOT_CM begin_play_starts_pie=True level=DEFAULT_LEVEL (registered as an existing
     FakeLevel and opened) lit=True (that level already holds the five L_Dev lighting actors, seeded without
     spawn records, so synthetic_zone.open_or_create_level takes the plain load_level path; lit=False leaves
@@ -50,8 +65,10 @@ KNOBS (install(**cfg) keywords = Fake attributes): obj_mapping=(100.0, M_OBJ) gl
 
 Console (SystemLibrary.execute_console_command): "golmok.tod <preset>" picks the screenshot folder;
 "golmok.screenshot <tag> [name]" writes <Saved>/Screenshots/Golmok/<tag>/<preset or current>/<name>.png
-(PNG signature + IHDR of the PIE window size x 2; "<name>00000.png" with screenshot_fallback_name) after
-screenshot_delay_s of fake time, only while PIE runs; "golmok.path play <name> [--csv]" needs
+(PNG signature + IHDR of viewport_size x 2 - the C++ sizes it from the game viewport, which in a PIE started
+by editor_request_begin_play() is the level viewport; "<name>00000.png" with screenshot_fallback_name) after
+screenshot_delay_s of fake time, only while PIE runs; 'HighResShot <W>x<H> filename="<stem>"' writes
+<stem>00000.png (next unused counter) at WxH the same way; "golmok.path play <name> [--csv]" needs
 <Saved>/Golmok/Paths/<name>.json (version 1, monotonic samples, else an error log) and with --csv writes
 <Saved>/Profiling/CSV/Profile(<n>).csv after csv_delay_s; "golmok.path stopplay"; "golmok.hud 0";
 "Interchange.FeatureFlags.Import.OBJ 0" arms the legacy_flag route. tick(fake, n, dt) runs the registered
@@ -72,6 +89,7 @@ import itertools
 import json
 import math
 import os
+import re
 import struct
 import sys
 import types
@@ -102,6 +120,7 @@ KNOBS = {
     "texture_vt_default": True, "vt_settable": True, "importer_makes_materials": True,
     "slot_names_from_usemtl": True, "fail_import": frozenset(), "bounds_offset": {}, "pie": False,
     "screenshot_delay_s": 0.3, "csv_delay_s": 0.5, "screenshot_fallback_name": False,
+    "viewport_size": (1014, 550), "nested_glb": False, "engine_udim_regex": False,
     "zone_transform": ZONE_ROOT_CM, "begin_play_starts_pie": True, "level": DEFAULT_LEVEL, "lit": True,
 }  # fmt: skip
 # (class, label, tags) of setup_dev_level._build_lighting(), seeded into the initial level when lit=True.
@@ -281,9 +300,9 @@ CollisionEnabled = _enum(
     "CollisionEnabled", "NO_COLLISION", "QUERY_ONLY", "PHYSICS_ONLY", "QUERY_AND_PHYSICS"
 )
 CustomMaterialOutputType = _enum("CustomMaterialOutputType", "CMOT_FLOAT1", "CMOT_FLOAT3", "CMOT_FLOAT4")
-PlayModeType = _enum(
-    "PlayModeType", "PLAY_MODE_TYPE_PLAY_IN_VIEWPORT", "PLAY_MODE_TYPE_PLAY_IN_EDITOR_FLOATING",
-    "PLAY_MODE_TYPE_PLAY_IN_NEW_PROCESS", "PLAY_MODE_TYPE_SIMULATE",
+PlayModeType = _enum(  # EPlayModeType::PlayMode_InViewPort ... pythonized verbatim (runbook #21)
+    "PlayModeType", "PLAY_MODE_IN_VIEW_PORT", "PLAY_MODE_IN_EDITOR_FLOATING", "PLAY_MODE_IN_NEW_PROCESS",
+    "PLAY_MODE_SIMULATE",
 )  # fmt: skip
 
 
@@ -743,10 +762,10 @@ class FakeWorld:
         self._fake, self.kind = fake, kind
 
     def get_name(self):
-        return self._fake.current_level.rsplit("/", 1)[-1]
+        return self._fake.persistent_level.rsplit("/", 1)[-1]
 
     def get_path_name(self):
-        return pure.object_path(self._fake.current_level)
+        return pure.object_path(self._fake.persistent_level)
 
 
 class FakePlayerController:
@@ -799,7 +818,7 @@ class LevelEditorSubsystem(_Bound):
         key = _key(asset_path)
         if not isinstance(self._fake.registry.get(key), FakeLevel):
             return False
-        self._fake.current_level = key
+        self._fake.current_level = self._fake.persistent_level = key
         self._fake.levels.setdefault(key, [])
         self._fake.calls.append(("load_level", key))
         return True
@@ -808,13 +827,24 @@ class LevelEditorSubsystem(_Bound):
         key = _key(asset_path)
         self._fake.registry[key] = FakeLevel(self._fake, key)
         self._fake.levels[key] = []
-        self._fake.current_level = key
+        self._fake.current_level = self._fake.persistent_level = key
         self._fake.calls.append(("new_level", key))
         return True
 
     def save_current_level(self):
         self._fake.calls.append(("save_current_level",))
+        self._fake.saved_levels.append(self._fake.current_level)
         return True
+
+    def set_current_level_by_name(self, level_name):
+        """Like ULevelEditorSubsystem::SetCurrentLevelByName: matches the short package name of a level in the
+        open world (the persistent map or a sublevel added with add_level_to_world)."""
+        for key in (self._fake.persistent_level, *self._fake.world_sublevels):
+            if key.rsplit("/", 1)[-1] == str(level_name):
+                self._fake.current_level = key
+                self._fake.calls.append(("set_current_level", key))
+                return True
+        return False
 
     def editor_request_begin_play(self):
         self._fake.calls.append(("begin_play",))
@@ -865,6 +895,21 @@ class StaticMeshEditorSubsystem(_Bound):
         return static_mesh.nanite
 
 
+def _null_references(fake, asset) -> None:
+    """Force delete: what pointed at `asset` (expression textures, MI parameters and parents) becomes None."""
+    if asset is None:
+        return
+    for other in fake.registry.values():
+        for expression in getattr(other, "expressions", ()):
+            if expression.props.get("texture") is asset:
+                expression.props["texture"] = None
+        params = getattr(other, "texture_params", {})
+        for name in [n for n, v in params.items() if v is asset]:
+            params[name] = None
+        if getattr(other, "parent", None) is asset:
+            other.parent = None
+
+
 class FakeEditorAssetLibrary(_Bound):
     def does_asset_exist(self, asset_path):
         return _key(asset_path) in self._fake.registry
@@ -886,13 +931,15 @@ class FakeEditorAssetLibrary(_Bound):
     def delete_asset(self, asset_path):
         key = _key(asset_path)
         self._fake.calls.append(("delete_asset", key))
-        return self._fake.registry.pop(key, None) is not None
+        asset = self._fake.registry.pop(key, None)
+        _null_references(self._fake, asset)
+        return asset is not None
 
     def delete_directory(self, directory_path):
         key = _key(directory_path)
         self._fake.calls.append(("delete_directory", key))
         for k in [k for k in self._fake.registry if k.startswith(key + "/")]:
-            del self._fake.registry[k]
+            _null_references(self._fake, self._fake.registry.pop(k))
         return True
 
     def rename_asset(self, source_asset_path, destination_asset_path):
@@ -954,6 +1001,11 @@ class FakeMaterialEditingLibrary(_Bound):
         )
         from_expression.material.connections.append((material_property, from_expression, from_output_name))
         return True
+
+    def get_material_property_input_node(self, material, property_):
+        """The expression connected to `property_` (UMaterialEditingLibrary::GetMaterialPropertyInputNode)."""
+        self._fake.mel_calls.append(("get_material_property_input_node", (material, property_)))
+        return next((e for p, e, _out in material.connections if p == property_), None)
 
     def set_material_instance_parent(self, instance, new_parent):
         self._fake.mel_calls.append(("set_material_instance_parent", (instance, new_parent)))
@@ -1037,13 +1089,25 @@ class FakeSystemLibrary(_Bound):
             fake.hud = not (args and args[0] == "0")
         elif head == "golmok.screenshot":
             fake._screenshot(args)
+        elif head.lower() == "highresshot":
+            fake._high_res_shot(command)
         elif head == "golmok.path":
             fake._path_command(args)
+
+    def quit_editor(self):
+        self._fake.calls.append(("quit_editor",))
 
 
 class FakeGameplayStatics(_Bound):
     def get_all_actors_of_class(self, world_context_object, actor_class):
         return [a for a in self._fake.actors if isinstance(a, actor_class)]
+
+    def get_streaming_level(self, world_context_object, package_name):
+        """The LevelStreaming entry of `package_name` in the open persistent level (registered with
+        add_level_to_world, and saved with the map: it survives load_level of the same map), or None."""
+        key = _key(package_name)
+        self._fake.calls.append(("get_streaming_level", key))
+        return self._fake.streaming_levels.get((self._fake.persistent_level, key))
 
     def get_player_controller(self, world_context_object, player_index=0):
         return self._fake.player_controller if self._fake.pie else None
@@ -1063,7 +1127,12 @@ class FakeUdimLibrary(_Bound):
             raise ValueError("fake unreal: block_coords must match source_textures")
         tile_w, tile_h = (max(t.size[i] for t in source_textures) for i in (0, 1))
         size = ((max(u for u, _ in coords) + 1) * tile_w, (max(v for _, v in coords) + 1) * tile_h)
-        tex = FakeTexture2D(self._fake, output_path_name, size, vt=True)
+        tex = self._fake.registry.get(_key(output_path_name))
+        if isinstance(tex, FakeTexture2D):  # an existing texture at the path is rebuilt in place
+            tex.size, tex.source = size, ""
+            tex.props["virtual_texture_streaming"] = True
+        else:
+            tex = FakeTexture2D(self._fake, _key(output_path_name), size, vt=True)
         tex.tiles = sorted(pure.UDIM_MIN + u + 10 * v for u, v in coords)
         self._fake.registry[tex.path] = tex
         self._fake.calls.append(("make_udim", tex.path, coords))
@@ -1099,7 +1168,16 @@ class FakeEditorLevelUtils(_Bound):
     def add_level_to_world(self, world, level_package_name, level_streaming_class):
         key = _key(level_package_name)
         self._fake.calls.append(("add_level_to_world", key))
-        return LevelStreamingDynamic(world_asset=key)
+        if (self._fake.persistent_level, key) in self._fake.streaming_levels:
+            return None  # UEditorLevelUtils::AddLevelToWorld: "A level with that name ... already exists"
+        # UEditorLevelUtils::AddLevelToWorld ends with SetCurrentLevel(NewLevel): later spawns and
+        # save_current_level() go to the sublevel until the persistent level is made current again (V-03)
+        self._fake.levels.setdefault(key, [])
+        self._fake.world_sublevels.append(key)
+        self._fake.current_level = key
+        streaming = LevelStreamingDynamic(world_asset=key)
+        self._fake.streaming_levels[(self._fake.persistent_level, key)] = streaming
+        return streaming
 
 
 class FakeEditorLoadingAndSavingUtils(_Bound):
@@ -1108,6 +1186,7 @@ class FakeEditorLoadingAndSavingUtils(_Bound):
 
     def save_map(self, world, asset_path):
         self._fake.calls.append(("save_map", _key(asset_path)))
+        self._fake.saved_levels.append(_key(asset_path))
         return True
 
 
@@ -1181,8 +1260,27 @@ def _import_glb(fake, task, filename, dest, name, route=None):
     meshes, nodes = gltf.get("meshes") or [{}], gltf.get("nodes") or [{}]
     mesh_name = name or meshes[0].get("name") or nodes[0].get("name") or os.path.splitext(basename)[0]
     slots = [mat.get("name") or f"Material_{i}" for i, mat in enumerate(gltf.get("materials", []))]
+    if fake.nested_glb:  # V-03: Interchange lays glTF out as <dest>/<source name>/StaticMeshes/<mesh name>
+        folder = f"{dest}/{os.path.splitext(basename)[0]}"
+        for slot in slots:  # material instances next to it, not listed in imported_object_paths
+            _register(fake, FakeMaterialInstanceConstant(fake, f"{folder}/Materials/{slot}"), True)
+        mesh = FakeStaticMesh(
+            fake, f"{folder}/StaticMeshes/{mesh_name}", bounds, slots or ["Material_0"], (), filename
+        )
+        return [_register(fake, mesh, task.replace_existing)]
     mesh = FakeStaticMesh(fake, f"{dest}/{mesh_name}", bounds, slots or ["Material_0"], (), filename)
     return [_register(fake, mesh, task.replace_existing)]
+
+
+ENGINE_UDIM_RE = re.compile(r"^(.+?)[._](\d{4})$")  # UTextureFactory::UdimRegexPattern default (on the stem)
+
+
+def _udim_detection_on(options) -> bool:
+    """False only when the task options say material_pipeline.texture_pipeline.import_udi_ms = False."""
+    try:
+        return options.material_pipeline.texture_pipeline.import_udi_ms is not False
+    except AttributeError:
+        return True
 
 
 def _import_png(fake, task, filename, dest, name, route=None):
@@ -1190,13 +1288,18 @@ def _import_png(fake, task, filename, dest, name, route=None):
         w, h = pure.png_size(f.read(24))
     basename = os.path.basename(filename)
     split = pure.udim_split(basename)
+    detect = _udim_detection_on(task.options)
     merged = (
-        split is not None and fake.udim_merge
+        split is not None and fake.udim_merge and detect
     )  # runbook #4: BaseName.####.ext siblings become one texture
     tiles = pure.udim_group(filename, os.listdir)["tiles"] if merged else []
     if len(tiles) > 1:
         bu, bv = pure.udim_canvas_blocks(tiles)
         w, h = w * bu, h * bv
+    engine = ENGINE_UDIM_RE.match(basename.rsplit(".", 1)[0])
+    if split is None and fake.engine_udim_regex and detect and engine and int(engine.group(2)) >= 1001:
+        t = int(engine.group(2)) - 1001  # one tile placed at its block of a (u+1) x (v+1) canvas
+        w, h = w * (t % 10 + 1), h * (t // 10 + 1)
     default = split[0] if merged else pure.asset_name_safe(basename.rsplit(".", 1)[0])
     tex = FakeTexture2D(fake, f"{dest}/{name or default}", (w, h), None, filename)
     tex.tiles = tiles if len(tiles) > 1 else []
@@ -1262,7 +1365,12 @@ class Fake:
         level = _key(cfg.get("level", DEFAULT_LEVEL))
         self.registry[level] = FakeLevel(self, level)
         self.levels[level] = []
-        self.current_level = level
+        self.current_level = self.persistent_level = level
+        self.world_sublevels: list[str] = []  # added with add_level_to_world (in the open world)
+        # (persistent level, sublevel package) -> LevelStreaming entry from add_level_to_world; kept across
+        # load_level like the entry saved in the persistent map (GameplayStatics.get_streaming_level)
+        self.streaming_levels: dict[tuple[str, str], LevelStreamingDynamic] = {}
+        self.saved_levels: list[str] = []
         if self.lit:
             for cls_name, label, tags in L_DEV_LIGHTING:
                 self.add_actor(cls_name, label, tags=list(tags))
@@ -1346,9 +1454,37 @@ class Fake:
         path = os.path.normpath(pure.screenshot_path(self.saved_dir, tag, self.preset, name))
         if self.screenshot_fallback_name:  # runbook #30: HighResShot counter name
             path = pure.screenshot_fallback_path(path)
-        w, h = self.play_settings.new_window_width, self.play_settings.new_window_height
+        # C++ TakeScreenshot sizes the shot from the game viewport (x ScreenshotMultiplier); a PIE started
+        # with editor_request_begin_play() plays in the level viewport, so the play settings do not matter.
+        w, h = self.viewport_size
         k = pure.SCREENSHOT_MULTIPLIER
         self.schedule_file(self.screenshot_delay_s, path, png_bytes(w * k, h * k))
+
+    def _high_res_shot(self, command):
+        """'HighResShot <W>x<H> | <N> filename="<stem>"' -> <stem><counter 00000..>.png (the first unused
+        counter, like FFileHelper::GenerateNextBitmapFilename) after screenshot_delay_s, only in PIE."""
+        size = re.search(r"\s(\d+)x(\d+)(?:\s|$)", command)
+        scale = re.search(r"\s(\d+(?:\.\d+)?)(?:\s|$)", command)
+        stem = re.search(r'filename="([^"]*)"', command)
+        if not self.pie:
+            self.logs.append(("error", "HighResShot: no game viewport (PIE is not running)"))
+            return
+        if stem is None or not (size or scale):
+            self.logs.append(
+                ("error", f'fake unreal: HighResShot needs WxH|N and filename="..." ({command})')
+            )
+            return
+        if size:
+            w, h = int(size.group(1)), int(size.group(2))
+        else:
+            k = float(scale.group(1))
+            w, h = int(self.viewport_size[0] * k), int(self.viewport_size[1] * k)
+        pending = {entry[1] for entry in self.pending_files}
+        for counter in itertools.count():
+            path = os.path.normpath(f"{stem.group(1)}{counter:05d}.png")
+            if not os.path.exists(path) and path not in pending:
+                break
+        self.schedule_file(self.screenshot_delay_s, path, png_bytes(w, h))
 
     def _path_command(self, args):
         sub = args[0] if args else ""

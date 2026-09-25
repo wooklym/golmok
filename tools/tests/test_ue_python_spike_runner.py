@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -21,7 +22,7 @@ from golmok import _pure as pure
 
 LEVEL_NAME = "L_ZoneTest"
 L_SPIKE = "/Game/Golmok/Maps/L_Spike_"
-PLAY_KINDS = ("begin_play", "end_play", "console", "set_visual_visible", "play_settings")
+PLAY_KINDS = ("begin_play", "end_play", "console", "set_visual_visible", "play_settings", "quit_editor")
 
 
 @pytest.fixture
@@ -66,8 +67,15 @@ def _play_calls(fake):
     return [c for c in fake.calls if c[0] in PLAY_KINDS]
 
 
-def _pie_tag_calls(tag, presets, names, zone_id="z_x"):
-    """The play-relevant records of one tag's PIE session (design D11)."""
+def _shot_command(fake, tag, preset, name):
+    """The explicit-size HighResShot the PIE capture sends (stem with "/" so FParse keeps the backslash-free
+    quoted path; the engine appends the 00000 counter)."""
+    stem = os.path.splitext(_shot(fake, tag, preset, name))[0].replace("\\", "/")
+    return f'HighResShot 2560x1440 filename="{stem}"'
+
+
+def _pie_tag_calls(fake, tag, presets, names, zone_id="z_x"):
+    """The play-relevant records of one tag's PIE session (design D11; F1: explicit 2560x1440, no window)."""
     out = [
         ("set_visual_visible", zone_id, tag in ("a", "ac")),  # LAYERS (editor level)
         ("begin_play",),
@@ -79,7 +87,7 @@ def _pie_tag_calls(tag, presets, names, zone_id="z_x"):
         for name in names:
             out += [
                 ("console", f"golmok.path play vp_{name}"),
-                ("console", f"golmok.screenshot {tag} {name}"),
+                ("console", _shot_command(fake, tag, preset, name)),
                 ("console", "golmok.path stopplay"),
             ]
     out.append(("end_play",))
@@ -122,17 +130,26 @@ def test_prepare_reports_missing(fake, unreal):
 def test_configure_pie_window(fake, unreal, monkeypatch):
     assert sr.configure_pie_window() == "LevelEditorPlaySettings"
     assert fake.calls_of("play_settings") == [("play_settings", 1280, 720)]
-    assert (
-        fake.play_settings.last_executed_play_mode_type
-        == unreal.PlayModeType.PLAY_MODE_TYPE_PLAY_IN_EDITOR_FLOATING
-    )
+    assert fake.play_settings.last_executed_play_mode_type == unreal.PlayModeType.PLAY_MODE_IN_EDITOR_FLOATING
     assert fake.logs[-1] == ("log", "spike_runner: PIE window 1280x720 x2 (LevelEditorPlaySettings)")
+    assert not fake.logged("warning")
     assert sr.configure_pie_window((640, 360)) == "LevelEditorPlaySettings"
     assert fake.calls_of("play_settings") == [("play_settings", 640, 360)]  # consecutive sets collapse
+    # the play-mode enum member missing: the size stays set, only the mode is left to the tester (#21)
+    monkeypatch.delattr(unreal.PlayModeType, "PLAY_MODE_IN_EDITOR_FLOATING")
+    fake.play_settings.last_executed_play_mode_type = None
+    assert sr.configure_pie_window((800, 450)) == "LevelEditorPlaySettings"
+    assert fake.calls_of("play_settings") == [("play_settings", 800, 450)]
+    assert fake.play_settings.last_executed_play_mode_type is None
+    assert fake.logged("warning") == [
+        "spike_runner: WARNING PIE play mode: set 'New Editor Window (PIE)' by hand (runbook #21);"
+        " unreal.PlayModeType.PLAY_MODE_IN_EDITOR_FLOATING not exposed"
+    ]
+    assert fake.logs[-1] == ("log", "spike_runner: PIE window 800x450 x2 (LevelEditorPlaySettings)")
     monkeypatch.delattr(unreal, "LevelEditorPlaySettings")
     how = sr.configure_pie_window()
     assert how == sr.MANUAL_WINDOW_HOW and how.startswith("manual: Editor Preferences") and "#21" in how
-    assert fake.calls_of("play_settings") == [("play_settings", 640, 360)]  # nothing new recorded
+    assert fake.calls_of("play_settings") == [("play_settings", 800, 450)]  # nothing new recorded
     warning, done = fake.logs[-2:]
     assert warning[0] == "warning" and warning[1].startswith(
         "spike_runner: WARNING PIE window: manual: Editor Preferences > Level Editor > Play > New Window Size"
@@ -244,9 +261,10 @@ def test_pie_capture_sequence_and_files(fake, unreal):
     n_calls = len(fake.calls)
     fake_unreal.tick(fake, 50)
     assert len(fake.calls) == n_calls  # a finished machine ignores further ticks
-    expected = [("play_settings", 1280, 720)]  # WINDOW once, before the first PIE
-    a, b = _pie_tag_calls("a", presets, names), _pie_tag_calls("b", presets, names)
-    assert _play_calls(fake) == a[:1] + expected + a[1:] + b
+    # no play-settings write: editor_request_begin_play() plays in the level viewport whatever they say (F1)
+    assert _play_calls(fake) == _pie_tag_calls(fake, "a", presets, names) + _pie_tag_calls(
+        fake, "b", presets, names
+    )
     # dwell paths: one per viewpoint, GolmokStatsMath layout, accepted by the (fake) C++ parser
     folder = Path(fake.saved_dir) / "Golmok" / "Paths"
     assert sorted(p.name for p in folder.iterdir()) == ["vp_far_01.json", "vp_mid_01.json"]
@@ -258,16 +276,17 @@ def test_pie_capture_sequence_and_files(fake, unreal):
         )
         assert json.loads(text)["samples"][-1]["t"] == 600.0
     assert fake.logged("error") == [] and fake.playing is None
-    # screenshots: 8 PNGs of the PIE window x 2, in job order
+    # screenshots: 8 PNGs at the explicit 2560x1440 (not the 1014x550 level viewport x 2), in job order; the
+    # engine's <name>00000.png counter file is renamed to <name>.png
     shots = [_shot(fake, t, p, n) for t, p, n in pure.capture_jobs(("a", "b"), presets, names)]
     assert cap.saved == shots and cap.missing == []
     for path in shots:
         assert pure.png_size(Path(path).read_bytes()[:24]) == (2560, 1440)
+        assert not Path(pure.screenshot_fallback_path(path)).exists()
     captured = [t for k, t in fake.logs if t.startswith("spike_runner: captured ")]
     assert captured == [f"spike_runner: captured {path} (2560x1440)" for path in shots]
     pie = [t for k, t in fake.logs if t.startswith("spike_runner: PIE ")]
     assert pie == [
-        "spike_runner: PIE window 1280x720 x2 (LevelEditorPlaySettings)",
         "spike_runner: PIE begin tag=a",
         "spike_runner: PIE end tag=a",
         "spike_runner: PIE begin tag=b",
@@ -284,17 +303,43 @@ def test_pie_capture_sequence_and_files(fake, unreal):
     assert not fake.logged("warning")
 
 
-def test_pie_capture_accepts_fallback_filename(monkeypatch, tmp_path):
-    fake = fake_unreal.install(monkeypatch, tmp_path, screenshot_fallback_name=True)
+def test_pie_capture_removes_stale_counter_file(fake, unreal):
+    """A <name>00000.png left by an aborted run is deleted before the HighResShot, so the engine writes
+    00000 again (not 00001, which WAIT_FILE would never see)."""
     _save_viewpoints(fake, ["far_01", "mid_01"])
     presets, names = ("clear_noon", "golden_evening"), ("far_01", "mid_01")
+    shots = [_shot(fake, t, p, n) for t, p, n in pure.capture_jobs(("a", "b"), presets, names)]
+    for path in shots:
+        stale = Path(pure.screenshot_fallback_path(path))
+        stale.parent.mkdir(parents=True, exist_ok=True)
+        stale.write_bytes(fake_unreal.png_bytes(4, 4))
     cap = sr.capture_all(tags=("a", "b"), presets=presets, names=names)
     fake_unreal.tick(fake, 5000)
-    shots = [_shot(fake, t, p, n) for t, p, n in pure.capture_jobs(("a", "b"), presets, names)]
     assert cap.done and cap.saved == shots and cap.missing == []
     for path in shots:
-        assert Path(path).is_file() and not Path(pure.screenshot_fallback_path(path)).exists()
+        assert pure.png_size(Path(path).read_bytes()[:24]) == (2560, 1440)
+        assert not Path(pure.screenshot_fallback_path(path)).exists()
+        assert not Path(f"{path[:-4]}00001.png").exists()
     assert not fake.logged("warning") and fake.logs[-1][1].startswith("spike_runner: done capture: 8 saved")
+
+
+def test_pie_capture_warns_on_wrong_size(fake, unreal, monkeypatch):
+    """The engine writes another size (e.g. SetResolution refused): kept, but flagged with a warning."""
+    _save_viewpoints(fake, ["far_01"])
+    real = unreal.SystemLibrary.execute_console_command
+
+    def smaller(world_context_object, command, specific_player=None):
+        return real(world_context_object, command.replace("2560x1440", "1280x720"), specific_player)
+
+    monkeypatch.setattr(unreal.SystemLibrary, "execute_console_command", smaller)
+    cap = sr.capture_all(tags=("a",), presets=("clear_noon",), names=("far_01",))
+    _run(fake, cap)
+    shot = _shot(fake, "a", "clear_noon", "far_01")
+    assert cap.saved == [shot] and cap.missing == []
+    assert f"spike_runner: captured {shot} (1280x720)" in fake.logged("log")
+    assert fake.logged("warning") == [
+        f"spike_runner: WARNING {shot}: 1280x720, expected 2560x1440 (runbook #35)"
+    ]
 
 
 def test_pie_capture_missing_file_continues(monkeypatch, tmp_path):
@@ -311,8 +356,7 @@ def test_pie_capture_missing_file_continues(monkeypatch, tmp_path):
         f"spike_runner: missing {shots[1]} (timeout)",
         f"spike_runner: done capture: 0 saved, 2 missing -> {root}",
     ]
-    a = _pie_tag_calls("a", ("clear_noon",), ("far_01", "mid_01"))
-    assert _play_calls(fake) == a[:1] + [("play_settings", 1280, 720)] + a[1:]
+    assert _play_calls(fake) == _pie_tag_calls(fake, "a", ("clear_noon",), ("far_01", "mid_01"))
     assert 60.0 < seconds < 90.0  # two FILE_TIMEOUT_S waits, then the run ended by itself
 
 
@@ -378,6 +422,121 @@ def test_pie_already_running_is_ended_first(monkeypatch, tmp_path):
     fake_unreal.tick(fake, 500)
     assert cap.done and cap.saved == [_shot(fake, "a", "clear_noon", "far_01")]
     assert fake.calls_of("begin_play") == [("begin_play",)] and len(fake.calls_of("end_play")) == 2
+
+
+# ---- unattended exit: quit_editor (V-03 finding #3) --------------------------------------------------------
+
+
+def _quit_line(what):
+    return f"spike_runner: {what} finished; quitting the editor (quit_editor=True)"
+
+
+def test_capture_quit_editor_after_done(fake, unreal):
+    _save_viewpoints(fake, ["far_01"])
+    cap = sr.capture_all(tags=("a",), presets=("clear_noon",), names=("far_01",), quit_editor=True)
+    _run(fake, cap)
+    fake_unreal.tick(fake, 5)  # the quit runs on a later tick, once PIE has really ended
+    assert fake.calls[-2:] == [("end_play",), ("quit_editor",)] and fake.calls_of("quit_editor") == [
+        ("quit_editor",)
+    ]
+    texts = fake.logged()
+    done = texts.index(f"spike_runner: done capture: 1 saved, 0 missing -> {cap.root}")
+    assert texts.index(_quit_line("capture")) > done and fake.callbacks == {}
+    fake_unreal.tick(fake, 50)
+    assert fake.calls_of("quit_editor") == [("quit_editor",)]  # once
+
+
+def test_quit_waits_for_pie_to_end(fake, unreal, monkeypatch):
+    """end_play is asynchronous: the quit waits until PIE is gone (or QUIT_WAIT_S), never in _finish."""
+    _save_viewpoints(fake, ["far_01"])
+    cap = sr.capture_all(tags=("a",), presets=("clear_noon",), names=("far_01",), quit_editor=True)
+    fake_unreal.tick(fake, 45)  # in PIE, after the warm-up
+    assert fake.pie and not cap.done
+    monkeypatch.setattr(
+        fake.level_editor, "editor_request_end_play", lambda: fake.calls.append(("end_play",))
+    )
+    cap._finish("stopped by hand", warn=True)  # PIE keeps running (a stuck end_play)
+    assert cap.done and fake.calls_of("quit_editor") == [] and len(fake.callbacks) == 1
+    fake_unreal.tick(fake, 10)
+    assert fake.calls_of("quit_editor") == []
+    fake_unreal.tick(fake, int(sr.QUIT_WAIT_S / 0.1) + 5)
+    assert fake.calls_of("quit_editor") == [("quit_editor",)] and fake.callbacks == {}
+
+
+def test_no_quit_by_default(fake, unreal):
+    _save_viewpoints(fake, ["far_01"])
+    _write_walk(fake, "walk_01", length_s=5.0)
+    cap = sr.capture_all(tags=("a",), presets=("clear_noon",), names=("far_01",))
+    _run(fake, cap)
+    perf = sr.perf_all(paths=("walk_01",), tags=("a",))
+    _run(fake, perf)
+    fake_unreal.tick(fake, 100)
+    assert fake.calls_of("quit_editor") == [] and fake.callbacks == {}
+    assert not any("quitting the editor" in t for t in fake.logged())
+
+
+def test_quit_after_pie_start_timeout(monkeypatch, tmp_path):
+    fake = fake_unreal.install(monkeypatch, tmp_path, begin_play_starts_pie=False)
+    _save_viewpoints(fake, ["far_01"])
+    cap = sr.capture_all(tags=("a",), presets=("clear_noon",), names=("far_01",), quit_editor=True)
+    fake_unreal.tick(fake, 620)
+    assert cap.done and fake.calls_of("quit_editor") == [("quit_editor",)] and fake.callbacks == {}
+    assert fake.logged("warning") == ["spike_runner: WARNING PIE did not start within 60 s (runbook #16)"]
+    assert fake.logs[-1] == ("log", _quit_line("capture"))
+
+
+def test_perf_quit_editor(fake, unreal):
+    _write_walk(fake, "walk_01", length_s=5.0)
+    perf = sr.perf_all(paths=("walk_01",), tags=("a",), quit_editor=True)
+    _run(fake, perf)
+    fake_unreal.tick(fake, 5)
+    assert fake.calls[-2:] == [("end_play",), ("quit_editor",)]
+    assert fake.logs[-1] == ("log", _quit_line("perf (PIE, reference only)"))
+
+
+def test_quit_editor_fallbacks(fake, unreal, monkeypatch):
+    _save_viewpoints(fake, ["far_01"])
+    monkeypatch.delattr(unreal.SystemLibrary, "quit_editor")
+    cap = sr.capture_all(tags=("a",), presets=("clear_noon",), names=("far_01",), quit_editor=True)
+    _run(fake, cap)
+    fake_unreal.tick(fake, 5)
+    assert fake.calls[-2:] == [("end_play",), ("console", "QUIT_EDITOR")]  # console fallback (pc-setup.md)
+    assert fake.logged("warning")[-1] == (
+        "spike_runner: WARNING unreal.SystemLibrary.quit_editor unavailable;"
+        " sending QUIT_EDITOR (runbook #34)"
+    )
+    # neither: a warning, no exception, the machine is gone
+    monkeypatch.delattr(unreal.SystemLibrary, "execute_console_command")
+    fake.calls.clear()
+    cap = sr.capture_all(tags=("a",), presets=("clear_noon",), names=("far_01",), quit_editor=True)
+    fake_unreal.tick(fake, 100)
+    assert cap.done and fake.callbacks == {} and fake.calls_of("quit_editor") == []
+    assert fake.logged("warning")[-1].startswith(
+        "spike_runner: WARNING could not quit the editor: close it by hand (runbook #34)"
+    )
+
+
+def test_quit_editor_needs_pie_mode(fake, unreal):
+    _save_viewpoints(fake, ["far_01"])
+    with pytest.raises(ValueError, match="quit_editor needs mode='pie'"):
+        sr.capture_all(mode="editor", quit_editor=True)
+    assert fake.calls == [] and fake.callbacks == {}
+
+
+def test_quit_editor_on_setup_error(fake, unreal):
+    """A validation error before the machine exists still ends an unattended editor (then re-raises)."""
+    with pytest.raises(RuntimeError, match="no saved viewpoints"):
+        sr.capture_all(quit_editor=True)
+    assert fake.calls == [("quit_editor",)]
+    assert fake.logged("warning")[-1].startswith("spike_runner: WARNING capture could not start")
+    assert fake.logs[-1] == ("log", _quit_line("capture (setup failed)"))
+    fake.calls.clear()
+    with pytest.raises(RuntimeError, match="record it first"):
+        sr.perf_all(paths=("walk_01",), quit_editor=True)
+    assert fake.calls == [("quit_editor",)]
+    with pytest.raises(RuntimeError):
+        sr.perf_all(paths=("walk_01",))
+    assert fake.calls == [("quit_editor",)]  # default: no quit
 
 
 def test_capture_all_validates_and_resolves_names(fake, unreal):
@@ -540,6 +699,32 @@ def test_game_scripts_written(fake, unreal, monkeypatch):
     assert fake.logs[-1][1].endswith("(8 runs)")
 
 
+def test_game_scripts_label_suffix(fake, unreal, monkeypatch):
+    """A second resolution / DLSS run must not overwrite the first run's CSV and log (L4-03)."""
+    monkeypatch.setenv("LOCALAPPDATA", "C:/Users/me/AppData/Local")
+    _write_walk(fake, "walk_01")
+
+    def body(**kw):
+        path = sr.game_scripts(paths=("walk_01",), tags=("a",), **kw)
+        return Path(path).read_text("utf-8-sig")
+
+    text = body()  # 1080p default: unchanged names
+    assert "game_a_clear_noon_walk_01.log" in text
+    assert "a_clear_noon_walk_01.csv" in text and "_1080p" not in text
+    text = body(res=(2560, 1440))
+    assert "game_a_clear_noon_walk_01_1440p.log" in text
+    assert "a_clear_noon_walk_01_1440p.csv" in text and "game_a_clear_noon_walk_01.log" not in text
+    assert "--label a_clear_noon_walk_01_1440p" in text
+    text = body(res=(2560, 1440), label_suffix="1440p_dlss")
+    assert "a_clear_noon_walk_01_1440p_dlss.csv" in text
+    assert "game_a_clear_noon_walk_01_1440p_dlss.log" in text
+    text = body(label_suffix="dlss")
+    assert "a_clear_noon_walk_01_dlss.csv" in text
+    assert "a_clear_noon_walk_01.csv" in body(res=(2560, 1440), label_suffix="")  # explicit: no suffix
+    with pytest.raises(ValueError):
+        body(label_suffix="bad name")
+
+
 # ---- contact sheet, report ---------------------------------------------------------------------------------
 
 
@@ -589,3 +774,52 @@ def test_contact_sheet_and_report_written(fake, unreal, tmp_path):
         perf_markdown="| a_clear_noon_walk_01 | 9000 | 150.0 | 90.0 | 6.6 | 12.0 | 3.0 | 4.0 | 5.5 |\n"
     )
     assert "| a_clear_noon_walk_01 | 9000 |" in text and "golmok-perf" not in text
+
+
+# ---- runbook drift: pc-verify-wp06.md §8/§9 expected blocks ----------------------------------------------
+
+RUNBOOK_WP06 = Path(__file__).resolve().parents[2] / "docs" / "runbooks" / "pc-verify-wp06.md"
+
+
+def _runbook_block(marker):
+    """The spike_runner lines of the first fenced block of pc-verify-wp06.md that contains `marker`."""
+    blocks, current = [], None
+    for line in RUNBOOK_WP06.read_text("utf-8").splitlines():
+        if line.strip().startswith("```"):
+            if current is None:
+                current = []
+            else:
+                blocks.append(current)
+                current = None
+        elif current is not None:
+            current.append(line.strip())
+    block = next(b for b in blocks if any(marker in line for line in b))
+    return [line for line in block if line.startswith("spike_runner:")]
+
+
+def _spike_lines(fake):
+    return [text for _, text in fake.logs if text.startswith("spike_runner:")]
+
+
+def test_layer_level_log_block_matches_runbook(fake, unreal):
+    fake.add_actor("GolmokZone", "Zone_z_synthetic_scan_001", zone_id="z_synthetic_scan_001")
+    fake.logs.clear()
+    sr.save_layer_levels()
+    assert _spike_lines(fake) == _runbook_block("spike_runner: layer level /Game/Golmok/Maps/L_Spike_b saved")
+
+
+def test_pie_perf_log_block_matches_runbook(fake, unreal):
+    fake.add_actor("GolmokZone", "Zone_z_synthetic_scan_001", zone_id="z_synthetic_scan_001")
+    _write_walk(fake, "walk_01", length_s=5.0)
+    fake.logs.clear()
+    perf = sr.perf_all(paths=("walk_01",), tags=("a",))
+    _run(fake, perf)
+    saved = os.path.normpath(fake.saved_dir)
+    patterns = []
+    for line in _runbook_block("spike_runner: done perf (PIE, reference only)"):
+        line = line.replace("\\", os.sep).replace(os.path.join("<Project>", "Saved"), saved)
+        patterns.append(re.escape(line).replace(re.escape("Profile(…)"), r"Profile\(\d+\)"))
+    lines = _spike_lines(fake)
+    assert len(lines) == len(patterns), "\n".join(lines)
+    for line, pattern in zip(lines, patterns, strict=True):
+        assert re.fullmatch(pattern, line), (line, pattern)

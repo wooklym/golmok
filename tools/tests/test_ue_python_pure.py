@@ -407,9 +407,12 @@ def test_modules_import_with_empty_stub(mods):
         "zone_dir", "version", "level", "save", "register", "remeasure", "reimport_textures",
     ]  # fmt: skip
     assert issubclass(it.InteriorSetupError, zi.ZoneImportError)
-    assert list(inspect.signature(sr.capture_all).parameters) == ["tags", "presets", "names", "mode"]
+    assert list(inspect.signature(sr.capture_all).parameters) == [
+        "tags", "presets", "names", "mode", "quit_editor",
+    ]  # fmt: skip
+    assert list(inspect.signature(sr.perf_all).parameters) == ["paths", "tags", "presets", "quit_editor"]
     assert list(inspect.signature(sr.game_scripts).parameters) == [
-        "paths", "tags", "presets", "res", "base_level", "timeout_s",
+        "paths", "tags", "presets", "res", "base_level", "timeout_s", "label_suffix",
     ]  # fmt: skip
     assert list(inspect.signature(vp.capture).parameters) == [
         "tag", "names", "presets", "game_view", "on_done",
@@ -496,8 +499,11 @@ def test_udim_tile_of_official_rule_only(mods):
     assert (
         not pure.udim_suspect("a.1002.png")
         and not pure.udim_suspect("a_1000.png")
+        and not pure.udim_suspect("a_0999.png")
         and not pure.udim_suspect("a.png")
     )
+    # the engine's UDIM rule ([._]####, >= 1001; UTextureFactory::UdimRegexPattern) is wider (runbook #38)
+    assert all(pure.udim_suspect(n) for n in ("a.2048.png", "a_2048.png", "a_4096.jpg", "a.b_1001.PNG"))
     assert pure.udim_tile_of("D:\\tex\\wall.1003.jpg") == 1003
 
 
@@ -871,8 +877,8 @@ def test_plan_warnings(mods):
     assert plan["problems"] == []
     assert plan["warnings"] == [
         "texture facade: tile 1001 missing; anchor is tile 1002",
-        "texture T_ground_1002: '_####' is not the UDIM convention (BaseName.####.ext); "
-        "imported as a single texture",
+        "texture T_ground_1002: 'ground_1002.png' matches the engine UDIM name rule ([._]####, >= 1001) but "
+        "not BaseName.1001..1999.ext; imported as a single texture with UDIM detection off (runbook #38)",
         "chunk c_e000_n000: udim tile 1003 not in texture facade tiles [1002, 1011]",
     ]
     facade = next(t for t in plan["textures"] if t["name"] == "T_facade")
@@ -1141,6 +1147,13 @@ def test_log_formats_are_quoted_in_runbook(mods):
     prefixes = pure.log_prefixes()
     for key, prefix in prefixes.items():
         assert prefix in text, f"{key}: {prefix!r} is not quoted in the runbooks"
+    # full texts the PC session searches the Output Log for (zone_import._import_texture UDIM branches)
+    for message in (
+        "zone_import: WARNING texture T_facade: UDIM tiles not merged; using tile 1001 only (runbook #4)",
+        "zone_import: WARNING texture T_facade: UDIM merge could not be verified by size (runbook #4)",
+        "(merged by importer (size unknown))",
+    ):
+        assert message in text, message
     known = sorted(prefixes.values(), key=len, reverse=True)
     head = re.compile(r"^\s*(zone_import|interior_setup|spike_runner|basemap_import):")
     for path in RUNBOOKS:
@@ -1520,6 +1533,9 @@ def test_screenshot_paths(mods):
     assert pure.SCREENSHOT_FOLDER == folder
     multiplier = int(re.search(r"^ScreenshotMultiplier=(\d+)$", ini, re.MULTILINE).group(1))
     assert pure.SCREENSHOT_MULTIPLIER == multiplier
+    pfolder = re.search(r"^PathFolder=(.+)$", ini, re.MULTILINE).group(1).strip()
+    assert pure.PATH_FOLDER == pfolder
+    assert pure.path_dirs(["D:/P/Saved"]) == [f"D:/P/Saved/{pfolder}"]
     assert (
         pure.screenshot_path("D:/P/Saved", "a", "clear_noon", "far_01")
         == f"D:/P/Saved/{folder}/a/clear_noon/far_01.png"

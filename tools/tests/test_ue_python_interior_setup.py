@@ -38,6 +38,7 @@ LIGHT = f"Interior_Light_{ROOM}"
 TAG = "GolmokInteriorSetup"
 MATERIALS = "/Game/Golmok/Materials"
 M_ZONE_SCAN = f"{MATERIALS}/M_ZoneScan"
+DEFAULT_TEX = f"{MATERIALS}/T_ZoneScanDefault"  # M_ZoneScan's own default texture (zone_import, runbook #10)
 PORTAL_LINE = "interior_setup: portal door_out<->door_1 same point (err 0.000 m), opposite yaw (err 0.0 deg)"
 SUBLEVEL_LINE = f"interior_setup: sublevel {SUBLEVEL} actors=['{LIGHT}'] (level coordinates)"
 RERUN_LINE = f"interior_setup: removed 1 GolmokInteriorSetup actors from {SUBLEVEL}"
@@ -185,7 +186,7 @@ def test_run_signature_and_error_class(it, zi, sz):
     ]  # fmt: skip
 
 
-# ---- steps 1-4: no editor call -------------------------------------------------------------------------
+# ---- checks before any import: manifest (no editor call), parent actor + Content manifest, portal, plan --
 
 
 def test_requires_interior_kind_and_parent_manifest(fake, zone, zone_copy, it, zi):
@@ -196,12 +197,14 @@ def test_requires_interior_kind_and_parent_manifest(fake, zone, zone_copy, it, z
     assert e.message == "kind must be interior (use zone_import.run for exterior zones)"
     assert str(e) == f"interior_setup: ERROR manifest: {e.message}" and isinstance(e, zi.ZoneImportError)
     assert fake.calls == [] and set(fake.registry) == {DEFAULT_LEVEL} and fake.logs == []
-    # zone_import.run was never run on the parent in this editor: no Content manifest to check against
+    # zone_import.run was never run on the parent in this editor: no Zone_<parent> actor whose version to
+    # check against (the Content manifest check is test_parent_version_follows_level_actor)
     with pytest.raises(it.InteriorSetupError) as info:
         it.run(str(zone.room), level=DEFAULT_LEVEL)
     assert info.value.step == "parent"
-    assert str(info.value) == f"interior_setup: ERROR parent: no Content manifest for {ZONE}: {PARENT_HINT}"
-    assert fake.calls == [] and fake.logs == []
+    assert str(info.value) == f"interior_setup: ERROR parent: Zone_{ZONE} not in level: {PARENT_HINT}"
+    assert fake.calls == [("load_level", DEFAULT_LEVEL)] and fake.logs == []  # the level opened, nothing else
+    fake.calls.clear()
     manifest = zone_copy.room_version / "manifest.json"
     _rewrite(manifest, lambda m: m.pop("parent_zone"))
     with pytest.raises(it.InteriorSetupError) as info:
@@ -221,7 +224,7 @@ def test_requires_interior_kind_and_parent_manifest(fake, zone, zone_copy, it, z
     assert fake.calls == [] and fake.logs == []
 
 
-def test_portal_mismatch_aborts_before_editor(fake, parent, zone_copy, it):
+def test_portal_mismatch_aborts_before_import(fake, parent, zone_copy, it):
     manifest = zone_copy.room_version / "manifest.json"
     original = manifest.read_text("utf-8")
     content_manifest = Path(fake.content_dir) / "Golmok" / "Zones" / ZONE / "v1" / "manifest.json"
@@ -233,7 +236,9 @@ def test_portal_mismatch_aborts_before_editor(fake, parent, zone_copy, it):
             it.run(str(zone_copy.room), level=DEFAULT_LEVEL)
         assert info.value.step == "portal"
         assert str(info.value) == f"interior_setup: ERROR portal: {message}"
-        assert fake.calls == [] and fake.logs == []  # no editor call, not even the portal line
+        # only the level was opened (to read the parent actor's version); no import, not even the portal line
+        assert fake.calls == [("load_level", DEFAULT_LEVEL)] and fake.logs == []
+        fake.calls.clear()
         manifest.write_text(original, encoding="utf-8")
         content_manifest.write_text(parent_original, encoding="utf-8")
 
@@ -259,7 +264,7 @@ def test_portal_mismatch_aborts_before_editor(fake, parent, zone_copy, it):
     case(manifest, no_transform, "manifest key 'transform' missing")
     # the parent side is checked too: its Content manifest, the file C++ reads
     case(content_manifest, doubled, f"{ZONE}: 2 portals lead to {ROOM} (expected exactly 1)")
-    assert fake.calls == [] and not [k for k in fake.registry if ROOM in k]
+    assert not [k for k in fake.registry if ROOM in k]
 
 
 def test_plan_problem_after_portal_check(fake, parent, zone_copy, it):
@@ -269,8 +274,12 @@ def test_plan_problem_after_portal_check(fake, parent, zone_copy, it):
     e = info.value
     assert e.step == "plan" and "chunk c_e000_n000: file missing" in e.message
     assert str(e).startswith("interior_setup: ERROR plan:")
-    assert fake.calls == []
-    assert set(fake.registry) == _expected_assets(zone_copy.expected) | {DEFAULT_LEVEL, M_ZONE_SCAN}
+    assert fake.calls == [("load_level", DEFAULT_LEVEL)]  # the level was opened, nothing was imported
+    assert set(fake.registry) == _expected_assets(zone_copy.expected) | {
+        DEFAULT_LEVEL,
+        M_ZONE_SCAN,
+        DEFAULT_TEX,
+    }
     # the portal check runs before the plan; the plan line is never reached
     assert fake.logged("log") == [PORTAL_LINE]
 
@@ -287,17 +296,27 @@ def test_run_sequence(fake, unreal, parent, zone, it):
     mesh, collision = f"{ROOM_FOLDER}/SM_c_e000_n000", f"{ROOM_FOLDER}/SM_{ROOM}_collision_c_e000_n000"
     calls = [
         ("load_level", DEFAULT_LEVEL),
-        # import_assets (importer mapping cache hit: no probe; M_ZoneScan exists: loaded, not created)
-        ("import", "room.1001.png", f"{ROOM_FOLDER}/Textures", "T_room", None),
+        # import_assets (importer mapping cache hit: no probe; M_ZoneScan and T_ZoneScanDefault exist: loaded,
+        # not created); every import goes to a scratch _import folder and is moved (V-03, runbook #37)
+        ("import", "room.1001.png", f"{ROOM_FOLDER}/Textures/_import", "T_room", None),
+        ("rename", f"{ROOM_FOLDER}/Textures/_import/T_room", f"{ROOM_FOLDER}/Textures/T_room"),
         ("save", f"{ROOM_FOLDER}/Textures/T_room"),
         ("create_asset", "MI_room", f"{ROOM_FOLDER}/Materials", "MaterialInstanceConstant"),
         ("save", f"{ROOM_FOLDER}/Materials/MI_room"),
-        ("import", "SM_c_e000_n000.obj", ROOM_FOLDER, "SM_c_e000_n000", "fbx"),
-        *[("delete_asset", f"{ROOM_FOLDER}/{m}") for m in usemtl],  # importer by-products
+        ("import", "SM_c_e000_n000.obj", f"{ROOM_FOLDER}/_import", "SM_c_e000_n000", "fbx"),
+        ("rename", f"{ROOM_FOLDER}/_import/SM_c_e000_n000", mesh),
+        *[("delete_asset", f"{ROOM_FOLDER}/_import/{m}") for m in usemtl],  # importer by-products
         ("set_nanite", mesh, True),
         *[("set_material", mesh, i, f"{ROOM_FOLDER}/Materials/MI_{m}") for i, m in enumerate(usemtl)],
         ("save", mesh),
-        ("import", f"SM_{ROOM}_collision_c_e000_n000.glb", ROOM_FOLDER, collision.rsplit("/", 1)[1], None),
+        (
+            "import",
+            f"SM_{ROOM}_collision_c_e000_n000.glb",
+            f"{ROOM_FOLDER}/_import",
+            collision.rsplit("/", 1)[1],
+            None,
+        ),
+        ("rename", f"{ROOM_FOLDER}/_import/{collision.rsplit('/', 1)[1]}", collision),
         ("set_nanite", collision, False),
         ("save", collision),
         # the interior zone actor: rebuilt as an editor check, then unloaded
@@ -336,6 +355,7 @@ def test_run_sequence(fake, unreal, parent, zone, it):
     assert set(fake.registry) == _expected_assets(zone.expected) | _expected_assets(zone.room_expected) | {
         DEFAULT_LEVEL,
         M_ZONE_SCAN,
+        DEFAULT_TEX,
         SUBLEVEL,
     }
     assert zone.room_expected["sublevel"] == SUBLEVEL
@@ -452,16 +472,60 @@ def test_parent_zone_actor_missing_errors(fake, unreal, parent, zone, it):
 
 
 def test_register_path_b(fake, unreal, parent, zone, it, monkeypatch):
+    fake.saved_levels.clear()
     _run(it, zone, register=True)
     assert fake.calls_of("add_level_to_world") == [("add_level_to_world", SUBLEVEL)]
     i = fake.calls.index(("add_level_to_world", SUBLEVEL))
-    assert fake.calls[i - 1] == ("load_level", DEFAULT_LEVEL)  # once the persistent level is open again
-    # sz.register_interior_sublevel saves the persistent map by path (V-03 fix), not the current (sub)level
-    assert fake.calls[i + 1 : i + 3] == [("save_map", DEFAULT_LEVEL), ("rebuild_in_editor", ZONE)]
+    # register is the last editor step: the reopened persistent level gets its parent rebuilt and is saved
+    # while it is still the current level; then sz looks for an existing entry (none on the first run)
+    assert fake.calls[i - 4 : i] == [
+        ("load_level", DEFAULT_LEVEL),
+        ("rebuild_in_editor", ZONE),
+        ("save_current_level",),
+        ("get_streaming_level", SUBLEVEL),
+    ]
+    # add_level_to_world made the sublevel current (V-03): sz makes the persistent level current again and
+    # saves the persistent map by path; no save_current_level() after add_level_to_world (pc-findings #4)
+    assert fake.calls[i + 1 :] == [("set_current_level", DEFAULT_LEVEL), ("save_map", DEFAULT_LEVEL)]
     assert fake.calls_of("save_map") == [("save_map", DEFAULT_LEVEL)]
+    # disk writes: persistent (before new_level), sublevel, persistent (step 10), persistent (register)
+    assert fake.saved_levels == [DEFAULT_LEVEL, SUBLEVEL, DEFAULT_LEVEL, DEFAULT_LEVEL]
+    # the persistent level is current when run() returns: a following zone_import.run(level=None) spawns there
+    assert fake.current_level == DEFAULT_LEVEL
+    assert _zone_labels(fake, unreal) == [f"Zone_{ZONE}", f"Zone_{ROOM}"]
     registered = f"synthetic_zone: sublevel {SUBLEVEL} registered in Levels (initially unloaded, hidden)"
     assert registered in fake.logged("log") and fake.logged("warning") == []
+    # re-run (the normal workflow): the entry saved with the persistent map last run is found with
+    # GameplayStatics.get_streaming_level and reused; add_level_to_world would return None ("already exists
+    # in the world") and the run would warn "could not register"
+    entry = fake.streaming_levels[(DEFAULT_LEVEL, SUBLEVEL)]
+    entry.set_editor_property("initially_loaded", True)  # e.g. toggled by hand in Window > Levels
+    entry.set_editor_property("initially_visible", True)
+    fake.calls.clear()
+    fake.logs.clear()
+    _run(it, zone, register=True)
+    assert fake.calls_of("add_level_to_world") == [] and ("get_streaming_level", SUBLEVEL) in fake.calls
+    assert fake.calls[-2:] == [("get_streaming_level", SUBLEVEL), ("save_map", DEFAULT_LEVEL)]
+    assert entry.get_editor_property("initially_loaded") is False
+    assert entry.get_editor_property("initially_visible") is False
+    kept = (
+        f"synthetic_zone: sublevel {SUBLEVEL} already registered in Levels; kept (initially unloaded, hidden)"
+    )
+    assert kept in fake.logged("log") and registered not in fake.logged("log")
+    assert fake.logged("warning") == [] and fake.current_level == DEFAULT_LEVEL
+    # without set_current_level_by_name: still saved by path, and a warning says how to fix the current level
+    fake.streaming_levels.clear()  # a first registration again
+    with monkeypatch.context() as m:
+        m.delattr(fake_unreal.LevelEditorSubsystem, "set_current_level_by_name")
+        fake.calls.clear()
+        fake.logs.clear()
+        _run(it, zone, register=True)
+    assert fake.calls[-2:] == [("add_level_to_world", SUBLEVEL), ("save_map", DEFAULT_LEVEL)]
+    warnings = fake.logged("warning")
+    assert len(warnings) == 1 and "Window > Levels" in warnings[0] and DEFAULT_LEVEL in warnings[0]
+    assert registered in fake.logged("log") and fake.current_level == SUBLEVEL
     # without EditorLevelUtils the registration is skipped with a warning and the run still completes
+    fake.streaming_levels.clear()  # not registered yet, so add_level_to_world is needed
     monkeypatch.delattr(unreal, "EditorLevelUtils")
     fake.calls.clear()
     fake.logs.clear()
@@ -469,6 +533,46 @@ def test_register_path_b(fake, unreal, parent, zone, it, monkeypatch):
     assert fake.calls_of("add_level_to_world") == [] and result["interior"]["sublevel"] == SUBLEVEL
     warnings = fake.logged("warning")
     assert len(warnings) == 1 and warnings[0].startswith("synthetic_zone: could not register the sublevel")
+
+
+def test_parent_version_follows_level_actor(fake, unreal, parent, zone, it):
+    """The parent is checked against, and rebuilt at, the version its Zone_<parent> actor has in the level,
+    not the newest Content version."""
+    content = Path(fake.content_dir) / "Golmok" / "Zones" / ZONE
+    v2 = content / "v2" / "manifest.json"
+    v2.parent.mkdir()
+    shutil.copyfile(content / "v1" / "manifest.json", v2)
+
+    def moved_door(m):
+        m["version"] = 2
+        m["portals"][0]["pose_enu"]["position"][0] += 1.0  # v2's door no longer meets the room's
+
+    _rewrite(v2, moved_door)
+    actor = next(a for a in fake.actors if isinstance(a, unreal.GolmokZone))
+    assert (actor.get_editor_property("zone_id"), actor.get_editor_property("version")) == (ZONE, 1)
+    result = _run(it, zone)  # v1 is checked (v2 would fail the round trip)
+    assert result["interior"]["parent_version"] == 1 and result["interior"]["round_trip"]["ok"] is True
+    assert actor.get_editor_property("version") == 1  # not switched to the newest Content version
+    assert fake.calls[-2:] == [("rebuild_in_editor", ZONE), ("save_current_level",)]
+    # an actor at v2 is checked against v2's manifest
+    actor.set_editor_property("version", 2)
+    fake.calls.clear()
+    with pytest.raises(it.InteriorSetupError) as info:
+        _run(it, zone)
+    assert info.value.step == "portal" and "1.000 m apart" in info.value.message
+    assert fake.calls == [("load_level", DEFAULT_LEVEL)]
+    # an actor at a version without a Content manifest: nothing is imported
+    actor.set_editor_property("version", 3)
+    fake.calls.clear()
+    fake.logs.clear()
+    with pytest.raises(it.InteriorSetupError) as info:
+        _run(it, zone)
+    assert str(info.value) == (
+        f"interior_setup: ERROR parent: Zone_{ZONE} is v3 but <Content>/Golmok/Zones/{ZONE}/v3/manifest.json "
+        "is missing: run zone_import.run on that version"
+    )
+    assert fake.calls == [("load_level", DEFAULT_LEVEL)] and fake.logs == []
+    assert actor.get_editor_property("version") == 3
 
 
 def test_editor_failures_are_wrapped(fake, parent, zone, it, zi, monkeypatch):

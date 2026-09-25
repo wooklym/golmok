@@ -159,10 +159,11 @@ def terrain_instance(texture, parent, path):
 
 def build_zone_scan_material(default_texture, vt=True, overwrite=False):
     """M_ZoneScan (vt=True) or M_ZoneScan_NoVT: TextureSampleParameter2D "BaseColor" whose default is
-    `default_texture` (a virtual-texture sampler needs a VT texture there, so zone_import passes the first
-    VT texture it imported; design D6, runbook #10), sampler type SAMPLERTYPE_VIRTUAL_COLOR or
-    SAMPLERTYPE_COLOR, Roughness 0.8, no normal, used_with_nanite. An existing material is only loaded
-    unless overwrite=True."""
+    `default_texture` (a virtual-texture sampler needs a VT texture there; zone_import passes the master's own
+    T_ZoneScanDefault[_NoVT], never a zone texture, which a zone re-import would force-delete; design D6,
+    runbook #10), sampler type SAMPLERTYPE_VIRTUAL_COLOR or SAMPLERTYPE_COLOR, Roughness 0.8, no normal,
+    used_with_nanite. An existing material is only loaded unless overwrite=True (zone_import repairs its
+    default in place)."""
     name = ZONE_SCAN_NAME if vt else ZONE_SCAN_NOVT_NAME
     mat, created = _new_material(name, overwrite)
     if not created:

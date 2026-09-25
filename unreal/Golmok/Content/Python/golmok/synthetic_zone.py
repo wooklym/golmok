@@ -599,24 +599,53 @@ def _build_interior(work_dir, import_assets, mapping, return_level):
     return path
 
 
+def _make_current(persistent, sublevel):
+    """Make the persistent level current again after add_level_to_world (set_current_level_by_name matches
+    the short package name); only warns when it cannot (pc-verify-wp06 #36)."""
+    level_editor = unreal.get_editor_subsystem(unreal.LevelEditorSubsystem)
+    name = persistent.rsplit("/", 1)[-1]
+    try:
+        ok = hasattr(level_editor, "set_current_level_by_name") and bool(
+            level_editor.set_current_level_by_name(name)
+        )
+    except Exception:
+        ok = False
+    if not ok:
+        unreal.log_warning(
+            f"synthetic_zone: {sublevel} is still the current level; double-click {persistent} in Window > "
+            "Levels before spawning or saving (pc-verify-wp06 #36)"
+        )
+
+
 def register_interior_sublevel(zone_id=INTERIOR_ZONE_ID, version=INTERIOR_VERSION):
     """Path B only (DefaultGame.ini InteriorStreamingMode=NamedStreamingLevel): add the interior sublevel to
     the open persistent level's Levels list (Window > Levels) as a streaming level that is neither loaded nor
-    visible at start, and save. run() never does this, so the default LevelInstance path really goes through
-    LoadLevelInstance. Returns the LevelStreaming object, or None (with a warning) when the editor refused.
+    visible at start, and save. An entry that is already there (a re-run) is kept and reset to that state
+    (GameplayStatics.get_streaming_level). run() never does this, so the default LevelInstance path really
+    goes through LoadLevelInstance. Returns the LevelStreaming object, or None (with a warning) when the
+    editor refused.
     zone_id/version default to the WP-05 fixture; interior_setup.run(register=True) passes its own zone."""
     int_manifest = _load_manifest(zone_id, version)
     path = sublevel_path(int_manifest)
     try:
         world = unreal.get_editor_subsystem(unreal.UnrealEditorSubsystem).get_editor_world()
         persistent = world.get_path_name().split(".")[0]
-        streaming = unreal.EditorLevelUtils.add_level_to_world(world, path, unreal.LevelStreamingDynamic)
-        if streaming is None:
-            raise RuntimeError(f"add_level_to_world({path}) returned None")
+        # Re-run: the entry saved with the persistent map last time is reused (add_level_to_world would return
+        # None, "A level with that name already exists in the world"); it does not change the current level.
+        streaming = unreal.GameplayStatics.get_streaming_level(world, path)
+        reused = streaming is not None
+        if not reused:
+            streaming = unreal.EditorLevelUtils.add_level_to_world(world, path, unreal.LevelStreamingDynamic)
+            if streaming is None:
+                raise RuntimeError(f"add_level_to_world({path}) returned None")
         streaming.set_editor_property("initially_loaded", False)
         streaming.set_editor_property("initially_visible", False)
-        # add_level_to_world makes the new sublevel the *current* level, so save_current_level() would save
-        # the sublevel and leave the persistent map (which now references it) unsaved (V-03). Save by path.
+        if not reused:
+            # add_level_to_world makes the new sublevel the *current* level (V-03): make the persistent level
+            # current again, or later spawns and save_current_level() calls would go to the sublevel.
+            _make_current(persistent, path)
+        # Save by path anyway: the persistent map (which now references the sublevel) is saved even when the
+        # current level could not be restored (V-03).
         if not unreal.EditorLoadingAndSavingUtils.save_map(world, persistent):
             raise RuntimeError(f"save_map({persistent}) failed")
     except Exception as e:
@@ -625,7 +654,8 @@ def register_interior_sublevel(zone_id=INTERIOR_ZONE_ID, version=INTERIOR_VERSIO
             f"or keep InteriorStreamingMode=LevelInstance ({e})"
         )
         return None
-    unreal.log(f"synthetic_zone: sublevel {path} registered in Levels (initially unloaded, hidden)")
+    state = "already registered in Levels; kept" if reused else "registered in Levels"
+    unreal.log(f"synthetic_zone: sublevel {path} {state} (initially unloaded, hidden)")
     return streaming
 
 

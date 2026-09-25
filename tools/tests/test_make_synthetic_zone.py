@@ -8,9 +8,12 @@ on the OBJ and collision GLB geometry.
 
 from __future__ import annotations
 
+import ast
 import importlib
 import json
+import os
 import re
+import shutil
 import struct
 import subprocess
 import sys
@@ -218,10 +221,26 @@ def test_script_runs_in_subprocess_with_unicode_path(run):
     lines = proc.stdout.splitlines()
     wrote = [ln[len("wrote ") :] for ln in lines if ln.startswith("wrote ")]
     assert set(wrote) == EXPECTED_FILES and len(wrote) == len(EXPECTED_FILES)
-    assert lines[-1].startswith('next: import golmok.zone_import as zi; zi.run(r"')
+    prefix = "next: import golmok.zone_import as zi; zi.run("
+    assert lines[-1].startswith(prefix)
+    arg = lines[-1][len(prefix) : lines[-1].index(", level=")]
+    got = os.path.normpath(ast.literal_eval(arg))
+    assert got == os.path.normpath(str(run.out / "zones" / ZONE))  # pasteable for a non-ASCII folder
     assert lines[-1].endswith('level="/Game/Golmok/Maps/L_ZoneTest", geo_origin="area")')
     assert len(lines) == len(EXPECTED_FILES) + 1
     assert _tree(run.out) == EXPECTED_FILES  # exact set, case included, no extras
+
+
+@pytest.mark.parametrize(
+    "path",
+    ["D:\\golmok_synth\\zones\\z", "/tmp/a b/z", "D:\\합성\\z", "D:\\x\\", 'D:\\"q"', "/tmp/\U0001f600/z"],
+)
+def test_path_literal_round_trips(path):
+    lit = msz._path_literal(path)
+    assert lit.isascii() and msz._ascii(lit) == lit
+    assert ast.literal_eval(lit) == path
+    if path in ("D:\\golmok_synth\\zones\\z", "/tmp/a b/z"):
+        assert lit == f'r"{path}"'  # runbook §1 example form stays valid for ASCII folders
 
 
 def test_output_validates_strict(run):
@@ -655,3 +674,32 @@ def test_no_dev_only_imports():
     assert msz.DEFAULT_TILE_PX == 256 and msz.DEFAULT_ZONE_ID == ZONE
     assert set(msz.output_files(ZONE, interior=True)) == EXPECTED_FILES
     assert len(msz.output_files(ZONE, interior=False)) == 17
+
+
+GITIGNORED_GENERATED = (
+    "unreal/Golmok/Content/Golmok/Zones/z_synthetic_scan_001/v1/manifest.json",
+    "unreal/Golmok/Content/Golmok/Zones/z_synthetic_scan_001/v1/blockers.json",
+    "unreal/Golmok/Content/Golmok/Zones/z_synthetic_scan_001/v1/SM_c_0_0.uasset",
+    "unreal/Golmok/Content/Golmok/Zones/z_synthetic_scan_001/v1/Textures/T_c_0_0_1001.uasset",
+    "unreal/Golmok/Content/Golmok/Zones/z_synthetic_scan_001_room/v1/L_z_synthetic_scan_001_room.umap",
+    "unreal/Golmok/Content/Golmok/Maps/L_Spike_b.umap",
+    "unreal/Golmok/Content/Golmok/Maps/L_Spike_ac_BuiltData.uasset",
+)
+
+
+def test_gitignore_covers_generated_zone_assets():
+    """pc-findings #6: what zone_import / interior_setup (from this script's output) and spike_runner
+    regenerate is never committed; the product material (M_ZoneScan) and the tracked V-03 manifests stay."""
+    lines = (REPO / ".gitignore").read_text(encoding="utf-8").splitlines()
+    assert "unreal/Golmok/Content/Golmok/Zones/z_synthetic_scan_001*/" in lines
+    assert "unreal/Golmok/Content/Golmok/Maps/L_Spike_*" in lines
+    git = shutil.which("git")
+    if git is None or not (REPO / ".git").exists():
+        return
+    for rel in GITIGNORED_GENERATED:
+        assert subprocess.run([git, "check-ignore", "-q", rel], cwd=REPO).returncode == 0, rel
+    for rel in (
+        "unreal/Golmok/Content/Golmok/Materials/M_ZoneScan.uasset",
+        "unreal/Golmok/Content/Golmok/Zones/z_synthetic_001/v1/manifest.json",
+    ):
+        assert subprocess.run([git, "check-ignore", "-q", rel], cwd=REPO).returncode == 1, rel

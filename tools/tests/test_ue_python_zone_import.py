@@ -33,6 +33,8 @@ ROOM_FOLDER = f"/Game/Golmok/Zones/{ROOM}/v1"
 MATERIALS = "/Game/Golmok/Materials"
 M_ZONE_SCAN = f"{MATERIALS}/M_ZoneScan"
 M_ZONE_SCAN_NOVT = f"{MATERIALS}/M_ZoneScan_NoVT"
+DEFAULT_TEX = f"{MATERIALS}/T_ZoneScanDefault"  # the masters' own default textures (runbook #10)
+DEFAULT_TEX_NOVT = f"{MATERIALS}/T_ZoneScanDefault_NoVT"
 PROBE = f"{FOLDER}/_probe"
 TILES = f"{FOLDER}/Textures/_tiles"
 IDENTITY = ((1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0))
@@ -144,10 +146,17 @@ def test_run_call_order_and_registry(fake, unreal, zone, zi):
         ("delete_directory", PROBE),
         ("import", "_probe.glb", PROBE, "SM_probe_glb", None),
         ("delete_directory", PROBE),
-        ("import", "facade.1001.png", f"{FOLDER}/Textures", "T_facade", None),
+        # V-03 (pc-findings #1): every import goes to a scratch _import folder and is moved to its path
+        ("import", "facade.1001.png", f"{FOLDER}/Textures/_import", "T_facade", None),
+        ("rename", f"{FOLDER}/Textures/_import/T_facade", f"{FOLDER}/Textures/T_facade"),
         ("save", f"{FOLDER}/Textures/T_facade"),
-        ("import", "ground.png", f"{FOLDER}/Textures", "T_ground", None),
+        ("import", "ground.png", f"{FOLDER}/Textures/_import", "T_ground", None),
+        ("rename", f"{FOLDER}/Textures/_import/T_ground", f"{FOLDER}/Textures/T_ground"),
         ("save", f"{FOLDER}/Textures/T_ground"),
+        # the master's own default texture (never a zone texture; runbook #10), created once
+        ("import", "T_ZoneScanDefault.png", f"{MATERIALS}/_import", "T_ZoneScanDefault", None),
+        ("rename", f"{MATERIALS}/_import/T_ZoneScanDefault", DEFAULT_TEX),
+        ("save", DEFAULT_TEX),
         ("create_asset", "M_ZoneScan", MATERIALS, "Material"),
         ("save", M_ZONE_SCAN),
         ("create_asset", "MI_facade", f"{FOLDER}/Materials", "MaterialInstanceConstant"),
@@ -158,15 +167,17 @@ def test_run_call_order_and_registry(fake, unreal, zone, zi):
     for cid in CHUNKS:
         mesh, usemtl = f"{FOLDER}/SM_{cid}", _usemtl(zone, cid)
         assert sorted(usemtl) == ["facade", "ground"]
-        calls.append(("import", f"SM_{cid}.obj", FOLDER, f"SM_{cid}", "fbx"))
-        calls += [("delete_asset", f"{FOLDER}/{m}") for m in usemtl]  # importer by-products
+        calls.append(("import", f"SM_{cid}.obj", f"{FOLDER}/_import", f"SM_{cid}", "fbx"))
+        calls.append(("rename", f"{FOLDER}/_import/SM_{cid}", mesh))
+        calls += [("delete_asset", f"{FOLDER}/_import/{m}") for m in usemtl]  # importer by-products
         calls.append(("set_nanite", mesh, True))
         calls += [("set_material", mesh, i, f"{FOLDER}/Materials/MI_{m}") for i, m in enumerate(usemtl)]
         calls.append(("save", mesh))
     for cid in CHUNKS:
         name = f"SM_{ZONE}_collision_{cid}"
         calls += [
-            ("import", f"{name}.glb", FOLDER, name, None),
+            ("import", f"{name}.glb", f"{FOLDER}/_import", name, None),
+            ("rename", f"{FOLDER}/_import/{name}", f"{FOLDER}/{name}"),
             ("set_nanite", f"{FOLDER}/{name}", False),
             ("save", f"{FOLDER}/{name}"),
         ]
@@ -177,8 +188,15 @@ def test_run_call_order_and_registry(fake, unreal, zone, zi):
         ("save_current_level",),
     ]
     assert fake.calls == calls
-    assert set(fake.registry) == _expected_assets(zone.expected) | {DEFAULT_LEVEL, M_ZONE_SCAN}
-    assert not [k for k in fake.registry if "_probe" in k or "_tiles" in k]
+    assert set(fake.registry) == _expected_assets(zone.expected) | {DEFAULT_LEVEL, M_ZONE_SCAN, DEFAULT_TEX}
+    assert not [k for k in fake.registry if "_probe" in k or "_tiles" in k or "/_import" in k]
+    default = fake.registry[M_ZONE_SCAN].expressions[0].props["texture"]
+    assert default is fake.registry[DEFAULT_TEX] and default.get_editor_property("virtual_texture_streaming")
+    png_tasks = [t for t in fake.tasks if t.filename.endswith(".png")]
+    udim = {
+        Path(t.filename).name: t.options.material_pipeline.texture_pipeline.import_udi_ms for t in png_tasks
+    }
+    assert udim == {"facade.1001.png": True, "ground.png": False, "T_ZoneScanDefault.png": False}
     assert f"{FOLDER}/SM_{ZONE}_collision" not in fake.registry  # collision.glb is not imported (D7)
     assert [c[1] for c in _imports(fake, ".glb")] == ["_probe.glb"] + [
         f"SM_{ZONE}_collision_{cid}.glb" for cid in CHUNKS
@@ -204,6 +222,10 @@ def test_run_call_order_and_registry(fake, unreal, zone, zi):
         "zone_import: geo origin lat=37.560000 lon=126.923000 h=40.000 (spec area origin)",
         f"zone_import: zone Zone_{ZONE} rebuilt",
         f"zone_import: done {ZONE} v1: 8 assets, 0 warnings -> {result_path}",
+        f"zone_import: moved {FOLDER}/_import/SM_c_e000_n000 -> {FOLDER}/SM_c_e000_n000 "
+        "(importer placement; runbook #37)",
+        f"zone_import: moved {FOLDER}/Textures/_import/T_facade -> {FOLDER}/Textures/T_facade "
+        "(importer placement; runbook #37)",
     ):
         assert line in logs, line
     cache = Path(fake.saved_dir) / "Golmok" / "zone_import" / "importer_mapping.json"
@@ -218,6 +240,11 @@ def test_run_call_order_and_registry(fake, unreal, zone, zi):
     prefixes = tuple(pure.log_prefixes().values())
     for text in logs:
         assert text.startswith(prefixes) or text.startswith("  - ") or text.startswith("Created "), text
+    # runbook §2 quotes the first-run master line between the texture and the material lines
+    created = logs.index(f"Created {M_ZONE_SCAN}")
+    last_texture = max(i for i, text in enumerate(logs) if text.startswith("zone_import: texture "))
+    first_material = min(i for i, text in enumerate(logs) if text.startswith("zone_import: material "))
+    assert last_texture < created < first_material
 
 
 @pytest.mark.parametrize("kind", ["obj", "glb"])
@@ -396,11 +423,16 @@ def test_udim_pack_fallback(monkeypatch, tmp_path, zone):
     packed_at = fake.calls.index(("make_udim", f"{FOLDER}/Textures/T_facade", [(0, 0), (1, 0), (0, 1)]))
     assert fake.calls.index(tile_imports[-1]) < packed_at < fake.calls.index(("delete_directory", TILES))
     assert fake.calls.index(
-        ("import", "facade.1001.png", f"{FOLDER}/Textures", "T_facade", None)
+        ("import", "facade.1001.png", f"{FOLDER}/Textures/_import", "T_facade", None)
     ) < fake.calls.index(tile_imports[0])
     assert [c for c in fake.calls_of("import") if c[1] == "ground.png"] == [
-        ("import", "ground.png", f"{FOLDER}/Textures", "T_ground", None)
+        ("import", "ground.png", f"{FOLDER}/Textures/_import", "T_ground", None)
     ]  # a single texture never takes the fallback
+    # the anchor is packed over in place: no force delete of T_facade (runbook #10)
+    assert ("delete_asset", f"{FOLDER}/Textures/T_facade") not in fake.calls
+    tile_tasks = [t for t in fake.tasks if f"{TILES}" == t.destination_path]
+    assert len(tile_tasks) == 3
+    assert all(t.options.material_pipeline.texture_pipeline.import_udi_ms is False for t in tile_tasks)
     tex = fake.registry[f"{FOLDER}/Textures/T_facade"]
     assert tex.size == (512, 512) and tex.tiles == [1001, 1002, 1011]
     assert tex.get_editor_property("virtual_texture_streaming") is True
@@ -442,11 +474,14 @@ def test_novt_master_when_vt_cannot_be_enabled(monkeypatch, tmp_path, zone):
     zi = importlib.import_module("golmok.zone_import")
     result = _run(zi, zone)
     assert M_ZONE_SCAN_NOVT in fake.registry and M_ZONE_SCAN not in fake.registry  # no VT texture at all
+    assert DEFAULT_TEX_NOVT in fake.registry and DEFAULT_TEX not in fake.registry
     novt = fake.registry[M_ZONE_SCAN_NOVT]
     sampler = novt.expressions[0]
     assert sampler.class_name == "MaterialExpressionTextureSampleParameter2D"
     assert sampler.props["sampler_type"] == fake.module.MaterialSamplerType.SAMPLERTYPE_COLOR
-    assert sampler.props["texture"] is fake.registry[f"{FOLDER}/Textures/T_facade"]
+    assert sampler.props["texture"] is fake.registry[DEFAULT_TEX_NOVT]  # the master's own, VT off
+    assert fake.registry[DEFAULT_TEX_NOVT].get_editor_property("virtual_texture_streaming") is False
+    assert result["warnings"] == []
     for name in ("MI_facade", "MI_ground"):
         assert fake.registry[f"{FOLDER}/Materials/{name}"].parent is novt
     assert all(a["detail"]["vt"] is False for a in result["assets"] if a["kind"] == "texture")
@@ -463,18 +498,115 @@ def test_mixed_vt_textures_get_both_masters(monkeypatch, tmp_path, zone):
         monkeypatch, tmp_path, udim_merge=False, texture_vt_default=False, vt_settable=False
     )
     zi = importlib.import_module("golmok.zone_import")
-    _run(zi, zone)
+    result = _run(zi, zone)
     vt, novt = fake.registry[M_ZONE_SCAN], fake.registry[M_ZONE_SCAN_NOVT]
     assert (
         vt.expressions[0].props["sampler_type"] == fake.module.MaterialSamplerType.SAMPLERTYPE_VIRTUAL_COLOR
     )
+    # T_ZoneScanDefault cannot be made VT here (vt_settable=False): M_ZoneScan falls back to the zone's VT
+    # texture with a warning; the NoVT master keeps its own default
     assert vt.expressions[0].props["texture"] is fake.registry[f"{FOLDER}/Textures/T_facade"]
-    assert novt.expressions[0].props["texture"] is fake.registry[f"{FOLDER}/Textures/T_ground"]
+    assert result["warnings"] == [
+        f"T_ZoneScanDefault: virtual texture streaming could not be set to on; M_ZoneScan default is "
+        f"{FOLDER}/Textures/T_facade (runbook #10)"
+    ]
+    assert novt.expressions[0].props["texture"] is fake.registry[DEFAULT_TEX_NOVT]
     assert fake.registry[f"{FOLDER}/Materials/MI_facade"].parent is vt
     assert fake.registry[f"{FOLDER}/Materials/MI_ground"].parent is novt
     assert vt.props["used_with_nanite"] is True and novt.props["used_with_nanite"] is True
     assert [c[0] for c in vt.connections] == ["MP_BASE_COLOR", "MP_ROUGHNESS"]
     assert vt.expressions[1].props["r"] == 0.8
+
+
+def test_rerun_with_udim_pack_keeps_master_default(monkeypatch, tmp_path, zone):
+    # delete_asset is a force delete (the fake nulls what pointed at the deleted object): a zone re-import
+    # that replaces T_facade must not leave M_ZoneScan's VT sampler without a default texture (runbook #10)
+    fake = fake_unreal.install(monkeypatch, tmp_path, udim_merge=False)
+    zi = importlib.import_module("golmok.zone_import")
+    _run(zi, zone)
+    first = fake.calls.index(("make_udim", f"{FOLDER}/Textures/T_facade", [(0, 0), (1, 0), (0, 1)]))
+    assert ("delete_asset", f"{FOLDER}/Textures/T_facade") not in fake.calls[:first]  # packed in place
+    _run(zi, zone)  # default reimport_textures=True
+    master = fake.registry[M_ZONE_SCAN]
+    default = master.expressions[0].props["texture"]
+    assert default is fake.registry[DEFAULT_TEX] and default.get_editor_property("virtual_texture_streaming")
+    assert ("delete_asset", DEFAULT_TEX) not in fake.calls
+    facade = fake.registry[f"{FOLDER}/Textures/T_facade"]
+    assert fake.registry[f"{FOLDER}/Materials/MI_facade"].texture_params["BaseColor"] is facade
+    assert fake.registry[f"{FOLDER}/Materials/MI_facade"].parent is master
+    assert fake.logged("warning") == []
+
+
+def test_existing_master_default_is_repaired(fake, unreal, zone, zi):
+    # a master built before T_ZoneScanDefault existed (V-04) points at a zone texture: repaired in place
+    _run(zi, zone)
+    master = fake.registry[M_ZONE_SCAN]
+    sampler = master.expressions[0]
+    sampler.props["texture"] = fake.registry[f"{FOLDER}/Textures/T_facade"]
+    fake.calls.clear()
+    result = _run(zi, zone, reimport_textures=False)  # T_facade stays (a re-import would null the default)
+    assert fake.registry[M_ZONE_SCAN] is master and (
+        "create_asset",
+        "M_ZoneScan",
+        MATERIALS,
+        "Material",
+    ) not in (fake.calls)  # repaired, not recreated: other zones' MI_* keep their parent
+    assert sampler.props["texture"] is fake.registry[DEFAULT_TEX]
+    assert ("save", M_ZONE_SCAN) in fake.calls
+    assert ("recompile_material", (master,)) in fake.mel_calls
+    message = (
+        f"M_ZoneScan BaseColor default was {FOLDER}/Textures/T_facade; set to {DEFAULT_TEX} (runbook #10)"
+    )
+    assert result["warnings"] == [message]
+    fake.calls.clear()
+    fake.logs.clear()
+    result = _run(zi, zone)  # nothing left to repair
+    assert result["warnings"] == [] and ("save", M_ZONE_SCAN) not in fake.calls
+
+
+# ---- importer placement (V-03 pc-findings #1) ----------------------------------------------------------
+
+
+def test_interchange_nested_placement_is_moved(monkeypatch, tmp_path, zone):
+    fake = fake_unreal.install(monkeypatch, tmp_path, nested_glb=True)
+    zi = importlib.import_module("golmok.zone_import")
+    result = _run(zi, zone)
+    for c in zone.expected["collision"]["chunks"].values():
+        assert isinstance(fake.registry[c["asset"]], fake_unreal.FakeStaticMesh)
+    for cid in CHUNKS:
+        name = f"SM_{ZONE}_collision_{cid}"
+        at = fake.calls.index(("import", f"{name}.glb", f"{FOLDER}/_import", name, None))
+        assert fake.calls[at + 1 : at + 3] == [
+            ("rename", f"{FOLDER}/_import/{name}/StaticMeshes/{name}", f"{FOLDER}/{name}"),
+            ("delete_directory", f"{FOLDER}/_import"),
+        ]
+    assert set(fake.registry) == _expected_assets(zone.expected) | {DEFAULT_LEVEL, M_ZONE_SCAN, DEFAULT_TEX}
+    assert not [k for k in fake.registry if "/_import/" in k or "/StaticMeshes/" in k]
+    assert result["warnings"] == [] and fake.logged("warning") == []
+    logs = fake.logged("log")
+    assert f"zone_import: done {ZONE} v1: 8 assets, 0 warnings -> " in " ".join(logs)
+    moved = [t for t in logs if t.startswith("zone_import: moved ") and "/StaticMeshes/" in t]
+    names = [f"SM_{ZONE}_collision_{cid}" for cid in CHUNKS]
+    assert moved == [
+        f"zone_import: moved {FOLDER}/_import/{n}/StaticMeshes/{n} -> {FOLDER}/{n} "
+        "(importer placement; runbook #37)"
+        for n in names
+    ]
+    # the glTF material instances Interchange left beside the mesh go with the scratch folder (logged)
+    for cid in CHUNKS:
+        leftover = f"{FOLDER}/_import/SM_{ZONE}_collision_{cid}/Materials/collision_{cid}_mat"
+        assert f"zone_import: deleted importer-created asset {leftover}" in logs
+
+
+def test_ensure_path_reports_undeletable_target(fake, unreal, zone, zi, monkeypatch):
+    _run(zi, zone)
+    monkeypatch.setattr(unreal.EditorAssetLibrary, "delete_asset", staticmethod(lambda path: False))
+    with pytest.raises(zi.ZoneImportError) as info:
+        _run(zi, zone)
+    target = f"{FOLDER}/Textures/T_facade"
+    assert info.value.step == "texture T_facade"
+    assert f"{target} exists and could not be deleted (referenced?)" in info.value.message
+    assert not [k for k in fake.registry if "/_import/" in k]  # the scratch folder is dropped even then
 
 
 # ---- materials and slots -------------------------------------------------------------------------------
@@ -483,9 +615,12 @@ def test_mixed_vt_textures_get_both_masters(monkeypatch, tmp_path, zone):
 def test_importer_materials_deleted_and_slots_assigned(fake, unreal, zone, zi):
     _run(zi, zone)
     deletes = fake.calls_of("delete_asset")
-    assert sorted(deletes) == sorted([("delete_asset", f"{FOLDER}/{m}") for m in ("facade", "ground")] * 2)
-    assert f"{FOLDER}/facade" not in fake.registry and f"{FOLDER}/ground" not in fake.registry
-    assert fake.logged("log").count(f"zone_import: deleted importer-created asset {FOLDER}/facade") == 2
+    by_products = [("delete_asset", f"{FOLDER}/_import/{m}") for m in ("facade", "ground")] * 2
+    assert sorted(deletes) == sorted(by_products)
+    assert not [k for k in fake.registry if k.endswith(("/facade", "/ground"))]
+    assert (
+        fake.logged("log").count(f"zone_import: deleted importer-created asset {FOLDER}/_import/facade") == 2
+    )
     for cid in CHUNKS:
         mesh = fake.registry[f"{FOLDER}/SM_{cid}"]
         assert mesh.nanite.enabled is True
@@ -534,10 +669,52 @@ def test_slot_fallback_usemtl_order(monkeypatch, tmp_path, zone):
     assert chunk["detail"]["unmatched"] == ["stray"] and len(chunk["detail"]["slots"]) == 2
 
 
+def test_engine_udim_name_single_texture(monkeypatch, tmp_path, zone_copy):
+    # UTextureFactory's UDIM rule is [._]#### (>= 1001), wider than the plan's BaseName.1001..1999.ext:
+    # a single 'ground_1002.png' is imported with UDIM detection off (runbook #38)
+    tex = zone_copy.tex / "ground.png"
+    tex.rename(tex.with_name("ground_1002.png"))
+    mtl = zone_copy.version / "visual" / "scan.mtl"
+    mtl.write_text(mtl.read_text("utf-8").replace("tex/ground.png", "tex/ground_1002.png"), encoding="utf-8")
+    fake = fake_unreal.install(monkeypatch, tmp_path, engine_udim_regex=True)
+    zi = importlib.import_module("golmok.zone_import")
+    result = _run(zi, zone_copy)
+    task = next(t for t in fake.tasks if t.filename.endswith("ground_1002.png"))
+    assert task.options.material_pipeline.texture_pipeline.import_udi_ms is False
+    facade = next(t for t in fake.tasks if t.filename.endswith("facade.1001.png"))
+    assert facade.options.material_pipeline.texture_pipeline.import_udi_ms is True
+    assert fake.registry[f"{FOLDER}/Textures/T_ground_1002"].size == (256, 256)
+    plan_warning = next(w for w in result["warnings"] if "ground_1002.png" in w)
+    assert (
+        "[._]####" in plan_warning and "UDIM detection off" in plan_warning and "runbook #38" in plan_warning
+    )
+    assert (
+        f"zone_import: texture {FOLDER}/Textures/T_ground_1002 tiles=[] size=256x256 vt=on (single texture)"
+        in fake.logged("log")
+    )
+    # an importer that ignores the option places the tile as UDIM block (1, 0): the size check warns
+    monkeypatch.setattr(zi, "_texture_options", lambda udim=True: None)
+    fake.logs.clear()
+    result = _run(zi, zone_copy)
+    assert fake.registry[f"{FOLDER}/Textures/T_ground_1002"].size == (512, 256)
+    message = (
+        "texture T_ground_1002: engine imported ground_1002.png as a UDIM (512x256 != file 256x256; "
+        "name matches [._]####); rename the file (runbook #38)"
+    )
+    assert message in result["warnings"]
+    assert (
+        f"zone_import: texture {FOLDER}/Textures/T_ground_1002 tiles=[] size=512x256 vt=on "
+        "(imported as UDIM by the engine (WARNING))"
+    ) in fake.logged("log")
+
+
 def test_texture_options_hops(fake, unreal, zi, monkeypatch):
     options = zi._texture_options()
     assert isinstance(options, unreal.InterchangeGenericAssetsPipeline)
     assert options.material_pipeline.texture_pipeline.import_udi_ms is True
+    single = zi._texture_options(udim=False)
+    assert single.material_pipeline.texture_pipeline.import_udi_ms is False
+    assert single.material_pipeline.get_editor_property("import_materials") is False
     assert options.material_pipeline.get_editor_property("import_materials") is False
     ui = zi._obj_options("fbx")
     assert isinstance(ui, unreal.FbxImportUI)
@@ -830,6 +1007,7 @@ def test_interior_zone_imports_like_exterior(fake, zone, zi):
     assert set(fake.registry) == {
         DEFAULT_LEVEL,
         M_ZONE_SCAN,
+        DEFAULT_TEX,
         f"{ROOM_FOLDER}/SM_c_e000_n000",
         f"{ROOM_FOLDER}/SM_{ROOM}_collision_c_e000_n000",
         f"{ROOM_FOLDER}/Textures/T_room",
@@ -853,7 +1031,7 @@ def test_import_assets_alone_touches_no_level(fake, zone, zi):
     assert mappings["obj"][0] == 100.0 and mappings["obj"][1] == M_OBJ and mappings["glb"][1] == IDENTITY
     kinds = {c[0] for c in fake.calls}
     assert not kinds & {"spawn", "load_level", "new_level", "save_current_level", "rebuild_in_editor"}
-    assert set(fake.registry) == _expected_assets(zone.expected) | {DEFAULT_LEVEL, M_ZONE_SCAN}
+    assert set(fake.registry) == _expected_assets(zone.expected) | {DEFAULT_LEVEL, M_ZONE_SCAN, DEFAULT_TEX}
     result = pure.result_json(plan, mappings, assets, warnings, route)
     path = zi.write_result(work, result)
     assert json.loads(Path(path).read_text("utf-8")) == result

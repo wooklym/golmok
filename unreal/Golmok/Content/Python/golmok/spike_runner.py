@@ -5,15 +5,23 @@ performance numbers come from -game runs (D12); the PIE CSV is a reference value
     s.prepare()                                    # which of the 10 viewpoints are missing
     s.capture_all()                                # tags a b c ac x 3 presets x 10 viewpoints in PIE
                                                    #   -> Saved/Screenshots/Golmok/<tag>/<preset>/<name>.png
+    s.capture_all(quit_editor=True)                # unattended -ExecCmds launch: quit the editor at the end
     s.capture_all(tags=("a",), presets=("clear_noon", "night"), mode="editor")   # attended, editor viewport
     s.save_layer_levels(); s.game_scripts(paths=("walk_01",))   # -game CSV runs -> Saved/Golmok/spike/*.ps1
+    s.game_scripts(paths=("walk_01",), res=(2560, 1440))        # labels *_1440p (label_suffix= for DLSS)
     s.perf_all(paths=("walk_01",))                 # PIE CSV (reference only)
     s.contact_sheet(); s.report_template(perf_markdown=open(...).read())
 
-The PIE path is a slate post-tick state machine (one PIE session per tag): the play settings get a 1280x720
-new window (x ScreenshotMultiplier 2 = 2560x1440), every viewpoint becomes a two-sample 600 s dwell path
-(Saved/Golmok/Paths/vp_<name>.json) that the C++ `golmok.path play` follows with the character hidden, and
-`golmok.screenshot <tag> <name>` writes the PNG; all waits are seconds on `_now` (tests use a fake clock).
+The PIE path is a slate post-tick state machine (one PIE session per tag). editor_request_begin_play() plays
+in the first active level viewport (the engine hard-wires that destination; the play-mode and new-window
+settings are not consulted), so the shot size cannot come from a window: every viewpoint becomes a two-sample
+600 s dwell path (Saved/Golmok/Paths/vp_<name>.json) that the C++ `golmok.path play` follows with the
+character hidden, then `HighResShot 2560x1440 filename="<stem>"` (viewpoints.RES_X/RES_Y, explicit) renders
+the PIE game viewport at that size into <name>00000.png, which is renamed to <name>.png; a PNG of another
+size is kept but warned about (runbook #35). Whether a level-viewport PIE keeps drawing with the editor window
+in the background is unverified (V-01: the editor viewport stopped drawing; runbook #35). All waits are
+seconds on `_now` (tests use a fake clock). quit_editor=True ends the editor once the run is over (V-03: a
+trailing `Quit` in -ExecCmds does not; runbook #34).
 Layers: tag a = zone visual, b = Spike_b_* actors, c = Spike_c_* actors, ac = zone + Spike_c_* (design D13).
 Every uncertain editor call sits behind hasattr with a warning naming its row in
 docs/runbooks/pc-verify-wp06.md section 12; log lines come from _pure.LOG (the runbooks quote them).
@@ -38,6 +46,7 @@ SETTLE_S = 1.5
 FILE_TIMEOUT_S = 30.0
 STOPPLAY_WAIT_S = 0.3
 PIE_RESTART_GAP_S = 1.0  # between the end of one tag's PIE and the next editor_request_begin_play
+QUIT_WAIT_S = 5.0  # quit_editor: at most this long for PIE to end (end_play is deferred) before quitting
 CSV_GRACE_S = 60.0  # WAIT_CSV timeout = path length + this
 LAYER_LEVEL_PREFIX = "/Game/Golmok/Maps/L_Spike_"
 MANUAL_WINDOW_HOW = "manual: Editor Preferences > Level Editor > Play > New Window Size (runbook #21)"
@@ -95,7 +104,7 @@ def _viewpoints(level=None):
 
 
 def _path_file(saved_dir, walk):
-    return os.path.join(saved_dir, "Golmok", "Paths", f"{_pure.validate_name(walk)}.json")
+    return os.path.join(saved_dir, *_pure.PATH_FOLDER.split("/"), f"{_pure.validate_name(walk)}.json")
 
 
 def _require_path_files(saved_dir, walks):
@@ -188,6 +197,35 @@ def _set_hidden(actor, hidden, editor):
         actor.set_editor_property("hidden", hidden)
 
 
+def _quit_editor(what):
+    """End the editor (unattended -ExecCmds runs; V-03: a trailing `Quit` does not):
+    SystemLibrary.quit_editor, else the QUIT_EDITOR console command (docs/runbooks/pc-setup.md), else a
+    warning (runbook #34)."""
+    _log("sr.quit", what=what)
+    system = getattr(unreal, "SystemLibrary", None)
+    try:
+        if system is not None and hasattr(system, "quit_editor"):
+            system.quit_editor()
+            return True
+        _warn("unreal.SystemLibrary.quit_editor unavailable; sending QUIT_EDITOR (runbook #34)")
+        _console(unreal.get_editor_subsystem(unreal.UnrealEditorSubsystem).get_editor_world(), "QUIT_EDITOR")
+        return True
+    except Exception as e:
+        _warn(f"could not quit the editor: close it by hand (runbook #34); {e}")
+        return False
+
+
+def _start(what, quit_editor, build):
+    """build() the run; with quit_editor an error before the machine exists still ends the editor."""
+    try:
+        return build()
+    except Exception as e:
+        if quit_editor:
+            _warn(f"{what} could not start: {e}")
+            _quit_editor(f"{what} (setup failed)")
+        raise
+
+
 # ---- public: viewpoints, window, layers, layer levels ------------------------------------------------------
 
 
@@ -201,7 +239,10 @@ def prepare(level=None, names=_pure.VIEWPOINT_NAMES):
 
 
 def configure_pie_window(size=_pure.PIE_WINDOW):
-    """New-window PIE at `size` (x ScreenshotMultiplier = the screenshot size); returns how it was set."""
+    """Optional helper for an attended PIE started from the Play button in "New Editor Window (PIE)" mode
+    (e.g. pc-spike S13 `golmok.screenshot`, whose size is the game viewport x ScreenshotMultiplier): sets the
+    new-window size and that play mode; returns how the size was set. capture_all does NOT use it:
+    editor_request_begin_play() always plays in the level viewport and ignores these settings."""
     w, h = (int(v) for v in size)
     how = "LevelEditorPlaySettings"
     try:
@@ -210,13 +251,18 @@ def configure_pie_window(size=_pure.PIE_WINDOW):
         settings = unreal.get_default_object(unreal.LevelEditorPlaySettings)
         settings.set_editor_property("new_window_width", w)
         settings.set_editor_property("new_window_height", h)
-        if hasattr(unreal, "PlayModeType"):
-            settings.set_editor_property(
-                "last_executed_play_mode_type", unreal.PlayModeType.PLAY_MODE_TYPE_PLAY_IN_EDITOR_FLOATING
-            )
     except Exception as e:
         how = MANUAL_WINDOW_HOW
         _warn(f"PIE window: {how}; {e}")
+    else:
+        # EPlayModeType::PlayMode_InEditorFloating, pythonized verbatim (runbook #21)
+        mode = getattr(getattr(unreal, "PlayModeType", None), "PLAY_MODE_IN_EDITOR_FLOATING", None)
+        try:
+            if mode is None:
+                raise AttributeError("unreal.PlayModeType.PLAY_MODE_IN_EDITOR_FLOATING not exposed")
+            settings.set_editor_property("last_executed_play_mode_type", mode)
+        except Exception as e:
+            _warn(f"PIE play mode: set 'New Editor Window (PIE)' by hand (runbook #21); {e}")
     _log("sr.window", w=w, h=h, multiplier=_pure.SCREENSHOT_MULTIPLIER, how=how)
     return how
 
@@ -295,16 +341,18 @@ def save_layer_levels(tags=("b", "c", "ac"), base_level=None):
 class _PieSession:
     """Slate post-tick state machine: one PIE session per tag, jobs (tag, preset, name) tag-major.
 
-    IDLE -> LAYERS -> WINDOW -> BEGIN_PIE -> WAIT_PIE -> WARMUP -> HUD_OFF -> LAYERS_PIE -> JOB -> [TOD] ->
+    IDLE -> LAYERS -> BEGIN_PIE -> WAIT_PIE -> WARMUP -> HUD_OFF -> LAYERS_PIE -> JOB -> [TOD] ->
     <subclass job states> -> JOB ... -> END_PIE -> WAIT_END -> RESTART_GAP -> IDLE (next tag) / DONE. Waits
     are seconds on _now(); tick(dt) is public so tests drive it directly. Errors end the run through _finish
-    (never raise on an editor tick)."""
+    (never raise on an editor tick). With quit_editor the callback stays registered after DONE until PIE has
+    ended (or QUIT_WAIT_S), then quits the editor - on every exit path, after the sr.done line."""
 
     what = "capture"
     first_job_state = "PATH"
-    configure_window = True
 
-    def __init__(self, jobs):
+    def __init__(self, jobs, quit_editor=False):
+        self.quit_editor = bool(quit_editor)
+        self.quit_pending = False
         self.jobs = list(jobs)
         self.saved = []
         self.missing = []
@@ -318,7 +366,6 @@ class _PieSession:
         self.state = "IDLE"
         self.deadline = 0.0
         self.done = False
-        self.window_done = False
         self._statics_warned = False
         self.handle = unreal.register_slate_post_tick_callback(self.tick)
         if self.level_editor.is_in_play_in_editor():
@@ -330,6 +377,8 @@ class _PieSession:
 
     def tick(self, dt=0.0):
         if self.done:
+            if self.quit_pending:
+                self._quit_step()
             return
         try:
             for _ in range(_TICK_CHAIN_LIMIT):
@@ -350,7 +399,11 @@ class _PieSession:
         if self.done:
             return
         self.done = True
-        unreal.unregister_slate_post_tick_callback(self.handle)
+        if self.quit_editor:  # keep ticking: quit once PIE has ended (end_play is deferred), see _quit_step
+            self.quit_pending = True
+            self.deadline = _now() + QUIT_WAIT_S
+        else:
+            unreal.unregister_slate_post_tick_callback(self.handle)
         if warn:
             _warn(message)
         try:
@@ -359,6 +412,17 @@ class _PieSession:
                 _log("sr.pie", state="end", tag=self.tag)
         except Exception as e:
             _warn(f"could not end PIE: {e}")
+
+    def _quit_step(self):
+        """After DONE with quit_editor: wait for PIE to end (at most QUIT_WAIT_S), then quit the editor."""
+        try:
+            if self.level_editor.is_in_play_in_editor() and not self._elapsed():
+                return
+        except Exception:
+            pass
+        self.quit_pending = False
+        unreal.unregister_slate_post_tick_callback(self.handle)
+        _quit_editor(self.what)
 
     def _complete(self):
         self._finish("")
@@ -401,12 +465,6 @@ class _PieSession:
             return True
         if s == "LAYERS":
             apply_layers(self.tag)
-            self.state = "WINDOW"
-            return True
-        if s == "WINDOW":
-            if self.configure_window and not self.window_done:
-                configure_pie_window()
-                self.window_done = True
             self.state = "BEGIN_PIE"
             return True
         if s == "BEGIN_PIE":
@@ -471,13 +529,14 @@ class _PieSession:
 
 
 class _PieCapture(_PieSession):
-    """Screenshots in PIE: per job PATH (golmok.path play vp_<name>) -> SETTLE -> SHOT (golmok.screenshot) ->
-    WAIT_FILE (<name>.png or the HighResShot <name>00000.png fallback, renamed) -> STOPPLAY (always)."""
+    """Screenshots in PIE: per job PATH (golmok.path play vp_<name>) -> SETTLE -> SHOT (HighResShot at the
+    explicit viewpoints.RES_X x RES_Y) -> WAIT_FILE (<name>00000.png renamed to <name>.png, or <name>.png;
+    size checked) -> STOPPLAY (always)."""
 
     what = "capture"
     first_job_state = "PATH"
 
-    def __init__(self, jobs, saved_viewpoints, level):
+    def __init__(self, jobs, saved_viewpoints, level, quit_editor=False):
         self.viewpoints = dict(saved_viewpoints)
         self.level = level
         self.names = sorted({job[2] for job in jobs})
@@ -485,13 +544,13 @@ class _PieCapture(_PieSession):
         self.paths_written = False
         self.path = None
         self.requested_at = 0.0
-        super().__init__(jobs)
-        self.root = os.path.join(self.saved_dir, "Screenshots", "Golmok")
+        super().__init__(jobs, quit_editor)
+        self.root = os.path.join(self.saved_dir, *_pure.SCREENSHOT_FOLDER.split("/"))
 
     def _before_pie(self):
         if self.paths_written:
             return
-        folder = os.path.join(self.saved_dir, "Golmok", "Paths")
+        folder = os.path.join(self.saved_dir, *_pure.PATH_FOLDER.split("/"))
         os.makedirs(folder, exist_ok=True)
         for name in self.names:
             vp = self.viewpoints[name]
@@ -528,9 +587,19 @@ class _PieCapture(_PieSession):
             self.state = "SHOT"
             return True
         if s == "SHOT":
+            # An explicit size: the PIE plays in the level viewport, so `golmok.screenshot` (viewport size x
+            # ScreenshotMultiplier) would give whatever that panel measures (F1). HighResShot reaches the PIE
+            # UGameViewportClient through the player controller and names the file <stem>00000.png (the next
+            # unused counter, so a stale one from an aborted run is removed first). "/" keeps the quoted path
+            # free of backslash escapes.
             self.requested_at = time.time() - 1.0  # file mtime resolution
             self.path = os.path.normpath(_pure.screenshot_path(self.saved_dir, tag, preset, name))
-            _console(self.world, f"golmok.screenshot {tag} {name}")
+            os.makedirs(os.path.dirname(self.path), exist_ok=True)
+            stale = _pure.screenshot_fallback_path(self.path)
+            if os.path.isfile(stale):
+                os.remove(stale)
+            stem = os.path.splitext(self.path)[0].replace("\\", "/")
+            _console(self.world, f'HighResShot {viewpoints.RES_X}x{viewpoints.RES_Y} filename="{stem}"')
             return self._wait(FILE_TIMEOUT_S, "WAIT_FILE")
         if s == "WAIT_FILE":
             size = self._screenshot_ready()
@@ -538,6 +607,11 @@ class _PieCapture(_PieSession):
                 return False
             if size is not None:
                 _log("sr.captured", path=self.path, w=size[0], h=size[1])
+                if tuple(size) != (viewpoints.RES_X, viewpoints.RES_Y):
+                    _warn(
+                        f"{self.path}: {size[0]}x{size[1]}, expected {viewpoints.RES_X}x{viewpoints.RES_Y}"
+                        " (runbook #35)"
+                    )
                 self.saved.append(self.path)
             else:
                 why = "timeout: file exists but is not a PNG" if os.path.exists(self.path) else "timeout"
@@ -562,12 +636,11 @@ class _PiePerf(_PieSession):
 
     what = "perf (PIE, reference only)"
     first_job_state = "PLAY"
-    configure_window = False
 
-    def __init__(self, jobs, lengths_s):
+    def __init__(self, jobs, lengths_s, quit_editor=False):
         self.lengths = dict(lengths_s)
         self.not_before = 0.0
-        super().__init__(jobs)
+        super().__init__(jobs, quit_editor)
         self.root = os.path.join(self.saved_dir, "Profiling", "CSV")
         candidates = _pure.saved_dir_candidates(self.saved_dir, os.environ.get("LOCALAPPDATA"))
         self.csv_dirs = _pure.csv_dirs(candidates)
@@ -612,7 +685,7 @@ class _EditorCapture:
         self.missing = []
         self.captures = []
         self.done = False
-        self.root = os.path.join(_saved_dir(), "Screenshots", "Golmok")
+        self.root = os.path.join(_saved_dir(), *_pure.SCREENSHOT_FOLDER.split("/"))
         self._next()
 
     def _next(self, saved=(), missing=()):
@@ -653,32 +726,46 @@ def _resolve_names(names, saved):
     return chosen
 
 
-def capture_all(tags=_pure.TAGS, presets=_pure.DEFAULT_PRESETS, names=None, mode="pie"):
+def capture_all(tags=_pure.TAGS, presets=_pure.DEFAULT_PRESETS, names=None, mode="pie", quit_editor=False):
     """Screenshots of every (tag, preset, viewpoint): mode 'pie' = unattended PIE state machine (returns the
-    _PieCapture; it runs on slate ticks), mode 'editor' = viewpoints.capture per tag (window in front)."""
+    _PieCapture; it runs on slate ticks), mode 'editor' = viewpoints.capture per tag (window in front).
+    quit_editor=True (pie only; for -ExecCmds launches) quits the editor after the run, also after an
+    error."""
     if mode not in ("pie", "editor"):
         raise ValueError(f"mode must be 'pie' or 'editor', not {mode!r}")
-    tags = tuple(tags)
-    presets = tuple(_pure.validate_name(p) for p in presets)
-    for tag in tags:
-        _pure.layer_state(tag)
-    level, saved = _viewpoints()
-    chosen = _resolve_names(names, saved)
-    if mode == "pie":
-        return _PieCapture(_pure.capture_jobs(tags, presets, chosen), saved, level)
-    return _EditorCapture(tags, presets, chosen)
+    if quit_editor and mode != "pie":
+        raise ValueError("quit_editor needs mode='pie' (mode='editor' is the attended path)")
+
+    def build():
+        tags_ = tuple(tags)
+        presets_ = tuple(_pure.validate_name(p) for p in presets)
+        for tag in tags_:
+            _pure.layer_state(tag)
+        level, saved = _viewpoints()
+        chosen = _resolve_names(names, saved)
+        if mode == "pie":
+            jobs = _pure.capture_jobs(tags_, presets_, chosen)
+            return _PieCapture(jobs, saved, level, quit_editor=quit_editor)
+        return _EditorCapture(tags_, presets_, chosen)
+
+    return _start("capture", quit_editor, build)
 
 
-def perf_all(paths=("walk_01",), tags=_pure.TAGS, presets=("clear_noon",)):
-    """PIE CSV per (tag, preset, path) — reference only; -game (game_scripts) is the measurement of record."""
-    tags = tuple(tags)
-    presets = tuple(_pure.validate_name(p) for p in presets)
-    for tag in tags:
-        _pure.layer_state(tag)
-    walks = tuple(_pure.validate_name(w) for w in paths)
-    files = _require_path_files(_saved_dir(), walks)
-    lengths = {walk: _path_length_s(path) for walk, path in zip(walks, files, strict=True)}
-    return _PiePerf(_pure.capture_jobs(tags, presets, walks), lengths)
+def perf_all(paths=("walk_01",), tags=_pure.TAGS, presets=("clear_noon",), quit_editor=False):
+    """PIE CSV per (tag, preset, path) — reference only; -game (game_scripts) is the measurement of record.
+    quit_editor=True quits the editor after the run (unattended -ExecCmds launches)."""
+
+    def build():
+        tags_ = tuple(tags)
+        presets_ = tuple(_pure.validate_name(p) for p in presets)
+        for tag in tags_:
+            _pure.layer_state(tag)
+        walks = tuple(_pure.validate_name(w) for w in paths)
+        files = _require_path_files(_saved_dir(), walks)
+        lengths = {walk: _path_length_s(path) for walk, path in zip(walks, files, strict=True)}
+        return _PiePerf(_pure.capture_jobs(tags_, presets_, walks), lengths, quit_editor=quit_editor)
+
+    return _start("perf (PIE, reference only)", quit_editor, build)
 
 
 def game_scripts(
@@ -688,9 +775,13 @@ def game_scripts(
     res=(1920, 1080),
     base_level=None,
     timeout_s=900,
+    label_suffix=None,
 ):
     """Write Saved/Golmok/spike/run_game_perf.ps1: one -game -RenderOffscreen CSV run per (tag, preset, path)
-    on L_Spike_<tag> (tag a: the base level); returns the script path."""
+    on L_Spike_<tag> (tag a: the base level); returns the script path. Labels (CSV, game_<label>.log,
+    golmok-perf --label) are <tag>_<preset>_<walk>[_<suffix>]: the suffix defaults to "<height>p" for a
+    resolution other than 1920x1080 (so a 1440p run does not overwrite the 1080p CSVs); pass label_suffix
+    (e.g. "1440p_dlss") for DLSS runs, "" for none. Only the .ps1 itself is overwritten by the next call."""
     from . import synthetic_zone as sz
 
     saved = _saved_dir()
@@ -699,13 +790,17 @@ def game_scripts(
     exe, uproject = _editor_exe(), _uproject()
     base = base_level or sz._current_level_path()
     spike_dir = os.path.join(saved, "Golmok", "spike")
+    if label_suffix is None:
+        label_suffix = "" if tuple(int(v) for v in res) == (1920, 1080) else f"{int(res[1])}p"
+    if label_suffix:
+        _pure.validate_name(label_suffix)
     runs = []
     for tag in tags:
         _pure.layer_state(tag)
         map_path = base if tag == "a" else _layer_level(tag)
         for preset in presets:
             for walk in walks:
-                label = _pure.perf_label(tag, preset, walk)
+                label = _pure.perf_label(tag, preset, walk) + (f"_{label_suffix}" if label_suffix else "")
                 argv = _pure.game_command_line(
                     exe,
                     uproject,
@@ -729,7 +824,7 @@ def game_scripts(
 def contact_sheet(tags=_pure.TAGS, presets=_pure.DEFAULT_PRESETS, names=None, photos_dir=None):
     """Saved/Screenshots/Golmok/contact_sheet.html: one table per preset, viewpoint rows, tag columns and an
     optional reference-photo column (photos_dir/<name>.jpg|jpeg|png)."""
-    root = os.path.join(_saved_dir(), "Screenshots", "Golmok")
+    root = os.path.join(_saved_dir(), *_pure.SCREENSHOT_FOLDER.split("/"))
     names = tuple(names) if names else _pure.VIEWPOINT_NAMES
 
     def image_rel(tag, preset, name):

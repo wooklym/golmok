@@ -38,9 +38,11 @@ ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_]*$")
 ZONE_ID_RE = re.compile(r"^z_[a-z0-9]+(_[a-z0-9]+)*$")
 NAME_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")  # console names (tags, viewpoints, paths): C++ IsValidPathName
 VERSION_DIR_RE = re.compile(r"^v([1-9][0-9]*)$")
-# Official UDIM convention BaseName.####.ext (1001..1999); "_####" is only a warning (design D5).
+# Official UDIM convention BaseName.####.ext (1001..1999); other names the engine's UDIM detection matches
+# (UTextureFactory::UdimRegexPattern default "(.+?)[._](\d{4})$", index >= 1001: "_1002", ".2048") are only a
+# warning and are imported with UDIM detection off (design D5, runbook #38).
 UDIM_RE = re.compile(r"^(?P<base>.+)\.(?P<tile>1\d{3})\.(?P<ext>[A-Za-z0-9]+)$")
-UDIM_SUSPECT_RE = re.compile(r"^(?P<base>.+)_(?P<tile>1\d{3})\.(?P<ext>[A-Za-z0-9]+)$")
+UDIM_SUSPECT_RE = re.compile(r"^(?P<base>.+?)[._](?P<tile>\d{4})\.(?P<ext>[A-Za-z0-9]+)$")
 UDIM_TOKEN_RE = re.compile(r"<udim>", re.IGNORECASE)
 UDIM_MIN, UDIM_MAX = 1001, 1999
 # ENU (m) -> UE (cm): X east, Y south, Z up (== basemap_import.TARGET)
@@ -80,9 +82,12 @@ TAG_COLUMNS = {
 }
 COST_COLUMNS = {"a": "(a)", "b": "(b)", "c": "(c)", "ac": "(a+c)"}  # research/08 "제작 비용" header
 DEFAULT_PRESETS = ("overcast_morning", "clear_noon", "golden_evening")  # lighting cycle minus night
-PIE_WINDOW = (1280, 720)  # x ScreenshotMultiplier 2 = 2560x1440 = viewpoints.RES_X/RES_Y
+# spike_runner.configure_pie_window only (attended "New Editor Window (PIE)"; x ScreenshotMultiplier 2 =
+# 2560x1440): capture_all's PIE plays in the level viewport and asks HighResShot for RES_X x RES_Y explicitly.
+PIE_WINDOW = (1280, 720)
 SCREENSHOT_MULTIPLIER = 2  # DefaultGame.ini [GolmokDebugSubsystem] ScreenshotMultiplier
 SCREENSHOT_FOLDER = "Screenshots/Golmok"  # DefaultGame.ini [GolmokDebugSubsystem] ScreenshotFolder
+PATH_FOLDER = "Golmok/Paths"  # DefaultGame.ini [GolmokDebugSubsystem] PathFolder
 DWELL_S = 600.0  # dwell path length: even background PIE at 8 fps never runs off the end
 ENGINE_VERSION_KEY = "5.8"  # %LOCALAPPDATA%/UnrealEngine/<key>/Saved (Launcher build, -game runs)
 AREA_ORIGIN = (37.56, 126.923, 40.0)  # docs/spec/zone-manifest.md §4 area origin (== synthetic_zone)
@@ -196,11 +201,12 @@ def udim_tile_of(filename: str) -> int | None:
 
 
 def udim_suspect(filename: str) -> bool:
-    """'a_1002.png': looks like a tile but is not the official convention (warning only)."""
+    """'a_1002.png', 'a.2048.png': the engine's UDIM name rule matches ([._]####, >= 1001) but the official
+    convention BaseName.1001..1999.ext does not (warning; zone_import turns UDIM detection off for it)."""
     if udim_split(filename) is not None:
         return False
     m = UDIM_SUSPECT_RE.match(posixpath.basename(_posix(filename)))
-    return bool(m) and UDIM_MIN <= int(m.group("tile")) <= UDIM_MAX
+    return bool(m) and int(m.group("tile")) >= UDIM_MIN
 
 
 def udim_block_coords(tile: int) -> tuple[int, int]:
@@ -653,9 +659,11 @@ def import_plan(
                 "used_by": [],
             }
             if not tiles and udim_suspect(anchor):
+                file = posixpath.basename(_posix(anchor))
                 warnings.append(
-                    f"texture {name}: '_####' is not the UDIM convention (BaseName.####.ext); "
-                    "imported as a single texture"
+                    f"texture {name}: '{file}' matches the engine UDIM name rule ([._]####, >= 1001) but "
+                    "not BaseName.1001..1999.ext; imported as a single texture with UDIM detection off "
+                    "(runbook #38)"
                 )
             if tiles and UDIM_MIN not in tiles:
                 warnings.append(f"texture {group['base']}: tile 1001 missing; anchor is tile {tiles[0]}")
@@ -1237,6 +1245,7 @@ LOG = {
         "zone_import: collision {asset} bounds ok (error {err:.2f} cm) complex-as-simple nanite=off"
     ),
     "zi.cleanup": "zone_import: deleted importer-created asset {asset}",
+    "zi.moved": "zone_import: moved {src} -> {dst} (importer placement; runbook #37)",
     "zi.copied": "zone_import: copied {files} -> {dest}",
     "zi.geo": "zone_import: geo origin lat={lat:.6f} lon={lon:.6f} h={h:.3f} ({how})",
     "zi.zone": "zone_import: zone Zone_{zone_id} rebuilt",
@@ -1267,6 +1276,7 @@ LOG = {
     "sr.done": "spike_runner: done {what}: {saved} saved, {missing} missing -> {root}",
     "sr.sheet": "spike_runner: contact sheet -> {path}",
     "sr.script": "spike_runner: -game script -> {path} ({runs} runs)",
+    "sr.quit": "spike_runner: {what} finished; quitting the editor (quit_editor=True)",
     "sr.warn": "spike_runner: WARNING {message}",
     "bm.geo": (
         "basemap_import: GeoOrigin lat={lat:.6f} lon={lon:.6f} h={h:.3f} "
@@ -1533,7 +1543,7 @@ def csv_dirs(candidates: list[str]) -> list[str]:
 
 
 def path_dirs(candidates: list[str]) -> list[str]:
-    return [f"{c}/Golmok/Paths" for c in candidates]
+    return [f"{c}/{PATH_FOLDER}" for c in candidates]
 
 
 def newest_file(
@@ -1721,7 +1731,7 @@ def report_template(
     )
     lines = [
         "## 조건",
-        f"- 해상도: {w * m}×{h * m} (PIE 창 {w}×{h} × ScreenshotMultiplier {m}; -game -ResX/-ResY 1920×1080)",
+        f"- 해상도: {w * m}×{h * m} (PIE `HighResShot {w * m}x{h * m}`; -game -ResX/-ResY 1920×1080)",
         f"- 조명 프리셋: {', '.join(presets)}",
         f"- 시점 {len(VIEWPOINT_NAMES)}곳: {', '.join(VIEWPOINT_NAMES)}",
         f"- 경로: {walks}",

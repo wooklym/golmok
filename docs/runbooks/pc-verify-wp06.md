@@ -16,7 +16,7 @@
 | `Content/Python/golmok/_pure.py` | 신규 | unreal 비의존 순수 함수·상수·`LOG`(경로 규약·UDIM·MTL·임포트 계획·bbox·OBJ/GLB 사전변환·로그 포맷·경로 JSON·명령줄·PowerShell·컨택트 시트·리포트). 클라우드 테스트 완료 |
 | `Content/Python/golmok/zone_import.py` | 신규 | `run(zone_dir, version=None, level=None, geo_origin=None, save=True, remeasure=False, reimport_textures=True)`, `import_assets(plan, work_dir, …)`, `ZoneImportError(step, message)` — OBJ 청크·UDIM 텍스처·`M_ZoneScan`/`MI_*`·충돌 GLB 임포트, `manifest.json`·`blockers.json` 복사, GeoOrigin, `AGolmokZone.rebuild_in_editor()` |
 | `Content/Python/golmok/interior_setup.py` | 신규 | `run(zone_dir, version=None, level=None, save=True, register=False, remeasure=False, reimport_textures=True)` — 포털 왕복 검사(순수) → 에셋(zone_import 재사용) → 서브레벨 `L_<zone_id>`(PointLight 1개, 태그 `GolmokInteriorSetup`) → 부모 zone 재빌드 |
-| `Content/Python/golmok/spike_runner.py` | 신규 | `prepare`, `configure_pie_window`, `apply_layers`, `save_layer_levels`, `capture_all(mode="pie"\|"editor")`, `perf_all`, `game_scripts`, `contact_sheet`, `report_template` — PIE 상태기계 무인 캡처, `-game` CSV 스크립트 |
+| `Content/Python/golmok/spike_runner.py` | 신규 | `prepare`, `configure_pie_window`(유인 새 창 PIE용 선택 도우미), `apply_layers`, `save_layer_levels`, `capture_all(mode="pie"\|"editor", quit_editor=)`, `perf_all(quit_editor=)`, `game_scripts(label_suffix=)`, `contact_sheet`, `report_template` — PIE 상태기계 무인 캡처(`HighResShot 2560x1440` 명시 해상도), `-game` CSV 스크립트 |
 | `Content/Python/golmok/materials.py` | 수정 | `build_zone_scan_material(default_texture, vt=True, overwrite=False)`, `zone_scan_instance(texture, parent, path)` (`M_ZoneScan`·`M_ZoneScan_NoVT`) |
 | `Content/Python/golmok/basemap_import.py` | 수정 | `_set_geo_origin(origin)` + `run()` 한 줄(베이스맵 manifest origin → `AGolmokGeoOrigin`), docstring `--exclude` |
 | `Content/Python/golmok/synthetic_zone.py` | 수정 | `_spawn_interior_sublevel(..., specs=None, delete_tag=None, on_removed=None)`, `_spawn_sublevel_actor`가 `spec["tags"]` 적용, `register_interior_sublevel(zone_id=…, version=…)`; `run()` 시그니처 불변 |
@@ -71,8 +71,10 @@ zone_import: importer mapping cache miss -> <Project>\Saved\Golmok\zone_import\i
 zone_import: obj importer route=fbx (probe imported 1 static mesh)
 zone_import: obj importer mapping scale=… M=… (fit error 0.00 cm)
 zone_import: glb importer mapping scale=… M=… (fit error 0.00 cm)
+zone_import: moved /Game/Golmok/Zones/z_synthetic_scan_001/v1/Textures/_import/T_facade -> /Game/Golmok/Zones/z_synthetic_scan_001/v1/Textures/T_facade (importer placement; runbook #37)
 zone_import: texture /Game/Golmok/Zones/z_synthetic_scan_001/v1/Textures/T_facade tiles=[1001, 1002, 1011] size=512x512 vt=on (merged by importer)
 zone_import: texture /Game/Golmok/Zones/z_synthetic_scan_001/v1/Textures/T_ground tiles=[] size=256x256 vt=on (single texture, vt enabled after import)
+Created /Game/Golmok/Materials/M_ZoneScan          (첫 실행만 = M_ZoneScan이 없을 때)
 zone_import: material /Game/Golmok/Zones/z_synthetic_scan_001/v1/Materials/MI_facade parent=/Game/Golmok/Materials/M_ZoneScan texture=T_facade
 zone_import: material /Game/Golmok/Zones/z_synthetic_scan_001/v1/Materials/MI_ground parent=/Game/Golmok/Materials/M_ZoneScan texture=T_ground
 zone_import: chunk /Game/Golmok/Zones/z_synthetic_scan_001/v1/SM_c_e000_n000 tris=66 bounds ok (error 0.00 cm) slots=facade=MI_facade,ground=MI_ground
@@ -91,13 +93,13 @@ zone_import: done z_synthetic_scan_001 v1: 8 assets, 0 warnings -> <Project>\Sav
   - chunk /Game/Golmok/Zones/z_synthetic_scan_001/v1/SM_c_e000_n000: ok (…)
   - …
 ```
-표기 차이는 §11 표에 실측을 적는다: 임포터가 텍스처·머티리얼 부산물을 만들면 그 사이에 `zone_import: deleted importer-created asset <path>` 줄이 끼어든다(무해, 개수 기록); `size=`가 `256x256`처럼 다르면 UDIM 병합 판정이 폴백을 탄 것(§12 #4, 아래 실패 항목); `, vt enabled after import`가 붙는지 여부는 임포터 기본값(기록만); 첫 실행 뒤에는 `cache hit`이 되고 `route`·`mapping` 세 줄이 사라진다(`zi.run(..., remeasure=True)`로 다시 측정).
-- [ ] 콘텐츠 브라우저 `/Game/Golmok/Zones/z_synthetic_scan_001/v1/`: `SM_c_e000_n000`, `SM_c_w001_n000`, `SM_z_synthetic_scan_001_collision_c_e000_n000`, `SM_z_synthetic_scan_001_collision_c_w001_n000`, `Textures/T_facade`, `Textures/T_ground`, `Materials/MI_facade`, `Materials/MI_ground` — **그 외 없음**(`_probe` 폴더·`Textures/_tiles`·임포터가 만든 `scan`·`facade` 머티리얼/텍스처가 남아 있으면 §12 #1·#6). `/Game/Golmok/Materials/M_ZoneScan` 존재, `M_ZoneScan_NoVT` **없음**.
+표기 차이는 §11 표에 실측을 적는다: 모든 임포트는 스크래치 폴더 `<폴더>/_import`(텍스처는 `Textures/_import`, 마스터 기본 텍스처는 `/Game/Golmok/Materials/_import`)로 들어가 규약 경로로 옮겨지므로 임포트마다 `zone_import: moved <src> -> <dst> (importer placement; runbook #37)` 줄이 하나씩 끼어든다(첫 실행 7줄: 텍스처 2·`T_ZoneScanDefault`·청크 2·충돌 2; 무해 — `<src>` 경로 형태, 특히 OBJ·PNG가 `_import/<이름>`인지 `_import/<소스>/StaticMeshes/…`인지를 §11·§12 #37에 기록); 임포터가 텍스처·머티리얼 부산물을 만들면 그 사이에 `zone_import: deleted importer-created asset <path>` 줄이 끼어든다(무해, 개수 기록); `size=`가 `256x256`처럼 다르면 UDIM 병합 판정이 폴백을 탄 것(§12 #4, 아래 실패 항목); `, vt enabled after import`가 붙는지 여부는 임포터 기본값(기록만); 첫 실행 뒤에는 `cache hit`이 되고 `route`·`mapping` 세 줄이 사라진다(`zi.run(..., remeasure=True)`로 다시 측정).
+- [ ] 콘텐츠 브라우저 `/Game/Golmok/Zones/z_synthetic_scan_001/v1/`: `SM_c_e000_n000`, `SM_c_w001_n000`, `SM_z_synthetic_scan_001_collision_c_e000_n000`, `SM_z_synthetic_scan_001_collision_c_w001_n000`, `Textures/T_facade`, `Textures/T_ground`, `Materials/MI_facade`, `Materials/MI_ground` — **그 외 없음**(`_probe` 폴더·`Textures/_tiles`·`_import`·`Textures/_import` 스크래치 폴더·`SM_*/StaticMeshes`·`SM_*/Materials` 폴더·임포터가 만든 `scan`·`facade` 머티리얼/텍스처가 남아 있으면 §12 #1·#6·#37). `/Game/Golmok/Materials/`: `M_ZoneScan`·`T_ZoneScanDefault`(256×256 회색, VT ✔, sRGB ✔ — 마스터 전용 기본 텍스처, §12 #10) 존재, `M_ZoneScan_NoVT`·`T_ZoneScanDefault_NoVT`·`_import` **없음**.
 - [ ] `T_facade` 더블클릭: Virtual Texture Streaming ✔, sRGB ✔, 크기 512×512(UDIM 2×2 캔버스; 정보 패널에 `UDIM`/블록 표시), 미리보기 빨강(좌하 1001)·초록(우하 1002)·파랑(좌상 1011), 숫자가 **바로 읽힌다**(거울·뒤집힘이면 §12 #4에 실제 방향을 적는다 — UE는 UDIM을 세로로 뒤집고 메시 UV도 함께 바꾼다). `T_ground` 256×256, VT ✔, sRGB ✔.
 - [ ] `SM_c_e000_n000` 더블클릭: Nanite ✔(Nanite Settings › Enabled), 머티리얼 슬롯 `facade`→`MI_facade`, `ground`→`MI_ground`(슬롯 이름이 `usemtl`과 다르면 §12 #7), Approx Size ≈ 1500×1500×600 cm; `SM_c_w001_n000` ≈ 1500×1500×530 cm. `SM_z_synthetic_scan_001_collision_c_e000_n000`: Collision Complexity "Use Complex Collision As Simple", Nanite ✖, 머티리얼 기본.
-- [ ] `MI_facade` 더블클릭: Parent `M_ZoneScan`, 텍스처 파라미터 `BaseColor` = `T_facade`. `M_ZoneScan`: BaseColor 샘플러 Sampler Type **Virtual Color**, Roughness 0.8 상수, Used with Nanite ✔, 컴파일 오류 없음(오류면 §12 #10).
+- [ ] `MI_facade` 더블클릭: Parent `M_ZoneScan`, 텍스처 파라미터 `BaseColor` = `T_facade`. `M_ZoneScan`: BaseColor 샘플러 Sampler Type **Virtual Color**, 기본 텍스처 **`T_ZoneScanDefault`**(zone 텍스처가 아님), Roughness 0.8 상수, Used with Nanite ✔, 컴파일 오류 없음(오류면 §12 #10).
 - [ ] 아웃라이너 `Golmok/GeoOrigin`(Latitude 37.56, Longitude 126.923, HeightEllipsoidal 40), `Golmok/Zones/Zone_z_synthetic_scan_001` 위치 (17670.59, −22198.00, 999.37) cm, State = Loaded, LastError 비어 있음, MissingAssetCount 0, Manifest.Portals 1개(door_1). 런타임 컴포넌트(청크 2·충돌 2·`Blocker_glass_1`)는 위 `LogGolmok` 줄로 대조한다.
-- [ ] 뷰포트(GeoOrigin에서 동 176.7 m·남 222 m·위 10 m): 회색 경사 지면 30×15 m(서쪽 −0.3 m ~ 동쪽 +0.3 m), 동쪽에 **빨간 벽**(x 1..9 m, 높이 6 m, 문 구멍 x 4..6 m·높이 2.2 m)과 **파란 블록**(x 10..13 m, 2 m 높이), 서쪽에 **초록 벽**(x −11..−5 m, 높이 5 m, 창 구멍 x −9.5..−6.5 m·z 0.25..2.75 m)과 그 창에 시안 와이어 박스(`Blocker_glass_1`, 3×2.5 m). 벽마다 타일 숫자 `1001`/`1002`/`1011`이 보이고 흰 사각형 개수가 1/2/3.
+- [ ] 뷰포트(GeoOrigin에서 동 176.7 m·남 222 m·위 10 m): 회색 경사 지면 30×15 m(서쪽 −0.3 m ~ 동쪽 +0.3 m), 동쪽에 **빨간 벽**(x 1..9 m, 높이 6 m, 문 구멍 x 4..6 m·높이 2.2 m)과 **파란 블록**(x 10..13 m, 2 m 높이), 서쪽에 **초록 벽**(x −11..−5 m, 높이 5 m, 창 구멍 x −9.5..−6.5 m·z 0.25..2.75 m)과 그 창에 시안 와이어 박스(`Blocker_glass_1`, 3×2.5 m). 벽마다 타일 숫자 `1001`/`1002`/`1011`이 보이고 흰 사각형 개수가 1/2/3. 합성 박스 UV는 u∝+x·v∝z 고정 규칙이라 숫자는 남(−y)면에서만 바로 읽힌다. 북(+y)면(실내에서 본 빨간 파사드 포함)은 좌우 거울, 동·서(±x)면과 윗면은 색 줄무늬가 정상이다. UDIM 방향(§12 #4)은 `T_facade` 미리보기와 남면으로만 판정한다.
 - [ ] `<Saved>\Golmok\zone_import\z_synthetic_scan_001\v1\import_result.json`: `route`, `obj_mapping`·`glb_mapping`의 `scale`·`m`·`err`, `assets` 8개 모두 `"ok": true`, `warnings: []`. `route`와 두 매핑을 §11 표에 옮긴다. 같은 폴더 `visual\SM_c_e000_n000.obj`·`visual\scan.mtl`(절대경로 `map_Kd`)·`collision\*.glb`가 사본이다(에셋의 Source File은 이 사본 — Reimport 대신 `zi.run` 재실행이 정본 워크플로).
 - [ ] `<Project>\Content\Golmok\Zones\z_synthetic_scan_001\v1\`에 `manifest.json`·`blockers.json` **두 파일만**(OBJ·PNG·GLB·`chunk_manifest.json` 없음).
 
@@ -115,9 +117,12 @@ zone_import: done z_synthetic_scan_001 v1: 8 assets, 0 warnings -> <Project>\Sav
 - `zone_import: ERROR plan: …` — 메시지의 접두대로(`chunk_manifest.json missing`·`texture missing`·`bbox mismatch` …): 생성기 출력이 깨진 것 → §1 `--force` 재생성. 에디터는 건드리지 않았으므로 바로 재실행.
 - `zone_import: ERROR probe: OBJ import failed on routes fbx, interchange, legacy_flag: …` → §12 #1. Output Log에서 세 route의 임포터 오류를 §11에 옮긴다. `probe: obj importer mapping fit failed (error x cm)` → §12 #2(임포터가 정점을 옮기거나 합침).
 - `zone_import: ERROR chunk c_e000_n000: imported bounds … != expected … (error x cm); importer mapping may have changed: run with remeasure=True (runbook #2)` → `zi.run(..., remeasure=True)`; 그래도 실패면 §12 #2·#28(`import_result.json`의 매핑을 §11에).
-- 텍스처 줄이 `vt=off` → §12 #5(`M_ZoneScan_NoVT`가 생기고 그 MI의 parent가 NoVT — 렌더는 되지만 기록); `tiles=[1001, 1002, 1011] size=256x256 … (packed from 3 tiles)` → 임포터가 UDIM을 안 묶어 `UDIMTextureFunctionLibrary` 폴백을 탄 것(정상 동작, §12 #4에 기록); `(tile 1001 only (WARNING))` + `zone_import: WARNING texture facade: UDIM tiles not merged; using tile 1001 only (runbook #4)` → 폴백도 없음, 빨간 타일만 보임 → §12 #4.
+- 텍스처 줄이 `vt=off` → §12 #5(`M_ZoneScan_NoVT`가 생기고 그 MI의 parent가 NoVT — 렌더는 되지만 기록); `tiles=[1001, 1002, 1011] size=256x256 … (packed from 3 tiles)` → 임포터가 UDIM을 안 묶어 `UDIMTextureFunctionLibrary` 폴백을 탄 것(정상 동작, §12 #4에 기록); `(tile 1001 only (WARNING))` + `zone_import: WARNING texture T_facade: UDIM tiles not merged; using tile 1001 only (runbook #4)` → 폴백도 없음, 빨간 타일만 보임 → §12 #4; `size=?x? vt=on (merged by importer (size unknown))` + `zone_import: WARNING texture T_facade: UDIM merge could not be verified by size (runbook #4)` → `blueprint_get_size_x`가 없거나 앵커 PNG 크기를 읽지 못함(폴백 판정 불가, 이때 `done`은 `1 warnings`) — 텍스처 에디터에서 크기 512×512와 타일 3색을 눈으로 확인하고 §12 #4에 기록.
 - `zone_import: WARNING chunk c_e000_n000: slot 'xxx' left with the importer default (runbook #7)` → 슬롯 이름이 `usemtl`도 아님 → §12 #7(`dir(mesh.get_editor_property("static_materials")[0])`로 이름 확인).
 - `zone_import: WARNING unexpected asset … left in place` → 임포터가 만든 정체불명 에셋. 종류를 §11에 적고 손으로 삭제.
+- `zone_import: WARNING <src> renamed to <dst> (importer naming; runbook #n)` → 임포터가 `destination_name`과 다른 이름을 붙였다(스크래치 폴더에서의 이동 자체는 경고가 아니라 `moved` 줄). 실제 이름을 §11에, §12 #n·#37. `ERROR <step>: <path> exists and could not be deleted (referenced?)` → 이전 임포트 에셋을 지우지 못했다: 에디터에서 그 에셋을 연 창을 닫고 재실행, 그래도면 §12 #8.
+- `zone_import: WARNING texture T_x: engine imported x_1002.png as a UDIM (…; name matches [._]####); rename the file (runbook #38)` 또는 계획 경고 `'x_1002.png' matches the engine UDIM name rule …` → 파일 이름이 엔진 UDIM 규칙에 걸린다. §12 #38.
+- `zone_import: WARNING M_ZoneScan BaseColor default was <path>; set to /Game/Golmok/Materials/T_ZoneScanDefault (runbook #10)` → 이 수정 전에 만든 마스터(기본 텍스처가 zone 텍스처)를 제자리에서 고친 것. 한 번만 나오면 정상; 매번 나오면 §12 #10.
 - 뷰포트에 벽이 안 보이고 `LogGolmok … chunks 0/2` → `MissingAssetCount`; 에셋 이름이 `SM_c_e000_n000`과 다르게 임포트됐다(§12 #6·#29 rename 경로).
 
 ## 3. PIE 걷기 (합성 실외)
@@ -136,7 +141,7 @@ PlayerStart가 `expected.json.player_start_ue_cm` = (17670.59, −22398.00, 1149
 import golmok.interior_setup as it
 r = it.run(r"D:\golmok_synth\zones\z_synthetic_scan_001_room", level="/Game/Golmok/Maps/L_ZoneTest")
 ```
-기대 로그(①~④ 포털 검사·계획까지는 에디터 호출 0회):
+기대 로그(①~⑤ 포털 검사·계획까지는 레벨 열기와 `Zone_<parent>`의 `version` 읽기뿐 — 임포트·스폰 0회. 부모는 **레벨 액터의 `version`**(Content의 최신 v<n>이 아님)으로 검사·재빌드하고, 그 액터의 `version`은 바꾸지 않는다):
 ```
 interior_setup: portal door_out<->door_1 same point (err 0.000 m), opposite yaw (err 0.0 deg)
 zone_import: plan z_synthetic_scan_001_room v1: chunks=1 collision=1 (chunks) textures=1 materials=1 blockers=0
@@ -147,10 +152,14 @@ zone_import: chunk /Game/Golmok/Zones/z_synthetic_scan_001_room/v1/SM_c_e000_n00
 zone_import: collision /Game/Golmok/Zones/z_synthetic_scan_001_room/v1/SM_z_synthetic_scan_001_room_collision_c_e000_n000 bounds ok (error 0.00 cm) complex-as-simple nanite=off
 zone_import: copied manifest.json -> <Project>\Content\Golmok\Zones\z_synthetic_scan_001_room\v1
 LogGolmok: Zone z_synthetic_scan_001_room v1 root: zone-local (0,0,0) -> UE (17770.58, -22918.00, 999.34) cm; …
+LogGolmok: Zone z_synthetic_scan_001_room: chunk c_e000_n000 bbox center -> level (…) cm
 LogGolmok: Zone z_synthetic_scan_001_room: portal door_out -> z_synthetic_scan_001 rel (400, 20, 0) cm yaw 90.0 radius 100 cm -> level (18170.58, -22898.01, 999.33) [marker]
 LogGolmok: Zone z_synthetic_scan_001_room v1 loaded in x ms: chunks 1/1 (0 wire boxes), collision 1/1, blockers 0/0, portals 1 (WP-05)
 LogGolmok: Zone z_synthetic_scan_001_room v1 unloaded
 interior_setup: sublevel /Game/Golmok/Zones/z_synthetic_scan_001_room/v1/L_z_synthetic_scan_001_room actors=['Interior_Light_z_synthetic_scan_001_room'] (level coordinates)
+LogGolmok: Zone z_synthetic_scan_001 v1 root: zone-local (0,0,0) -> UE (17670.59, -22198.00, 999.37) cm; (10,0,0) m -> (18670.59, -22198.02, 999.34) cm; yaw -0.0012 deg
+LogGolmok: Zone z_synthetic_scan_001: chunk c_e000_n000 bbox center -> level (…) cm          (c_w001_n000도 한 줄)
+LogGolmok: Zone z_synthetic_scan_001: blocker glass_1 (glass) rel (-800, -500, 150) cm yaw 90.0 extent (5, 150, 125) -> level (16870.59, -22697.99, 1149.37)
 LogGolmok: Zone z_synthetic_scan_001: portal door_1 -> z_synthetic_scan_001_room rel (500, -700, 0) cm yaw -90.0 radius 100 cm -> level (18170.58, -22898.01, 999.33) [entry]
 LogGolmok: Zone z_synthetic_scan_001 v1 loaded in x ms: chunks 2/2 (0 wire boxes), collision 2/2, blockers 1/1, portals 1 (WP-05)
 interior_setup: exterior zone Zone_z_synthetic_scan_001 rebuilt
@@ -162,11 +171,12 @@ interior_setup: done z_synthetic_scan_001_room v1 -> <Project>\Saved\Golmok\zone
 - [ ] `T_room` 256×256 노랑, VT ✔; `MI_room` parent `M_ZoneScan`; `SM_c_e000_n000`(room) Nanite ✔, 슬롯 `room`→`MI_room`, Approx Size ≈ 800×680×340 cm.
 - [ ] 아웃라이너 `Golmok/Zones/Zone_z_synthetic_scan_001_room`(State = Unloaded; PIE에서 문이 로드), `Zone_z_synthetic_scan_001`(Loaded). **Levels 창(Window › Levels)에 서브레벨 등록 없음**(기본 경로 `LevelInstance`; `register=True`는 `NamedStreamingLevel` 전용).
 - [ ] 서브레벨 `L_z_synthetic_scan_001_room`을 더블클릭해 열면 `Golmok/Interior/Interior_Light_z_synthetic_scan_001_room` PointLight **하나만**(태그 `GolmokInteriorSetup`, 3000 cd·3000 K, 실내-local (400, −340, 250) cm = 방 중앙 천장 아래 — 레벨 좌표로 놓임), PPV·DirectionalLight·`AGolmokZone`·`AGolmokPortal` 없음. 확인 후 `L_ZoneTest`를 다시 연다.
-- [ ] `import_result.json`(room)의 `interior` 블록: `sublevel`, `round_trip.ok true`, `parent z_synthetic_scan_001`, `actors ['Interior_Light_z_synthetic_scan_001_room']`.
+- [ ] `import_result.json`(room)의 `interior` 블록: `sublevel`, `round_trip.ok true`, `parent z_synthetic_scan_001`, `parent_version` = 레벨의 `Zone_z_synthetic_scan_001` Details › `Version`(여기선 1), `actors ['Interior_Light_z_synthetic_scan_001_room']`.
+- (`register=True`로 돌렸을 때만) 등록이 마지막 에디터 단계다: `add_level_to_world`가 서브레벨을 current level로 만들므로 sz가 영속 레벨을 current로 되돌리고(`set_current_level_by_name`) 영속 맵을 경로로 저장한다(`save_map`, V-03·pc-findings #4). 끝난 뒤 Window › Levels에서 **`L_ZoneTest`가 current(굵게)**이고 저장 프롬프트 없이 다른 맵을 열 수 있어야 한다. 서브레벨이 current로 남았거나 `synthetic_zone: … is still the current level` 경고가 나오면 §12 #36. `register=True` 재실행은 지난번 영속 맵과 함께 저장된 Levels 항목을 `GameplayStatics.get_streaming_level`로 찾아 재사용한다(`add_level_to_world`를 다시 부르지 않음 — 이미 있는 레벨이면 None): 로그 `synthetic_zone: sublevel <sublevel> already registered in Levels; kept (initially unloaded, hidden)`, `could not register` 경고 없음, Levels 창 항목 1개.
 
 실패 시:
 - `interior_setup: ERROR manifest: kind must be interior …` → 실외 폴더를 넘긴 것. `ERROR portal: door_out vs door_1: x m apart, yaw error y deg (fix the manifests before importing)` → 생성기 출력이 손상됨 → §1 `--force` 재생성(정상 출력은 0.000 m·0.0°).
-- `interior_setup: ERROR parent: no Content manifest for z_synthetic_scan_001: run zone_import.run on the parent zone first` → §2의 `copied` 줄 확인. `ERROR parent: Zone_z_synthetic_scan_001 not in level …` → §2를 먼저(다른 레벨을 연 것).
+- `interior_setup: ERROR parent: Zone_z_synthetic_scan_001 is v<n> but <Content>/Golmok/Zones/z_synthetic_scan_001/v<n>/manifest.json is missing: run zone_import.run on that version` → 레벨 액터의 버전에 맞는 Content 사본이 없다: §2의 `copied` 줄 확인, 또는 그 버전으로 `zi.run(..., version=<n>)`. `ERROR parent: Zone_z_synthetic_scan_001 not in level …` → §2를 먼저(다른 레벨을 연 것).
 - `interior_setup: ERROR sublevel: …` → `sz._spawn_interior_sublevel`(WP-05 §11 #45·#46 동일 경로) — `LevelEditorSubsystem.new_level` 저장 프롬프트가 떴으면 §12 #12.
 - 서브레벨에 PointLight가 없거나 위치가 실내-local 그대로(레벨 원점 근처) → `zone.get_actor_transform()`이 `unload_in_editor()` 뒤에 무효 → §12 #11.
 
@@ -182,7 +192,7 @@ LogGolmok: Portal door_1: crossed outward
 LogGolmok: Zone z_synthetic_scan_001_room v1 unloaded
 LogGolmok: Portal door_1: player left -> unload z_synthetic_scan_001_room; sublevel out
 ```
-- [ ] 문 앞 1 m 안에서 실내 로드 → 문 너머 **노란 방**(8×6.8 m, 높이 3 m, 타일 숫자 `1001`)과 **따뜻한 PointLight**가 보인다(서브레벨 스트림 인). HUD `portals` 줄에 `door_1 (…) active outside; sublevel visible (LevelInstance) | door_out (z_synthetic_scan_001_room -> z_synthetic_scan_001) (marker)`.
+- [ ] 문 앞 1 m 안에서 실내 로드 → 문 너머 **노란 방**(8×6.8 m, 높이 3 m, 타일 숫자 `1001`)과 **따뜻한 PointLight**가 보인다(서브레벨 스트림 인). 방 안에서 숫자는 북벽(안쪽이 −y면)에서만 바로 읽히고, 남쪽 빨간 파사드 안쪽(+y면)은 좌우 거울, 서·동벽·바닥·천장은 노란 줄무늬가 정상이다(§2 합성 박스 UV 규칙 — UDIM 결함 아님). HUD `portals` 줄에 `door_1 (…) active outside; sublevel visible (LevelInstance) | door_out (z_synthetic_scan_001_room -> z_synthetic_scan_001) (marker)`.
 - [ ] 문 평면(y 7.0..7.2 m)을 넘으면 2 s 동안 안개 0·노출 +1 EV, HUD `tod: … [interior: door_1]`.
 - [ ] 방 안 보행: 서·동·북 벽·천장에 막히고 바닥(방 z 0 = 실외 지면 높이)을 걷는다. 남쪽 벽은 실외 빨간 파사드(문 구멍만 통과). 방과 파사드 사이 틈 없음(방 y ≥ 7.2 m, 파사드 y 7.0..7.2 m).
 - [ ] 되돌아 나오면 오버레이 off, 트리거를 벗어난 3 s 뒤 실내 언로드. `golmok.zone.list`에 `z_synthetic_scan_001_room  v1  prio 20  unloaded`.
@@ -205,6 +215,10 @@ interior_setup: sublevel /Game/Golmok/Zones/z_synthetic_scan_001_room/v1/L_z_syn
 - [ ] 아웃라이너에 `GeoOrigin`·`Zone_z_synthetic_scan_001`·`Zone_z_synthetic_scan_001_room`이 각 1개(중복 스폰 없음).
 - [ ] 서브레벨에 `ManualProp`이 **살아남고** `Interior_Light_…`는 1개(태그 `GolmokInteriorSetup`만 지우고 다시 만든다).
 - [ ] §5 왕복이 그대로 동작.
+3. 텍스처까지 다시 임포트하는 기본 재실행: `zi.run(r"D:\golmok_synth\zones\z_synthetic_scan_001", level="/Game/Golmok/Maps/L_ZoneTest", geo_origin="area")`(`reimport_textures` 기본 True — 이전 `T_facade`·`T_ground`·`SM_*`를 지우고 새 임포트로 바꾼다; `delete_asset`은 참조를 확인하지 않는 강제 삭제).
+- [ ] `zone_import: done … 8 assets, 0 warnings`(`M_ZoneScan … default was …` 경고 없음), 그 사이 `moved` 줄 7개가 아니라 6개(`T_ZoneScanDefault`는 이미 있어 다시 만들지 않음).
+- [ ] `M_ZoneScan` 더블클릭: 기본 텍스처 여전히 `T_ZoneScanDefault`, 컴파일 오류 없음. `MI_facade`·`MI_ground`의 `BaseColor`가 새 `T_facade`·`T_ground`이고 뷰포트의 벽 색·타일 숫자가 §2와 같다(회색 격자 기본 머티리얼이면 §12 #10).
+- [ ] UDIM 폴백 PC(§2에서 `packed from 3 tiles`였던 경우)에서도 같다: `T_facade`는 제자리에서 다시 묶인다(`deleted importer-created asset …/Textures/T_facade` 줄 없음).
 
 ## 7. spike_runner 리허설 (합성 zone, `L_ZoneTest`)
 시점 10개를 저장한다(이름 고정: research/08 조건 3/4/3). 뷰포트를 옮겨 가며:
@@ -227,13 +241,12 @@ s.capture_all(tags=("a",), presets=("clear_noon", "night"), mode="pie")
 기대 로그(시점마다 `>` 3줄 + `captured` 1줄; 프리셋이 바뀔 때만 `golmok.tod`):
 ```
 spike_runner: layers tag=a zone_visual=True Spike_b=False Spike_c=False (actors 1, editor)
-spike_runner: PIE window 1280x720 x2 (LevelEditorPlaySettings)
 spike_runner: PIE begin tag=a
 spike_runner: > golmok.hud 0
 spike_runner: layers tag=a zone_visual=True Spike_b=False Spike_c=False (actors 1, pie)
 spike_runner: > golmok.tod clear_noon
 spike_runner: > golmok.path play vp_far_01
-spike_runner: > golmok.screenshot a far_01
+spike_runner: > HighResShot 2560x1440 filename="<Project>/Saved/Screenshots/Golmok/a/clear_noon/far_01"
 spike_runner: captured <Project>\Saved\Screenshots\Golmok\a\clear_noon\far_01.png (2560x1440)
 spike_runner: > golmok.path stopplay
 spike_runner: > golmok.path play vp_far_02
@@ -243,9 +256,20 @@ spike_runner: > golmok.tod night
 spike_runner: PIE end tag=a
 spike_runner: done capture: 20 saved, 0 missing -> <Project>\Saved\Screenshots\Golmok
 ```
-(`actors N`은 가시성을 바꾼 액터 수 — 합성 레벨에는 zone 1개뿐. 새 PIE 창이 뜨고 3 s 워밍업 뒤 카메라가 시점을 차례로 돈다; 시점당 약 5~6 s. 재생 중 캐릭터는 숨는다.)
-- [ ] `<Saved>\Screenshots\Golmok\a\clear_noon\` 10장 + `a\night\` 10장, 모두 **2560×1440**, HUD 없음, 캐릭터 없음, 시점 이름과 내용이 맞다(`far_01.png`가 원경).
-- [ ] 같은 명령을 **에디터 창을 뒤로 보낸 채**(다른 창을 앞에) 한 번 더 → 결과 동일(백그라운드 PIE는 느릴 뿐 — 8 fps 수준; dwell 경로 600 s가 흡수). 걸린 시간을 §11에.
+(`actors N`은 가시성을 바꾼 액터 수 — 합성 레벨에는 zone 1개뿐. PIE는 **레벨 뷰포트 안에서** 돈다: `editor_request_begin_play()`는 엔진이 목적지를 첫 활성 레벨 뷰포트로 고정하고 플레이 모드·New Window Size 설정을 보지 않는다. 그래서 크기는 창이 아니라 `HighResShot 2560x1440`이 정한다(엔진이 `<name>00000.png`로 쓰고 spike_runner가 `<name>.png`로 개명). 3 s 워밍업 뒤 카메라가 시점을 차례로 돈다; 시점당 약 5~6 s. 재생 중 캐릭터는 숨는다.)
+- [ ] `<Saved>\Screenshots\Golmok\a\clear_noon\` 10장 + `a\night\` 10장, 모두 **2560×1440**(레벨 뷰포트 크기와 무관), HUD 없음, 캐릭터 없음, 시점 이름과 내용이 맞다(`far_01.png`가 원경). `…00000.png`가 남아 있지 않다. 단 `a\night\` 10장은 V-03 실측(`pc-verify-wp05.md` 결과 표 §3 메모, STATUS V-03 ⑤)대로 **검은 화면이 정상**(태양 off + real-time SkyLight; D-010 look-dev 범위, WP-06 밖) — 파일 10장·2560×1440·폴더(`a\night\`, `a\current\` 아님)·`> golmok.tod night` 로그만 확인한다.
+- [ ] **백그라운드 재확인(§12 #35, V-01)**: 같은 명령을 **에디터 창을 뒤로 보낸 채**(다른 창을 앞에) 한 번 더. V-01에서는 에디터 뷰포트가 백그라운드에서 그리기를 멈췄다 — 레벨 뷰포트 PIE도 멈추는지는 확인되지 않았다. 결과(동일 / 느림 / `missing … (timeout)` 연속)와 걸린 시간을 §11에. 멈추면 캡처는 창을 앞에 두고 돌린다(설계 변경 필요 여부를 인계 메모에).
+- [ ] **무인 실행(§12 #34)**: `-ExecCmds`는 쉼표로 명령을 나누므로(pc-setup.md) 인자에 쉼표가 있는 호출은 파일로 넘긴다. 에디터를 닫고 PowerShell에서
+  ```powershell
+  Set-Content -Encoding utf8 "$env:TEMP\golmok_capture_a.py" 'import golmok.spike_runner as s; s.capture_all(tags=("a",), presets=("clear_noon",), quit_editor=True)'
+  & "$env:UE_ROOT\Engine\Binaries\Win64\UnrealEditor.exe" "<Project>\Golmok.uproject" /Game/Golmok/Maps/L_ZoneTest -ExecCmds="py $env:TEMP\golmok_capture_a.py"
+  ```
+  GUI 에디터(`UnrealEditor.exe`)여야 한다 — PIE는 렌더링이 필요하므로 `UnrealEditor-Cmd`·`-nullrhi`로는 안 된다. 끝에 `, Quit`/`QUIT_EDITOR`를 붙이지 않는다: `Quit`는 에디터를 끝내지 않고(V-03), `QUIT_EDITOR`는 비동기 상태기계가 끝나기 전에 에디터를 닫는다. 기대 로그 끝:
+  ```
+  spike_runner: done capture: 10 saved, 0 missing -> <Project>\Saved\Screenshots\Golmok
+  spike_runner: capture finished; quitting the editor (quit_editor=True)
+  ```
+  에디터 프로세스가 PIE 종료 뒤(최대 5 s) 스스로 끝난다. 끝나지 않으면 §12 #34.
 - [ ] 컨택트 시트:
   ```python
   s.contact_sheet(tags=("a",), presets=("clear_noon", "night"))
@@ -258,9 +282,10 @@ spike_runner: done capture: 20 saved, 0 missing -> <Project>\Saved\Screenshots\G
 - [ ] `s.report_template()` → `<Saved>\Golmok\spike\report_template.md`(표 헤더가 `docs/research/08-spike-results.md`와 같다).
 
 실패 시:
-- `spike_runner: WARNING PIE did not start …` / `spike_runner: PIE begin tag=a` 뒤 60 s 침묵 → §12 #16(`LevelEditorSubsystem.editor_request_begin_play()`가 마지막 플레이 모드를 쓴다: Play 드롭다운을 "New Editor Window (PIE)"로 바꾸고 재시도; 안 되면 수동 PIE 뒤 `mode="editor"`).
-- `spike_runner: WARNING PIE window: manual: Editor Preferences > Level Editor > Play > New Window Size (runbook #21)` + `spike_runner: PIE window 1280x720 x2 (manual: …)` → §12 #21: 설정에서 New Window Size 1280×720을 손으로 놓고 재시도. `captured … (1280x720)`처럼 크기가 다르면 `ScreenshotMultiplier`가 1로 떨어진 것(WP-05 런북 §8 메시지 확인).
-- `spike_runner: missing <path> (timeout)` → 파일이 30 s 안에 안 생김: 콘솔 명령이 PIE 월드에 닿지 않는다(§12 #15; 로그에 `golmok.*: no debug subsystem`이면 월드가 에디터 월드) 또는 `golmok.screenshot`이 `<name>00000.png`으로 썼는데 개명 실패(§12 #30).
+- `a\night\*.png`가 전부 검정 → 정상(위 체크 참고, V-03 ⑤), 조치 없음·§12로 가지 않는다. `a\clear_noon\`까지 검정일 때만 아래 `golmok.path play: ERROR` 항목(§12 #24)을 본다.
+- `spike_runner: WARNING PIE did not start …` / `spike_runner: PIE begin tag=a` 뒤 60 s 침묵 → §12 #16(레벨 뷰포트가 하나도 열려 있지 않으면 `editor_request_begin_play()`는 아무것도 하지 않는다: 레벨 뷰포트를 열고 재시도. Play 드롭다운의 모드는 이 호출에 영향이 없다; 안 되면 창을 앞에 두고 `mode="editor"`).
+- `spike_runner: WARNING <path>: 1280x720, expected 2560x1440 (runbook #35)`처럼 크기 경고 → PNG는 저장됐지만 `HighResShot 2560x1440`이 그 크기로 렌더하지 않았다(§12 #35; 최대 텍스처 크기·GPU 메모리). 실제 크기를 §11에 적고 `viewpoints.RES_X/RES_Y`를 바꿀지 결정.
+- `spike_runner: missing <path> (timeout)` → 파일이 30 s 안에 안 생김: 콘솔 명령이 PIE 월드에 닿지 않는다(§12 #15; 로그에 `golmok.*: no debug subsystem`이면 월드가 에디터 월드), `HighResShot`이 다른 이름(카운터 `00001` 등)으로 썼다(§12 #30; 폴더를 보고 이름을 §11에), 또는 에디터 창이 뒤에 있어 레벨 뷰포트가 그리기를 멈췄다(§12 #35).
 - 파일이 `…\a\current\far_01.png`에 생기고 missing 보고 → `golmok.tod`가 `AGolmokTimeOfDay`를 못 찾음(§12 #13; L_ZoneTest 조명 액터 태그 `GolmokLighting` 확인 — WP-05 런북 §3).
 - `spike_runner: WARNING viewpoints: … not saved` / `missing=[…]` → `v.save` 누락.
 - `golmok.path play: ERROR …` 뒤 검은 화면 → 2샘플 600 s 경로 JSON을 C++ 파서가 거부(§12 #24). `<Saved>\Golmok\Paths\vp_far_01.json`을 §11에 첨부.
@@ -275,7 +300,9 @@ spike_runner: done capture: 20 saved, 0 missing -> <Project>\Saved\Screenshots\G
    ```
    spike_runner: layers tag=b zone_visual=False Spike_b=True Spike_c=False (actors 1, editor)
    spike_runner: layer level /Game/Golmok/Maps/L_Spike_b saved (tag b)
+   spike_runner: layers tag=c zone_visual=False Spike_b=False Spike_c=True (actors 1, editor)
    spike_runner: layer level /Game/Golmok/Maps/L_Spike_c saved (tag c)
+   spike_runner: layers tag=ac zone_visual=True Spike_b=False Spike_c=True (actors 1, editor)
    spike_runner: layer level /Game/Golmok/Maps/L_Spike_ac saved (tag ac)
    ```
    - [ ] `/Game/Golmok/Maps/L_Spike_b`·`L_Spike_c`·`L_Spike_ac` 3개, 끝에 `L_ZoneTest`로 복귀. `L_Spike_b`를 열면 `Zone_z_synthetic_scan_001`의 Visual 레이어가 꺼져 있고(충돌만) 디테일 `AutoManaged` ✖.
@@ -308,8 +335,10 @@ spike_runner: done capture: 20 saved, 0 missing -> <Project>\Saved\Screenshots\G
 s.perf_all(paths=("walk_01",), tags=("a",))
 ```
 ```
+spike_runner: layers tag=a zone_visual=True Spike_b=False Spike_c=False (actors 1, editor)
 spike_runner: PIE begin tag=a
 spike_runner: > golmok.hud 0
+spike_runner: layers tag=a zone_visual=True Spike_b=False Spike_c=False (actors 1, pie)
 spike_runner: > golmok.tod clear_noon
 spike_runner: > golmok.path play walk_01 --csv
 spike_runner: csv <Project>\Saved\Profiling\CSV\Profile(…).csv -> golmok-perf "<Project>\Saved\Profiling\CSV\Profile(…).csv" --label a_clear_noon_walk_01 --markdown
@@ -342,7 +371,7 @@ basemap_import: GeoOrigin lat=… lon=… h=… (basemap origin; ellipsoidal = D
 | §4 실내(포털 왕복 검사·서브레벨·PointLight) | | |
 | §5 포털 왕복(로그 순서) | | |
 | §6 재실행(덮어쓰기·`ManualProp` 보존·`removed 1`) | | |
-| §7 시점 10개·PIE 창 크기·스크린샷 해상도 | | 백그라운드 실행 시간 |
+| §7 시점 10개·스크린샷 해상도(2560×1440?)·무인 `quit_editor=True` 종료 | | 백그라운드: 레벨 뷰포트 PIE가 계속 그렸나·걸린 시간 |
 | §7 컨택트 시트·리포트 템플릿 | | |
 | §8 `-game` CSV 위치·프레임 수·`golmok-perf` 표 | | 표를 붙인다 |
 | §9 PIE 참고치 | | |
@@ -363,24 +392,24 @@ basemap_import: GeoOrigin lat=… lon=… h=… (basemap origin; ellipsoidal = D
 | 1 | zone_import | `unreal.AssetImportTask` + `factory=unreal.FbxFactory()` + `unreal.FbxImportUI`(`is_obj_import=True`, `import_materials/import_textures=False`, `mesh_type_to_import=unreal.FBXImportType.FBXIT_STATIC_MESH`, `static_mesh_import_data.build_nanite/combine_meshes`)가 OBJ에 적용되는지 | 5.8에서 OBJ가 레거시 FBX인지 Interchange인지(citations: Interchange 문서에 OBJ 없음, `FbxImportUI.is_obj_import`는 있음); `factory` 지정이 Interchange 라우팅을 우회하는지 | 사다리(D4): 프로브가 비면 `interchange` → 콘솔 `Interchange.FeatureFlags.Import.OBJ 0` 뒤 `legacy_flag`; 옵션이 무시돼도 부산물 삭제·슬롯 재할당으로 결과 동일 |
 | 2 | zone_import | OBJ 임포터 축·단위(Z-up 유지? cm 변환?) | 측정으로 상쇄(프로브) | fit error > 1 cm → `ZoneImportError probe`; 청크 bounds 오류면 `remeasure=True`; 실측 (s, M)·route를 결과 표에 |
 | 3 | zone_import | `unreal.InterchangeGenericAssetsPipeline` 하위 `material_pipeline.texture_pipeline.import_udi_ms`, `material_pipeline.import_materials`, `mesh_pipeline.import_static_meshes/build_nanite`, `common_meshes_properties.force_all_mesh_as_type=unreal.InterchangeForceMeshType.IFMT_STATIC_MESH` | 속성 이름은 citations 확인, `AssetImportTask.options`로 전달되는지는 미확인 | hop마다 hasattr; 옵션 None(프로젝트 기본 UDIM 감지) → 병합 판정 → #4 폴백 |
-| 4 | zone_import | UDIM 자동 병합·`blueprint_get_size_x()`가 캔버스(512)인지 타일(256)인지; 결과 이름이 `T_<base>`(`destination_name`) | Python에 UDIM 크기 API 없음; UDIM 접미사 제거 규칙 | 크기로 판정하되 런북에 실제 표기 기록; `unreal.UDIMTextureFunctionLibrary.make_udim_virtual_texture_from_texture2_ds(name, textures, [unreal.IntPoint…])` 폴백; 이름 다르면 `EditorAssetLibrary.rename_asset`; 최후 첫 타일 + WARNING |
+| 4 | zone_import | UDIM 자동 병합·`blueprint_get_size_x()`가 캔버스(512)인지 타일(256)인지; 결과 이름이 `T_<base>`(`destination_name`) | Python에 UDIM 크기 API 없음; UDIM 접미사 제거 규칙 | 크기로 판정하되 런북에 실제 표기 기록; `unreal.UDIMTextureFunctionLibrary.make_udim_virtual_texture_from_texture2_ds(name, textures, [unreal.IntPoint…])` 폴백 — 병합 안 된 앵커 `T_<base>` 위에 **제자리로** 묶는다(삭제하지 않음; `keep_existing_settings`: "if a texture with the same path name exists"), 타일 임포트는 `import_udi_ms=False`; `None`이 돌아오면 ERROR(앵커가 있는 경로를 함수가 거부한 것 — §11에 기록); 이름 다르면 `EditorAssetLibrary.rename_asset`; 최후 첫 타일 + WARNING |
 | 5 | zone_import | `Texture2D.set_editor_property("virtual_texture_streaming", True)`·`("srgb", True)` 뒤 재빌드 필요 여부 | 저장으로 충분한지 | `save_loaded_asset` 후 `MaterialEditingLibrary.recompile_material(M_ZoneScan)`; 못 켜면 `M_ZoneScan_NoVT` |
 | 6 | zone_import | `EditorAssetLibrary.list_assets(folder, recursive=True)` 반환 형식(`/Game/A/B.B` vs `/Game/A/B`), `imported_object_paths` 형식 | 문자열 형식 | `.split(".")[0]` 정규화(둘 다 처리) |
 | 7 | zone_import | `StaticMesh.get_editor_property("static_materials")[i].get_editor_property("material_slot_name")`, `set_material(i, mi)`; 머티리얼 임포트 off일 때 슬롯 이름이 `usemtl`인지 | 슬롯 이름 규약(2차) | 정확 → 대소문자 → usemtl 순서 폴백 + warn; `get_material_index(name)` 병행 |
-| 8 | zone_import | `EditorAssetLibrary.rename_asset(old, new)`, `delete_directory`, `duplicate_asset` | 안정(WP-04 동일) | 실패는 warn; rename 실패 시 `duplicate_asset`+`delete_asset` |
+| 8 | zone_import | `EditorAssetLibrary.rename_asset(old, new)`, `delete_directory`, `duplicate_asset`; 규약 경로의 이전 에셋은 `delete_asset`(강제 삭제 — 참조 확인 없음)으로 지운 뒤 옮긴다(`sz._move_asset`과 같은 규칙) | 안정(WP-04 동일) | `delete_asset`이 False면 `ERROR …: <path> exists and could not be deleted (referenced?)`; rename 실패 시 `duplicate_asset`+`delete_asset` |
 | 9 | zone_import | `bm._set_nanite`(`unreal.StaticMeshEditorSubsystem.set_nanite_settings`), `bm._complex_collision`(`unreal.CollisionTraceFlag`) | V-02 확인 | 기존 hasattr 분기 |
-| 10 | materials | `unreal.MaterialExpressionTextureSampleParameter2D.sampler_type = unreal.MaterialSamplerType.SAMPLERTYPE_VIRTUAL_COLOR`; **VT 샘플러의 기본 텍스처는 VT여야 한다**(비VT `DefaultTexture`면 컴파일 오류) | enum 이름은 citations 확인; 기본 텍스처 제약은 엔진 규칙 | 첫 임포트 VT 텍스처를 `default_texture`로; enum 없으면 미설정 + warn(수동 설정) |
+| 10 | materials·zone_import | `unreal.MaterialExpressionTextureSampleParameter2D.sampler_type = unreal.MaterialSamplerType.SAMPLERTYPE_VIRTUAL_COLOR`; **VT 샘플러의 기본 텍스처는 VT여야 한다**(비VT `DefaultTexture`면 컴파일 오류). 기본 텍스처는 마스터 전용 `/Game/Golmok/Materials/T_ZoneScanDefault`(생성 PNG 256×256 회색, VT on; NoVT 마스터는 `T_ZoneScanDefault_NoVT`, VT off) — zone 텍스처를 기본으로 두면 그 zone 재임포트의 강제 삭제가 기본을 None으로 만들고 커밋할 마스터가 zone 에셋에 묶인다. 이미 있는 마스터는 `unreal.MaterialEditingLibrary.get_material_property_input_node(mat, unreal.MaterialProperty.MP_BASE_COLOR)`로 샘플러를 찾아 `texture`를 제자리에서 고친다(`recompile_material`+저장; 다른 zone의 MI parent 유지) | enum 이름은 citations 확인; 기본 텍스처 제약은 엔진 규칙; `get_material_property_input_node` 노출은 미확인 | enum 없으면 미설정 + warn(수동 설정); `T_ZoneScanDefault`를 VT로 못 켜면 WARNING 후 첫 VT zone 텍스처를 기본으로(이전 동작); 함수가 없거나 샘플러를 못 찾으면 WARNING `… set it by hand` → `M_ZoneScan`을 열어 BaseColor 샘플러의 Texture를 `T_ZoneScanDefault`로 바꾸고 저장 |
 | 11 | interior_setup | `AGolmokZone.unload_in_editor()` 뒤 `get_actor_transform()` 유효 | WP-05 동일 | rebuild 직후 transform 취득(현재 순서) |
 | 12 | interior_setup | `LevelEditorSubsystem.new_level(path)`가 현재 레벨을 닫으며 저장 프롬프트 | `save_current_level()` 선행 | sz와 동일 |
 | 13 | spike_runner | PIE 세계에서 `golmok.tod`가 `AGolmokTimeOfDay`를 찾는지(조명 액터 태그 `GolmokLighting`) | 스크린샷 폴더 `<preset>` | `current` 폴더면 missing 처리·런북 안내 |
 | 14 | spike_runner | `unreal.GameplayStatics.get_all_actors_of_class(pie_world, unreal.Actor)`(라벨 스캔)·`(pie_world, unreal.GolmokZone)`·`get_player_controller(world, 0)`·`set_visual_visible` Python 호출 | PIE 액터 접근 | `golmok.zone.unload <id>` 콘솔 폴백(충돌도 사라짐; 재생은 충돌 무관) |
 | 15 | spike_runner | `unreal.SystemLibrary.execute_console_command(get_game_world(), cmd)`가 PIE 콘솔에 닿는지 | citations에 시그니처만 | `unreal.UnrealEditorSubsystem.get_game_world()` None이면 `unreal.EditorLevelLibrary.get_pie_worlds(False)`(deprecated) + warn; 최후 `viewpoints.capture` 에디터 모드 |
-| 16 | spike_runner | `LevelEditorSubsystem.editor_request_begin_play()/editor_request_end_play()/is_in_play_in_editor()` 뒤 PIE가 뜨는 틱 수·기본 플레이 모드 | 비동기; 모드는 `LevelEditorPlaySettings` 마지막 값 | 60 s 폴링; 시작 안 되면 `_finish`+런북(Alt+P 대신 수동 New Editor Window 실행 뒤 `mode="editor"`) |
+| 16 | spike_runner | `LevelEditorSubsystem.editor_request_begin_play()/editor_request_end_play()/is_in_play_in_editor()` 뒤 PIE가 뜨는 틱 수 | 비동기. 엔진 소스(`LevelEditorSubsystem.cpp`)상 `DestinationSlateViewport`가 첫 활성 레벨 뷰포트로 고정 — 플레이 모드·새 창 설정은 무시되고, 활성 레벨 뷰포트가 없으면 시작하지 않는다 | 60 s 폴링; 시작 안 되면 `_finish`+런북(레벨 뷰포트를 연 뒤 재시도, 최후 `mode="editor"`) |
 | 17 | spike_runner | `-game -ExecCmds` 실행 시점(맵 로드 전이면 `golmok.*` 월드 명령 무효), `-ExitAfterCsvProfiling`이 콘솔 `CsvProfile Stop`에도 종료하는지 | 엔진 동작 | `.ps1` 타임아웃 kill + 로그 `GolmokDebugSubsystem: csv:` 검사; 실패면 PIE `perf_all()` 참고치 |
 | 18 | spike_runner | `EditorAssetLibrary.duplicate_asset(level, "/Game/Golmok/Maps/L_Spike_<tag>")`로 맵 복제 | 월드 파티션·외부 액터 | 실패 시 수동 "Save Current Level As" 안내 |
 | 19 | spike_runner | `set_is_temporarily_hidden_in_editor` / `set_actor_hidden_in_game` on Cesium3DTileset·XGRIDS 액터 | 플러그인 액터 가시성 구현 | `set_editor_property("hidden", True)`; Cesium은 `set_editor_property("enabled", False)`(있으면) |
 | 20 | basemap_import | `unreal.GolmokGeoOrigin` 프로퍼티 `latitude/longitude/height_ellipsoidal` | WP-04 sz와 동일 | sz 재사용 |
-| 21 | spike_runner | `unreal.get_default_object(unreal.LevelEditorPlaySettings)`의 `new_window_width/new_window_height`, `last_executed_play_mode_type=unreal.PlayModeType.PLAY_MODE_TYPE_PLAY_IN_EDITOR_FLOATING` | 클래스·속성·enum 노출(추정) | Editor Preferences > Level Editor > Play > New Window Size 1280×720, Play 모드 "New Editor Window (PIE)" 수동; `sr.captured`의 실제 크기로 확인 |
+| 21 | spike_runner | `configure_pie_window()`(선택 도우미, `capture_all`은 쓰지 않음 — #16): `unreal.get_default_object(unreal.LevelEditorPlaySettings)`의 `new_window_width/new_window_height`, `last_executed_play_mode_type=unreal.PlayModeType.PLAY_MODE_IN_EDITOR_FLOATING`(`EPlayModeType::PlayMode_InEditorFloating`) | 클래스·속성·enum 노출(추정) | 크기 실패: Editor Preferences > Level Editor > Play > New Window Size 수동; 모드 enum 없음(`PIE play mode: set 'New Editor Window (PIE)' by hand`): Play 드롭다운에서 수동. 기대 로그 `spike_runner: PIE window 1280x720 x2 (LevelEditorPlaySettings)` |
 | 22 | zone_import | `AssetImportTask.save=False` 후 `save_loaded_asset`; `async_` 속성 | 안정 | `save=True`로 전환; `async_`는 hasattr |
 | 23 | zone_import | OBJ 사본 임포트 시 `mtllib`·절대경로 `map_Kd` 무시(import_textures=False) | 경고 로그 | 무해; 경고 수 기록. 임포터가 그래도 텍스처/머티리얼을 만들면 부산물 삭제(`zi.cleanup`) |
 | 24 | spike_runner | `golmok.path play <name>`이 2샘플 600 s 경로를 받아들이는지(version 1·t 단조) | C++ 파서 | `dwell_path_json`이 FormatPathJson 레이아웃 그대로; 거부되면 `golmok.path play: ERROR …` → 3샘플로 |
@@ -388,8 +417,13 @@ basemap_import: GeoOrigin lat=… lon=… h=… (basemap origin; ellipsoidal = D
 | 26 | zone_import | `unreal.SystemLibrary.get_engine_version()` | 존재(확인에 가까움) | 없으면 캐시 항상 miss(재측정) |
 | 27 | zone_import | `unreal.Paths.project_saved_dir/project_content_dir/project_config_dir`, spike: `unreal.Paths.engine_dir()`·`get_project_file_path()` | 앞 3개 확인(WP-04), 뒤 2개 2차 | `os.environ["UE_ROOT"]`(`tools/ue/common.ps1` 규약) + `<ContentDir>/../Golmok.uproject` |
 | 28 | zone_import | `StaticMesh.get_bounding_box()`가 Nanite 청크에서 원본 정점 bbox를 주는지 | `ExtendedBounds` 원천 | 허용 오차 `max(5 cm, 0.5 %)`; 반복 초과면 2 %로 올리고 기록 |
-| 29 | zone_import | GLB 임포트(`bm._import_glb` 경로, 옵션 없음)의 에셋 이름이 glTF mesh/node 이름을 따르는지(`destination_name`과 함께 둘 다 목표 이름으로) | V-02·WP-04는 mesh 이름으로 확인 | 다르면 `rename_asset` |
-| 30 | spike_runner | C++ `golmok.screenshot` 폴백 파일명 `<name>00000.png`(뷰포트 크기 없을 때) | HighResShot 경로 | `screenshot_fallback_path`를 받아 `<name>.png`로 개명 |
+| 29 | zone_import | GLB 임포트(`bm._import_glb` 경로, 옵션 없음)의 에셋 이름이 glTF mesh/node 이름을 따르는지(`destination_name`과 함께 둘 다 목표 이름으로) | V-02·WP-04는 mesh 이름으로 확인; 폴더 배치(`<source>/StaticMeshes/`)는 #37 | 이름이 다르면 `rename_asset` + WARNING `renamed to … (importer naming; runbook #29)`; 폴더만 다르면 #37(경고 없음) |
+| 30 | spike_runner | `HighResShot 2560x1440 filename="<stem>"`(PIE 캡처)·C++ `golmok.screenshot` 폴백의 파일명 `<stem>00000.png` | 엔진이 다음 빈 카운터를 붙인다(추정: `00000`) | 요청 전에 남은 `<stem>00000.png`를 지우고, 받으면 `<name>.png`로 개명(`<name>.png`로 바로 써도 받음) |
 | 31 | spike_runner | `unreal.Paths.convert_relative_path_to_full(path)`로 `project_saved_dir()`·`engine_dir()`·`get_project_file_path()`를 절대경로화(`.ps1`의 경로) | 에디터가 바이너리 폴더 기준 상대경로를 줄 수 있음; 함수 노출은 추정 | 없으면 `os.path.abspath`(에디터 작업 폴더 기준); `.ps1` 첫 줄의 경로가 틀리면 손으로 고치고 §11에 기록 |
 | 32 | spike_runner | `mode="editor"`: 이전 태그 `viewpoints.capture`의 `on_done`(slate post-tick 콜백 안)에서 다음 태그의 `unreal.register_slate_post_tick_callback`을 다시 등록 | 콜백 안에서의 재등록 허용 여부 | 두 번째 태그가 시작되지 않으면 태그마다 `s.capture_all(tags=("<tag>",), mode="editor")`를 따로 부른다 |
-| 33 | spike_runner | 태그 사이 PIE 재시작 간격 `PIE_RESTART_GAP_S = 1.0`(`editor_request_end_play()` 뒤 다음 `editor_request_begin_play()`까지) | 새 PIE 창이 같은 틱 근처에서 다시 뜨는지 | 두 번째 태그의 `PIE begin` 뒤 창이 안 뜨면 상수를 3~5 s로 올려 재시도(§11에 기록) |
+| 33 | spike_runner | 태그 사이 PIE 재시작 간격 `PIE_RESTART_GAP_S = 1.0`(`editor_request_end_play()` 뒤 다음 `editor_request_begin_play()`까지) | 레벨 뷰포트 PIE가 같은 틱 근처에서 다시 시작하는지 | 두 번째 태그의 `PIE begin` 뒤 PIE가 안 뜨면 상수를 3~5 s로 올려 재시도(§11에 기록) |
+| 34 | spike_runner | `unreal.SystemLibrary.quit_editor()`(`capture_all(..., quit_editor=True)` / `perf_all(..., quit_editor=True)`): PIE가 끝난 뒤(최대 `QUIT_WAIT_S` 5 s) 에디터를 닫는다 | 헤드리스 `-ExecCmds="py …, Quit"`의 `Quit`은 에디터를 끝내지 않는다(V-03); PIE 종료 직후 호출이 깨끗이 끝나는지 | 함수가 없으면 경고 뒤 콘솔 `QUIT_EDITOR`(pc-setup.md), 그것도 실패하면 `could not quit the editor: close it by hand (runbook #34)` → 수동 종료 |
+| 35 | spike_runner | PIE 캡처 `HighResShot <RES_X>x<RES_Y> filename="…"`(`SystemLibrary.execute_console_command(pie_world, …)` → 플레이어 컨트롤러 → PIE `UGameViewportClient`)가 레벨 뷰포트 PIE에서 2560×1440으로 쓰는지; 에디터 창이 뒤에 있을 때 레벨 뷰포트 PIE가 계속 그리는지(V-01: 에디터 뷰포트는 멈췄다) | 엔진 동작 미확인 | 크기가 다르면 `WARNING <path>: WxH, expected 2560x1440 (runbook #35)`(저장은 함); 백그라운드에서 멈추면 창을 앞에 두고 실행. 대안(C++ 재빌드 필요): `golmok.screenshot <tag> <name> <W>x<H>`에 크기 인자 추가 |
+| 36 | interior_setup·synthetic_zone | `register=True`(`sz.register_interior_sublevel`): `EditorLevelUtils.add_level_to_world` 뒤 current level이 서브레벨로 바뀐다(V-03) → `LevelEditorSubsystem.set_current_level_by_name(<영속 맵 짧은 이름>)`로 되돌린 뒤 영속 맵은 `EditorLoadingAndSavingUtils.save_map(world, persistent)`로 경로 저장(V-03 `84f33c5`, pc-findings #4); 등록은 `it.run`의 마지막 에디터 단계이고 그 뒤 `save_current_level()`은 부르지 않는다. 재실행(`register=True`)은 기존 Levels 항목을 `GameplayStatics.get_streaming_level`로 재사용한다(`initially_loaded/visible`만 False로 다시 설정 후 `save_map`) | `set_current_level_by_name`이 짧은 패키지 이름으로 영속 레벨을 찾는지(엔진 소스 기준 추정) | 실패하면 경고 `synthetic_zone: <sublevel> is still the current level; double-click <persistent> in Window > Levels …`(저장은 경로로 이미 됨) → Window › Levels에서 영속 레벨을 더블클릭해 current로 만들고 저장, 또는 `LevelEditorSubsystem.load_level(<영속 맵>)`로 다시 연다 |
+| 37 | zone_import | Interchange 에셋 배치: glTF는 `<destination_path>/<소스 파일명>/StaticMeshes/<메시명>`, 머티리얼은 형제 `Materials/`(V-03 확인, pc-findings #1); OBJ(fbx·interchange·legacy_flag route)와 PNG 텍스처의 배치는 미확인 | 폴더 규칙은 엔진 동작 | 모든 임포트(청크·충돌·텍스처·`T_ZoneScanDefault`)를 스크래치 `<폴더>/_import`(텍스처 `Textures/_import`)에 → `EditorAssetLibrary.rename_asset`으로 규약 경로(`SM_*`, `Textures/T_*`)로 이동(`zone_import: moved <src> -> <dst> (importer placement; runbook #37)`) → 남은 것(`imported_object_paths`에 없는 머티리얼 등)을 `zi.cleanup`으로 적고 `EditorAssetLibrary.delete_directory(_import)`. `moved` 줄의 `<src>` 형태를 route별로 §11에 기록; `_import`가 남으면 손으로 지우고 기록; 이동 실패면 #8 |
+| 38 | zone_import | 엔진 UDIM 이름 규칙: `UTextureFactory::UdimRegexPattern` 기본값 `(.+?)[._](\d{4})$`(API 문서: ".1001 또는 _1001로 끝나는 파일 이름"), 인덱스 ≥ 1001 — 계획 규칙 `BaseName.1001..1999.ext`보다 넓다(`wall_1002.png`·`photo.2048.png`도 UDIM 타일로 본다). 단일 텍스처는 `material_pipeline.texture_pipeline.import_udi_ms=False`로 임포트(계획 UDIM 세트만 True) | `AssetImportTask.options`의 `import_udi_ms=False`가 지켜지는지 미확인(#3) | 계획 경고 `'<file>' matches the engine UDIM name rule …`(이름 바꾸기 권장); 임포트 뒤 단일 텍스처 크기가 파일과 다르면 WARNING `engine imported <file> as a UDIM (… != file …); rename the file (runbook #38)` → 파일 이름에서 `_####`/`.####`를 빼고 MTL을 고친 뒤 재실행. PC에서 한 번 `x_1002.png` 하나로 확인해 결과(크기·UDIM 표시)를 §11에 |
