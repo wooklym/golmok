@@ -75,7 +75,9 @@ class _Capture:
         self.pending = None  # (path, requested_at, ticks_left) while waiting for the screenshot file
         self.saved = []
         self.missing = []
-        self.out_root = os.path.join(unreal.Paths.project_saved_dir(), "Screenshots", "Golmok", tag)
+        # normpath: the UE saved dir uses "/" while os.path.join adds os.sep (mixed separators on Windows)
+        saved_dir = unreal.Paths.project_saved_dir()
+        self.out_root = os.path.normpath(os.path.join(saved_dir, "Screenshots", "Golmok", tag))
         self.level_editor = unreal.get_editor_subsystem(unreal.LevelEditorSubsystem)
         self.level_editor.editor_set_viewport_realtime(True)
         # Game View hides editor sprites and gizmos so screenshots show only what the player sees.
