@@ -1,0 +1,11 @@
+{
+  "planes": [
+    {
+      "id": "glass_1",
+      "center_enu": [-8.0, 5.0, 1.5],
+      "normal_enu": [0.0, -1.0, 0.0],
+      "size_m": [3.0, 2.5],
+      "kind": "glass"
+    }
+  ]
+}

@@ -138,6 +138,7 @@ namespace GolmokPortalTest
 				}
 				Zone->ZoneId = ExteriorZoneId;
 				Zone->Version = 1;
+				Zone->bAsyncLoad = false; // WP-09: this test keeps the synchronous path (Golmok.Zone.AsyncLoad covers async)
 				Zone->bAutoManaged = false; // the test drives Load / Unload itself
 				Zone->FinishSpawning(FTransform::Identity);
 
@@ -381,7 +382,7 @@ namespace GolmokPortalTest
 			return false;
 		}
 
-		static constexpr double StreamInTimeoutSeconds = 2.0;
+		static constexpr double StreamInTimeoutSeconds = 5.0; // WP-09: async interior load + sublevel streaming (upper bound only)
 		/** Full Enter / Leave cycles before the final Enter + exterior unload. */
 		static constexpr int32 RoundTripCycles = 2;
 		TWeakObjectPtr<AGolmokPortal> PortalActor;
@@ -579,7 +580,7 @@ namespace GolmokPortalTest
 			}
 		}
 
-		static constexpr double StreamInTimeoutSeconds = 2.0;
+		static constexpr double StreamInTimeoutSeconds = 5.0; // WP-09: async interior load + sublevel streaming (upper bound only)
 		TWeakObjectPtr<AGolmokPortal> PortalActor;
 		TWeakObjectPtr<APawn> Character;
 		TWeakObjectPtr<ADefaultPawn> InsidePawn;
@@ -745,7 +746,7 @@ namespace GolmokPortalTest
 			}
 		}
 
-		static constexpr double StreamInTimeoutSeconds = 2.0;
+		static constexpr double StreamInTimeoutSeconds = 5.0; // WP-09: async interior load + sublevel streaming (upper bound only)
 		TWeakObjectPtr<AGolmokPortal> PortalA;
 		TWeakObjectPtr<AGolmokPortal> PortalB;
 		double UnloadDeadline = 4.0;

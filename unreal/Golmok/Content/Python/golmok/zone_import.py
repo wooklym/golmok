@@ -7,6 +7,7 @@
     zi.run(..., geo_origin=r"D:\\golmok_basemap\\yeonnam")   # GeoOrigin from the basemap manifest origin
     zi.run(..., reimport_textures=False)                      # re-run: keep T_* assets that already exist
     zi.run(..., remeasure=True)                               # ignore the importer_mapping.json cache
+    zi.run(..., with_index=True)                              # WP-09: also sync <zones>/index into Content
 
 What it does (docs/runbooks/pc-verify-wp06.md §2; WP-06 design §3-2):
 1. Plan, without touching the editor: resolve the version folder, read manifest.json and
@@ -29,6 +30,9 @@ What it does (docs/runbooks/pc-verify-wp06.md §2; WP-06 design §3-2):
 7. Exactly manifest.json and blockers.json are copied to <Content>/Golmok/Zones/<id>/v<n>/ (what the C++
    AGolmokZone reads); nothing else of the zone folder goes into Content.
 8. GeoOrigin (find or spawn), AGolmokZone (find or spawn) + rebuild_in_editor(), save, import_result.json.
+   with_index=True (WP-09) syncs the Zone Index next to the zone folder (<zones>/index, golmok-zone index
+   build output) into <Content>/Golmok/Zones/index between the zone rebuild and the save (zone_index.sync);
+   a missing index folder is one zone_index WARNING, not a failure.
 
 Every import goes to a scratch <folder>/_import and is moved to its convention path (V-03: Interchange puts
 glTF at <dest>/<source>/StaticMeshes/<name>; runbook #37). Re-running is the normal workflow (the previous
@@ -930,15 +934,38 @@ def write_result(work: str, result: dict) -> str:
     return path
 
 
+def _sync_index(plan: dict):
+    """zone_index.sync(<zones root of the zone folder>) for run(with_index=True): its result dict, or None
+    with one zone_index WARNING when there is no index folder to sync (a broken index still fails)."""
+    from . import zone_index as zx  # here: zone_index imports this module
+
+    zones_root = _pure.zones_root_of(plan["zone_dir"])
+    try:
+        return zx.sync(zones_root)
+    except zx.ZoneIndexError as e:
+        if e.step != "plan":
+            raise
+        zx.warn(f"index not synced: {e.message}")
+        return None
+
+
 def run(
-    zone_dir, version=None, level=None, geo_origin=None, save=True, remeasure=False, reimport_textures=True
+    zone_dir,
+    version=None,
+    level=None,
+    geo_origin=None,
+    save=True,
+    remeasure=False,
+    reimport_textures=True,
+    with_index=False,
 ):
     """Import a zone folder ('.../<zone_id>', '.../<zone_id>/v<n>' or a manifest.json path) and rebuild its
     AGolmokZone in the open level (or in `level`, opened or created first). Returns the import_result dict.
 
     geo_origin: None keeps the level's GeoOrigin (spawned at the zone origin when there is none), "area" the
     spec area origin, "zone" the zone origin, (lat, lon, h) as given, or a basemap folder whose manifest
-    origin is used. Raises ZoneImportError(step, message).
+    origin is used. with_index=True also syncs <zones root>/index into Content (WP-09; result["index"]).
+    Raises ZoneImportError(step, message).
     """
     plan, manifest = make_plan(zone_dir, version)
     log_plan(plan)
@@ -956,10 +983,14 @@ def run(
         zone = sz.find_or_spawn_zone(plan["zone_id"], plan["version"])
         zone.rebuild_in_editor()
     _log("zi.zone", zone_id=plan["zone_id"])
+    index = None
+    if with_index:
+        with _step("index"):
+            index = _sync_index(plan)
     if save:
         with _step("save"):
             unreal.get_editor_subsystem(unreal.LevelEditorSubsystem).save_current_level()
-    result = _pure.result_json(plan, mappings, assets, warnings, route)
+    result = _pure.result_json(plan, mappings, assets, warnings, route, index)
     with _step("result"):
         result_path = write_result(work, result)
     _log(

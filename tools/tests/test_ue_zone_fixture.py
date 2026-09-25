@@ -99,7 +99,8 @@ def test_default_game_ini_stages_zone_manifests_and_configures_subsystem():
     )  # basemap_import.py / synthetic_zone.py tag actors with this name
     actor = cp["/Script/Golmok.GolmokZone"]
     assert float(actor["BlockerThicknessCm"]) > 0
-    assert actor["bAsyncLoad"] == "False" and actor["bDrawMissingAssetBoxes"] == "True"
+    # WP-09: chunk / collision assets stream by default (FStreamableManager)
+    assert actor["bAsyncLoad"] == "True" and actor["bDrawMissingAssetBoxes"] == "True"
 
 
 def test_ini_keys_match_config_uproperties():

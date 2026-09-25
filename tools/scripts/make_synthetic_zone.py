@@ -1,7 +1,7 @@
 """Synthetic RealityScan-like zone for WP-06: raw OBJ/MTL/UDIM PNGs -> real golmok-mesh pipeline -> zone.
 
     python tools/scripts/make_synthetic_zone.py --out <dir> [--zone-id z_synthetic_scan_001] [--interior]
-                                                [--tile-px 256] [--force] [--check] [--quiet]
+                                                [--tile-px 256] [--offset-m E,N] [--force] [--check] [--quiet]
 
 Writes (WP-06 design §3-7):
     <out>/recon/<zone_id>/     scan.obj, scan.mtl, tex/{ground.png, facade.1001.png, facade.1002.png,
@@ -10,6 +10,9 @@ Writes (WP-06 design §3-7):
                                collision.glb, collision/<chunk>.glb, blockers.json/.glb, expected.json
     --interior                 <out>/recon/<zone_id>_room/ and <out>/zones/<zone_id>_room/v1/: the room behind
                                the door as an interior zone of its own (portals door_1 <-> door_out)
+    --offset-m E,N             WP-09: move the zone origin E m east and N m north of ZONE_ORIGIN on its
+                               tangent plane (height kept, lat/lon rounded to 7 decimals); only the origin
+                               moves, geometry and every other file stay the same. Default 0,0 = ZONE_ORIGIN.
 
 The zone folder comes out of golmok_tools.mesh.cli (chunk -> collision --per-chunk --no-snap-ground ->
 blockers) and golmok_tools.zone.cli validate --check-files --strict, exactly like a real scan. expected.json
@@ -75,6 +78,7 @@ DEFAULT_TILE_PX = 256
 VERSION = 1
 CHUNK_SIZE_M = 15.0
 ZONE_ORIGIN = (37.5620, 126.9250, 50.0)  # lat, lon, ellipsoidal h (spec §4 B)
+DEFAULT_OFFSET_M = (0.0, 0.0)  # --offset-m east, north (m); (0, 0) keeps ZONE_ORIGIN and the output bytes
 AREA_ORIGIN = (37.5600, 126.9230, 40.0)  # level (CesiumGeoreference) origin, spec §4 C
 FOOTPRINT_M = (32.0, 17.0, 0.0, 7.5)  # w, h, dx, dy: x -16..16, y -1..16
 ZONE_TEST_MAP = (
@@ -182,6 +186,30 @@ def _write_text(path: Path, text: str) -> None:
 
 def _round(v, ndigits: int) -> float:
     return round(float(v), ndigits) + 0.0  # + 0.0 turns -0.0 into 0.0
+
+
+def parse_offset(text: str) -> tuple[float, float]:
+    """'E,N' (m) -> (east, north); ValueError with a message for the CLI otherwise."""
+    parts = [t.strip() for t in str(text).split(",")]
+    if len(parts) != 2 or not all(parts):
+        raise ValueError(f"--offset-m {text!r}: expected E,N in metres (e.g. 200,0)")
+    try:
+        east, north = (float(t) for t in parts)
+    except ValueError:
+        raise ValueError(f"--offset-m {text!r}: expected two numbers E,N") from None
+    if not (math.isfinite(east) and math.isfinite(north)):
+        raise ValueError(f"--offset-m {text!r}: expected finite numbers")
+    return east, north
+
+
+def offset_origin(origin, east_m: float, north_m: float) -> tuple[float, float, float]:
+    """(lat, lon, h) moved (east_m, north_m) on the tangent plane of `origin` (transform.enu_to_lonlat);
+    the height is kept and lat/lon are rounded to 7 decimals (about 1 cm). (0, 0) returns `origin` as is."""
+    lat0, lon0, h = origin
+    if east_m == 0.0 and north_m == 0.0:
+        return (lat0, lon0, h)
+    lon, lat, _ = transform.enu_to_lonlat(np.array([[east_m, north_m, 0.0]]), (lat0, lon0, h))
+    return (_round(lat[0], 7), _round(lon[0], 7), h)
 
 
 # ---- PNG (pure Python) ----
@@ -678,8 +706,8 @@ def _mesh_pipeline(scan: Path, vdir: Path, manifest: Path, blockers: bool, log: 
         _run(mesh_main, ["blockers", "build", str(path), "--manifest", str(manifest)], log)
 
 
-def _exterior_manifest(zone_id: str, interior: bool) -> dict:
-    lat, lon, h = ZONE_ORIGIN
+def _exterior_manifest(zone_id: str, interior: bool, origin=ZONE_ORIGIN) -> dict:
+    lat, lon, h = origin
     fp = rect_footprint(lat, lon, *FOOTPRINT_M)
     d = zm.new_manifest(zone_id, "exterior", lat, lon, h, fp, priority=10).to_dict()
     d["sources"] = [{"capture_id": "synthetic", "note": "make_synthetic_zone.py"}]
@@ -693,9 +721,9 @@ def _exterior_manifest(zone_id: str, interior: bool) -> dict:
     return d
 
 
-def _interior_manifest(zone_id: str) -> dict:
-    lon, lat, _ = transform.enu_to_lonlat(np.array([ROOM_ORIGIN_IN_PARENT_M]), ZONE_ORIGIN)
-    lat, lon, h = float(lat[0]), float(lon[0]), ZONE_ORIGIN[2]
+def _interior_manifest(zone_id: str, origin=ZONE_ORIGIN) -> dict:
+    lon, lat, _ = transform.enu_to_lonlat(np.array([ROOM_ORIGIN_IN_PARENT_M]), origin)
+    lat, lon, h = float(lat[0]), float(lon[0]), origin[2]
     w, dep, _ = ROOM_SIZE_M
     fp = rect_footprint(lat, lon, w, dep, dx=w / 2, dy=dep / 2)
     room = f"{zone_id}_room"
@@ -710,16 +738,20 @@ def _interior_manifest(zone_id: str) -> dict:
     return d
 
 
-def generate(out: Path, zone_id: str, interior: bool, tile_px: int) -> list[str]:
-    """Write everything under <out>; returns output_files(). Raises GenerateError (message for stderr)."""
+def generate(
+    out: Path, zone_id: str, interior: bool, tile_px: int, offset_m: tuple[float, float] = DEFAULT_OFFSET_M
+) -> list[str]:
+    """Write everything under <out>; returns output_files(). Raises GenerateError (message for stderr).
+    offset_m = (east, north) m moves the zone origin (--offset-m); geometry and files are unchanged."""
     log: list[str] = []
+    origin = offset_origin(ZONE_ORIGIN, *offset_m)
     room_id = f"{zone_id}_room"
     recon, vdir = out / "recon" / zone_id, out / "zones" / zone_id / f"v{VERSION}"
     write_obj(exterior_mesh(), recon / "scan.obj", mtllib="scan.mtl", header=OBJ_HEADER)
     _write_text(recon / "scan.mtl", SCAN_MTL)
     write_tiles(recon / "tex", "ground", tile_px)
     write_tiles(recon / "tex", "facade", tile_px)
-    manifest = zm.save(_exterior_manifest(zone_id, interior), vdir / zm.MANIFEST_NAME)
+    manifest = zm.save(_exterior_manifest(zone_id, interior, origin), vdir / zm.MANIFEST_NAME)
     _mesh_pipeline(recon / "scan.obj", vdir, manifest, blockers=True, log=log)
     manifests = [manifest]
     if interior:
@@ -727,7 +759,7 @@ def generate(out: Path, zone_id: str, interior: bool, tile_px: int) -> list[str]
         write_obj(room_mesh(), recon_room / "room.obj", mtllib="room.mtl", header=OBJ_HEADER)
         _write_text(recon_room / "room.mtl", ROOM_MTL)
         write_tiles(recon_room / "tex", "room", tile_px)
-        room_manifest = zm.save(_interior_manifest(zone_id), vdir_room / zm.MANIFEST_NAME)
+        room_manifest = zm.save(_interior_manifest(zone_id, origin), vdir_room / zm.MANIFEST_NAME)
         _mesh_pipeline(recon_room / "room.obj", vdir_room, room_manifest, blockers=False, log=log)
         manifests.append(room_manifest)
     _run(zone_main, ["validate", "--check-files", "--strict", *map(str, manifests)], log)
@@ -763,11 +795,13 @@ def _normalized(path: Path, roots: list[Path]) -> bytes:
     return data
 
 
-def check(out: Path, zone_id: str, interior: bool, tile_px: int) -> list[str]:
+def check(
+    out: Path, zone_id: str, interior: bool, tile_px: int, offset_m: tuple[float, float] = DEFAULT_OFFSET_M
+) -> list[str]:
     """Regenerate into a temp folder and compare with <out>; returns the differences ([] = identical)."""
     tmp = Path(tempfile.mkdtemp(prefix="golmok_synth_check_")).resolve()
     try:
-        want = generate(tmp, zone_id, interior, tile_px)
+        want = generate(tmp, zone_id, interior, tile_px, offset_m)
         diffs = []
         for rel in want:
             if not (out / rel).is_file():
@@ -791,6 +825,12 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--zone-id", default=DEFAULT_ZONE_ID, help=f"z_... (default {DEFAULT_ZONE_ID})")
     ap.add_argument("--interior", action="store_true", help="also the room zone <zone_id>_room behind door_1")
     ap.add_argument("--tile-px", type=int, default=DEFAULT_TILE_PX, help="UDIM tile size in px (default 256)")
+    ap.add_argument(
+        "--offset-m",
+        default="0,0",
+        metavar="E,N",
+        help="move the zone origin E m east, N m north of ZONE_ORIGIN (WP-09 fixture z_synthetic_002: 200,0)",
+    )
     ap.add_argument("--force", action="store_true", help="replace an existing <out>/zones/<zone_id>")
     ap.add_argument(
         "--check", action="store_true", help="compare with a fresh generation; exit 1 if different"
@@ -807,13 +847,18 @@ def main(argv: list[str] | None = None) -> int:
     if args.tile_px < 32:
         _err("ERROR --tile-px must be >= 32")
         return 2
+    try:
+        offset_m = parse_offset(args.offset_m)
+    except ValueError as e:
+        _err(f"ERROR {e}")
+        return 2
     out = args.out.resolve()
     try:
         if args.check:
             if not (out / "zones" / args.zone_id).is_dir():
                 _err(f"ERROR nothing to check: {out / 'zones' / args.zone_id} does not exist")
                 return 1
-            diffs = check(out, args.zone_id, args.interior, args.tile_px)
+            diffs = check(out, args.zone_id, args.interior, args.tile_px, offset_m)
             for d in diffs:
                 _say(d)
             _say(f"check: {'OK' if not diffs else f'FAIL ({len(diffs)} files)'}")
@@ -825,7 +870,7 @@ def main(argv: list[str] | None = None) -> int:
         for p in _zone_roots(out, args.zone_id):
             if p.exists():
                 shutil.rmtree(p)
-        files = generate(out, args.zone_id, args.interior, args.tile_px)
+        files = generate(out, args.zone_id, args.interior, args.tile_px, offset_m)
     except ImportError as e:
         _err(f'ERROR install tools with pip install -e ".[zone,mesh]" ({e})')
         return 2

@@ -18,6 +18,9 @@
 //   pathmeta             (stdin JSON)                      name, level, created on three lines
 //   pose <t>             (stdin JSON)                      "px py pz pitch yaw roll"
 //   angle <a> <b> <alpha>                                  LerpAngleDeg
+//   hold                 (stdin tokens)                    HoldLastPositive: each double ("nan" allowed) prints the
+//                                                          returned value, "reset" calls Reset() and prints "reset";
+//                                                          last line "Value HeldCount Total bHeldLast" (WP-09 §3-6)
 // Parse failures print "ERROR <message>" and exit 3; unknown commands exit 2.
 using namespace GolmokStatsMath;
 
@@ -225,6 +228,47 @@ int main(int argc, char** argv)
 	else if (!std::strcmp(Cmd, "angle") && argc >= 5)
 	{
 		std::printf("%.17g\n", LerpAngleDeg(std::atof(argv[2]), std::atof(argv[3]), std::atof(argv[4])));
+	}
+	else if (!std::strcmp(Cmd, "hold"))
+	{
+		// Whitespace-separated tokens from stdin (batch: Windows argv limit). strtod parses "nan" / "inf" too.
+		HeldValue State;
+		const std::string In = ReadStdin();
+		std::size_t Pos = 0;
+		bool bFirst = true;
+		while (Pos < In.size())
+		{
+			while (Pos < In.size() && std::isspace(static_cast<unsigned char>(In[Pos])))
+			{
+				++Pos;
+			}
+			if (Pos >= In.size())
+			{
+				break;
+			}
+			const std::size_t Start = Pos;
+			while (Pos < In.size() && !std::isspace(static_cast<unsigned char>(In[Pos])))
+			{
+				++Pos;
+			}
+			const std::string Token = In.substr(Start, Pos - Start);
+			if (!bFirst)
+			{
+				std::printf(" ");
+			}
+			bFirst = false;
+			if (Token == "reset")
+			{
+				State.Reset();
+				std::printf("reset");
+			}
+			else
+			{
+				std::printf("%.17g", HoldLastPositive(State, std::strtod(Token.c_str(), nullptr)));
+			}
+		}
+		std::printf("\n%.17g %llu %llu %d\n", State.Value, static_cast<unsigned long long>(State.HeldCount),
+			static_cast<unsigned long long>(State.Total), State.bHeldLast ? 1 : 0);
 	}
 	else
 	{

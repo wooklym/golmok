@@ -39,10 +39,12 @@ enum class EGolmokPortalState : uint8
  *
  * An entry portal (bIsEntry, spawned by an exterior zone) is a pawn-only overlap box. Its reactions are deferred to
  * timers so nothing re-enters UGolmokZoneSubsystem::Evaluate() from inside a zone Load(): overlap -> Pending ->
- * (DebounceSeconds) -> RequestLoad(TargetZoneId, pinned) + sublevel stream in -> Active. While the player overlaps,
- * Tick checks the door plane (actor forward = entering direction, UE Yaw = -yaw_deg) and toggles the interior
- * lighting overlay (AGolmokTimeOfDay::EnterInterior / ExitInterior with this PortalId as source). Leaving the box
- * outward -> Leaving -> (UnloadDelaySeconds) -> sublevel stream out + RequestUnload -> Idle.
+ * (next tick) RequestLoad(TargetZoneId, pinned, Portal) preloads the interior -> (DebounceSeconds, then 0.05 s polls
+ * while the interior is still Loading, at most InteriorLoadTimeoutSeconds) -> sublevel stream in -> Active (WP-09:
+ * never Active with an interior that is still streaming, so the room always has its floor). While the player
+ * overlaps, Tick checks the door plane (actor forward = entering direction, UE Yaw = -yaw_deg) and toggles the
+ * interior lighting overlay (AGolmokTimeOfDay::EnterInterior / ExitInterior with this PortalId as source). Leaving
+ * the box outward -> Leaving -> (UnloadDelaySeconds) -> sublevel stream out + RequestUnload(Portal) -> Idle.
  *
  * The portal an interior manifest lists to go back out (bIsEntry = false) is a passive marker: no overlap events,
  * shown by the collision debug view only. A round trip (outside -> inside -> outside) is decided by the single entry
@@ -138,6 +140,17 @@ public:
 	UPROPERTY(VisibleAnywhere, Transient, Category = "Golmok|Portal|State")
 	FString LastEvent;
 
+	/** RequestLoad(TargetZoneId, pinned, Portal) was issued for the current Pending / Active cycle (this portal owes the interior an unload). */
+	UPROPERTY(VisibleAnywhere, Transient, Category = "Golmok|Portal|State")
+	bool bInteriorRequested = false;
+
+	/** Active / Leaving, or Pending after the interior was requested. Widens EndPlay, LeaveInterior and IsInteriorZoneInUse. */
+	bool IsHoldingInterior() const
+	{
+		return State == EGolmokPortalState::Active || State == EGolmokPortalState::Leaving
+			   || (State == EGolmokPortalState::Pending && bInteriorRequested);
+	}
+
 	/** Fill the manifest fields and size the trigger. Called by AGolmokZone::SpawnPortals() before FinishSpawning(). */
 	void Configure(const AGolmokZone& OwnerZone, const FGolmokZonePortal& P);
 
@@ -180,9 +193,9 @@ protected:
 
 	/**
 	 * Timers cleared. An entry portal always drops its lighting source (ExitInterior(PortalId) is a no-op when the
-	 * source is absent); while Active / Leaving it also streams the sublevel out and, unless the world is tearing down,
-	 * schedules UnloadInteriorAfterEndPlay() for the next tick (off the Evaluate() stack; skipped when another Active /
-	 * Leaving portal targets the same interior, retried after DebounceSeconds while one is Pending).
+	 * source is absent); while IsHoldingInterior() it also streams the sublevel out and, unless the world is tearing
+	 * down, schedules UnloadInteriorAfterEndPlay() for the next tick (off the Evaluate() stack; skipped when another
+	 * portal holds the same interior, retried after DebounceSeconds while one is Pending without a request).
 	 */
 	virtual void EndPlay(const EEndPlayReason::Type Reason) override;
 
@@ -234,15 +247,15 @@ private:
 	/** Any entry portal (not Except) targeting ZoneId that is valid, not being destroyed, and passes Pred. */
 	static bool AnyEntryPortal(UWorld* World, const FString& ZoneId, const AGolmokPortal* Except, TFunctionRef<bool(const AGolmokPortal&)> Pred);
 
-	/** Another entry portal (not Except) targeting ZoneId is Active / Leaving. */
+	/** Another entry portal (not Except) targeting ZoneId IsHoldingInterior() (Active / Leaving / Pending after its request). */
 	static bool IsInteriorZoneInUse(UWorld* World, const FString& ZoneId, const AGolmokPortal* Except);
 
 	/**
-	 * Another entry portal (not Except) targeting ZoneId is Pending: the player stands in its box with the debounce
-	 * running, so within DebounceSeconds it either Activates (the interior stays in use) or goes Idle. Unloading the
-	 * interior in that window would have the sibling reload it right after (load/unload thrash); the unload waits.
-	 * Pending itself never counts as "in use": a Pending portal the player leaves goes Idle without unloading, which
-	 * would pin the interior forever.
+	 * Another entry portal (not Except) targeting ZoneId is Pending without having requested the interior yet: the
+	 * player stands in its box with the debounce running, so within DebounceSeconds it either requests / activates
+	 * (the interior stays in use) or goes Idle. Unloading the interior in that window would have the sibling reload it
+	 * right after (load/unload thrash); the unload waits. A Pending portal that already requested the interior counts
+	 * as "in use" (IsHoldingInterior) and returns its pin through StartLeaving when the player leaves.
 	 */
 	static bool HasPendingSibling(UWorld* World, const FString& ZoneId, const AGolmokPortal* Except);
 
@@ -253,8 +266,24 @@ private:
 	 */
 	static void UnloadInteriorAfterEndPlay(UGolmokZoneSubsystem* Subsystem, const FString& ZoneId, const FString& InPortalId, float RetrySeconds);
 
-	/** Pending -> Active: RequestLoad + StreamIn (also when the pawn already left the box on the interior side). */
+	/**
+	 * Debounce elapsed: RequestInterior if the preload did not, then CompleteActivation when IsInteriorReady, else stay
+	 * Pending and re-arm this timer every InteriorLoadPollSeconds (also when the pawn already left the box on the
+	 * interior side). Left outward after the request: Active + StartLeaving so the pin is returned after the delay.
+	 */
 	void OnDebounceElapsed();
+
+	/** Next tick after Idle -> Pending (PreloadTimer): RequestInterior() while still Pending, so the async load starts before the debounce ends. Never on the overlap-callback stack. */
+	void PreloadInterior();
+
+	/** RequestLoad(TargetZoneId, true, Msg, Portal) once per cycle; sets bInteriorRequested / InteriorRequestSeconds. False when there is no zone subsystem (or no registered interior zone yet). */
+	bool RequestInterior(FString& OutZoneMsg);
+
+	/** Interior zone Loaded, or absent / Failed / timed out (InteriorLoadTimeoutSeconds) -> ready to StreamIn. Loading -> false ("interior loading"). */
+	bool IsInteriorReady(FString& OutWhy) const;
+
+	/** StreamIn + State = Active + log: the second half of the old Activate(). */
+	void CompleteActivation(const FString& ZoneMsg);
 
 	/**
 	 * Leaving -> Idle: StreamOut + RequestUnload, both skipped while another Active / Leaving portal targets the same
@@ -264,7 +293,7 @@ private:
 	 */
 	void OnUnloadDelayElapsed();
 
-	/** The load step shared by OnDebounceElapsed() and EnterInterior(): zone RequestLoad + sublevel StreamIn, State = Active. */
+	/** EnterInterior(): RequestInterior, then CompleteActivation when IsInteriorReady, else Pending + poll (activates when ready). */
 	bool Activate(FString& OutMessage);
 
 	bool StreamIn(FString& Msg);
@@ -295,6 +324,9 @@ private:
 
 	FTimerHandle DebounceTimer;
 	FTimerHandle UnloadTimer;
+	FTimerHandle PreloadTimer;
+	/** World time of the first RequestInterior() attempt in this cycle (0 = none yet); the Pending wait times out from here. */
+	double InteriorRequestSeconds = 0.0;
 	double LastCrossingSeconds = -1.0e9;
 	bool bWarnedNoTargetZone = false;
 };

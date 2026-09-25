@@ -393,4 +393,40 @@ namespace GolmokGeoMath
 		OutHeight = Hgt;
 		OutWidth = Vec3{Hgt[1] * N[2] - Hgt[2] * N[1], Hgt[2] * N[0] - Hgt[0] * N[2], Hgt[0] * N[1] - Hgt[1] * N[0]};
 	}
+
+	// ---------------------------------------------------------------------------------------------------------
+	// Zone Index cells (WP-09, spec §6): Web Mercator XYZ tiles, same formulas as golmok_tools.zone.index
+	// ---------------------------------------------------------------------------------------------------------
+
+	/** Web Mercator latitude limit (deg). Same literal as golmok_tools.zone.index.MAX_LAT. */
+	constexpr double MaxMercatorLatDeg = 85.0511287798066;
+
+	/**
+	 * XYZ tile of (lon, lat) at Zoom (spec §6): x = floor((lon+180)/360·2^z), y = floor((1 − asinh(tan φ)/π)/2·2^z).
+	 * Same expression order as index.lonlat_to_tile (g++ cross-check). Lat clamped to ±MaxMercatorLatDeg, x/y clamped
+	 * to [0, 2^Zoom − 1] (no wrap), Zoom clamped to 0..30 (fits int).
+	 */
+	inline void LonLatToCell(double LonDeg, double LatDeg, int Zoom, int& OutX, int& OutY)
+	{
+		const int Z = (Zoom < 0) ? 0 : ((Zoom > 30) ? 30 : Zoom);
+		const double N = std::ldexp(1.0, Z);                                   // 2^z exactly
+		const double Lat = (LatDeg < -MaxMercatorLatDeg) ? -MaxMercatorLatDeg : ((LatDeg > MaxMercatorLatDeg) ? MaxMercatorLatDeg : LatDeg);
+		const double X = std::floor((LonDeg + 180.0) / 360.0 * N);
+		const double Y = std::floor((1.0 - std::asinh(std::tan(DegToRad(Lat))) / Pi) / 2.0 * N);
+		const double Max = N - 1.0;
+		OutX = static_cast<int>((X < 0.0) ? 0.0 : ((X > Max) ? Max : X));
+		OutY = static_cast<int>((Y < 0.0) ? 0.0 : ((Y > Max) ? Max : Y));
+	}
+
+	/** (west, south, east, north) degrees of tile (X, Y) at Zoom — index.tile_bounds. */
+	inline void CellBounds(int X, int Y, int Zoom, double& OutWest, double& OutSouth, double& OutEast, double& OutNorth)
+	{
+		const int Z = (Zoom < 0) ? 0 : ((Zoom > 30) ? 30 : Zoom);
+		const double N = std::ldexp(1.0, Z);
+		auto LatOf = [N](double Row) { return RadToDeg(std::atan(std::sinh(Pi * (1.0 - 2.0 * Row / N)))); };
+		OutWest = static_cast<double>(X) / N * 360.0 - 180.0;
+		OutEast = static_cast<double>(X + 1) / N * 360.0 - 180.0;
+		OutSouth = LatOf(static_cast<double>(Y + 1));
+		OutNorth = LatOf(static_cast<double>(Y));
+	}
 } // namespace GolmokGeoMath

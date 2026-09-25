@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "cell_zoom": 16,
+  "zones": [
+    {
+      "id": "z_synthetic_001",
+      "version": 1,
+      "kind": "exterior",
+      "priority": 10,
+      "bbox_wgs84": [126.924773635, 37.561909901, 126.925226365, 37.562090099],
+      "manifest": "z_synthetic_001/v1/manifest.json"
+    },
+    {
+      "id": "z_synthetic_001_interior",
+      "version": 1,
+      "kind": "interior",
+      "priority": 20,
+      "bbox_wgs84": [126.925011318, 37.562090099, 126.925101865, 37.562144159],
+      "manifest": "z_synthetic_001_interior/v1/manifest.json"
+    },
+    {
+      "id": "z_synthetic_002",
+      "version": 1,
+      "kind": "exterior",
+      "priority": 10,
+      "bbox_wgs84": [126.927082506, 37.56199099, 126.927444694, 37.562144159],
+      "manifest": "z_synthetic_002/v1/manifest.json"
+    }
+  ]
+}

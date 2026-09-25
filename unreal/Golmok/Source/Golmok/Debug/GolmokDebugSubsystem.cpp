@@ -3,6 +3,13 @@
 // "RHI" can be dropped from Build.cs.
 #define GOLMOK_GPU_TIME_SOURCE 1
 
+// Render-thread time source for the HUD (WP-09 design §6-1).
+//   0 = GRenderThreadTime read in OnEndFrame (WP-05 behaviour; V-03 saw 0.00 often)
+//   1 = GRenderThreadTime read in OnBeginFrame (the previous frame's settled value), applied in OnEndFrame  [default]
+//   2 = GRenderThreadTimeCriticalPath read in OnBeginFrame (RenderTimer.h; set 1 if the symbol is missing)
+// Whatever the source, a 0 sample keeps the last positive value (GolmokStatsMath::HoldLastPositive).
+#define GOLMOK_RENDER_TIME_SOURCE 1
+
 #include "Debug/GolmokDebugSubsystem.h"
 
 #include "Golmok.h"
@@ -175,15 +182,35 @@ void UGolmokDebugSubsystem::OnWorldBeginPlay(UWorld& InWorld)
 
 void UGolmokDebugSubsystem::BindSampler(bool bOn)
 {
+	// OnBeginFrame / OnEndFrame are bound and released as a pair; a fresh bind starts the hold state from 0.
 	if (bOn && !EndFrameHandle.IsValid())
 	{
+		RenderHold.Reset();
+		RenderCyclesAtBeginFrame = 0;
+		RenderCyclesAtEndFrame = 0;
+		BeginFrameHandle = FCoreDelegates::OnBeginFrame.AddUObject(this, &UGolmokDebugSubsystem::OnBeginFrame);
 		EndFrameHandle = FCoreDelegates::OnEndFrame.AddUObject(this, &UGolmokDebugSubsystem::OnEndFrame);
 	}
 	else if (!bOn && EndFrameHandle.IsValid())
 	{
 		FCoreDelegates::OnEndFrame.Remove(EndFrameHandle);
 		EndFrameHandle.Reset();
+		FCoreDelegates::OnBeginFrame.Remove(BeginFrameHandle);
+		BeginFrameHandle.Reset();
 	}
+}
+
+void UGolmokDebugSubsystem::OnBeginFrame()
+{
+	// The render thread writes GRenderThreadTime at the end of its own frame; at the start of the next game-thread
+	// frame the previous frame's value is settled (WP-09 design §6-1, runbook §7 confirms the source).
+#if GOLMOK_RENDER_TIME_SOURCE == 2
+	RenderCyclesAtBeginFrame = static_cast<uint32>(GRenderThreadTimeCriticalPath);
+#elif GOLMOK_RENDER_TIME_SOURCE == 1
+	RenderCyclesAtBeginFrame = static_cast<uint32>(GRenderThreadTime);
+#else
+	RenderCyclesAtBeginFrame = 0;
+#endif
 }
 
 void UGolmokDebugSubsystem::OnEndFrame()
@@ -191,7 +218,15 @@ void UGolmokDebugSubsystem::OnEndFrame()
 	const double DtSec = FApp::GetDeltaTime();
 	const double SecondsPerCycle = FPlatformTime::GetSecondsPerCycle();
 	const double GameMs = GolmokStatsMath::CyclesToMs(static_cast<std::uint64_t>(GGameThreadTime), SecondsPerCycle);
-	const double RenderMs = GolmokStatsMath::CyclesToMs(static_cast<std::uint64_t>(GRenderThreadTime), SecondsPerCycle);
+	RenderCyclesAtEndFrame = static_cast<uint32>(GRenderThreadTime);
+#if GOLMOK_RENDER_TIME_SOURCE == 0
+	const uint32 RenderCyclesRaw = RenderCyclesAtEndFrame;
+#else
+	const uint32 RenderCyclesRaw = RenderCyclesAtBeginFrame;
+#endif
+	// V-03: a 0 reading means "not sampled yet", not "free" -> keep the last positive value.
+	const double RenderMs =
+		GolmokStatsMath::HoldLastPositive(RenderHold, GolmokStatsMath::CyclesToMs(static_cast<std::uint64_t>(RenderCyclesRaw), SecondsPerCycle));
 #if GOLMOK_GPU_TIME_SOURCE
 	const double GpuMs = GolmokStatsMath::CyclesToMs(static_cast<std::uint64_t>(RHIGetGPUFrameCycles()), SecondsPerCycle);
 #else
@@ -230,6 +265,14 @@ FString UGolmokDebugSubsystem::FormatStatsLine() const
 	const FString Gpu = S.HasGpu ? FString::Printf(TEXT("%.2f ms"), S.AvgGpuMs) : FString(TEXT("n/a"));
 	return FString::Printf(TEXT("fps %.1f  1%% low %.1f  game %.2f ms  render %.2f ms  gpu %s  (%.1f s, %d fr)"), S.AvgFps, S.OnePercentLowFps,
 		S.AvgGameMs, S.AvgRenderMs, *Gpu, S.WindowSec, static_cast<int32>(S.Frames));
+}
+
+FString UGolmokDebugSubsystem::DescribeRenderSource() const
+{
+	return FString::Printf(TEXT("render source %d: begin %u cycles, end %u cycles, held %llu/%llu frames (since bind%s)"),
+		static_cast<int32>(GOLMOK_RENDER_TIME_SOURCE), RenderCyclesAtBeginFrame, RenderCyclesAtEndFrame,
+		static_cast<unsigned long long>(RenderHold.HeldCount), static_cast<unsigned long long>(RenderHold.Total),
+		RenderHold.bHeldLast ? TEXT(", last held") : TEXT(""));
 }
 
 // ---- HUD ------------------------------------------------------------------------------------------------------
@@ -1185,6 +1228,7 @@ namespace
 			return;
 		}
 		UE_LOG(LogGolmok, Log, TEXT("golmok.stats: %s"), *Subsystem->FormatStatsLine());
+		UE_LOG(LogGolmok, Log, TEXT("golmok.stats: %s"), *Subsystem->DescribeRenderSource());
 	}
 
 	FAutoConsoleCommandWithWorldAndArgs GCmdHud(TEXT("golmok.hud"), TEXT("golmok.hud [0|1]: show / hide the Golmok debug HUD (toggle without argument)."),

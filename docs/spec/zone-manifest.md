@@ -196,6 +196,7 @@ C++(WP-04)는 §4의 A·B·C 표 값을 단위테스트 기준으로 쓴다(허�
   footprint 폴리곤과 **실제로 겹치는** 타일만(bbox가 아니라). `zones`는 이기는 순서: priority 내림차순 → version 내림차순 → id.
 - 스키마 검사에 실패한 최신 버전은 건너뛰고 그 아래 유효한 버전을 쓴다(경고 출력, `--strict`면 실패).
 - 게시·롤백은 index만 다시 만들어 바꾼다(버전 폴더는 불변, ARCHITECTURE §4-6).
+- **게임 내 위치**(WP-09): 게임은 `Content/Golmok/Zones/index/zones.json`과 `index/cells/16_<x>_<y>.json`을 원본 그대로 읽는다(비에셋 파일, `+DirectoriesToAlwaysStageAsUFS=(Path="Golmok/Zones")`가 덮음). 동기화는 `golmok-zone index build --zones-root <zones> --out <zones>/index` 뒤 에디터 Python `import golmok.zone_index as zx; zx.sync(r"<zones>")`(또는 `zone_import.run(..., with_index=True)`). 런타임은 플레이어 위치의 셀과 3×3 이웃만 읽고 셀당 1회 파싱해 캐시한다(없는 파일 = 빈 셀). zones 루트 안의 `index/` 폴더는 zone이 아니다(`scan_zones`가 건너뜀).
 
 ## 7. 베이스맵 제외 (`golmok-zone exclude`)
 

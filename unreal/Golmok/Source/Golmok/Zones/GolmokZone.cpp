@@ -12,8 +12,11 @@
 #include "Geo/GolmokGeoMath.h"
 #include "Geo/GolmokGeoSubsystem.h"
 #include "Materials/MaterialInterface.h"
+#include "Misc/PackageName.h"
 #include "Misc/Paths.h"
 #include "Portals/GolmokPortal.h"
+#include "TimerManager.h"
+#include "UObject/SoftObjectPath.h"
 #include "UObject/UObjectGlobals.h"
 #include "Zones/GolmokZoneSubsystem.h"
 
@@ -43,6 +46,7 @@ AGolmokZone::AGolmokZone()
 void AGolmokZone::BeginPlay()
 {
 	Super::BeginPlay();
+	AsyncLoadCount = 0;
 	if (UGolmokZoneSubsystem* Subsystem = GetZoneSubsystem())
 	{
 		Subsystem->RegisterZone(this);
@@ -277,9 +281,208 @@ UStaticMesh* AGolmokZone::LoadMeshAsset(const FString& ObjectPath)
 	return Cast<UStaticMesh>(StaticLoadObject(UStaticMesh::StaticClass(), nullptr, *ObjectPath, nullptr, LOAD_NoWarn | LOAD_Quiet));
 }
 
+UStaticMesh* AGolmokZone::AcquireMeshAsset(const FString& ObjectPath)
+{
+	if (bAssetsPreloaded)
+	{
+		// FinishAsyncLoad: the streamable handle keeps the asset resident, so a lookup is enough (no load, no flush).
+		if (UStaticMesh* Resident = Cast<UStaticMesh>(FSoftObjectPath(ObjectPath).ResolveObject()))
+		{
+			return Resident;
+		}
+	}
+	if (!FPackageName::DoesPackageExist(FPackageName::ObjectPathToPackageName(ObjectPath)))
+	{
+		// No StaticLoadObject probe for a missing package: no LogStreaming noise and no FlushAsyncLoading on this stack.
+		return nullptr;
+	}
+	return LoadMeshAsset(ObjectPath);
+}
+
+TArray<FSoftObjectPath> AGolmokZone::CollectAssetPaths(int32& OutMissing) const
+{
+	OutMissing = 0;
+	TArray<FSoftObjectPath> Paths;
+	if (!bManifestLoaded)
+	{
+		return Paths;
+	}
+	auto Consider = [&Paths, &OutMissing](const FString& AssetPath)
+	{
+		if (FPackageName::DoesPackageExist(FPackageName::ObjectPathToPackageName(AssetPath)))
+		{
+			Paths.AddUnique(FSoftObjectPath(AssetPath));
+		}
+		else
+		{
+			++OutMissing;
+		}
+	};
+	if (Manifest.Layers.Visual.Format == EGolmokVisualFormat::NaniteMesh)
+	{
+		for (const FGolmokZoneChunk& Chunk : Manifest.Layers.Visual.Chunks)
+		{
+			Consider(GolmokZoneManifest::ChunkAssetPath(ZoneId, Version, Chunk.Id));
+		}
+	}
+	// Same id list as BuildCollisionLayer: one asset per collision chunk, or the single SM_<zone>_collision.
+	if (Manifest.Layers.Collision.Chunks.Num() == 0)
+	{
+		Consider(GolmokZoneManifest::CollisionAssetPath(ZoneId, Version, FString()));
+	}
+	for (const FGolmokZoneChunk& Chunk : Manifest.Layers.Collision.Chunks)
+	{
+		Consider(GolmokZoneManifest::CollisionAssetPath(ZoneId, Version, Chunk.Id));
+	}
+	return Paths;
+}
+
+double AGolmokZone::GetLoadingSeconds() const
+{
+	return State == EGolmokZoneState::Loading ? FPlatformTime::Seconds() - AsyncStartSeconds : 0.0;
+}
+
+bool AGolmokZone::LoadAsync()
+{
+	UGolmokZoneSubsystem* Subsystem = GetZoneSubsystem();
+	if (!Subsystem)
+	{
+		return false;
+	}
+	int32 Missing = 0;
+	TArray<FSoftObjectPath> Paths = CollectAssetPaths(Missing);
+	if (Paths.Num() == 0)
+	{
+		// Nothing to stream (no asset package exists yet): the synchronous path draws the wire boxes without any
+		// StaticLoadObject call (AcquireMeshAsset checks the package first).
+		return false;
+	}
+	State = EGolmokZoneState::Loading;
+	AsyncStartSeconds = FPlatformTime::Seconds();
+	bFinishPending = false;
+	const uint32 Serial = ++AsyncSerial;
+	const int32 NumAssets = Paths.Num();
+	// A named FStreamableDelegate picks the classic RequestAsyncLoad overload unambiguously (5.4+ also has
+	// FStreamableAsyncLoadParams / TFunction overloads). The completion is a weak lambda: a destroyed zone is skipped.
+	FStreamableDelegate Done = FStreamableDelegate::CreateWeakLambda(this, [this, Serial]() { OnStreamableComplete(Serial); });
+	LoadHandle = Subsystem->GetStreamable().RequestAsyncLoad(MoveTemp(Paths), Done, AsyncPriority, /*bManageActiveHandle*/ false,
+		/*bStartStalled*/ false, FString::Printf(TEXT("GolmokZone %s v%d"), *ZoneId, Version));
+	if (!LoadHandle.IsValid())
+	{
+		if (UWorld* World = GetWorld())
+		{
+			World->GetTimerManager().ClearTimer(AsyncFinishTimer);
+		}
+		bFinishPending = false;
+		++AsyncSerial;
+		State = EGolmokZoneState::Unloaded;
+		UE_LOG(LogGolmok, Warning, TEXT("Zone %s v%d: RequestAsyncLoad refused; loading synchronously"), *ZoneId, Version);
+		return false;
+	}
+	UE_LOG(LogGolmok, Log, TEXT("Zone %s v%d: async load requested (%d assets, %d missing, priority %d)"), *ZoneId, Version, NumAssets, Missing,
+		AsyncPriority);
+	return true;
+}
+
+void AGolmokZone::OnStreamableComplete(uint32 InSerial)
+{
+	// May run inside RequestAsyncLoad (i.e. on the Load() / Evaluate() stack) or from the engine's delay helper: only
+	// record the completion and defer the build to the next tick. Stale serials (cancel, re-request) are ignored.
+	if (InSerial != AsyncSerial || State != EGolmokZoneState::Loading || bFinishPending)
+	{
+		return;
+	}
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		return;
+	}
+	bFinishPending = true;
+	PendingFinishSerial = InSerial;
+	AsyncFinishTimer = World->GetTimerManager().SetTimerForNextTick(this, &AGolmokZone::FinishAsyncLoad);
+}
+
+void AGolmokZone::FinishAsyncLoad()
+{
+	if (!bFinishPending || State != EGolmokZoneState::Loading || PendingFinishSerial != AsyncSerial)
+	{
+		return;
+	}
+	bFinishPending = false;
+	UWorld* World = GetWorld();
+	if (!World || World->bIsTearingDown)
+	{
+		CancelAsyncLoad();
+		return;
+	}
+	if (LoadHandle.IsValid() && !LoadHandle->HasLoadCompleted() && !bWarnedHandleIncomplete)
+	{
+		bWarnedHandleIncomplete = true;
+		UE_LOG(LogGolmok, Warning, TEXT("Zone %s v%d: streamable handle not complete at finish; building from whatever is resident"), *ZoneId, Version);
+	}
+	UGolmokZoneSubsystem* Subsystem = GetZoneSubsystem();
+	if (Subsystem)
+	{
+		Subsystem->NoteAsyncFinish(this);
+	}
+	const double WaitMs = (FPlatformTime::Seconds() - AsyncStartSeconds) * 1000.0;
+	const double BuildStartSeconds = FPlatformTime::Seconds();
+
+	bAssetsPreloaded = true;
+	const int32 NumChunks = BuildVisualLayer();
+	const int32 NumCollision = BuildCollisionLayer();
+	const int32 NumBlockers = BuildBlockers();
+	bAssetsPreloaded = false;
+	LoadHandle.Reset(); // the components hold the meshes from here on
+
+	State = EGolmokZoneState::Loaded;
+	LastError.Reset();
+	SetVisualVisible(bVisualVisible);
+	SetCollisionEnabled(bCollisionOn);
+	SpawnPortals();
+	++AsyncLoadCount;
+
+	const int32 NumCollisionWanted = FMath::Max(1, Manifest.Layers.Collision.Chunks.Num());
+	UE_LOG(LogGolmok, Log,
+		TEXT("Zone %s v%d loaded (async %.1f ms wait + %.1f ms build): chunks %d/%d (%d wire boxes), collision %d/%d, blockers %d/%d, portals %d (WP-05)"),
+		*ZoneId, Version, WaitMs, (FPlatformTime::Seconds() - BuildStartSeconds) * 1000.0, NumChunks, Manifest.Layers.Visual.Chunks.Num(),
+		PlaceholderBoxes.Num(), NumCollision, NumCollisionWanted, NumBlockers, Blockers.Planes.Num(), Manifest.Portals.Num());
+
+	if (Subsystem)
+	{
+		Subsystem->NotifyZoneLoaded(this);
+	}
+}
+
+void AGolmokZone::CancelAsyncLoad()
+{
+	const bool bWasLoading = State == EGolmokZoneState::Loading;
+	if (!bWasLoading && !LoadHandle.IsValid() && !bFinishPending)
+	{
+		return;
+	}
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().ClearTimer(AsyncFinishTimer);
+	}
+	++AsyncSerial; // a completion that still arrives (or a timer that was not cleared) is ignored by the serial check
+	bFinishPending = false;
+	if (LoadHandle.IsValid())
+	{
+		LoadHandle->CancelHandle();
+		LoadHandle.Reset();
+	}
+	if (bWasLoading)
+	{
+		State = EGolmokZoneState::Unloaded;
+		UE_LOG(LogGolmok, Log, TEXT("Zone %s v%d: async load cancelled after %.1f ms"), *ZoneId, Version,
+			(FPlatformTime::Seconds() - AsyncStartSeconds) * 1000.0);
+	}
+}
+
 bool AGolmokZone::Load()
 {
-	if (State == EGolmokZoneState::Loaded)
+	if (State == EGolmokZoneState::Loaded || State == EGolmokZoneState::Loading)
 	{
 		return true;
 	}
@@ -288,13 +491,14 @@ bool AGolmokZone::Load()
 		State = EGolmokZoneState::Failed;
 		return false;
 	}
-	if (bAsyncLoad && !bWarnedAsync)
-	{
-		bWarnedAsync = true;
-		UE_LOG(LogGolmok, Warning, TEXT("Zone %s: bAsyncLoad is not implemented yet (TODO FStreamableManager); loading synchronously."), *ZoneId);
-	}
 	DestroyOwnedComponents();
 	MissingAssetCount = 0;
+	UWorld* World = GetWorld();
+	if (bAsyncLoad && GetZoneSubsystem() && World && World->IsGameWorld() && !World->bIsTearingDown && LoadAsync())
+	{
+		return true; // Loading: the next-tick finish step completes it after the streamable request
+	}
+	// Synchronous path (flag off, editor world, no existing asset package, or a refused request).
 	const double StartSeconds = FPlatformTime::Seconds();
 
 	const int32 NumChunks = BuildVisualLayer();
@@ -327,7 +531,7 @@ int32 AGolmokZone::BuildVisualLayer()
 	for (const FGolmokZoneChunk& Chunk : Manifest.Layers.Visual.Chunks)
 	{
 		const FString AssetPath = GolmokZoneManifest::ChunkAssetPath(ZoneId, Version, Chunk.Id);
-		UStaticMesh* Mesh = bMeshFormat ? LoadMeshAsset(AssetPath) : nullptr;
+		UStaticMesh* Mesh = bMeshFormat ? AcquireMeshAsset(AssetPath) : nullptr;
 		if (Mesh)
 		{
 			if (UStaticMeshComponent* Component = MakeMeshComponent(MakeComponentName(TEXT("Chunk"), Chunk.Id), Mesh, /*bVisual*/ true, Chunk.Id))
@@ -387,7 +591,7 @@ int32 AGolmokZone::BuildCollisionLayer()
 	for (const FString& Id : CollisionIds)
 	{
 		const FString AssetPath = GolmokZoneManifest::CollisionAssetPath(ZoneId, Version, Id);
-		if (UStaticMesh* Mesh = LoadMeshAsset(AssetPath))
+		if (UStaticMesh* Mesh = AcquireMeshAsset(AssetPath))
 		{
 			const FName Name = Id.IsEmpty() ? FName(TEXT("Collision")) : MakeComponentName(TEXT("Collision"), Id);
 			if (UStaticMeshComponent* Component = MakeMeshComponent(Name, Mesh, /*bVisual*/ false, Id.IsEmpty() ? TEXT("collision") : Id))
@@ -436,6 +640,7 @@ int32 AGolmokZone::BuildBlockers()
 
 void AGolmokZone::Unload()
 {
+	CancelAsyncLoad(); // Loading -> Unloaded without NotifyZoneUnloaded (nothing was built)
 	const bool bWasLoaded = State == EGolmokZoneState::Loaded;
 	DestroyPortals();
 	DestroyOwnedComponents();

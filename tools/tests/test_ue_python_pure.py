@@ -13,6 +13,7 @@ import importlib
 import inspect
 import itertools
 import json
+import os
 import re
 import struct
 import sys
@@ -34,7 +35,11 @@ RESEARCH_08 = REPO / "docs" / "research" / "08-spike-results.md"
 ZONE_MANIFEST_CPP = REPO / "unreal" / "Golmok" / "Source" / "Golmok" / "Zones" / "GolmokZoneManifest.cpp"
 STATS_MATH_H = REPO / "unreal" / "Golmok" / "Source" / "Golmok" / "Debug" / "GolmokStatsMath.h"
 DEFAULT_GAME_INI = REPO / "unreal" / "Golmok" / "Config" / "DefaultGame.ini"
-RUNBOOKS = (REPO / "docs" / "runbooks" / "pc-verify-wp06.md", REPO / "docs" / "runbooks" / "pc-spike.md")
+RUNBOOKS = (
+    REPO / "docs" / "runbooks" / "pc-verify-wp06.md",
+    REPO / "docs" / "runbooks" / "pc-spike.md",
+    REPO / "docs" / "runbooks" / "pc-verify-wp09.md",
+)
 
 ROOT = "/synthetic"
 ZONE = "z_synthetic_scan_001"
@@ -398,11 +403,18 @@ def test_modules_import_with_empty_stub(mods):
         it = importlib.import_module("golmok.interior_setup")
         sr = importlib.import_module("golmok.spike_runner")
         vp = importlib.import_module("golmok.viewpoints")
+        zx = importlib.import_module("golmok.zone_index")
     finally:
         sys.path.remove(str(PY_DIR))
     assert list(inspect.signature(zi.run).parameters) == [
-        "zone_dir", "version", "level", "geo_origin", "save", "remeasure", "reimport_textures",
+        "zone_dir", "version", "level", "geo_origin", "save", "remeasure", "reimport_textures", "with_index",
     ]  # fmt: skip
+    # WP-09 zone_index (design §3-7)
+    assert list(inspect.signature(zx.plan).parameters) == ["zones_root", "index_dir"]
+    assert list(inspect.signature(zx.sync).parameters) == ["zones_root", "index_dir", "content_dir"]
+    assert list(inspect.signature(zx.describe).parameters) == ["content_dir"]
+    assert issubclass(zx.ZoneIndexError, zi.ZoneImportError) and zx.ZoneIndexError.log_key == "zx.error"
+    assert zx.INDEX_REL == f"{mods.pure.CONTENT_ZONES_REL}/{mods.pure.INDEX_DIR_NAME}"
     assert list(inspect.signature(it.run).parameters) == [
         "zone_dir", "version", "level", "save", "register", "remeasure", "reimport_textures",
     ]  # fmt: skip
@@ -1155,7 +1167,7 @@ def test_log_formats_are_quoted_in_runbook(mods):
     ):
         assert message in text, message
     known = sorted(prefixes.values(), key=len, reverse=True)
-    head = re.compile(r"^\s*(zone_import|interior_setup|spike_runner|basemap_import):")
+    head = re.compile(r"^\s*(zone_import|interior_setup|spike_runner|basemap_import|zone_index):")
     for path in RUNBOOKS:
         in_block = False
         for no, line in enumerate(path.read_text("utf-8").splitlines(), 1):
@@ -1174,9 +1186,12 @@ def test_result_json_and_cache_shape(mods):
     result = pure.result_json(plan, mappings, assets, ["w1"], "fbx")
     assert list(result) == [
         "schema", "zone_id", "version", "asset_folder", "route", "obj_mapping", "glb_mapping",
-        "assets", "warnings", "interior",
+        "assets", "warnings", "interior", "index",
     ]  # fmt: skip
     assert result["schema"] == 1 and result["route"] == "fbx" and result["interior"] is None
+    assert result["index"] is None  # WP-09: zone_index.sync() result of run(with_index=True)
+    index = {"dest": "C:/P/Content/Golmok/Zones/index", "zones": 3, "cells": 4, "removed": [], "missing": []}
+    assert pure.result_json(plan, mappings, assets, [], "fbx", index)["index"] == index
     assert result["obj_mapping"] == {
         "scale": 100.0,
         "m": [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
@@ -1198,8 +1213,18 @@ def test_result_json_and_cache_shape(mods):
     assert pure.log_prefixes()["zi.warn"] == "zone_import: WARNING "
     assert pure.log_prefixes()["sr.cmd"] == "spike_runner: > "
     assert all(
-        v.startswith(("zone_import: ", "interior_setup: ", "spike_runner: ", "basemap_import: "))
+        v.startswith(
+            ("zone_import: ", "interior_setup: ", "spike_runner: ", "basemap_import: ", "zone_index: ")
+        )
         for v in pure.log_prefixes().values()
+    )
+    assert sorted(k for k in pure.LOG if k.startswith("zx.")) == sorted(
+        ["zx.plan", "zx.copied", "zx.removed", "zx.missing", "zx.warn", "zx.error", "zx.done"]
+    )
+    assert pure.log_prefixes()["zx.error"] == "zone_index: ERROR "
+    assert (
+        pure.fmt("zx.done", zones=3, cells=4, dest="C:/P/Content/Golmok/Zones/index")
+        == "zone_index: done 3 zones, 4 cells -> C:/P/Content/Golmok/Zones/index"
     )
     line = pure.fmt(
         "zi.texture", asset="/Game/T", tiles=[1001, 1002], w=512, h=512, vt="on", how="merged by importer"
@@ -1628,7 +1653,7 @@ def test_no_unreal_api_outside_touchpoint_list(mods):
     table = runbook[runbook.index("불확실 API") :]
     known |= set(api.findall(table))
     violations = []
-    for name in ("zone_import", "interior_setup", "spike_runner"):
+    for name in ("zone_import", "interior_setup", "spike_runner", "zone_index"):
         for no, line in enumerate((GOLMOK_DIR / f"{name}.py").read_text("utf-8").splitlines(), 1):
             violations += [f"{name}.py:{no}: unreal.{n}" for n in api.findall(line) if n not in known]
     for no, line in enumerate(new_materials.splitlines(), 1):
@@ -1708,3 +1733,193 @@ def test_pretransform_glb_rejects_non_indexed_primitive_with_mirroring(mods):
     with pytest.raises(ValueError, match="non-indexed"):
         pure.pretransform_glb(stripped, a_flip)
     pure.pretransform_glb(stripped, IDENTITY)  # no mirroring: accepted
+
+
+# ---- WP-09 zone index sync (design §3-7) ----------------------------------------------------------------
+
+INDEX_FIXTURE = ZONE_FIXTURES / "index"
+
+
+def _fixture_index() -> tuple[dict, dict[str, dict]]:
+    zones = json.loads((INDEX_FIXTURE / "zones.json").read_text("utf-8"))
+    cells = {
+        p.name: json.loads(p.read_text("utf-8")) for p in sorted((INDEX_FIXTURE / "cells").glob("*.json"))
+    }
+    return zones, cells
+
+
+def test_index_constants_and_cell_names_match_tools_index(mods):
+    from golmok_tools.zone import index as tools_index
+
+    pure = mods.pure
+    assert pure.INDEX_DIR_NAME == tools_index.INDEX_DIR_NAME == "index"
+    assert pure.INDEX_CELL_ZOOM == tools_index.CELL_ZOOM == 16
+    assert (pure.INDEX_ZONES_NAME, pure.INDEX_CELLS_DIR) == ("zones.json", "cells")
+    for z, x, y in ((16, 55873, 25379), (16, 0, 0), (20, 893983, 406079), (0, 0, 0)):
+        name = pure.cell_name(z, x, y)
+        assert name == tools_index.cell_name(z, x, y)
+        assert pure.parse_cell_name(name) == (z, x, y)
+    assert pure.parse_cell_name("16_55873_25379.json") == (16, 55873, 25379)
+    for bad in ("16_-1_2.json", "x16_1_2.json", "16_1_2.txt", "16_1.json", "16_1_2_3.json", "16_1_2.json.bak",
+                "16_1_+2.json", "", "cells"):  # fmt: skip
+        assert pure.parse_cell_name(bad) is None, bad
+    assert all(pure.parse_cell_name(n) is not None for n in sorted(_fixture_index()[1]))
+
+
+def test_zones_root_of(mods):
+    zones_root_of = mods.pure.zones_root_of
+    root = os.path.normpath("/data/zones")
+    assert zones_root_of("/data/zones/z_a_001") == root
+    assert zones_root_of("/data/zones/z_a_001/") == root
+    assert zones_root_of("/data/zones/z_a_001/v3") == root
+    assert zones_root_of("/data/zones/z_a_001/v3/") == root
+    assert zones_root_of("/data/zones/z_a_001/v3/manifest.json") == root
+    assert zones_root_of(os.path.join("rel", "zones", "z_a_001", "v1")) == os.path.normpath("rel/zones")
+    # what zone_import.run(with_index=True) passes: plan["zone_dir"] is the version folder
+    assert zones_root_of(str(ZONE_FIXTURES / "z_synthetic_001" / "v1")) == os.path.normpath(
+        str(ZONE_FIXTURES)
+    )
+    if os.name == "nt":
+        assert zones_root_of(r"D:\golmok\zones\z_a_001\v2") == os.path.normpath(r"D:\golmok\zones")
+
+
+def test_check_index_fixture_is_clean(mods):
+    zones, cells = _fixture_index()
+    assert mods.pure.check_index(zones, cells) == []
+    assert len(cells) == 4 and [z["id"] for z in zones["zones"]] == sorted(z["id"] for z in zones["zones"])
+
+
+@pytest.mark.parametrize(
+    "case, needle",
+    [
+        ("schema_version", "schema_version"),
+        ("cell_zoom", "cell_zoom"),
+        ("zones_not_list", "zones must be a list"),
+        ("bad_id", "bad id"),
+        ("version_zero", "version"),
+        ("unknown_kind", "kind"),
+        ("priority_float", "priority"),
+        ("bbox_three", "bbox_wgs84"),
+        ("bbox_west_gt_east", "west > east"),
+        ("manifest_path", "manifest"),
+        ("duplicate_id", "duplicate id"),
+        ("unsorted", "sorted by id"),
+        ("cell_name", "file name"),
+        ("cell_name_vs_content", "not the file name"),
+        ("cell_zoom_15", "z must be 16"),
+        ("cell_unknown_id", "not in zones.json"),
+        ("cell_version_mismatch", "!= zones.json version"),
+        ("cell_duplicate", "duplicate id"),
+        ("cell_schema_version", "schema_version"),
+        ("cell_row_without_version", "id and version"),
+    ],
+)
+def test_check_index_error_cases(mods, case, needle):
+    zones, cells = _fixture_index()
+    first = zones["zones"][0]
+    name = sorted(cells)[0]
+    cell = cells[name]
+    if case == "schema_version":
+        zones["schema_version"] = 2
+    elif case == "cell_zoom":
+        zones["cell_zoom"] = 15
+    elif case == "zones_not_list":
+        zones["zones"] = {}
+        cells = {}
+    elif case == "bad_id":
+        first["id"] = "Z_Bad"
+        first["manifest"] = "Z_Bad/v1/manifest.json"
+        cells = {}
+    elif case == "version_zero":
+        first["version"] = 0
+        cells = {}
+    elif case == "unknown_kind":
+        first["kind"] = "bogus"
+    elif case == "priority_float":
+        first["priority"] = 1.5
+    elif case == "bbox_three":
+        first["bbox_wgs84"] = first["bbox_wgs84"][:3]
+    elif case == "bbox_west_gt_east":
+        w, s, e, n = first["bbox_wgs84"]
+        first["bbox_wgs84"] = [e, s, w, n]
+    elif case == "manifest_path":
+        first["manifest"] = f"{first['id']}/v2/manifest.json"
+    elif case == "duplicate_id":
+        zones["zones"] = [zones["zones"][0], zones["zones"][0]]
+        cells = {}
+    elif case == "unsorted":
+        zones["zones"] = list(reversed(zones["zones"]))
+    elif case == "cell_name":
+        cells = {"16_-1_2.json": cell}
+    elif case == "cell_name_vs_content":
+        cells = {"16_55873_25381.json": cell}
+    elif case == "cell_zoom_15":
+        cells = {"15_1_1.json": {**cell, "z": 15, "x": 1, "y": 1}}
+    elif case == "cell_unknown_id":
+        cell["zones"] = [*cell["zones"], {"id": "z_ghost_001", "version": 1}]
+    elif case == "cell_version_mismatch":
+        cell["zones"][0]["version"] = 2
+    elif case == "cell_duplicate":
+        cell["zones"] = [cell["zones"][0], cell["zones"][0]]
+    elif case == "cell_schema_version":
+        cell["schema_version"] = 2
+    else:
+        cell["zones"] = [{"id": cell["zones"][0]["id"]}]
+    problems = mods.pure.check_index(zones, cells)
+    assert len(problems) == 1, problems
+    assert needle in problems[0], problems[0]
+
+
+def test_check_index_reports_several_problems_at_once(mods):
+    zones, cells = _fixture_index()
+    zones["schema_version"] = 3
+    zones["zones"][1]["kind"] = "room"
+    cells["16_1_1.json"] = {
+        "schema_version": 1,
+        "z": 16,
+        "x": 1,
+        "y": 1,
+        "zones": [{"id": "z_x_001", "version": 1}],
+    }
+    problems = mods.pure.check_index(zones, cells)
+    assert len(problems) == 3 and problems[-1].startswith("cells/16_1_1.json")
+    assert mods.pure.check_index("nope", {}) == ["zones.json: not a JSON object"]
+
+
+def test_index_sync_plan_sorted_and_stale(mods):
+    plan = mods.pure.index_sync_plan(
+        "/idx",
+        "/P/Content",
+        ["16_2_1.json", "16_1_1.json", "16_1_1.json"],
+        ["16_9_9.json", "16_1_1.json", "16_0_0.json"],
+    )  # fmt: skip
+    dest = os.path.normpath("/P/Content/Golmok/Zones/index")
+    src = os.path.normpath("/idx")
+    assert plan["dest"] == dest
+    assert plan["copy"] == [
+        (os.path.join(os.path.normpath("/idx"), "zones.json"), os.path.join(dest, "zones.json")),
+        (os.path.join(src, "cells", "16_1_1.json"), os.path.join(dest, "cells", "16_1_1.json")),
+        (os.path.join(src, "cells", "16_2_1.json"), os.path.join(dest, "cells", "16_2_1.json")),
+    ]  # fmt: skip
+    assert plan["remove"] == [
+        os.path.join(dest, "cells", "16_0_0.json"),
+        os.path.join(dest, "cells", "16_9_9.json"),
+    ]
+    empty = mods.pure.index_sync_plan("/idx/", "/P/Content/", [], [])
+    assert empty["copy"] == [
+        (os.path.join(os.path.normpath("/idx"), "zones.json"), os.path.join(dest, "zones.json"))
+    ]
+    assert empty["remove"] == []
+    assert list(plan) == ["dest", "copy", "remove"]
+
+
+def test_index_missing_manifests(mods):
+    zones, _ = _fixture_index()
+    have = {"z_synthetic_001/v1/manifest.json"}
+    assert mods.pure.index_missing_manifests(zones, have.__contains__) == [
+        "z_synthetic_001_interior", "z_synthetic_002",
+    ]  # fmt: skip
+    asked = []
+    assert mods.pure.index_missing_manifests(zones, lambda rel: asked.append(rel) or True) == []
+    assert asked == [f"{z['id']}/v{z['version']}/manifest.json" for z in zones["zones"]]
+    assert mods.pure.index_missing_manifests({"zones": []}, lambda rel: False) == []
