@@ -3,7 +3,7 @@
 갱신 규칙: 각 세션이 시작·종료 시 자기 행을 고친다. 상태 기호:
 ⚪ 대기 · 🔵 진행 중 · 🟡 코드 완료·PC 검증 대기 · 🟢 완료 · 🔴 막힘 · ⏸ 보류
 
-마지막 갱신: 2026-09-25 (WP-10 🔵 시작)
+마지막 갱신: 2026-09-25 (WP-10 🟢 완료 → PR #17 draft)
 
 ## 마일스톤
 
@@ -30,7 +30,7 @@
 | WP-08 | (선택) 웹 검수 뷰어 | 🟢 완료 | session_01Cgm7f6oD6xSMpZ5jszj8Xi (Fable 5.1) | `golmok-viewer`(CesiumJS 1.145, ion 없음) + `tools/viewer` + Playwright 스모크(`npm test`, 합성 베이스맵 18타일). Zone manifest 오버레이(footprint·청크 bbox·포털·blockers, `?zone=…/manifest.json`) 포함. 충돌 메시 표시는 WP-03 산출물 나오면 추가 |
 
 | WP-09 | UE C++ 3: Zone Index 발견·비동기 로드 + V-03 디버그 표시 정리 | 🟡 코드 완료·PC 검증 대기 | session_016UiCeoD2Sytfh4nSweonbs (Fable 5.1 ultracode, 심판·검증·수정 Opus 5.5) | `Zones/GolmokZoneIndex`(순수 파서·셀 캐시·3×3) · `UGolmokZoneSubsystem::OnEvaluateTimer = DiscoverZones → Evaluate`(Transient 스폰·파괴·retire, 배치 우선, `bPortalManaged`, 재진입 카운터) · `AGolmokZone::LoadAsync`(FStreamableManager, `Loading`, 완료 항상 다음 틱, 세대 취소, `bAsyncLoad=True`) · 포털 선로드 + `Loading`이면 Pending 유지 · `GOLMOK_RENDER_TIME_SOURCE`+`HoldLastPositive` · 콘솔 `golmok.zone.index` · Python `zone_index.sync`/`zone_import(with_index=)` · 픽스처 `z_synthetic_002`+`index/`(생성기 `make_index_fixture.py --check`) · pytest +70(전체 569 passed) · UE 자동화 5개(전체 16) · 런북 `runbooks/pc-verify-wp09.md`(불확실 API §11 34행+). PR #15. 적대적 검증 1라운드 13→확정 13(실질 8, major 2) 전부 수정·반박 0·미검증 0. **PC(V-07)**: 런북 §1~§10 순서; §7에서 render 소스 매크로 기본값 확정, §6 히치 표. WP-04 "남은 것"(Index 발견·bAsyncLoad) 해소 **병합 전 Opus 보완 리뷰**: 블로킹 없음, 비블로킹 3건 반영(GeoOrigin 없는 레벨 경고 억제, `ResolveObject` 우선, index 동일 파일 복사 건너뜀), V-07 메모 6건(WP-09 문서 "결과") |
-| WP-10 | 애니메이션 평가·게임 기능 제안(문서) | 🔵 진행 중(2026-09-25 시작) | session_011Jdzkehx5EZRAV1kX7PnGD (Opus 5.5) | 스펙 `plan/WP-10-animation-features-proposal.md`. ROADMAP 1.3 애니메이션 행, DEVELOPMENT-PLAN §11 #6(D-013~ 제안), night 프리셋 look-dev 메모. UE 코드 변경 없음, 제안 승인은 사용자 |
+| WP-10 | 애니메이션 평가·게임 기능 제안(문서) | 🟢 완료(문서; 제안 승인·PC 평가는 별도) | session_011Jdzkehx5EZRAV1kX7PnGD (Opus 5.5) | `research/09-animation-ue58.md`(현행 `ABP_Unarmed` / GASP 로코모션 이식(**권장 시험**) / Motion Matching 최소 구성 3안, 5.8 릴리스 노트·Motion Matching·GASP·Chooser 공식 문서 인용; Mover는 5.8에서도 Experimental이라 제외) · `runbooks/pc-verify-animation.md`(V-08: §0 라이선스 확인 → GASP 둘러보기 → ① 기준선 → ② 이식(시험 폴더 `Golmok_AnimEval`, 커밋 금지) → ③ 필요 시, 채점표·실패 대안) · `design/game-features-proposal.md` + DECISIONS **D-013~D-017 제안**(포토 모드·Zone 지도·시간대/날씨·환경음·세이브) · `design/lighting-night-lookdev.md`(night 검정 원인 = 태양 숨김 × 대기 0 × real-time SkyLight 0, 후보 A 달빛+B 노출 상한 → E 가로등). **확인 못 함(403)**: Fab EULA, UE EULA, Epic Content License, GASP Fab 리스팅·5.8 블로그, 통신비밀보호법 원문 → 사용자 확인 항목. UE 코드·JSON 변경 없음. PR #17 |
 | WP-11 | 웹 검수 뷰어 2차(충돌·blocker 메시 오버레이) | 🟢 완료 | session_01CSQya6KM72tpKC8L7aowSx (Opus 5.5) | `tools/viewer/zonemath.js`(glTF Y-up → zone-local → ECEF 한 곳, Cesium 기본 축 보정 끔 — 기본값이면 90° 돌아감) · `app.js` collision/blockers GLB `Cesium.Model`·오버레이 체크박스 6개·원점 E·N·U 축 · `golmok-viewer --zone`(`/zones/<zone_id>/v<n>/`, 확장자 화이트리스트, 경로 탈출 거절) · pytest +49(전체 618 passed) · `npm test` 단위 5 + 스모크(zone 2·모델 4·배치 오차 < 5 cm·토글). OBJ 청크는 bbox만. CI에는 `npm test` 잡 없음(로컬 게이트). 병합 전 Opus 보완 리뷰 5건(스모크가 사용자 `GOLMOK_DATA` 폴더에 쓰지 않음, CORS 헤더 제거, Windows 예약 이름 거절, zone_id fullmatch·64자, transform 16개 검사) 반영. PR #16
 
 ## 트랙 1B — PC 검증 (PC Claude 세션)
@@ -44,7 +44,7 @@
 | V-05 | 재구성·후처리·스파이크 1.1 | ⚪ 대기 | C-02 필요 |
 | V-06 | Zone 통합·튜닝·패키징 | ⚪ 대기 | D-010 이후 |
 | V-07 | WP-09 Zone Index·비동기 로드 검증 | ⚪ 대기 | 런북 `runbooks/pc-verify-wp09.md`(V-04 뒤; `L_ZoneTest`+합성 실내 전제): §1 index 동기화(`git status` 깨끗) → §2 빌드 → §3 `test.ps1 -Filter Golmok.Zone` 5개 → 전체 16 → §4 `L_ZoneTest09`(배치 액터 없이 발견·로드) → §5 동쪽 1.5 km 파괴 → §6 `bAsyncLoad` True/False 히치 표 → §7 render ms 소스 1/2/0 대조(매크로 기본값 커밋) → §8 실내 `portal` 표시·포털 대기·재진입 → §10 PIE 종료. 실패는 §11 표 번호로 수정·`WP-09: PC fix` 커밋 |
-| V-08 | 애니메이션 3안 PC 평가 | ⚪ 대기 | `runbooks/pc-verify-animation.md`(WP-10이 작성; L_Dev, 채점표) |
+| V-08 | 애니메이션 3안 PC 평가 | ⚪ 대기 | 런북 `runbooks/pc-verify-animation.md`(V-01 뒤, 독립): **§0 사용자가 GASP 라이선스 원문 확인**(Fab 리스팅·Fab EULA·UE EULA) → §1 GASP Create Project(저장소 밖)·플러그인·스켈레톤 기록 → §2 ① 기준선 녹화 S1~S8 + `csvprofile` → §3 ② GASP 로코모션 Migrate(`Content/Golmok_AnimEval/`, 브랜치 `pc/v08-animation`, 에셋 커밋 금지) → §4 ③(막힐 때만) → §5 사용자 채점 → §8 결과 |
 
 ## 트랙 1C — 사용자
 
@@ -58,6 +58,9 @@
 | C-06 | S-Map 문의 발송 | ⚪ |
 
 ## 결정 필요 (세션이 발견한 것)
+- **D-013~D-017 게임 기능 제안** 승인·보류(WP-10, `design/game-features-proposal.md` "사용자가 정할 것")
+- **애니메이션 에셋 라이선스**: GASP Fab 리스팅·Fab EULA·UE EULA 원문 확인(클라우드 403) → V-08 §0, D-002 기록
+- night 프리셋 look-dev 조합(D-010 뒤, `design/lighting-night-lookdev.md` §4)
 - ~~DEM 5 m 출처~~ → 2026-09-25 ② 수치지형도 등고선·표고점으로 생성(`golmok-basemap contour-dem`, D-012)
 - ~~NGII 데이터 국외 반출~~ → 2026-09-25 사용자 법률 자문 완료, 업로드 허용(D-012)
 
@@ -79,3 +82,4 @@
 | 2026-09-25 | session_01NM6uvZaVMgq5SUSaduHD1Z | Fable 5.1 (오케스트레이터) | PR #12 병합, M1 기록, WP-09/10/11 스펙 | 🟢 WP-06 병합 전 로컬 게이트(494 passed)·Opus 보완 리뷰, V-04 카드, M1 달성 기록, 후속 WP 스펙 3개·STATUS/DEVELOPMENT-PLAN 행 |
 | 2026-09-25 | session_016UiCeoD2Sytfh4nSweonbs | Fable 5.1 ultracode (심판·회의론자·수정 Opus 5.5) | WP-09 | 🟡 설계 패널 3안→심판 2→종합, C++(GeoMath 셀·ZoneIndex·발견/파괴·비동기 로드·포털 대기·디버그 정리)·Python zone_index·픽스처 002+index·UE 자동화 5개·런북, 적대적 검증 1라운드(13→확정 13 전부 수정, 반박 0), pytest +70(전체 569 passed, 3 skipped), Windows CI 수정 2건. PR #15 |
 | 2026-09-25 | session_01CSQya6KM72tpKC8L7aowSx | Opus 5.5 | WP-11 | 🟢 뷰어 충돌·blocker GLB 오버레이·토글·원점 축, `--zone` 마운트·경로 탈출 거절, zonemath 단위·Python 교차검증, 스모크 확장. pytest 618 passed(+49), npm test OK. PR #16 |
+| 2026-09-25 | session_011Jdzkehx5EZRAV1kX7PnGD | Opus 5.5 | WP-10 | 🟢 research/09·V-08 런북·게임 기능 제안(D-013~D-017 제안)·night look-dev 메모, Epic 공식 문서 12건 원문 확인·열리지 않은 6건 [확인 필요]. 문서 전용, pytest 626 passed. PR #17 |
