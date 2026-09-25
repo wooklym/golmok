@@ -534,7 +534,20 @@ def test_existing_editor_modules_run_on_the_fake(fake, unreal, zone, monkeypatch
     assert first.get_folder_path() == "Golmok/Zones" and first.get_editor_property("version") == 1
     geo = sz.find_or_spawn_geo_origin(37.56, 126.923, 40.0)
     assert isinstance(geo, unreal.GolmokGeoOrigin) and geo.get_editor_property("latitude") == 37.56
-    assert sz.open_or_create_level(DEFAULT_LEVEL) is False and fake.calls[-1] == ("load_level", DEFAULT_LEVEL)
+    # V-03 PC fix (dd2c538): opening a level without a DirectionalLight rebuilds the L_Dev lighting.
+    n = len(fake.calls)
+    assert sz.open_or_create_level(DEFAULT_LEVEL) is False and fake.calls[n] == ("load_level", DEFAULT_LEVEL)
+    assert [c[1] for c in fake.calls[n:] if c[0] == "spawn"] == [
+        "DirectionalLight", "SkyAtmosphere", "SkyLight", "ExponentialHeightFog", "PostProcessVolume"
+    ]  # fmt: skip
+    rebuilt = f"synthetic_zone: {DEFAULT_LEVEL} had no lighting; rebuilt the L_Dev lighting"
+    assert fake.logs[-1] == ("log", rebuilt)
+    sun = next(a for a in fake.actors if isinstance(a, unreal.DirectionalLight))
+    assert sun.tags == [unreal.Name("GolmokLighting")]
+    assert [c[0] for c in sun.component.calls][:2] == ["set_mobility", "set_editor_property"]
+    n = len(fake.calls)
+    assert sz.open_or_create_level(DEFAULT_LEVEL) is False
+    assert fake.calls[n:] == [("load_level", DEFAULT_LEVEL)]  # a lit level is opened as is
     assert sz._current_level_path() == DEFAULT_LEVEL
     mesh = bm._import_glb(str(zone.version / "collision" / "c_w001_n000.glb"), f"{FOLDER}/_probe")
     assert mesh.path == f"{FOLDER}/_probe/collision_c_w001_n000"

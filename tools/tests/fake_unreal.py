@@ -701,8 +701,24 @@ class FakePointLight(FakeActor):
         self.component = Recorder(f"{self.label}.PointLightComponent")
 
 
+# Component returned by get_component_by_class() for the lighting actors setup_dev_level._build_lighting()
+# spawns (sun_comp.set_mobility / set_intensity / set_editor_property are recorded like FakePointLight's).
+_LIGHT_COMPONENTS = {
+    "DirectionalLight": "DirectionalLightComponent",
+    "SkyLight": "SkyLightComponent",
+    "ExponentialHeightFog": "ExponentialHeightFogComponent",
+}
+
+
 def _actor_class(name):
-    return type(name, (FakeActor,), {"unreal_name": name})
+    component_name = _LIGHT_COMPONENTS.get(name)
+
+    def __init__(self, fake, label="", location=None, rotation=None, tags=(), folder="", **props):
+        FakeActor.__init__(self, fake, label, location, rotation, tags, folder, **props)
+        if component_name:
+            self.component = Recorder(f"{self.label}.{component_name}")
+
+    return type(name, (FakeActor,), {"unreal_name": name, "__init__": __init__})
 
 
 StaticMeshActor = _actor_class("StaticMeshActor")
