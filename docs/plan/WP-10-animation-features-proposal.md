@@ -25,7 +25,7 @@ ROADMAP 1.3 "애니메이션: UE 5.8 기본 캐릭터·애니메이션 세트(Mo
 - UE 코드·설정·JSON을 바꾸지 않는다. 비용이 드는 선택(유료 에셋)은 제안만.
 
 ## 결과
-세션: session_011Jdzkehx5EZRAV1kX7PnGD (Opus 5.5, 단일 세션 + 읽기 전용 리뷰어 1명), 2026-09-25. PR #17(draft). UE 코드·설정·JSON·에셋 변경 없음, 새 의존성 없음.
+세션: session_011Jdzkehx5EZRAV1kX7PnGD (Opus 5.5, 단일 세션 + 읽기 전용 리뷰어 1명 — 블로킹 0, 수정 권고 4·사소 5건 전부 반영: 런북 `golmok.screenshot <tag>` 인자, Migrate 덮어쓰기 거절·`git add -A` 금지, 테스트 행 번호, 출처 보강), 2026-09-25. PR #17(draft). UE 코드·설정·JSON·에셋 변경 없음, 새 의존성 없음.
 
 **산출물**
 | # | 파일 | 요지 |

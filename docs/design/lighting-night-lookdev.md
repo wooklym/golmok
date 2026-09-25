@@ -18,7 +18,7 @@ WP-05 런북 §3 결과: night(키 4)로 바꾸면 태양이 꺼지고 `L_ZoneTe
 요약: **빛이 0**이다(태양 숨김 × 하늘 0 × 스카이라이트 0). 노출로는 해결할 수 없고, 무엇이든 빛을 넣어야 한다.
 
 ## 3. 단위에 대한 주의
-프리셋의 `lux`는 물리값이 아니라 **프로젝트 스케일**이다: 맑은 정오 `clear_noon`이 10, 흐린 아침 2.5 [확인: JSON]. 실제 직사광은 32,000~100,000 lx, 맑은 밤 보름달은 0.05~0.3 lx다 [2차: https://en.wikipedia.org/wiki/Lux 표, 보름달 값은 Kyba et al. 2017 인용]. 실제 비율(약 10⁻⁶)을 그대로 쓰면 자동 노출 범위 밖이라 여전히 검다. 스펙이 제안한 **0.05~0.5**(프로젝트 스케일)는 정오의 1/200~1/20로, 게임에서 흔한 "밝은 달밤" 스타일이다 [미확인 — look-dev로 판단].
+프리셋의 `lux`는 물리값이 아니라 **프로젝트 스케일**이다: 맑은 정오 `clear_noon`이 10, 흐린 아침 2.5 [확인: JSON]. 실제 직사광은 32,000~100,000 lx, 맑은 밤 보름달은 0.05~0.3 lx다 [2차: https://en.wikipedia.org/wiki/Lux 표, 보름달 값은 Kyba et al. 2017 인용]. 실제 비율(약 10⁻⁶)을 그대로 쓰면 자동 노출 범위 밖이라 여전히 검다. WP-10 스펙(`plan/WP-10-animation-features-proposal.md` 산출물 4)이 제안한 **0.05~0.5**(프로젝트 스케일)는 정오의 1/200~1/20로, 게임에서 흔한 "밝은 달밤" 스타일이다 [미확인 — look-dev로 판단].
 
 ## 4. look-dev 후보 (조합해서 쓴다)
 | # | 후보 | 바꾸는 곳 | 기대 | 리스크 |
@@ -32,7 +32,7 @@ WP-05 런북 §3 결과: night(키 4)로 바꾸면 태양이 꺼지고 `L_ZoneTe
 권장 시작점(판단): **A + B**로 "보이는 밤"을 먼저 만들고, Zone이 들어온 뒤 **E**로 품질을 올린다. D는 연속 시간대(D-015)를 채택할 때만. C는 A가 부족할 때.
 
 ## 5. PC look-dev 절차 (결정 전, 커밋 없이)
-1. `L_Dev`(또는 스파이크 청크 레벨)에서 JSON을 **로컬에서만** 고쳐 night를 A 값 3세트(`lux 0.05/0.2/0.5`, `pitch −35`, `kelvin 4000/5500/7000`)로 바꿔 가며 `golmok.lighting.apply("night")`(에디터) 또는 PIE `golmok.tod night`. 커밋 금지 — `tools/tests/test_lighting_presets.py`에 **값 회귀 테스트**(4 cycle 프리셋 값 고정)가 있어 값 변경은 테스트와 함께 바꿔야 한다 [확인: 테스트 파일 26~37행].
+1. `L_Dev`(또는 스파이크 청크 레벨)에서 JSON을 **로컬에서만** 고쳐 night를 A 값 3세트(`lux 0.05/0.2/0.5`, `pitch −35`, `kelvin 4000/5500/7000`)로 바꿔 가며 `golmok.lighting.apply("night")`(에디터) 또는 PIE `golmok.tod night`. 커밋 금지 — `tools/tests/test_lighting_presets.py`에 **값 회귀 테스트**(4 cycle 프리셋 값 고정)가 있어 값 변경은 테스트와 함께 바꿔야 한다 [확인: 테스트 파일 `WP04_PRESETS` 30~39행, `test_cycle_values_equal_wp04_lighting_py` 87행].
 2. B는 코드가 없으니 에디터에서 PostProcessVolume의 Metering Mode·Min/Max EV100을 손으로 바꿔 효과만 본다.
 3. 같은 시점 3곳(`golmok.viewpoints`)을 캡처해 비교, 좋은 조합과 스크린샷을 이 문서 §6에 적는다.
 4. 사용자가 조합을 고르면 → WP(프리셋 값 + 필요 시 스키마 키 추가, Fable ultracode — 게임 비주얼 직접 영향, DEVELOPMENT-PLAN §7.4).
