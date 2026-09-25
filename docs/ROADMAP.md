@@ -24,6 +24,8 @@
 
 ## Phase 1 — MVP
 
+> **M1 클라우드 코드 완료 — 2026-09-25**: WP-01~08 전부 main 병합(PR #2~#13), CI 초록. M2 PC 검증 진행 중(V-01 §0~2·V-02·V-03 🟢, V-04 대기). 후속 클라우드 WP-09(Zone Index 발견·비동기 로드) → WP-11(뷰어 충돌 오버레이) → WP-10(애니메이션 평가·기능 제안) 등록(DEVELOPMENT-PLAN §5.1).
+
 **목표**
 1. 파일럿 지역 베이스맵(배경) 위에서 3인칭 캐릭터가 걷고 뛴다.
 2. 골목 1곳이 **고품질 실촬영**으로 들어간다. 플레이 구역은 전부 실촬영이다.
@@ -119,7 +121,7 @@
 | 작업 | 완료 기준 |
 |---|---|
 | 3인칭 캐릭터(C++): 걷기, 뛰기, 점프, Enhanced Input, 카메라 붐(충돌 보정) | 키보드·마우스와 게임패드로 조작 |
-| 애니메이션: 기본은 UE 5.8 기본 캐릭터·애니메이션 세트(Motion Matching 등 5.8 제공 기능 평가) | 이동이 자연스럽다 |
+| 애니메이션: 기본은 UE 5.8 기본 캐릭터·애니메이션 세트(Motion Matching 등 5.8 제공 기능 평가) — ⚪ WP-10(리서치 문서 + PC 평가 런북 `pc-verify-animation.md`, 3안 비교) | 이동이 자연스럽다 |
 | 조명 프리셋: 시간대(아침·흐림·저녁) 전환, Lumen, 안개 — 🟢 PC 검증 통과(V-03, 2026-09-25)(WP-05; night 프리셋은 태양 off + real-time SkyLight라 화면이 검어 look-dev에서 달빛/최소 lux 결정 필요): 단일 소스 `Config/Golmok/lighting_presets.json`(4 시간대 + `interior` 오버레이), `Lighting/GolmokTimeOfDay`(2 s 보간, 키 1~4/F5, 콘솔 `golmok.tod`), `lighting.py`가 같은 JSON을 읽음 | 시간대를 바꿔도 환경이 자연스럽다(D-010 결과에 따름) |
 | 디버그: 충돌 와이어프레임, 성능 HUD, 고정 카메라 경로 재생 — 🟢 PC 검증 통과(V-03, 2026-09-25)(WP-05; PIE 재생 CSV → `golmok-perf` 119 fps/1% low 104, HUD `render` ms 0.00 표시 문제는 WP-09): `Debug/GolmokDebugSubsystem`+`AGolmokHUD`(F1 HUD: fps 평균·1% low·Game/Render/GPU ms·Zone·프리셋·ENU 좌표, F2 충돌 표시, `golmok.path record/play --csv` → `golmok-perf`, `golmok.screenshot`), 통계·경로 JSON은 순수 헤더 `GolmokStatsMath.h`로 g++ 교차검증. 런북 `runbooks/pc-verify-wp05.md`(V-03) | 스파이크와 회귀 측정에 재사용 |
 
@@ -146,7 +148,7 @@
 ### 1.6 폴리시·성능·검수
 - 품질 목표 fps를 맞추도록 튜닝한다(Nanite, VSM, Lumen 설정, splat 예산).
 - 렌더 결과에서 얼굴·번호판 누락을 재검사한다(05 문서).
-- 내부 검수 뷰어(웹, 선택): splat과 충돌을 오버레이해 확인한다.
+- 내부 검수 뷰어(웹, 선택): splat과 충돌을 오버레이해 확인한다. — 🟢 WP-08(`golmok-viewer`: footprint·청크 bbox·포털·blockers 평면), 충돌·blocker **메시** 오버레이는 ⚪ WP-11.
 - Phase 1 회고를 하고 Phase 2 계획을 세운다.
 
 ---
