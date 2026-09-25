@@ -20,7 +20,7 @@
     </section>
     <section>
       <h2>보기</h2>
-      <label><input type="checkbox" id="wire"> 와이어프레임</label>
+      <label><input type="checkbox" id="wire"> 와이어프레임 <span class="hint">(타일·zone 메시)</span></label>
       <label><input type="checkbox" id="bounds"> 타일 경계</label>
       <label><input type="checkbox" id="stats"> 통계</label>
       <div class="row">
@@ -28,6 +28,15 @@
         <button id="viewWalk">걷는 높이</button>
         <button id="viewHome">전체</button>
       </div>
+    </section>
+    <section>
+      <h2>Zone 오버레이</h2>
+      <label><input type="checkbox" id="ov_footprint" checked> footprint</label>
+      <label><input type="checkbox" id="ov_axes" checked> 원점·축 <span class="hint">(E 빨강·N 초록·U 파랑)</span></label>
+      <label><input type="checkbox" id="ov_chunks" checked> 청크 bbox</label>
+      <label><input type="checkbox" id="ov_collision" checked> 충돌 메시 <span class="hint">(주황)</span></label>
+      <label><input type="checkbox" id="ov_blockers" checked> blockers <span class="hint">(평면·GLB 보라)</span></label>
+      <label><input type="checkbox" id="ov_portals" checked> 포털</label>
     </section>
     <section>
       <h2>위치</h2>
@@ -51,7 +60,11 @@
         document.head.appendChild(css);
         var s = document.createElement('script');
         s.src = base + 'Cesium.js';
-        s.onload = function () { var a = document.createElement('script'); a.src = './app.js'; document.body.appendChild(a); };
+        s.onload = function () {
+          var zm = document.createElement('script'); zm.src = './zonemath.js';
+          zm.onload = function () { var a = document.createElement('script'); a.src = './app.js'; document.body.appendChild(a); };
+          document.body.appendChild(zm);
+        };
         s.onerror = function () { if (base === local) load(cdn); else document.getElementById('status').textContent = 'Cesium 로드 실패'; };
         document.head.appendChild(s);
       }

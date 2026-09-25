@@ -2,7 +2,9 @@
  *
  * URL params:  ?tileset=/data/tileset.json[&tileset=/data/zones/z001/tileset.json...]
  *              &manifest=/data/manifest.json  (default: manifest.json next to the first tileset)
- * Exposes window.golmok for automation (smoke test): { viewer, layers, ready, stats() }.
+ *              &zone=/zones/<zone_id>/v<n>/manifest.json  (repeatable; golmok-viewer --zone mounts the folder)
+ * Exposes window.golmok for automation (smoke test): { viewer, layers, zones, overlay, ready, errors, warnings,
+ * stats(), zoneStats(), setOverlay(kind, on) }.
  */
 (function () {
   'use strict';
@@ -93,7 +95,8 @@
   }
 
   async function loadManifest(firstTileset) {
-    var url = params.get('manifest') || firstTileset.replace(/[^/]*$/, 'manifest.json');
+    var url = params.get('manifest') || (firstTileset ? firstTileset.replace(/[^/]*$/, 'manifest.json') : null);
+    if (!url) return;
     try {
       var r = await fetch(url);
       if (!r.ok) return;
@@ -134,10 +137,21 @@
   }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
 
 
-  // ---- Zone overlay (docs/spec/zone-manifest.md): footprint, origin, chunk boxes, portals, blockers ----
+  // ---- Zone overlay (docs/spec/zone-manifest.md): footprint, origin axes, chunk boxes, portals, blockers,
+  // collision / blockers GLB meshes. Pure math (axes, blocker rectangles, uri rules) lives in zonemath.js.
+  var ZM = window.GolmokZoneMath;
   var ZONE_COLORS = { footprint: Cesium.Color.fromCssColorString('#ffcc00'), chunk: Cesium.Color.fromCssColorString('#33ccff'),
                       portal: Cesium.Color.fromCssColorString('#ff66cc'), glass: Cesium.Color.fromCssColorString('#66ffcc'),
-                      no_entry: Cesium.Color.fromCssColorString('#ff3333') };
+                      no_entry: Cesium.Color.fromCssColorString('#ff3333'), collision: Cesium.Color.fromCssColorString('#ff9933'),
+                      blockersMesh: Cesium.Color.fromCssColorString('#cc66ff'),
+                      axisE: Cesium.Color.RED, axisN: Cesium.Color.LIME, axisU: Cesium.Color.DODGERBLUE };
+  // Overlay groups toggled by the "Zone 오버레이" checkboxes (all zones at once).
+  var OVERLAY_KINDS = ['footprint', 'axes', 'chunks', 'portals', 'collision', 'blockers'];
+  var overlay = { footprint: true, axes: true, chunks: true, portals: true, collision: true, blockers: true };
+  var MODEL_ALPHA = 0.45;
+  var AXIS_LEN_M = 5;
+  golmok.overlay = overlay;
+  golmok.warnings = [];
 
   function zoneMatrix(manifest) {
     return Cesium.Matrix4.fromRowMajorArray(manifest.transform);
@@ -155,21 +169,55 @@
     ];
     return edges;
   }
-  function normalize(v) { var n = Math.hypot(v[0], v[1], v[2]) || 1; return [v[0] / n, v[1] / n, v[2] / n]; }
-  function cross(a, b) { return [a[1]*b[2]-a[2]*b[1], a[2]*b[0]-a[0]*b[2], a[0]*b[1]-a[1]*b[0]]; }
-  function blockerCorners(plane) {
-    // Spec §3.1: height axis = zone +z projected onto the plane (or +y when the plane is horizontal); width = height x normal.
-    var n = normalize(plane.normal_enu);
-    var up = [0, 0, 1];
-    var d = up[0]*n[0] + up[1]*n[1] + up[2]*n[2];
-    var h = [up[0] - d*n[0], up[1] - d*n[1], up[2] - d*n[2]];
-    if (Math.hypot(h[0], h[1], h[2]) < 1e-6) h = [0, 1, 0];
-    h = normalize(h);
-    var w = normalize(cross(h, n));
-    var c = plane.center_enu, hw = plane.size_m[0] / 2, hh = plane.size_m[1] / 2;
-    var pt = function (sw, sh) { return [c[0] + w[0]*sw + h[0]*sh, c[1] + w[1]*sw + h[1]*sh, c[2] + w[2]*sw + h[2]*sh]; };
-    return [pt(-hw, -hh), pt(hw, -hh), pt(hw, hh), pt(-hw, hh)];
+  function outlinedLabel(text, color, dy) {
+    return { text: text, font: '12px sans-serif', pixelOffset: new Cesium.Cartesian2(0, dy), fillColor: color,
+             outlineColor: Cesium.Color.BLACK, outlineWidth: 2, style: Cesium.LabelStyle.FILL_AND_OUTLINE };
   }
+
+  /** Fetch a zone GLB and add it as a Cesium.Model placed by ZM.gltfModelMatrix (glTF Y-up -> zone-local
+   *  -> ECEF). Cesium's own glTF axis correction is switched off (upAxis Z, forwardAxis X): by default it
+   *  applies Y_UP_TO_Z_UP *and* Z_UP_TO_X_UP (glTF +Z forward -> +X), which would turn the zone 90 deg. */
+  async function addZoneModel(zone, kind, url, color, missingIsError) {
+    var r = await fetch(url);
+    if (!r.ok) {
+      var msg = kind + ' ' + url + ' ' + r.status;
+      if (missingIsError) golmok.errors.push(msg); else golmok.warnings.push(msg);
+      return null;
+    }
+    var bytes = new Uint8Array(await r.arrayBuffer());
+    var model = await Cesium.Model.fromGltfAsync({
+      gltf: bytes,
+      basePath: url,
+      modelMatrix: Cesium.Matrix4.fromRowMajorArray(ZM.gltfModelMatrix(zone.manifest.transform)),
+      upAxis: Cesium.Axis.Z,
+      forwardAxis: Cesium.Axis.X,
+      color: color.withAlpha(MODEL_ALPHA),
+      colorBlendMode: Cesium.ColorBlendMode.REPLACE,
+      backFaceCulling: false,
+      enableDebugWireframe: true,
+      debugWireframe: document.getElementById('wire').checked,
+      show: false
+    });
+    model.errorEvent.addEventListener(function (e) { golmok.errors.push(kind + ' model ' + url + ': ' + (e && e.message || e)); });
+    viewer.scene.primitives.add(model);
+    zone.models[kind] = { url: url, model: model, bytes: bytes.length };
+    applyZoneVisibility(zone);
+    return model;
+  }
+
+  function applyZoneVisibility(zone) {
+    zone.dataSource.show = zone.shown;
+    Object.keys(zone.groups).forEach(function (k) { zone.groups[k].show = overlay[k]; });
+    Object.keys(zone.models).forEach(function (k) { zone.models[k].model.show = zone.shown && overlay[k]; });
+  }
+
+  golmok.setOverlay = function (kind, on) {
+    if (OVERLAY_KINDS.indexOf(kind) < 0) throw new Error('unknown overlay ' + kind);
+    overlay[kind] = !!on;
+    var cb = document.getElementById('ov_' + kind);
+    if (cb) cb.checked = !!on;
+    zones.forEach(applyZoneVisibility);
+  };
 
   async function addZone(url) {
     setStatus('Zone 로딩: ' + url);
@@ -180,44 +228,82 @@
     var ds = new Cesium.CustomDataSource(m.zone_id + '/v' + m.version);
     var ents = ds.entities;
     var h0 = m.origin.height_ellipsoidal;
+    var groups = {};
+    ['footprint', 'axes', 'chunks', 'portals', 'blockers'].forEach(function (k) { groups[k] = ents.add({ name: k }); });
+    function add(group, e) { e.parent = groups[group]; return ents.add(e); }
 
     var ring = m.footprint_wgs84.coordinates[0];
     var fp = [];
     ring.forEach(function (ll) { fp.push(ll[0], ll[1], h0); });
-    ents.add({ name: 'footprint', polyline: { positions: Cesium.Cartesian3.fromDegreesArrayHeights(fp), width: 3, material: ZONE_COLORS.footprint } });
-    ents.add({ name: 'origin', position: toEcef(mat, [0, 0, 0]), point: { pixelSize: 9, color: ZONE_COLORS.footprint, outlineColor: Cesium.Color.BLACK, outlineWidth: 1 },
-               label: { text: m.zone_id + ' v' + m.version, font: '12px sans-serif', pixelOffset: new Cesium.Cartesian2(0, -16), fillColor: Cesium.Color.WHITE, outlineColor: Cesium.Color.BLACK, outlineWidth: 2, style: Cesium.LabelStyle.FILL_AND_OUTLINE } });
+    add('footprint', { name: 'footprint', polyline: { positions: Cesium.Cartesian3.fromDegreesArrayHeights(fp), width: 3, material: ZONE_COLORS.footprint } });
 
+    // Origin and zone-local axes (x = east red, y = north green, z = up blue): a check that the GLB meshes
+    // and the manifest transform agree.
+    var o = toEcef(mat, [0, 0, 0]);
+    add('axes', { name: 'origin', position: o, point: { pixelSize: 9, color: ZONE_COLORS.footprint, outlineColor: Cesium.Color.BLACK, outlineWidth: 1 },
+                  label: outlinedLabel(m.zone_id + ' v' + m.version, Cesium.Color.WHITE, -16) });
+    [['E', [AXIS_LEN_M, 0, 0], ZONE_COLORS.axisE], ['N', [0, AXIS_LEN_M, 0], ZONE_COLORS.axisN], ['U', [0, 0, AXIS_LEN_M], ZONE_COLORS.axisU]].forEach(function (a) {
+      var tip = toEcef(mat, a[1]);
+      add('axes', { name: 'axis ' + a[0], polyline: { positions: [o, tip], width: 8, material: new Cesium.PolylineArrowMaterialProperty(a[2]) } });
+      add('axes', { name: 'axis label ' + a[0], position: tip, label: outlinedLabel(a[0], a[2], -10) });
+    });
+
+    // Visual chunks are OBJ + MTL (WP-03, UDIM textures); the viewer draws only their boxes (README).
     (m.layers && m.layers.visual && m.layers.visual.chunks || []).forEach(function (ch) {
       boxEdges(mat, ch.bbox_enu).forEach(function (edge) {
-        ents.add({ name: 'chunk ' + ch.id, polyline: { positions: edge, width: 1.5, material: ZONE_COLORS.chunk } });
+        add('chunks', { name: 'chunk ' + ch.id, polyline: { positions: edge, width: 1.5, material: ZONE_COLORS.chunk } });
       });
     });
 
     (m.portals || []).forEach(function (p) {
       var pos = p.pose_enu.position, yaw = Cesium.Math.toRadians(p.pose_enu.yaw_deg);
       var tip = [pos[0] + Math.cos(yaw) * p.radius_m, pos[1] + Math.sin(yaw) * p.radius_m, pos[2]];
-      ents.add({ name: 'portal ' + p.id, position: toEcef(mat, pos), point: { pixelSize: 8, color: ZONE_COLORS.portal },
-                 label: { text: p.id + ' → ' + p.to_zone, font: '11px sans-serif', pixelOffset: new Cesium.Cartesian2(0, 14), fillColor: ZONE_COLORS.portal, outlineColor: Cesium.Color.BLACK, outlineWidth: 2, style: Cesium.LabelStyle.FILL_AND_OUTLINE } });
-      ents.add({ name: 'portal dir ' + p.id, polyline: { positions: [toEcef(mat, pos), toEcef(mat, tip)], width: 3, material: ZONE_COLORS.portal } });
+      add('portals', { name: 'portal ' + p.id, position: toEcef(mat, pos), point: { pixelSize: 8, color: ZONE_COLORS.portal },
+                       label: outlinedLabel(p.id + ' → ' + p.to_zone, ZONE_COLORS.portal, 14) });
+      add('portals', { name: 'portal dir ' + p.id, polyline: { positions: [toEcef(mat, pos), toEcef(mat, tip)], width: 3, material: ZONE_COLORS.portal } });
     });
 
-    if (m.layers && m.layers.blockers && m.layers.blockers.uri) {
+    var zone = { url: url, manifest: m, dataSource: ds, groups: groups, models: {}, shown: true, entityCount: 0 };
+    var layersM = m.layers || {};
+    var blockersUri = layersM.blockers && layersM.blockers.uri;
+    if (blockersUri && !/\.glb$/i.test(blockersUri)) {
+      // blockers.json (authoritative, spec §3.1): flat translucent rectangles
+      var bUrl = ZM.resolveZoneUri(url, blockersUri);
       try {
-        var br = await fetch(url.replace(/[^/]*$/, '') + m.layers.blockers.uri);
-        var blockers = br.ok ? await br.json() : { planes: [] };
+        if (!bUrl) throw new Error('bad uri ' + blockersUri);
+        var br = await fetch(bUrl);
+        if (!br.ok) throw new Error(bUrl + ' ' + br.status);
+        var blockers = await br.json();
         (blockers.planes || []).forEach(function (pl) {
-          var corners = blockerCorners(pl).map(function (c) { return toEcef(mat, c); });
-          ents.add({ name: 'blocker ' + pl.id, polygon: { hierarchy: corners, perPositionHeight: true,
-                     material: (ZONE_COLORS[pl.kind] || ZONE_COLORS.no_entry).withAlpha(0.35), outline: true, outlineColor: ZONE_COLORS[pl.kind] || ZONE_COLORS.no_entry } });
+          var corners = ZM.blockerCorners(pl).map(function (c) { return toEcef(mat, c); });
+          var col = ZONE_COLORS[pl.kind] || ZONE_COLORS.no_entry;
+          add('blockers', { name: 'blocker ' + pl.id, polygon: { hierarchy: corners, perPositionHeight: true,
+                            material: col.withAlpha(0.35), outline: true, outlineColor: col } });
         });
       } catch (e) { golmok.errors.push('blockers ' + e); }
     }
 
+    zone.entityCount = ents.values.length - Object.keys(groups).length;
     viewer.dataSources.add(ds);
-    var zone = { url: url, manifest: m, dataSource: ds, entityCount: ents.values.length };
     zones.push(zone);
     zoneRow(zone);
+
+    // GLB meshes (golmok-mesh: glTF Y-up). collision is required by the spec; blockers.glb is derived from
+    // blockers.json, so a missing one is only a warning unless the manifest points at the GLB itself.
+    var colUri = layersM.collision && layersM.collision.uri;
+    if (colUri) {
+      var cUrl = ZM.resolveZoneUri(url, colUri);
+      if (!cUrl) golmok.errors.push('collision bad uri ' + colUri);
+      else if (!/\.glb$/i.test(colUri)) golmok.warnings.push('collision not a GLB: ' + colUri);
+      else await addZoneModel(zone, 'collision', cUrl, ZONE_COLORS.collision, true).catch(function (e) { golmok.errors.push('collision ' + e); });
+    }
+    if (blockersUri) {
+      var gUri = ZM.blockersGlbUri(blockersUri);
+      var gUrl = gUri && ZM.resolveZoneUri(url, gUri);
+      if (gUrl) await addZoneModel(zone, 'blockers', gUrl, ZONE_COLORS.blockersMesh, /\.glb$/i.test(blockersUri)).catch(function (e) { golmok.errors.push('blockers glb ' + e); });
+      else golmok.errors.push('blockers bad uri ' + blockersUri);
+    }
+    applyZoneVisibility(zone);
     setStatus('Zone 완료: ' + m.zone_id);
     return zone;
   }
@@ -227,14 +313,18 @@
     row.className = 'layer';
     var cb = document.createElement('input');
     cb.type = 'checkbox'; cb.checked = true;
-    cb.onchange = function () { zone.dataSource.show = cb.checked; };
+    cb.onchange = function () { zone.shown = cb.checked; applyZoneVisibility(zone); };
     var name = document.createElement('span');
     name.className = 'name'; name.title = zone.url; name.textContent = 'zone ' + zone.manifest.zone_id;
     name.style.cursor = 'pointer';
     name.onclick = function () { viewer.flyTo(zone.dataSource, { duration: 0.8 }); };
     var x = document.createElement('button');
     x.className = 'x'; x.textContent = '×'; x.title = '제거';
-    x.onclick = function () { viewer.dataSources.remove(zone.dataSource, true); row.remove(); zones.splice(zones.indexOf(zone), 1); };
+    x.onclick = function () {
+      viewer.dataSources.remove(zone.dataSource, true);
+      Object.keys(zone.models).forEach(function (k) { viewer.scene.primitives.remove(zone.models[k].model); });
+      row.remove(); zones.splice(zones.indexOf(zone), 1);
+    };
     row.append(cb, name, x);
     document.getElementById('layers').appendChild(row);
   }
@@ -278,7 +368,14 @@
   document.getElementById('viewHome').onclick = viewHome;
   document.getElementById('viewTop').onclick = viewTop;
   document.getElementById('viewWalk').onclick = viewWalk;
-  document.getElementById('wire').onchange = function (e) { layers.forEach(function (l) { l.tileset.debugWireframe = e.target.checked; }); };
+  document.getElementById('wire').onchange = function (e) {
+    layers.forEach(function (l) { l.tileset.debugWireframe = e.target.checked; });
+    zones.forEach(function (z) { Object.keys(z.models).forEach(function (k) { z.models[k].model.debugWireframe = e.target.checked; }); });
+  };
+  OVERLAY_KINDS.forEach(function (k) {
+    var cb = document.getElementById('ov_' + k);
+    if (cb) cb.onchange = function () { golmok.setOverlay(k, cb.checked); };
+  });
   document.getElementById('bounds').onchange = function (e) { layers.forEach(function (l) { l.tileset.debugShowBoundingVolume = e.target.checked; }); };
   document.getElementById('stats').onchange = function (e) {
     document.getElementById('statsBox').hidden = !e.target.checked;
@@ -289,6 +386,22 @@
     var url = document.getElementById('addUrl').value.trim();
     if (!url) return;
     (/manifest\.json$/i.test(url) ? addZone(url) : addTileset(url)).catch(function () {});
+  };
+
+  // Zone summary for automation: entity count, and per GLB model its state and bounding sphere.
+  golmok.zoneStats = function () {
+    return zones.map(function (z) {
+      var models = {};
+      Object.keys(z.models).forEach(function (k) {
+        var md = z.models[k].model;
+        var bs = md.ready ? md.boundingSphere : null;
+        models[k] = { url: z.models[k].url, bytes: z.models[k].bytes, ready: md.ready, show: md.show,
+                      center: bs ? [bs.center.x, bs.center.y, bs.center.z] : null, radius: bs ? bs.radius : null };
+      });
+      var groups = {};
+      Object.keys(z.groups).forEach(function (k) { groups[k] = z.groups[k].isShowing; });
+      return { id: z.manifest.zone_id, entities: z.entityCount, shown: z.shown, groups: groups, models: models };
+    });
   };
 
   golmok.stats = function () {
@@ -314,13 +427,18 @@
     for (var j = 0; j < zoneUrls.length; j++) {
       try { await addZone(zoneUrls[j]); } catch (e) { /* reported in status */ }
     }
+    if (!origin && zones.length) {  // zone only: ENU readout relative to the first zone origin
+      var zo = zones[0].manifest.origin;
+      origin = { lon: zo.lon, lat: zo.lat, height: zo.height_ellipsoidal };
+    }
     viewHome();
     // Ready once every layer reports tilesLoaded (or after 60 s), so automation can read stats.
     await new Promise(function (resolve) {
       var started = Date.now();
       (function poll() {
-        var allDone = layers.length > 0 && layers.every(function (l) { return l.tileset.tilesLoaded; });
-        if (allDone || Date.now() - started > 60000 || layers.length === 0) return resolve();
+        var tilesDone = layers.every(function (l) { return l.tileset.tilesLoaded; });
+        var modelsDone = zones.every(function (z) { return Object.keys(z.models).every(function (k) { return z.models[k].model.ready; }); });
+        if ((tilesDone && modelsDone) || Date.now() - started > 60000) return resolve();
         setTimeout(poll, 250);
       })();
     });
