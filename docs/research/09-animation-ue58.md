@@ -8,18 +8,18 @@ PC 평가 절차: [`runbooks/pc-verify-animation.md`](../runbooks/pc-verify-anim
 
 1. **현재 캐릭터**는 Third Person 템플릿의 마네킹(`SKM_Manny_Simple`)과 `ABP_Unarmed`(블렌드스페이스·상태 머신 방식)를 쓴다. V-01에서 걷기 180 cm/s·달리기 500 cm/s·점프가 PIE와 자동 테스트로 확인됐다(ROADMAP 1.0b). "이동이 자연스럽다"는 아직 사람이 채점하지 않았다.
 2. **UE 5.8에서 품질을 한 단계 올리는 공식 경로는 Motion Matching**(Pose Search 플러그인)이고, Epic의 **Game Animation Sample Project(GASP)**가 그 완성 예제다. GASP는 모션 캡처 애니메이션 세트 + Motion Matching + Chooser + Orientation Warping + Leg IK를 한 캐릭터에 묶어 제공하고, 에셋을 **Migrate**해 다른 프로젝트에서 쓰는 절차를 공식 문서가 안내한다 [확인].
-3. **5.8 변경점**: Pose Search에 다중 캐릭터 검색(`MotionMatchMulti`, Experimental)·Chooser 연동 수정이 들어갔고, Mover/ChaosMover는 motion matching용 궤적 예측을 얻었지만 Mover는 **아직 Experimental**이다 [확인: 5.8 릴리스 노트]. 우리 캐릭터는 `CharacterMovementComponent`를 쓰므로 Mover는 대상이 아니다.
+3. **5.8 변경점**: Pose Search에 다중 캐릭터 검색(`MotionMatchMulti`, Experimental)·Chooser 연동 수정이 들어갔고, Mover/ChaosMover는 motion matching용 궤적 예측을 얻었지만 Mover는 **아직 Experimental**이다 [확인: 5.8 릴리스 노트]. 우리 캐릭터는 `CharacterMovementComponent`를 쓰므로 Mover는 대상이 아니다. **Chooser 플러그인도 5.8 문서에 Experimental로 표시**돼 있다 [확인: Dynamic Asset Selection 문서 배너] — ②(GASP)는 Chooser 테이블에 의존하므로 이 점을 ② 리스크에 적었고, ③은 Chooser를 쓰지 않는다.
 4. **라이선스**: Fab 라이선스 종류(CC-BY / Standard)와 Personal·Professional 가격 구간은 공식 문서로 확인했다 [확인]. 그러나 **Fab EULA 원문·Unreal Engine EULA(엔진 동봉 콘텐츠 조항)·GASP Fab 리스팅은 컨테이너에서 403**이라 조항을 인용하지 못했다 → **[확인 필요]**, V-08 §0에서 사용자가 확인한다. GASP는 Epic이 만든 샘플이지만(가격·무료 여부도 리스팅에서 확인), 조건을 확인하기 전에는 "상용 게임 배포 가능"이라고 쓰지 않는다(CLAUDE.md 규칙).
-5. **권장: ② GASP 에셋 이식(Motion Matching 로코모션만)**을 PC에서 먼저 시험하고(V-08), 실패하거나 비용이 크면 ③ 최소 구성, 그래도 안 되면 ① 현행 유지. 이유는 퀄리티 최우선(D-003·최우선 원칙)과 "Epic이 유지보수하는 5.8 대응 에셋"이라 직접 만드는 것보다 리스크가 작기 때문이다. 채택은 **라이선스 확인 + V-08 채점** 뒤 사용자 결정이다(ROADMAP 1.3 행의 구현 선택. 에셋 라이선스는 D-002 표에 기록).
+5. **권장: ② GASP 에셋 이식(Motion Matching 로코모션만)**을 PC에서 먼저 시험하고(V-08), 실패하거나 비용이 크면 ③ 최소 구성, 그래도 안 되면 ① 현행 유지. 이유는 퀄리티 최우선(D-003·최우선 원칙)과 "Epic이 유지보수하는 5.8 대응 에셋"이라 직접 만드는 것보다 리스크가 작기 때문이다. 채택은 **라이선스 확인 + V-08 채점** 뒤 사용자 결정이다(ROADMAP 1.3 행의 구현 선택. 에셋 라이선스는 D-002 항목에 기록).
 
 ## 1. 현재 프로젝트 상태 (코드에서 확인)
 
 | 항목 | 값 | 출처 |
 |---|---|---|
 | 캐릭터 클래스 | `AGolmokCharacter`(C++), `CharacterMovementComponent`, 캡슐 42×92 cm, `bOrientRotationToMovement`, 회전 540°/s | `unreal/Golmok/Source/Golmok/Player/GolmokCharacter.cpp` |
-| 속도 | 걷기 `WalkSpeed` 180 cm/s, 달리기 `RunSpeed` 500 cm/s(V-01 실측 일치), 점프 Z 420 cm/s, 공중 제어 0.3, 턱 25 cm, 경사 45° | `GolmokCharacter.h` 72·76행, `Config/DefaultGame.ini` 10~11행, `.cpp`, ROADMAP 1.0b |
-| 입력 | Enhanced Input을 C++에서 생성(`IA_Move/Look/Jump/Run`, `IMC_Default`): WASD·마우스, 게임패드 `Gamepad_Left2D`(이동) `Gamepad_Right2D`(시점) `Gamepad_FaceButton_Bottom`(점프) `Gamepad_LeftThumbstick`(달리기), Shift 달리기 | 같은 파일 145~167행 |
-| 메시·ABP | `/Game/Characters/Mannequins/Meshes/SKM_Manny_Simple`, `/Game/Characters/Mannequins/Anims/Unarmed/ABP_Unarmed` — ini 경로로 로드 | `Config/DefaultGame.ini` 6~9행 |
+| 속도 | 걷기 `WalkSpeed` 180 cm/s, 달리기 `RunSpeed` 500 cm/s(V-01 실측 일치), 점프 Z 420 cm/s, 공중 제어 0.3, 턱 25 cm, 경사 45° | `GolmokCharacter.h` 72·76행, `Config/DefaultGame.ini` 10~11행, `GolmokCharacter.cpp`, ROADMAP 1.0b |
+| 입력 | Enhanced Input을 C++에서 생성(`IA_Move/Look/Jump/Run`, `IMC_Default`): WASD·마우스, 게임패드 `Gamepad_Left2D`(이동) `Gamepad_Right2D`(시점) `Gamepad_FaceButton_Bottom`(점프) `Gamepad_LeftThumbstick`(달리기), Shift 달리기 | `GolmokCharacter.cpp` 113행(`IA_Move` 생성)·125행(`IMC_Default`)·145~167행(게임패드 키) |
+| 메시·ABP | `/Game/Characters/Mannequins/Meshes/SKM_Manny_Simple`, `/Game/Characters/Mannequins/Anims/Unarmed/ABP_Unarmed` — ini 경로로 로드 | `Config/DefaultGame.ini` 8~9행 |
 | 에셋 공급 | `tools/ue/add-mannequin.ps1`: 엔진 설치 폴더 `Templates/TemplateResources/High/Characters/Content`를 `Content/Characters`로 복사(git에 넣지 않음) | 스크립트 |
 | 검증 | V-01: `Golmok.Player.Movement` 자동 테스트 통과, PIE 스크린샷 | `runbooks/pc-setup.md`, ROADMAP 1.0b |
 
@@ -40,6 +40,7 @@ PC 평가 절차: [`runbooks/pc-verify-animation.md`](../runbooks/pc-verify-anim
 ### 2.3 Chooser
 - "you can use Chooser Tables to dynamically select individual animation assets … the system itself is generic and can be used to select any type of Asset, Object, or Class." 전제: "Enable the Chooser plugin." [확인: https://dev.epicgames.com/documentation/en-us/unreal-engine/dynamic-asset-selection-in-unreal-engine]
 - Motion Matching과는 `PoseSearchColumn`으로 연결된다(아래 5.8 변경점).
+- **성숙도: Experimental.** 5.8 문서 상단 배너: "Learn to use this Experimental feature, but use caution when shipping with it." [확인: 같은 문서, 버전 표기 5.8]. Motion Matching·GASP 문서에는 이런 배너가 없다. GASP 로코모션(②)은 Chooser 테이블로 애니메이션을 고르므로 **②를 채택하면 Experimental 플러그인 하나를 제품에 넣는 셈**이다(Mover를 Experimental이라 제외한 것과 같은 잣대) — V-08 §1에서 에디터 표시를 기록하고, 채택 결정 때 "Experimental 의존 허용 여부"를 함께 정한다. ③은 Chooser 없이 Pose Search만 쓴다.
 
 ### 2.4 Game Animation Sample Project (GASP)
 출처: https://dev.epicgames.com/documentation/en-us/unreal-engine/game-animation-sample-project-in-unreal-engine (문서 버전 표기 5.8) [확인]
@@ -63,7 +64,7 @@ PC 평가 절차: [`runbooks/pc-verify-animation.md`](../runbooks/pc-verify-anim
 | Motion Warping | "Account for mesh scale when calculating Motion Warping warp points. Enable with a.MotionWarping.UseMeshScale." | 참고 |
 | Mover | "Mover receives a broad update across core movement, networking, animation, and ChaosMover." / "ChaosMover adds trajectory prediction for motion-matching workflows …" / "Together, these changes continue the architectural work toward moving Mover out of Experimental status" | **Mover는 여전히 Experimental** → 채택하지 않음(우리는 CMC) |
 | 캐릭터 이동 | "Converted Characters, Character Movement and dependent functionality to use a UObject representation of Movement Bases instead of UPrimitiveComponents." | C++ `GetMovementBase()` 류 사용 시 주의. 현재 코드는 쓰지 않음 |
-| UAF | "The Animation Mixer also supports workflows for the new Unreal Animation Framework." | 차세대 애니메이션 프레임워크(UAF)는 5.8에서 시퀀서·크라우드 쪽 언급뿐. 게임 로코모션 전환은 시기상조 [미확인] |
+| UAF | Animation 절에 **"UAF" 소절**이 따로 있다: "Add OffsetRootBone anim node." / "Translational retargeting trait." / "Added new OverrideRootMotionTrait." / "Add the ability in UAF to specify the end tick group for events." 그 밖에 시퀀서 "The Animation Mixer also supports workflows for the new Unreal Animation Framework."와 MetaHuman Crowd "Animation applied using Unreal Animation Framework or simple sequences depending on distance." | 차세대 애니메이션 프레임워크(UAF)는 5.8에서 노드·트레이트 단위로 계속 채워지는 중이고, 공식 문서에 게임 로코모션용 완성 예제(GASP 같은 것)는 없다 → 전환은 시기상조 [미확인 — 성숙도 표기는 노트에 없음] |
 
 ## 3. 적용 경로 3안
 
@@ -75,7 +76,7 @@ PC 평가 절차: [`runbooks/pc-verify-animation.md`](../runbooks/pc-verify-anim
 | 에셋 용량 | 현행 | 클 것으로 예상 [미확인 — V-08 §1에서 폴더 용량 실측] — LFS 대상(R7: LFS 10 GiB) | 작음 |
 | 기대 품질 | 기준선 | 높음: 출발·정지·급회전·경사(Leg IK)가 "AAA 데모" 수준 | 중: 데이터가 적으면 MM이 튀거나 같은 포즈 반복 |
 | 작업량 | 0.5일 | 1~3일(PC, 에디터 작업 중심) | 2~4일(Schema 튜닝 반복) |
-| 리스크 | 품질 상한 낮음 | 라이선스 [확인 필요], 스켈레톤 차이(UEFN_Mannequin ↔ `SKM_Manny_Simple`의 SK_Mannequin → 리타깃 필요 여부 [미확인]), ABP가 BP 캐릭터를 캐스트하는 곳 수정, 성능(Pose Search 비용), LFS 용량 | 튜닝 노하우 필요, 결과가 ①보다 나쁠 수 있음 |
+| 리스크 | 품질 상한 낮음 | 라이선스 [확인 필요], **Chooser 플러그인이 5.8에서 Experimental**(§2.3; GASP 로코모션이 의존 — 채택 시 Experimental 의존을 받아들일지 결정), 스켈레톤 차이(UEFN_Mannequin ↔ `SKM_Manny_Simple`의 SK_Mannequin → 리타깃 필요 여부 [미확인]), ABP가 BP 캐릭터를 캐스트하는 곳 수정, 성능(Pose Search 비용), LFS 용량 | 튜닝 노하우 필요, 결과가 ①보다 나쁠 수 있음. Chooser 의존 없음 |
 | 비용(돈) | 0 | 0 예상(가격 표기는 공식 문서에 없음 [확인 필요 — V-08 §1-1]) | 0 |
 
 **권장 순서**: V-08에서 ①을 기준선으로 먼저 찍고(10분) → ②를 **별도 폴더·별도 레벨 사본**에서 시험 → 채점표(런북 §5)로 비교. ③은 ②가 라이선스·용량·성능 중 하나로 막힐 때만.
@@ -86,7 +87,7 @@ PC 평가 절차: [`runbooks/pc-verify-animation.md`](../runbooks/pc-verify-anim
 - 우리 코드는 CMC 기반이고 GASP ABP도 CMC를 참조하므로 이동 컴포넌트를 바꿀 필요가 없다 [확인: GASP 문서].
 
 **채택 전 조건(게이트)**
-1. Fab EULA / GASP 리스팅 라이선스 원문을 사용자가 확인하고 DECISIONS D-002 표에 기록(비상업·"UE 전용" 등 조건을 그대로 인용).
+1. Fab EULA / GASP 리스팅 라이선스 원문을 사용자가 확인하고 DECISIONS D-002 항목에 기록(비상업·"UE 전용" 등 조건을 그대로 인용).
 2. V-08 채점 ②가 ①보다 좋고, 1080p RTX 5060에서 fps 하락이 작다(런북 §5 기준).
 3. LFS 용량 추정이 R7 한도 안.
 
@@ -106,7 +107,7 @@ PC 평가 절차: [`runbooks/pc-verify-animation.md`](../runbooks/pc-verify-anim
 
 ## 5. 참고: 쓰지 않거나 나중에 볼 것
 - **Mover / ChaosMover**: 5.8에서도 Experimental [확인]. MVP에 들이지 않는다.
-- **UAF(Unreal Animation Framework)**: 5.8 노트에 시퀀서 믹서·MetaHuman Crowd 문맥으로만 등장 [확인]. Phase 2 이후 재평가.
+- **UAF(Unreal Animation Framework)**: 5.8 노트에 UAF 소절(OffsetRootBone 노드, translational retargeting trait, OverrideRootMotionTrait, 이벤트 end tick group)과 시퀀서 믹서·MetaHuman Crowd 언급이 있다 [확인]. 로코모션 예제·성숙도 표기는 없음 → Phase 2 이후 재평가.
 - **MetaHuman 플레이어 캐릭터**: GASP가 예제를 준다 [확인]. 캐릭터 커스터마이즈(DEVELOPMENT-PLAN §1.3 결정 대기)와 함께 Phase 2 이후.
 - **유료 모션 팩(Fab)**: ②가 부족할 때만 후보. 구매는 사용자 승인 사항(CLAUDE.md).
 - **NPC 보행자**: 5.8 `MotionMatchMulti`(Experimental)·MetaHuman Crowd(Experimental) — MVP 밖.

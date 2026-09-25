@@ -53,3 +53,5 @@ ROADMAP 1.3 "애니메이션: UE 5.8 기본 캐릭터·애니메이션 세트(Mo
 3. 사운드 라이브러리 구매 여부·현장 녹음을 촬영 가이드에 넣을지
 4. 날씨(비)를 Phase 2에 넣을지(D-010 뒤로 미뤄도 됨)
 5. night look-dev 조합(D-010 뒤 폴리시 단계)
+
+**병합 전 보완 리뷰**(오케스트레이터, Opus 읽기 전용 2차; 인용 URL을 다시 열어 문장 대조): 블로킹 1건 — `research/09`가 **Chooser 플러그인이 5.8 문서에서 Experimental**("Learn to use this Experimental feature, but use caution when shipping with it.")임을 빠뜨렸는데, 같은 문서가 Mover는 Experimental이라 제외하고 ②(GASP, Chooser 테이블 의존)를 권장해 잣대가 달랐다 → §2.3·요약 3·② 리스크 행에 기록(채택 결정 때 "Experimental 의존 허용 여부"를 함께 정함). 비블로킹 반영: UAF가 5.8 노트에 "시퀀서·크라우드 언급뿐"이라던 [확인] 표기는 틀림(Animation 절에 UAF 소절 있음 — OffsetRootBone·translational retargeting trait·end tick group) → 원문 인용으로 교체, 결론(시기상조)은 유지; 런북 규칙의 Migrate 대상 문구를 §3-1과 일치시킴, 경로 충돌 해결(GASP 쪽 폴더 이름 변경), BP·레벨 사본 저장 위치, 1080p PIE 설정·CSV 위치, §5 성능 조건의 "또는" 해석 명시, §7 미채택 시 정리 절차, ini/`.cpp` 행 번호, "D-002 표"→"항목". 게이트 재실행 후 병합.
