@@ -43,3 +43,9 @@ tools/viewer/package-lock.json
 unreal/Golmok/Content/Golmok/Basemap/
 unreal/Golmok/Content/Golmok/Maps/L_Basemap_*
 unreal/Golmok/Content/Golmok/Materials/M_Basemap*
+
+# V-03: assets the editor Python (golmok.synthetic_zone) regenerates; never committed (L_ZoneTest map, synthetic zone meshes and the interior sublevel)
+unreal/Golmok/Content/Golmok/Maps/L_ZoneTest.umap
+unreal/Golmok/Content/Golmok/Zones/z_synthetic_001/v1/*.uasset
+unreal/Golmok/Content/Golmok/Zones/z_synthetic_001_interior/v1/*.uasset
+unreal/Golmok/Content/Golmok/Zones/z_synthetic_001_interior/v1/*.umap

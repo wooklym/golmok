@@ -477,6 +477,8 @@ BlockerThicknessCm=10
 
 **통합 리뷰(오케스트레이터 세션, main 병합 후, Opus 읽기 전용) 2026-09-24** — 컴파일 차단 결함 없음(모듈 의존·로그 카테고리·헤더 규약·픽스처·ini 키·Python 구문·g++/clang 컴파일 확인). 반영: ① `synthetic_zone.run()`이 기본으로 전용 맵 `L_ZoneTest`를 만들어 쓴다(런북 §2가 L_Dev의 PlayerStart를 옮겨 main의 `Golmok.Player.Movement` 테스트를 깨뜨리던 문제; `level=None`이면 현재 레벨). ② 충돌 메시 임포트 후 Nanite 끔(`bm._set_nanite(mesh, False)`, 메인 PR #9의 발견: Nanite 메시의 복합 충돌은 단순화 폴백 메시라 틈이 생김). ③ 변수 `UE`→`UEPos`(엔진 `UE` 네임스페이스 가림 방지). 기록만: `Golmok.Build.cs`의 `JsonUtilities`는 현재 미사용(무해), `UGolmokZoneSubsystem::Evaluate()`가 `Zones` 배열 원소 포인터를 `Load()` 호출 사이에 유지함 — **WP-05 주의**: `Load()` 경로에서 `RegisterZone`(배열 재할당)이 일어나지 않게 하거나 인덱스/약참조로 바꿀 것.
 
+**PC 검증(V-03, 2026-09-25, PC 세션 Fable 5.1)** — 🟢 통과. 빌드 무수정(경고 1건 `REN_ForceNoResetLoaders` 제거 `e446504`), `z.run()`은 Python 수정 2건 뒤 기대 로그 전부 일치(`12e6bad` UE 5.8 Interchange 폴더 배치 → 규약 경로로 이동, `dd2c538` 빈 맵 조명 재생성), PIE 체크 (1)~(6)·§4 전부 통과(런북 §7 표·스크린샷 4장). 무인 세션이라 에디터 Python PIE 드라이버로 실행. **WP-06 주의**: `zone_import.py`도 Interchange 결과를 `SM_<chunk>` 규약 경로로 옮겨야 한다(`synthetic_zone._move_asset` 재사용).
+
 **남은 것**
 - PC 검증 V-03(런북 §1~§5). 컴파일 에러는 런북 §6 표로 고치고 `WP-04: PC fix` 커밋.
 - Zone Index(`index/cells`)에서 zone을 발견해 스폰하는 경로(ARCHITECTURE §4-1)는 미구현 — 현재는 레벨에 배치된 `AGolmokZone`만 관리. 실 Zone이 2개 이상 생기면(V-06) 추가.

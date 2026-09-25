@@ -48,7 +48,10 @@ def test_generator_reproduces_both_committed_copies():
     assert _lf(INTERIOR) == _lf(INTERIOR_FIXTURE)
     assert mif.main(["--check"]) == 0
     # the interior folder is manifest-only: no .glb/.uasset committed for the synthetic room
-    assert sorted(p.name for p in INTERIOR.parent.iterdir()) == ["manifest.json"]
+    # On a PC that ran synthetic_zone.run(interior=True) the Content copy also holds the editor-generated
+    # SM_room / collision .uasset and the L_<id> .umap (gitignored, never committed); only source files count.
+    generated = {".uasset", ".umap"}
+    assert sorted(p.name for p in INTERIOR.parent.iterdir() if p.suffix not in generated) == ["manifest.json"]
     assert sorted(p.name for p in INTERIOR_FIXTURE.parent.iterdir()) == ["manifest.json"]
 
 
