@@ -18,6 +18,7 @@ from . import manifest as zm
 CELL_ZOOM = 16
 INDEX_SCHEMA_VERSION = 1
 MAX_LAT = 85.0511287798066  # Web Mercator limit
+INDEX_DIR_NAME = "index"  # <zones_root>/index is the index itself (spec §6), never a zone folder
 
 
 def lonlat_to_tile(lon: float, lat: float, z: int = CELL_ZOOM) -> tuple[int, int]:
@@ -68,6 +69,8 @@ def scan_zones(zones_root: str | Path) -> tuple[list[ZoneEntry], list[str]]:
     root = Path(zones_root)
     entries, problems = [], []
     for zdir in sorted(p for p in root.iterdir() if p.is_dir()):
+        if zdir.name == INDEX_DIR_NAME:
+            continue  # the index built into the zones root (spec §6 layout); silently skipped (WP-09)
         if not zm.ZONE_ID_RE.match(zdir.name):
             problems.append(f"{zdir.name}: zone id 형식이 아니라 건너뜀")
             continue

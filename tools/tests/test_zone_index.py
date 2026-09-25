@@ -105,3 +105,21 @@ def test_write_index_removes_stale_cells(tmp_path):
     assert len(written) == 1 + len(cells)
     for (z, x, y), c in cells.items():
         assert json.loads((out / "cells" / f"{z}_{x}_{y}.json").read_text(encoding="utf-8")) == c
+
+
+def test_scan_zones_skips_index_folder(tmp_path):
+    """WP-09: the index lives inside the zones root (spec §6 layout); scan_zones must not report it."""
+    from golmok_tools.zone.cli import main as zone_main
+
+    make_zone(tmp_path, "z_a_001")
+    (tmp_path / zi.INDEX_DIR_NAME / "cells").mkdir(parents=True)
+    entries, problems = zi.scan_zones(tmp_path)
+    assert [e.id for e in entries] == ["z_a_001"]
+    assert problems == []
+    out = tmp_path / zi.INDEX_DIR_NAME
+    assert zone_main(["index", "build", "--zones-root", str(tmp_path), "--out", str(out), "--strict"]) == 0
+    assert (out / "zones.json").is_file()
+    # a second build over the same root (now holding zones.json + cells) is still clean
+    assert zone_main(["index", "build", "--zones-root", str(tmp_path), "--out", str(out), "--strict"]) == 0
+    zones = json.loads((out / "zones.json").read_text(encoding="utf-8"))
+    assert [z["id"] for z in zones["zones"]] == ["z_a_001"]
