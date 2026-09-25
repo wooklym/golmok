@@ -481,8 +481,8 @@ BlockerThicknessCm=10
 
 **남은 것**
 - PC 검증 V-03(런북 §1~§5). 컴파일 에러는 런북 §6 표로 고치고 `WP-04: PC fix` 커밋.
-- Zone Index(`index/cells`)에서 zone을 발견해 스폰하는 경로(ARCHITECTURE §4-1)는 미구현 — 현재는 레벨에 배치된 `AGolmokZone`만 관리. 실 Zone이 2개 이상 생기면(V-06) 추가.
-- `bAsyncLoad`(FStreamableManager, 설계 §4-4 TODO), splat 시각 형식(D-010 뒤), `replaces.building_ids` 단위 숨김(태그 `tile:<id>`만 준비).
+- ~~Zone Index(`index/cells`)에서 zone을 발견해 스폰하는 경로(ARCHITECTURE §4-1)는 미구현~~ → **WP-09**(`UGolmokZoneSubsystem::DiscoverZones`, 🟡 V-07 대기).
+- ~~`bAsyncLoad`(FStreamableManager, 설계 §4-4 TODO)~~ → **WP-09**(`AGolmokZone::LoadAsync`, 기본 True). splat 시각 형식(D-010 뒤), `replaces.building_ids` 단위 숨김(태그 `tile:<id>`만 준비)은 그대로.
 
 **WP-05·06에 알릴 것**
 - WP-05: `AGolmokZone::SpawnPortals()/DestroyPortals()`(virtual, `PortalActors` 배열), `Manifest.Portals`, `GetPortalWorldTransform(portal)`(S·position, Yaw −yaw_deg, × 루트), `PortalRadiusCm`. 실내 zone 로드는 `UGolmokZoneSubsystem::RequestLoad(id, bPin)`/`RequestUnload`(interior는 거리 자동 관리 제외, 부모가 언로드되면 정리됨). HUD용 `UGolmokGeoSubsystem::LevelUEToLonLat`. `AGolmokZone::SetVisualVisible/SetCollisionEnabled`는 스파이크 레이어 토글.

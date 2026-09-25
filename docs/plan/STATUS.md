@@ -3,7 +3,7 @@
 갱신 규칙: 각 세션이 시작·종료 시 자기 행을 고친다. 상태 기호:
 ⚪ 대기 · 🔵 진행 중 · 🟡 코드 완료·PC 검증 대기 · 🟢 완료 · 🔴 막힘 · ⏸ 보류
 
-마지막 갱신: 2026-09-25 (WP-09 세션 시작)
+마지막 갱신: 2026-09-25 (WP-09 🟡 코드 완료 → PR #15 draft, V-07 대기)
 
 ## 마일스톤
 
@@ -29,7 +29,7 @@
 | WP-07 | 정합·검수 `golmok-align` | 🟢 완료(합성 검증) | session_01Cgm7f6oD6xSMpZ5jszj8Xi (Fable 5.1) | `golmok-align run/compare/check-blur`. GPS prior(level Umeyama+RANSAC) → 벽 ICP(dof 4/6) → 지면 ICP(수직만) → manifest transform/origin/quality 갱신 + align_report.md. open3d 대신 numpy/scipy(리눅스 CI에 libEGL 없음). 합성: 2°·1.4 m 교란을 3 cm 이내 복원. **실 Zone 검증은 V-05.** collision.glb 축 규약은 `--mesh-axes`로 맞춘다(WP-03 결정 대기) |
 | WP-08 | (선택) 웹 검수 뷰어 | 🟢 완료 | session_01Cgm7f6oD6xSMpZ5jszj8Xi (Fable 5.1) | `golmok-viewer`(CesiumJS 1.145, ion 없음) + `tools/viewer` + Playwright 스모크(`npm test`, 합성 베이스맵 18타일). Zone manifest 오버레이(footprint·청크 bbox·포털·blockers, `?zone=…/manifest.json`) 포함. 충돌 메시 표시는 WP-03 산출물 나오면 추가 |
 
-| WP-09 | UE C++ 3: Zone Index 발견·비동기 로드 + V-03 디버그 표시 정리 | 🔵 진행 중 (2026-09-25 시작) | session_016UiCeoD2Sytfh4nSweonbs (Fable 5.1 ultracode, 검증 Opus 5.5) | 스펙 `plan/WP-09-ue-zone-index-async.md`. WP-04 §4-4 `bAsyncLoad` TODO·"남은 것"(Index 발견) 후속 + V-03 발견(HUD render ms 0.00, 실내 `blocked` 표시). 발견·파괴·비동기 콜백은 `Evaluate()`/`Load()` 스택 밖에서만. 검증 V-07 |
+| WP-09 | UE C++ 3: Zone Index 발견·비동기 로드 + V-03 디버그 표시 정리 | 🟡 코드 완료·PC 검증 대기 | session_016UiCeoD2Sytfh4nSweonbs (Fable 5.1 ultracode, 심판·검증·수정 Opus 5.5) | `Zones/GolmokZoneIndex`(순수 파서·셀 캐시·3×3) · `UGolmokZoneSubsystem::OnEvaluateTimer = DiscoverZones → Evaluate`(Transient 스폰·파괴·retire, 배치 우선, `bPortalManaged`, 재진입 카운터) · `AGolmokZone::LoadAsync`(FStreamableManager, `Loading`, 완료 항상 다음 틱, 세대 취소, `bAsyncLoad=True`) · 포털 선로드 + `Loading`이면 Pending 유지 · `GOLMOK_RENDER_TIME_SOURCE`+`HoldLastPositive` · 콘솔 `golmok.zone.index` · Python `zone_index.sync`/`zone_import(with_index=)` · 픽스처 `z_synthetic_002`+`index/`(생성기 `make_index_fixture.py --check`) · pytest +70(전체 569 passed) · UE 자동화 5개(전체 16) · 런북 `runbooks/pc-verify-wp09.md`(불확실 API §11 34행+). PR #15. 적대적 검증 1라운드 13→확정 13(실질 8, major 2) 전부 수정·반박 0·미검증 0. **PC(V-07)**: 런북 §1~§10 순서; §7에서 render 소스 매크로 기본값 확정, §6 히치 표. WP-04 "남은 것"(Index 발견·bAsyncLoad) 해소 |
 | WP-10 | 애니메이션 평가·게임 기능 제안(문서) | ⚪ 대기 | (Opus) | 스펙 `plan/WP-10-animation-features-proposal.md`. ROADMAP 1.3 애니메이션 행, DEVELOPMENT-PLAN §11 #6(D-013~ 제안), night 프리셋 look-dev 메모. UE 코드 변경 없음, 제안 승인은 사용자 |
 | WP-11 | 웹 검수 뷰어 2차(충돌·blocker 메시 오버레이) | ⚪ 대기 | (Opus) | 스펙 `plan/WP-11-viewer-collision-overlay.md`. WP-08 인계 항목. collision/blockers GLB(Y-up) → Cesium.Model, 서버 GLB 서빙(경로 탈출 금지), Playwright 스모크 |
 
@@ -43,7 +43,7 @@
 | V-04 | WP-06 에디터 Python 검증 | ⚪ 대기 | 런북 `runbooks/pc-verify-wp06.md`(V-03 뒤; `L_ZoneTest` 전제): `python tools\scripts\make_synthetic_zone.py --out D:\golmok_synth --interior` → `zi.run` → PIE 걷기 → `it.run` → 포털 왕복 → 재실행 → `spike_runner` 리허설 → `-game` 성능. 실패는 §12 표 번호로 수정·`WP-06: PC fix` 커밋. 이어서 V-05는 `runbooks/pc-spike.md` |
 | V-05 | 재구성·후처리·스파이크 1.1 | ⚪ 대기 | C-02 필요 |
 | V-06 | Zone 통합·튜닝·패키징 | ⚪ 대기 | D-010 이후 |
-| V-07 | WP-09 Zone Index·비동기 로드 검증 | ⚪ 대기 | `runbooks/pc-verify-wp09.md`(WP-09가 작성; V-04 뒤) |
+| V-07 | WP-09 Zone Index·비동기 로드 검증 | ⚪ 대기 | 런북 `runbooks/pc-verify-wp09.md`(V-04 뒤; `L_ZoneTest`+합성 실내 전제): §1 index 동기화(`git status` 깨끗) → §2 빌드 → §3 `test.ps1 -Filter Golmok.Zone` 5개 → 전체 16 → §4 `L_ZoneTest09`(배치 액터 없이 발견·로드) → §5 동쪽 1.5 km 파괴 → §6 `bAsyncLoad` True/False 히치 표 → §7 render ms 소스 1/2/0 대조(매크로 기본값 커밋) → §8 실내 `portal` 표시·포털 대기·재진입 → §10 PIE 종료. 실패는 §11 표 번호로 수정·`WP-09: PC fix` 커밋 |
 | V-08 | 애니메이션 3안 PC 평가 | ⚪ 대기 | `runbooks/pc-verify-animation.md`(WP-10이 작성; L_Dev, 채점표) |
 
 ## 트랙 1C — 사용자
@@ -77,3 +77,4 @@
 | 2026-09-25 | session_011qpTa7U7onDnW7L9jNSgwA | Fable 5.1 ultracode (심판·검증·수정 Opus 5.5) | WP-06 | 🟡 설계 패널 3안→심판 2→종합, `_pure`/`zone_import`/`interior_setup`/`spike_runner`/합성 zone 생성기, 가짜 unreal 테스트 +171(전체 494 passed, 3 skipped), 적대적 검증 1라운드(33→확정 28·반박 5, 2라운드 중단·6건 미검증), 런북 2개. main V-03 병합·PC 발견 6건 반영. PR #12 |
 | 2026-09-25 | session_01W4S1qYJPhQaziYbJMvAXMo | Fable 5.1 ultracode (검증 Opus) | WP-05 | 🟡 설계 패널 3안→심판 2→종합, Lighting·Portals·Debug·Player C++ + 합성 실내, 적대적 리뷰 3라운드(원시 25→11→1, 확정 33·반박 4, 전부 반영), 테스트 +95(전체 323 passed, 3 skipped), UE 자동화 10개, 런북. PR #10 |
 | 2026-09-25 | session_01NM6uvZaVMgq5SUSaduHD1Z | Fable 5.1 (오케스트레이터) | PR #12 병합, M1 기록, WP-09/10/11 스펙 | 🟢 WP-06 병합 전 로컬 게이트(494 passed)·Opus 보완 리뷰, V-04 카드, M1 달성 기록, 후속 WP 스펙 3개·STATUS/DEVELOPMENT-PLAN 행 |
+| 2026-09-25 | session_016UiCeoD2Sytfh4nSweonbs | Fable 5.1 ultracode (심판·회의론자·수정 Opus 5.5) | WP-09 | 🟡 설계 패널 3안→심판 2→종합, C++(GeoMath 셀·ZoneIndex·발견/파괴·비동기 로드·포털 대기·디버그 정리)·Python zone_index·픽스처 002+index·UE 자동화 5개·런북, 적대적 검증 1라운드(13→확정 13 전부 수정, 반박 0), pytest +70(전체 569 passed, 3 skipped), Windows CI 수정 2건. PR #15 |

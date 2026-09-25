@@ -1,6 +1,6 @@
 # WP-09 — UE C++ 런타임 3: Zone Index 발견·비동기 로드
 
-상태: ⚪ 대기 · 담당: 클라우드 Claude 세션(**Fable 5.1 ultracode**, 검증 Opus, 모델 정책 DEVELOPMENT-PLAN §7.4) · 의존: WP-04, WP-05, WP-06 · 검증: G2(`runbooks/pc-verify-wp09.md`, V-03 뒤 PC 세션)
+상태: 🟡 코드 완료·PC 검증 대기 (2026-09-25, session_016UiCeoD2Sytfh4nSweonbs) · 담당: 클라우드 Claude 세션(**Fable 5.1 ultracode**, 검증 Opus 5.5, 모델 정책 DEVELOPMENT-PLAN §7.4) · 의존: WP-04, WP-05, WP-06 · 검증: G2(`runbooks/pc-verify-wp09.md`, V-03 뒤 PC 세션)
 
 ## 목표
 레벨에 액터를 미리 놓지 않아도 게임이 **Zone Index**(`docs/spec/zone-manifest.md` §6)를 읽어 플레이어 주변 zone을 발견·스폰·관리하게 한다(D-008 "가는 곳마다 누적" 방식의 런타임 절반, ARCHITECTURE §4-1). 대용량 청크 로드를 **비동기**(`FStreamableManager`)로 바꿔 히치를 없앤다. V-03에서 발견된 디버그 표시 문제 2건을 함께 정리한다.
@@ -861,4 +861,58 @@ Windows CI 규칙: 모든 `subprocess.run`에 `encoding="utf-8"`, 배치 입력�
 | 36 | 1·2 | best ideas | 값 멤버·DoesPackageExist·Pending 유지·선로드·주입 리더·scan_zones 수정·OnBeginFrame 캐시·C4458/익명 namespace 스캔·위반 카운터(축소)·002 동쪽 200 m·런북 자기 검증 | 전부 채택(§0) |
 
 ## 결과
-(세션이 작성)
+세션: session_016UiCeoD2Sytfh4nSweonbs (Fable 5.1 ultracode; 심판·회의론자·수정 에이전트는 모델 정책대로 Opus 5.5) · 2026-09-25 · 상태 **🟡 코드 완료·PC 검증 대기** (G2 `runbooks/pc-verify-wp09.md`, V-07). PR #15(draft).
+
+**진행 방식(ultracode)** — ① 설계 패널: UE 5.8 API 현실성 / 상태기계·재진입 / 데이터·스펙·테스트 3안(Fable) → Opus 심판 2명(엔진 사실 / 제품·검증) 채점(API안 40/39 승) → 종합해 위 "설계 (확정)"(심판 지적 36건 반영표 §12). ② 구현 3단계: 순수 헤더·index 파서·디버그 ‖ Python·픽스처·스펙 → Zone·서브시스템·포털·UE 자동화 테스트 → 정적 규약 pytest·런북. ③ 적대적 검증 **1라운드**(상한): 리뷰어 4관점(① UE 5.8 API·컴파일 ② 리플렉션·Config·빌드 ③ Evaluate·포털 상태기계 ④ 스펙·테스트·런북, Fable) → 소견마다 Opus 회의론자 1명이 재현/반박 → 확정만 Opus 수정(테스트 먼저) → 게이트. 워크플로 동시성 2.
+
+**한 것** (`unreal/Golmok/` 기준; 파일 목록은 설계 §1)
+- `Geo/GolmokGeoMath.h`: `MaxMercatorLatDeg`, `LonLatToCell`, `CellBounds` 추가(기존 함수 불변). `test_ue_geo_math.py`가 g++ 드라이버(`cell`/`cells` stdin 배치/`cellbounds`)로 Python `lonlat_to_tile`와 정수 완전 일치(난수 3000점 + 픽스처 셀 경계 ±1e-9°/±1e-6°)·`tile_bounds` 1e-12 검증. 스펙 §6 예제 (126.9250, 37.5620) → (55873, 25379).
+- `Zones/GolmokZoneIndex.h/.cpp`: 리플렉션 없는 `FGolmokZoneIndex` — `zones.json`·셀 파서(FString 키 `TryGet*Field`, `Values` 순회 없음), 주입 리더(`TFunction`)로 메모리 테스트, 셀당 1회 파싱 캐시(없는 파일 = 빈 셀·Log 1회, 깨진 파일 = Warning 1회), `CollectAround`(3×3, 셀 안은 이기는 순서, id 중복 제거, 버전 불일치 행 제외·경고), `TrimCache`, `Describe`. 정적 함수 인자는 전부 `In*`.
+- `Zones/GolmokZoneSubsystem`: 타이머 콜백 `OnEvaluateTimer()` = `DiscoverZones()`(주기 `DiscoveryIntervalSeconds`) → `Evaluate()`. 발견은 후보 수집 → 스냅샷 실행(`FActorSpawnParameters{bDeferConstruction, RF_Transient}` + `FinishSpawning` → BeginPlay가 `RegisterZone`; 파괴는 `Destroy()` → EndPlay가 `UnregisterZone`); 배치 액터 우선(같은 id 발견 zone은 `bRetirePending` → `Evaluate`가 언로드 → 다음 패스에 파괴); 파괴 조건 `Unloaded && !pinned && 3×3 밖 && 거리 > DespawnDistanceM(0 = 2×UnloadRadiusM) && !(실내 && 부모 Loaded/Loading)`이 `DespawnGraceSeconds` 연속 성립. `FStreamableManager` 값 멤버, `RequestLoad/RequestUnload(…, EGolmokZoneRequestSource)`(Portal → `bPortalManaged`, 거리 관리 제외), `PointerHoldDepth`/`ReentrancyViolations`(Evaluate·RequestLoad·RequestUnload가 레코드 포인터를 잡는 동안 RegisterZone/UnregisterZone/RequestLoad/RequestUnload/DiscoverZones/비동기 완료가 오면 Error + 카운트; 자동화 테스트가 0 단언), 콘솔 `golmok.zone.index [reload]`(13번째; 기존 이름 불변), `golmok.zone.list` 헤더 `, %d discovered, %d loading` 접미·행 토큰 ` loading`·` portal`·` (loading %.1f s)`·` [index]`/` [placed]`(기존 접두 바이트 동일).
+- `Zones/GolmokZone`: `EGolmokZoneState::Loading`(끝에 추가), `bAsyncLoad` 기본 **True**, `LoadAsync()`(`DoesPackageExist` 통과 경로만 요청, 0개면 동기 경로·`StaticLoadObject` 없이 와이어 박스; 명명 `FStreamableDelegate` 변수 → 고전 `RequestAsyncLoad` 오버로드), 완료는 **항상 다음 틱**(`OnStreamableComplete` → 플래그 + `SetTimerForNextTick(FinishAsyncLoad)`), `AsyncSerial` 세대 검사, `Unload()` 첫 줄 `CancelAsyncLoad()`(`CancelHandle`, `NotifyZoneUnloaded` 없음), `AcquireMeshAsset`(virtual; 완료 뒤 `ResolveObject`), `bSpawnedFromIndex`, `AsyncLoadCount`, 로그 `loaded (async %.1f ms wait + %.1f ms build)`.
+- `Portals/GolmokPortal`: Idle→Pending 다음 틱 실내 **선로드**(`PreloadInterior` → `RequestLoad(pin, Portal)`), 디바운스 끝에 실내가 `Loading`이면 **Pending 유지**(0.05 s 폴링, 10 s .cpp 상수 뒤 "activating anyway"), `bInteriorRequested`·`IsHoldingInterior()`(EndPlay/LeaveInterior/IsInteriorZoneInUse 확장, pin 반납은 항상 타이머 뒤), `bActivated`(검증 수정: 선로드만 된 Leaving에 재진입하면 Active가 아니라 Pending 재개), `Configure`가 `ResolveZoneVersion`(배치 → index) 사용. 모든 `RequestLoad/RequestUnload`에 `Source=Portal` → 실내 행이 `blocked` 대신 ` portal`(5b).
+- `Debug`: `GOLMOK_RENDER_TIME_SOURCE` 0/1/2(기본 1 = `OnBeginFrame`에서 직전 프레임 `GRenderThreadTime` 캐시, `OnEndFrame`이 샘플에 넣음; 2 = `GRenderThreadTimeCriticalPath`), 0 샘플은 `GolmokStatsMath::HoldLastPositive`(g++ 검증)로 직전 유효값 유지, `golmok.stats` 두 번째 줄 `render source N: begin … end … held a/b frames`(5a). `OnEndFrame`·`GOLMOK_GPU_TIME_SOURCE`·`FormatStatsLine`·`PushFrameSample` 불변.
+- `Config/DefaultGame.ini`: `[GolmokZoneSubsystem]` `bDiscoverFromIndex=True DiscoveryIntervalSeconds=2.0 DespawnDistanceM=0 DespawnGraceSeconds=10`, `[GolmokZone] bAsyncLoad=True`. 스테이징 줄·Build.cs 무변경(pytest가 강제).
+- Index 게임 내 규약(스펙 §6 "게임 내 위치"): `Content/Golmok/Zones/index/zones.json` + `index/cells/16_<x>_<y>.json`(CLI 출력 바이트 그대로). `golmok_tools.zone.index.scan_zones`가 `index/` 폴더를 건너뜀(`--strict` 회귀 테스트). Python `golmok/zone_index.py`(`plan/sync/describe`, `ZoneIndexError`), `_pure.py` index 순수 함수 6개 + `LOG zx.*` 7키, `zone_import.run(..., with_index=False)`(zone 리빌드 뒤·저장 앞; index 없으면 `zx.warn` 1회).
+- 픽스처: `z_synthetic_002`(001 동쪽 200 m, `make_synthetic_zone.py --offset-m 200,0`, manifest+blockers만, 에셋 없음) + `index/`(zones 3, 셀 4: `16_55873_25379`=[001_interior, 001], `16_55873_25380`=[001], `16_55874_25379`=[001_interior, 001, 002], `16_55874_25380`=[001, 002]) — `tools/scripts/make_index_fixture.py --check`가 바이트 재현, Content 사본 동일.
+- 테스트: pytest **+70**(499 → **569 passed, 3 skipped**): `test_ue_geo_math`(+2), `test_ue_stats_math`(+2), `test_zone_index`(+1), `test_ue_zone_index_fixture`(4), `test_ue_python_zone_index_sync`(10, 가짜 unreal), `test_ue_python_pure`(zone_index·순수 함수·RUNBOOKS), `test_ue_wp09_fixture`(22: ini·자동화 이름·**Evaluate() 본문 토큰 금지·타이머 순서·DiscoverZones 루프 밖 파괴·비동기 완료 항상 지연·포털 직접 로드 금지**(중괄호 매칭, 주석 제거 코드), C4458 섀도잉 스캔, 익명 namespace 유일성, 렌더 매크로·hold 규칙, Build.cs·스테이징 불변, 헤더 접두·콘솔 14개 이름, 스펙 문구, WP-05 테스트 수정 4줄, 검증 라운드의 회귀 7개), `test_make_synthetic_zone`(+1), `test_ue_zone_fixture`(bAsyncLoad True). UE 자동화 **5개** `Golmok.Zone.IndexParse / IndexDiscover / AsyncLoad / AsyncCancel / InteriorNotBlocked`(`Tests/GolmokZoneTest.cpp`, 전부 `-nullrhi`; AsyncLoad/AsyncCancel은 에셋 유무로 비동기/동기 폴백 분기, IndexDiscover는 배치 쌍둥이 retire까지) + WP-05 `GolmokPortalTest.cpp` 4줄(SpawnFromManifest `bAsyncLoad=false`, `StreamInTimeoutSeconds` 5.0). 전체 자동화 16개.
+- 문서: 런북 `docs/runbooks/pc-verify-wp09.md`(§0~§12, 기대 로그는 코드에서 옮겨 적음, §11 불확실 API 34행 + PC 추가 행), 스펙 §6, WP-04 §9 문구, `.gitignore` `L_ZoneTest09*`.
+
+**테스트 로그(클라우드)**: `ruff check .` All checks passed · `ruff format --check .` 90 files already formatted · `python -m pytest -q` **569 passed, 3 skipped, 208 warnings in 16.30s** · `check_repo.py` OK · `make_index_fixture.py --check` OK. CI(`ci.yml`): 구현 커밋 `674d74b`는 Windows 잡 2건 실패(셀 경계 위도 MSVC libm 마지막 ulp → `pytest.approx`; 테스트 픽스처 `write_text`가 CRLF → `newline="\n"`) → `d118516`·`55ddfd3`으로 수정. 최종 커밋 결과는 PR #15 체크 참조.
+
+**적대적 검증 표(1라운드, 상한)**
+| 라운드 | 원시 소견 | 확정(수정) | 반박(기각) | 미검증 | 비고 |
+|---|---|---|---|---|---|
+| 1 | 13 (API 3 · 리플렉션 2 · 상태기계 5 · 스펙/테스트 3; major 3) | 13 (실질 8 — 관점 간 중복 5) | 0 | 0 | 확정 전부 수정, 테스트 먼저(+7 pytest, IndexDiscover 단계 추가) |
+
+확정 결함(실질): ① **major** 선로드만 된 포털(Pending+요청)이 `EndPlayerOverlap/OnDebounceElapsed/LeaveInterior`의 pin 반납 지름길로 Leaving이 된 뒤 3 s 안에 재진입하면 `BeginPlayerOverlap`이 Active로 되돌려 `CompleteActivation`(StreamIn·Loaded 대기)이 영영 안 돎(문 앞에서 머뭇거리는 흔한 순서; 서브레벨 없음·Loading 중 Active — 스펙 4 위반) → `bActivated`로 구분해 Pending 재개. ② **major** `golmok.portal enter`가 Idle에서 시작할 때 이전 사이클의 `InteriorRequestSeconds`가 남아 즉시 10 s 타임아웃 → 사이클 시작마다 초기화. ③ minor 배치 쌍둥이가 생긴 발견 zone이 Loaded면 `bManaged` 제외라 영영 언로드·retire 안 됨 → `Evaluate`가 배치 쌍둥이 Loaded 또는 반경 밖일 때 언로드. ④ minor 런북·설계 §8-2의 IndexParse 예제 경도 126.9272665 ≠ 테스트·픽스처 126.9272636. ⑤ minor 런북 §4 002 행 `dist` → `dist >=`(bounds 하한). ⑥ minor 런북 §10 PIE 종료 로그(`; zone unload scheduled`는 티어다운에서 안 찍힘). ⑦ minor 런북 §8 "3 s 안 되돌아 나오기" 끝 문구(`was not streamed`). ⑧ minor `.gitignore`에 `L_ZoneTest09*` 없음. 2라운드는 지시대로 시작하지 않았다(미검증 소견 없음).
+
+**설계 대비 변경(구현·검증에서 확정; 설계 본문 그대로, 이 표가 우선)**
+| 항목 | 설계 | 구현 | 이유 |
+|---|---|---|---|
+| `FindZone` | 첫 배치 액터 | 배치 중 최고 Version(WP-04 규칙 유지), 없으면 첫 발견 | 콘솔 동작 보존 |
+| `Evaluate` Loading 분기 | 별도 `else if` | `IsLoadedOrLoading()`으로 Loaded 분기와 병합(본문 동일) | 중복 제거 |
+| `DescribeIndex` | 3변형 | + `discovery: off (no index)`, `player: cell unknown`, `index: error <parse error>`(`IndexLoadError` 멤버) | 진단 |
+| `NumFileReads()` | GetCell 읽기 수 | `Load()`의 zones.json 읽기 포함(`LoadFromText`는 0) | 테스트 훅 불변 |
+| 셀 파일 x/y ≠ 파일명 | 미규정 | 파싱 실패와 동일 취급(빈 셀·Warning 1회) | Python `check_index`와 동일 규칙 |
+| `zones.json` `priority` 누락 | 오류 | 0 기본값; `manifest` 누락은 빈 문자열 + 불일치 Warning | CLI는 항상 씀 |
+| 기본 리더 | `LoadFileToString` | `FileExists` 가드 + `FILEREAD_Silent` | 없는 셀 파일에 엔진 로그 없음 |
+| `DescribeRenderSource` | `(window)` | `held a/b frames (since bind[, last held])` — 바인드 이후 누적 | `PushFrameSample`/링 계약 불변 |
+| `RequestInterior` | 서브시스템 없을 때만 false | 실내 액터 미등록도 false(`bInteriorRequested` false 유지, 스탬프는 첫 시도부터) | index에 있는데 스폰 전 케이스 |
+| 포털 `Activate` 메시지 | 기존 형식 | `CompleteActivation`이 설계 로그를 찍고 `Activate`는 짧은 메시지(`active [...]` / `activates when ready`) | 시그니처 고정 |
+| IndexParse 오류 8케이스 | `manifest` 불일치 포함 | `manifest` 불일치는 Warning(항목 유지)이라 `version 0`으로 대체 | §3-2 파서 계약과 일치 |
+| `AsyncLoadCount` | — | `BeginPlay`에서 0으로 | "since BeginPlay" 주석대로 |
+| `SetActorLabel` | — | `bMarkDirty=false` | PIE 맵 dirty 방지 |
+| `zone_import.run(with_index=True)` | index 없으면 경고 | `plan` 단계 실패(zones.json 없음)만 `zx.warn`; `check` 실패(깨진 index)는 오류 | 깨진 index를 Content에 넣지 않음 |
+| 콘솔 명령 수 | 13 | 등록 객체 14(기존 이름 13 + `golmok.zone.index`; `golmok.geo.selftest`는 파일 스코프 static) | 이름 집합으로 고정 |
+| 런북 §4 발견 시점·순서 | 2 s, 001 먼저 | 첫 타이머 틱(0.5 s), 순서 001_interior → 001 → 002(y·x 오름차순), `9 cells cached`(없는 셀 포함) | 코드 그대로 |
+| 런북 §6 히치 경로 | 원점→001→002 왕복 | `golmok.zone.radius 60 100` + 남 120 m/동 130 m 왕복 | 002는 에셋이 없어 항상 동기 폴백 |
+
+**불확실 API**: 런북 §11 표 34행(설계 §10 번호 유지) + PC 추가 행(`LoadFileToString` 인자 순서·`FILEREAD_Silent`, `SetActorLabel(bMarkDirty)`, `%llu`/`%u` 포맷, `TFunction operator bool`, `GRenderThreadTimeCriticalPath`는 매크로 2일 때만 컴파일). 가장 가능성 큰 컴파일 오류는 `RequestAsyncLoad` 오버로드(#2, 대안 `FStreamableAsyncLoadParams`)와 `SetTimerForNextTick` 반환형(#11).
+
+**PC 인계(V-07, `runbooks/pc-verify-wp09.md`)**: §1 index 동기화(`git status` 깨끗 = 자기 검증) → §2 빌드 → §3 `test.ps1 -Filter Golmok.Zone`(5) → 전체 16 → §4 `L_ZoneTest09`에서 배치 액터 없이 발견·로드 → §5 동쪽 1.5 km 파괴 → §6 `bAsyncLoad` True/False 히치 표 → §7 render 소스 1/2/0 대조 후 매크로 기본값 확정 → §8 실내 `portal` 표시·포털 대기·재진입 → §10 PIE 종료. 컴파일 오류는 §11 번호로 고치고 `WP-09: PC fix` 커밋.
+
+**남은 것**
+- PC 검증 V-07. 특히 §7의 render ms 원인 확정(매크로 기본값 커밋)과 §6 히치 수치(합성 zone은 작아 차이가 작을 수 있음).
+- 발견 zone의 manifest 파싱은 여전히 `Evaluate`에서 동기(zone당 JSON 1회; 3×3에 수십 개면 `MaxSpawnsPerDiscovery=8`로 분산). 후속 WP에서 manifest도 비동기화.
+- splat 시각 형식(D-010 뒤), `replaces.building_ids` 단위 숨김은 그대로 미구현.
