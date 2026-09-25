@@ -51,3 +51,12 @@ unreal/Golmok/Content/Golmok/Maps/L_ZoneTest.umap
 unreal/Golmok/Content/Golmok/Zones/z_synthetic_001/v1/*.uasset
 unreal/Golmok/Content/Golmok/Zones/z_synthetic_001_interior/v1/*.uasset
 unreal/Golmok/Content/Golmok/Zones/z_synthetic_001_interior/v1/*.umap
+# WP-06: the synthetic scan zones make_synthetic_zone + zone_import/interior_setup regenerate (assets, sublevel,
+# copied manifest.json/blockers.json; pc-findings #6). /Game/Golmok/Materials/M_ZoneScan* and T_ZoneScanDefault*
+# are product assets and stay committable.
+unreal/Golmok/Content/Golmok/Zones/z_synthetic_scan_001*/
+# WP-06: golmok.spike_runner.save_layer_levels copies of the open map (L_Spike_b / L_Spike_c / L_Spike_ac, plus any _BuiltData)
+unreal/Golmok/Content/Golmok/Maps/L_Spike_*
+# WP-06 runbook §0: the L_ZoneTest copy used for V-04 (fixture zone removed) and its viewpoints file
+unreal/Golmok/Content/Golmok/Maps/L_ZoneTest06*
+unreal/Golmok/Config/Golmok/Viewpoints/L_ZoneTest06.json

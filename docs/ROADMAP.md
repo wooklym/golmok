@@ -77,6 +77,7 @@
 - 조명 프리셋 `golmok.lighting` — ✅ 4개 프리셋 적용 후 태양 각도·조도·색온도·스카이·안개·노출 값을 되읽어 전부 일치.
 - 고정 시점 저장·일괄 캡처 `golmok.viewpoints` — ✅(조건부) save·goto 정상. **버그 수정**: 스크린샷이 빠지거나 **다른 시점 이름으로 저장**됐다(스크린샷은 뷰포트의 다음 그리기에서 찍히는데, 그 그리기가 카메라 이동 뒤에 일어남). 이제 파일이 기록될 때까지 기다리고, 안 나오면 "missing"으로 알린다. 게임 뷰로 찍어 에디터 아이콘이 안 나온다. 재검증: L_Dev 3시점 × 프리셋 2개 = **6/6 저장, 이름·시점 일치**. ⚠ **캡처 중에는 에디터 창을 앞에 둔다** — 백그라운드에 오래 있던 에디터는 뷰포트를 그리지 않아 스크린샷이 안 나온다("백그라운드에서 CPU 덜 쓰기"를 꺼도 같음, UE 5.8.3). 무인 캡처는 PIE/`-game`의 `HighResShot`으로 한다(WP-06 `spike_runner`에 반영 필요).
 - 성능 요약 `golmok-perf` — ✅ 실제 UE 5.8.3 CSV로 확인. **버그 2개 수정**: 실제 CSV의 긴 이벤트 필드에서 파싱 실패, `-csvCaptureFrames` 부팅 캡처의 맵 로딩 프레임(7.5초)이 평균에 섞임. `-game` 실행의 CSV는 `%LOCALAPPDATA%\UnrealEngine\5.8\Saved\Profiling\CSV`에 생긴다. 사용자 PC 기준선(빈 L_Dev): 1080p 158 fps, 1440p 128 fps(`research/08` "기준선").
+- 스파이크 자동화 `golmok.spike_runner`(WP-06) — 🟡 코드 완료·PC 검증 대기: 시점 10곳 이름 고정(`far_01..03 mid_01..04 near_01..03`), PIE 무인 캡처(`capture_all`: 태그 a/b/c/ac × 프리셋 × 시점, dwell 경로 재생 + `golmok.screenshot`, HUD 끔), `-game -RenderOffscreen` 성능 스크립트(`game_scripts` → `.ps1` → `golmok-perf`), 컨택트 시트 HTML, research/08 표 템플릿. 전체 절차 `runbooks/pc-spike.md`.
 
 **산출물**
 - `docs/research/08-spike-results.md`(템플릿 작성됨. 비교 스크린샷과 수치)
@@ -130,6 +131,7 @@
 - 재구성 후처리 도구 — ✅ `golmok-mesh`(청크·충돌·blocker)·`golmok-splat`(정리·3D Tiles), 절차 `runbooks/recon-postprocess.md`(WP-03).
 - Zone 데이터 계약 — ✅ `spec/zone-manifest.md`(manifest·Index 스키마, 좌표·UE 매핑 규약) + `golmok-zone` CLI(WP-02). 배경 제외는 `golmok-zone exclude` → `golmok-basemap --exclude`.
 - UE 런타임 Geo·Zone — 🟢 PC 검증 통과(V-03, 2026-09-25; 합성 Zone 좌표·충돌·blocker·거리 로드/언로드·베이스맵 숨김 전부 런북 기대값과 일치)(WP-04): `Geo/`(ENU↔UE 변환, 원점 액터), `Zones/`(manifest 로더, 거리 로드/언로드, priority, 태그 기반 베이스맵 숨김). 검증 런북 `runbooks/pc-verify-wp04.md`(V-03).
+- 에디터 임포트 `golmok.zone_import`(WP-06) — 🟡 코드 완료·PC 검증 대기: WP-03 zone 폴더(OBJ 청크 + MTL/UDIM PNG + collision GLB + blockers.json) → 임포터 축 프로브 → 사전변환 사본 임포트(Nanite, bounds 검증) → UDIM VT 텍스처·`M_ZoneScan`·`MI_<material>` 슬롯 할당 → manifest 복사 → `AGolmokZone` 리빌드. 합성 zone 생성기 `tools/scripts/make_synthetic_zone.py`(클라우드 테스트)와 런북 `runbooks/pc-verify-wp06.md`(V-04).
 - 완료 기준: 골목 전 구간을 걷고 뛰는 동안 끼임, 떨림, 구멍이 없고, 품질 목표 fps를 달성한다.
 
 ### 1.5 실내 1곳
@@ -138,6 +140,7 @@
 | 소유자 서면 동의서 템플릿 작성 → 사용자가 서명을 받는다 — ✅ 초안 `outreach/interior-consent-form-draft.md` | 🤖 초안 / 👤 |
 | **촬영 가이드 #2(실내)** 작성 → 촬영 — ✅ 가이드 `capture/02-interior-capture-guide.md` | 🤖 / 👤 |
 | 실내 Zone 제작(D-010 방식), 문 포털, 실외↔실내 전환(레벨 스트리밍, 노출·조명 전환) — 포털·전환은 🟢 PC 검증 통과(V-03, 2026-09-25)(WP-05; 합성 실내 문 왕복·오버레이·언로드 지연·두 스트리밍 경로 확인): `Portals/GolmokPortal`(manifest `portals[]`에서 자동 스폰, 반경 안 선로드, 문 평면 통과로 노출·안개 오버레이, 3 s 지연 언로드), 레벨 스트리밍 `LevelInstance`(기본)/`NamedStreamingLevel`(ini), 합성 실내 픽스처 `z_synthetic_001_interior` + `synthetic_zone.run(interior=True)` | 🤖 |
+| 실내 zone 에디터 준비 `golmok.interior_setup`(WP-06) — 🟡 코드 완료·PC 검증 대기: 포털 왕복 검사(같은 점·반대 yaw) → 에셋 임포트 → 서브레벨 `L_<zone_id>`(PointLight만, 레벨 좌표) → 부모 zone 리빌드 | 🤖 |
 | 완료 기준: 골목에서 문을 열고 들어가 실내를 돌아다니고 다시 나올 수 있다 | |
 
 ### 1.6 폴리시·성능·검수

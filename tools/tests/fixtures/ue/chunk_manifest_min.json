@@ -1,0 +1,30 @@
+{
+  "sources": ["/synthetic/recon/z_synthetic_scan_001/scan.obj"],
+  "chunks": [
+    {
+      "id": "c_w001_n000",
+      "file": "c_w001_n000.obj",
+      "source": "/synthetic/recon/z_synthetic_scan_001/scan.obj",
+      "bbox_enu": [[-15.0, 0.0, -0.3], [0.0, 15.0, 5.0]],
+      "tris": 66,
+      "materials": ["facade", "ground"],
+      "udim_tiles": [1001, 1002]
+    },
+    {
+      "id": "c_e000_n000",
+      "file": "c_e000_n000.obj",
+      "source": "/synthetic/recon/z_synthetic_scan_001/scan.obj",
+      "bbox_enu": [[0.0, 0.0, 0.0], [15.0, 15.0, 6.0]],
+      "tris": 66,
+      "materials": ["facade", "ground"],
+      "udim_tiles": [1001, 1011]
+    }
+  ],
+  "mtl": ["scan.mtl"],
+  "textures": [
+    "/synthetic/recon/z_synthetic_scan_001/tex/facade.<UDIM>.png",
+    "/synthetic/recon/z_synthetic_scan_001/tex/ground.png"
+  ],
+  "missing": {"mtl": [], "textures": []},
+  "total_tris": 132
+}

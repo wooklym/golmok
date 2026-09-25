@@ -23,6 +23,9 @@
 | [captures/INDEX.md](captures/INDEX.md) | 촬영 목록(Zone 백로그) |
 | [runbooks/recon-postprocess.md](runbooks/recon-postprocess.md) | RealityScan·Postshot 결과 → Zone 폴더(청크·충돌·blocker·splat 3D Tiles) 후처리 절차 |
 | [runbooks/pc-setup.md](runbooks/pc-setup.md) | 사용자 PC 셋업·검증 런북(로컬 Claude 세션용) |
+| [runbooks/pc-verify-wp04.md](runbooks/pc-verify-wp04.md) · [pc-verify-wp05.md](runbooks/pc-verify-wp05.md) · [pc-verify-wp06.md](runbooks/pc-verify-wp06.md) | PC 검증 런북(V-03·V-04): UE C++ Geo·Zone / 포털·조명·디버그 / 에디터 Python(합성 zone 임포트·실내·스파이크 리허설) |
+| [runbooks/pc-spike.md](runbooks/pc-spike.md) | 스파이크 1.1 전체 절차(촬영 → 블러 → RealityScan → Postshot → 후처리 → UE 임포트 → 캡처·성능 → research/08 → D-010) |
+| [runbooks/align.md](runbooks/align.md) | Zone 정합 `golmok-align` 런북(WP-07) |
 
 과업 목록의 4번(전체 아키텍처)은 `ARCHITECTURE.md`로 따로 두었다.
 모든 조사 문서는 사실마다 확인 수준([확인]/[2차]/[미확인])과 출처 URL을 적어 두었다.

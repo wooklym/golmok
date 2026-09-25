@@ -66,15 +66,18 @@ def goto(name):
 
 
 class _Capture:
-    def __init__(self, tag, names, presets, game_view):
+    def __init__(self, tag, names, presets, game_view, on_done=None):
         self.jobs = [(p, n) for p in presets for n in names]
         self.tag = tag
+        self.on_done = on_done  # on_done(saved, missing) once the capture stopped (spike_runner chains tags)
         self.wait = 0
         self.current = None
         self.pending = None  # (path, requested_at, ticks_left) while waiting for the screenshot file
         self.saved = []
         self.missing = []
-        self.out_root = os.path.join(unreal.Paths.project_saved_dir(), "Screenshots", "Golmok", tag)
+        # normpath: the UE saved dir uses "/" while os.path.join adds os.sep (mixed separators on Windows)
+        saved_dir = unreal.Paths.project_saved_dir()
+        self.out_root = os.path.normpath(os.path.join(saved_dir, "Screenshots", "Golmok", tag))
         self.level_editor = unreal.get_editor_subsystem(unreal.LevelEditorSubsystem)
         self.level_editor.editor_set_viewport_realtime(True)
         # Game View hides editor sprites and gizmos so screenshots show only what the player sees.
@@ -87,6 +90,11 @@ class _Capture:
         unreal.unregister_slate_post_tick_callback(self.handle)
         self.level_editor.editor_set_game_view(self.game_view)
         (unreal.log_warning if warn else unreal.log)(message)
+        if self.on_done is not None:
+            try:
+                self.on_done(self.saved, self.missing)
+            except Exception as e:  # the chain's problem must not re-enter _finish from _tick
+                unreal.log_warning(f"Capture '{self.tag}' on_done failed: {e}")
 
     def _tick(self, dt):
         try:
@@ -134,9 +142,11 @@ class _Capture:
         self.wait = WAIT_TICKS
 
 
-def capture(tag, names=None, presets=None, game_view=True):
+def capture(tag, names=None, presets=None, game_view=True, on_done=None):
+    """Screenshot every viewpoint (all saved ones by default) under each preset; on_done(saved, missing)
+    is called once the capture has stopped, normally or on an error."""
     names = names or sorted(_load())
     if not names:
         unreal.log_warning("No viewpoints saved for this level. Use save('<name>') first.")
         return None
-    return _Capture(tag, names, presets or [None], game_view)
+    return _Capture(tag, names, presets or [None], game_view, on_done)

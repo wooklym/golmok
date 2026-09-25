@@ -10,7 +10,10 @@
 - Places one actor per tile in the level folder "Basemap/<area>" so that Unreal X = east,
   Y = south, Z = up at the area origin (Cesium for Unreal's convention). The glTF importer's axis
   and unit conversion is measured from each tile's bounding box instead of being assumed.
-- If Cesium for Unreal is enabled, sets the CesiumGeoreference origin to the area origin.
+- If Cesium for Unreal is enabled, sets the CesiumGeoreference origin to the area origin, and the
+  AGolmokGeoOrigin actor (find or spawn) gets the same manifest origin (WP-06).
+- `golmok-basemap build --exclude`로 제외한 건물은 타일에 없다(에디터에서 할 일 없음); 겹치는 zone은
+  `GolmokBasemap` 태그 런타임 숨김이 보조(D-012).
 """
 
 import itertools
@@ -20,7 +23,7 @@ import os
 
 import unreal
 
-from . import materials
+from . import _pure, materials
 
 ROOT = "/Game/Golmok/Basemap"
 # Target: UE = 100 * diag(1, -1, 1) * ENU  (cm; X east, Y south, Z up)
@@ -166,6 +169,15 @@ def _set_georeference(origin):
     geo.set_editor_property("origin_height", origin["height_ellipsoidal"])
 
 
+def _set_geo_origin(origin):
+    """AGolmokGeoOrigin (find or spawn, like synthetic_zone) at the basemap manifest origin, next to the
+    Cesium georeference, so zone_import.run(geo_origin=<basemap folder>) and the zone actors agree."""
+    from . import synthetic_zone as sz  # deferred: synthetic_zone imports this module at its top
+
+    sz.find_or_spawn_geo_origin(origin["lat"], origin["lon"], origin["height_ellipsoidal"])
+    unreal.log(_pure.fmt("bm.geo", lat=origin["lat"], lon=origin["lon"], h=origin["height_ellipsoidal"]))
+
+
 def _open_level(level):
     """Load `level`, or create it with the dev-level lighting (sun, sky, fog, post process)."""
     les = unreal.get_editor_subsystem(unreal.LevelEditorSubsystem)
@@ -276,6 +288,7 @@ def run(folder, area_name=None, level=None):
         actor.set_editor_property("tags", tags)
 
     _set_georeference(manifest["origin"])
+    _set_geo_origin(manifest["origin"])
     if level:
         _place_player_start(area)
     unreal.get_editor_subsystem(unreal.LevelEditorSubsystem).save_current_level()

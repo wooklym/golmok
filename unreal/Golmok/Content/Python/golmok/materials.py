@@ -16,6 +16,8 @@ import unreal
 MATERIAL_DIR = "/Game/Golmok/Materials"
 FACADE_NAME = "M_BasemapFacade"
 TERRAIN_NAME = "M_BasemapTerrain"
+ZONE_SCAN_NAME = "M_ZoneScan"  # WP-06 zone scans (virtual-texture sampler)
+ZONE_SCAN_NOVT_NAME = "M_ZoneScan_NoVT"  # fallback parent for textures that could not be made VT
 DEFAULT_TEXTURE = "/Engine/EngineResources/DefaultTexture.DefaultTexture"
 
 FACADE_HLSL = r"""
@@ -153,3 +155,43 @@ def terrain_instance(texture, parent, path):
     mel.update_material_instance(mic)
     unreal.EditorAssetLibrary.save_loaded_asset(mic)
     return mic
+
+
+def build_zone_scan_material(default_texture, vt=True, overwrite=False):
+    """M_ZoneScan (vt=True) or M_ZoneScan_NoVT: TextureSampleParameter2D "BaseColor" whose default is
+    `default_texture` (a virtual-texture sampler needs a VT texture there; zone_import passes the master's own
+    T_ZoneScanDefault[_NoVT], never a zone texture, which a zone re-import would force-delete; design D6,
+    runbook #10), sampler type SAMPLERTYPE_VIRTUAL_COLOR or SAMPLERTYPE_COLOR, Roughness 0.8, no normal,
+    used_with_nanite. An existing material is only loaded unless overwrite=True (zone_import repairs its
+    default in place)."""
+    name = ZONE_SCAN_NAME if vt else ZONE_SCAN_NOVT_NAME
+    mat, created = _new_material(name, overwrite)
+    if not created:
+        return mat
+    mel = _mel()
+    tex = mel.create_material_expression(mat, unreal.MaterialExpressionTextureSampleParameter2D, -500, 0)
+    tex.set_editor_property("parameter_name", "BaseColor")
+    if default_texture is not None:
+        tex.set_editor_property("texture", default_texture)
+    sampler = "SAMPLERTYPE_VIRTUAL_COLOR" if vt else "SAMPLERTYPE_COLOR"
+    if hasattr(unreal, "MaterialSamplerType") and hasattr(unreal.MaterialSamplerType, sampler):
+        tex.set_editor_property("sampler_type", getattr(unreal.MaterialSamplerType, sampler))
+    else:
+        unreal.log_warning(
+            f"materials: MaterialSamplerType.{sampler} unavailable; set the BaseColor sampler type of "
+            f"{name} by hand (runbook #10)"
+        )
+    rough = mel.create_material_expression(mat, unreal.MaterialExpressionConstant, -300, 200)
+    rough.set_editor_property("r", 0.8)
+    mel.connect_material_property(tex, "RGB", unreal.MaterialProperty.MP_BASE_COLOR)
+    mel.connect_material_property(rough, "", unreal.MaterialProperty.MP_ROUGHNESS)
+    mat.set_editor_property("used_with_nanite", True)  # zone chunks are Nanite meshes
+    mel.recompile_material(mat)
+    unreal.EditorAssetLibrary.save_loaded_asset(mat)
+    unreal.log(f"Created {MATERIAL_DIR}/{name}")
+    return mat
+
+
+def zone_scan_instance(texture, parent, path):
+    """Material instance of M_ZoneScan / M_ZoneScan_NoVT at `path` showing `texture` (created or updated)."""
+    return terrain_instance(texture, parent, path)

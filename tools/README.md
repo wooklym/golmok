@@ -149,6 +149,19 @@ $env:GOLMOK_DATA="D:\golmok_basemap\yeonnam"; npm test   # 실데이터로 검�
 - ion 토큰은 쓰지 않는다. 데이터는 로컬 서버(127.0.0.1)에서만 읽는다(D-007).
 
 
+## UE 에디터 Python (WP-06)
+
+에디터 Output Log(Python 모드)에서 실행한다. 모듈은 `unreal/Golmok/Content/Python/golmok/`.
+
+| 명령 | 하는 일 |
+|---|---|
+| `import golmok.zone_import as zi; zi.run(r"D:\golmok_zones\zones\z_…", level="/Game/Golmok/Maps/L_ZoneTest", geo_origin="area")` | WP-03 zone 폴더(OBJ 청크 + MTL/UDIM 텍스처 + collision GLB + blockers.json) → UE 에셋(`SM_*`, `T_*` UDIM VT, `MI_*`) 임포트, `manifest.json`·`blockers.json` 복사, `AGolmokGeoOrigin`/`AGolmokZone` 배치·리빌드 |
+| `import golmok.interior_setup as it; it.run(r"…\zones\z_…_room", level=…)` | 실내 zone: 포털 왕복 검사 → 에셋 → 서브레벨 `L_<zone_id>`(PointLight) → 부모 zone 리빌드 |
+| `import golmok.spike_runner as s; s.prepare(); s.capture_all(); s.save_layer_levels(); s.game_scripts(); s.contact_sheet(); s.report_template()` | 스파이크 1.1: 시점 10곳 PIE 무인 캡처(태그 a/b/c/ac × 프리셋), `-game` 성능 스크립트, 컨택트 시트, research/08 표 템플릿 |
+| `python scripts/make_synthetic_zone.py --out <폴더> --interior` | 합성 zone 생성기(클라우드·CI에서 실행): RealityScan 흉내 OBJ+MTL+UDIM PNG → 실제 `golmok-mesh` 파이프라인 → `zones/z_synthetic_scan_001/v1/` + `expected.json`(런북 기대값) |
+
+절차: [docs/runbooks/pc-verify-wp06.md](../docs/runbooks/pc-verify-wp06.md)(검증), [docs/runbooks/pc-spike.md](../docs/runbooks/pc-spike.md)(스파이크 전체).
+
 ## 검사 실행
 
 CI(`.github/workflows/ci.yml`)와 같은 검사다. 커밋 전에 `tools` 폴더에서 실행한다(`pip install -e ".[basemap,zone,align,dev]"`에 ruff 포함).
