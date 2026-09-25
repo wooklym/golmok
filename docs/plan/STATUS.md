@@ -46,7 +46,7 @@
 | V-05 | 재구성·후처리·스파이크 1.1 | ⚪ 대기 | C-02 필요 |
 | V-06 | Zone 통합·튜닝·패키징 | ⚪ 대기 | D-010 이후 |
 | V-07 | WP-09 Zone Index·비동기 로드 검증 | ⚪ 대기 | 런북 `runbooks/pc-verify-wp09.md`(V-04 뒤; `L_ZoneTest`+합성 실내 전제): §1 index 동기화(`git status` 깨끗) → §2 빌드 → §3 `test.ps1 -Filter Golmok.Zone` 5개 → 전체 16 → §4 `L_ZoneTest09`(배치 액터 없이 발견·로드) → §5 동쪽 1.5 km 파괴 → §6 `bAsyncLoad` True/False 히치 표 → §7 render ms 소스 1/2/0 대조(매크로 기본값 커밋) → §8 실내 `portal` 표시·포털 대기·재진입 → §10 PIE 종료. 실패는 §11 표 번호로 수정·`WP-09: PC fix` 커밋 |
-| V-08 | 애니메이션 3안 PC 평가 | ⚪ 대기 | 런북 `runbooks/pc-verify-animation.md`(V-01 뒤, 독립): **§0 사용자가 GASP 라이선스 원문 확인**(Fab 리스팅·Fab EULA·UE EULA) → §1 GASP Create Project(저장소 밖)·플러그인·스켈레톤 기록 → §2 ① 기준선 녹화 S1~S8 + `csvprofile` → §3 ② GASP 로코모션 Migrate(`Content/Golmok_AnimEval/`, 브랜치 `pc/v08-animation`, 에셋 커밋 금지) → §4 ③(막힐 때만) → §5 사용자 채점 → §8 결과 |
+| V-08 | 애니메이션 3안 PC 평가 | 🔵 진행 중(2026-09-26 PC 세션, Fable 5.1, 브랜치 `pc/v08-animation`) | 런북 `runbooks/pc-verify-animation.md`(V-01 뒤, 독립): **§0 사용자가 GASP 라이선스 원문 확인**(Fab 리스팅·Fab EULA·UE EULA) → §1 GASP Create Project(저장소 밖)·플러그인·스켈레톤 기록 → §2 ① 기준선 녹화 S1~S8 + `csvprofile` → §3 ② GASP 로코모션 Migrate(`Content/Golmok_AnimEval/`, 브랜치 `pc/v08-animation`, 에셋 커밋 금지) → §4 ③(막힐 때만) → §5 사용자 채점 → §8 결과 |
 | V-09 | WP-12 포토 모드 검증 | ⚪ 대기 | 런북 `runbooks/pc-verify-wp12.md`(WP-12 뒤): 진입/조절/촬영/복원, 배율별 VRAM, 벽·zone 밖 이탈 시도, 실내 촬영 |
 | V-10 | WP-13 환경음 검증 | ⚪ 대기 | 런북 `runbooks/pc-verify-wp13.md`(WP-13 뒤): `audio_import` → 낮/밤·실내 크로스페이드·발소리 재질·착지, 볼륨 밸런스, 플레이스홀더면 실제 파일 교체 |
 
