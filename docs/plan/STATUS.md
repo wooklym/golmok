@@ -3,7 +3,7 @@
 갱신 규칙: 각 세션이 시작·종료 시 자기 행을 고친다. 상태 기호:
 ⚪ 대기 · 🔵 진행 중 · 🟡 코드 완료·PC 검증 대기 · 🟢 완료 · 🔴 막힘 · ⏸ 보류
 
-마지막 갱신: 2026-09-25 (PR #12 WP-06 병합 → **M1 클라우드 코드 완료**, 후속 WP-09/10/11 등록)
+마지막 갱신: 2026-09-25 (WP-09 세션 시작)
 
 ## 마일스톤
 
@@ -29,7 +29,7 @@
 | WP-07 | 정합·검수 `golmok-align` | 🟢 완료(합성 검증) | session_01Cgm7f6oD6xSMpZ5jszj8Xi (Fable 5.1) | `golmok-align run/compare/check-blur`. GPS prior(level Umeyama+RANSAC) → 벽 ICP(dof 4/6) → 지면 ICP(수직만) → manifest transform/origin/quality 갱신 + align_report.md. open3d 대신 numpy/scipy(리눅스 CI에 libEGL 없음). 합성: 2°·1.4 m 교란을 3 cm 이내 복원. **실 Zone 검증은 V-05.** collision.glb 축 규약은 `--mesh-axes`로 맞춘다(WP-03 결정 대기) |
 | WP-08 | (선택) 웹 검수 뷰어 | 🟢 완료 | session_01Cgm7f6oD6xSMpZ5jszj8Xi (Fable 5.1) | `golmok-viewer`(CesiumJS 1.145, ion 없음) + `tools/viewer` + Playwright 스모크(`npm test`, 합성 베이스맵 18타일). Zone manifest 오버레이(footprint·청크 bbox·포털·blockers, `?zone=…/manifest.json`) 포함. 충돌 메시 표시는 WP-03 산출물 나오면 추가 |
 
-| WP-09 | UE C++ 3: Zone Index 발견·비동기 로드 + V-03 디버그 표시 정리 | ⚪ 대기 | (Fable 5.1 ultracode, 검증 Opus) | 스펙 `plan/WP-09-ue-zone-index-async.md`. WP-04 §4-4 `bAsyncLoad` TODO·"남은 것"(Index 발견) 후속 + V-03 발견(HUD render ms 0.00, 실내 `blocked` 표시). 발견·파괴·비동기 콜백은 `Evaluate()`/`Load()` 스택 밖에서만. 검증 V-07 |
+| WP-09 | UE C++ 3: Zone Index 발견·비동기 로드 + V-03 디버그 표시 정리 | 🔵 진행 중 (2026-09-25 시작) | session_016UiCeoD2Sytfh4nSweonbs (Fable 5.1 ultracode, 검증 Opus 5.5) | 스펙 `plan/WP-09-ue-zone-index-async.md`. WP-04 §4-4 `bAsyncLoad` TODO·"남은 것"(Index 발견) 후속 + V-03 발견(HUD render ms 0.00, 실내 `blocked` 표시). 발견·파괴·비동기 콜백은 `Evaluate()`/`Load()` 스택 밖에서만. 검증 V-07 |
 | WP-10 | 애니메이션 평가·게임 기능 제안(문서) | ⚪ 대기 | (Opus) | 스펙 `plan/WP-10-animation-features-proposal.md`. ROADMAP 1.3 애니메이션 행, DEVELOPMENT-PLAN §11 #6(D-013~ 제안), night 프리셋 look-dev 메모. UE 코드 변경 없음, 제안 승인은 사용자 |
 | WP-11 | 웹 검수 뷰어 2차(충돌·blocker 메시 오버레이) | ⚪ 대기 | (Opus) | 스펙 `plan/WP-11-viewer-collision-overlay.md`. WP-08 인계 항목. collision/blockers GLB(Y-up) → Cesium.Model, 서버 GLB 서빙(경로 탈출 금지), Playwright 스모크 |
 
