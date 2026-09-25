@@ -581,8 +581,12 @@ bool UGolmokZoneSubsystem::GetPlayerCell(int32& OutX, int32& OutY, double& OutLo
 	}
 	UWorld* World = GetWorld();
 	UGolmokGeoSubsystem* Geo = World ? World->GetSubsystem<UGolmokGeoSubsystem>() : nullptr;
+	if (!Geo || !Geo->HasOrigin())
+	{
+		return false;  // no AGolmokGeoOrigin (L_Dev): discovery silently off, no WarnNoOriginOnce spam
+	}
 	double Height = 0.0;
-	if (!Geo || !Geo->LevelUEToLonLat(Player, OutLat, OutLon, Height))
+	if (!Geo->LevelUEToLonLat(Player, OutLat, OutLon, Height))
 	{
 		return false;
 	}
@@ -637,7 +641,7 @@ void UGolmokZoneSubsystem::DiscoverZones()
 		if (!bWarnedNoGeoOrigin)
 		{
 			bWarnedNoGeoOrigin = true;
-			UE_LOG(LogGolmok, Warning, TEXT("GolmokZoneSubsystem: discovery needs a player and an AGolmokGeoOrigin in the level; off until then"));
+			UE_LOG(LogGolmok, Log, TEXT("GolmokZoneSubsystem: discovery needs a player and an AGolmokGeoOrigin in the level; off until then"));
 		}
 		return;
 	}

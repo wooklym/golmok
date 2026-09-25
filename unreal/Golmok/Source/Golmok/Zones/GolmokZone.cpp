@@ -283,13 +283,11 @@ UStaticMesh* AGolmokZone::LoadMeshAsset(const FString& ObjectPath)
 
 UStaticMesh* AGolmokZone::AcquireMeshAsset(const FString& ObjectPath)
 {
-	if (bAssetsPreloaded)
+	// Resident lookup first (no load, no flush): FinishAsyncLoad's streamable handle keeps the asset resident, and in the
+	// editor an imported-but-unsaved mesh is in memory before DoesPackageExist can see it on disk.
+	if (UStaticMesh* Resident = Cast<UStaticMesh>(FSoftObjectPath(ObjectPath).ResolveObject()))
 	{
-		// FinishAsyncLoad: the streamable handle keeps the asset resident, so a lookup is enough (no load, no flush).
-		if (UStaticMesh* Resident = Cast<UStaticMesh>(FSoftObjectPath(ObjectPath).ResolveObject()))
-		{
-			return Resident;
-		}
+		return Resident;
 	}
 	if (!FPackageName::DoesPackageExist(FPackageName::ObjectPathToPackageName(ObjectPath)))
 	{

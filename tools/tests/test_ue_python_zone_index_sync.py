@@ -133,6 +133,17 @@ def test_sync_copies_fixture_index_bytes(fake, zx):
     assert zx.sync(str(FIXTURE_ZONES / "nowhere"), index_dir=str(FIXTURE_INDEX))["cells"] == 4
 
 
+def test_sync_with_index_built_inside_content_is_a_no_op_copy(fake, zx):
+    """index_dir == <Content>/Golmok/Zones/index (index built with --out straight into Content): no
+    SameFileError, files untouched."""
+    first = zx.sync(str(FIXTURE_ZONES))
+    dest = _dest(fake)
+    before = {p: (dest / p).read_bytes() for p in _tree(dest)}
+    again = zx.sync(str(FIXTURE_ZONES / "nowhere"), index_dir=str(dest))
+    assert again["cells"] == first["cells"] == 4 and again["removed"] == []
+    assert {p: (dest / p).read_bytes() for p in _tree(dest)} == before
+
+
 def test_sync_removes_stale_cells_and_is_idempotent(fake, zx):
     dest = _dest(fake)
     (dest / "cells").mkdir(parents=True)

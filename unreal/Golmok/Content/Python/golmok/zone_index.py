@@ -114,6 +114,8 @@ def sync(zones_root, index_dir=None, content_dir=None) -> dict:
     sp = _pure.index_sync_plan(p["index_dir"], content, sorted(cells), dest_cells)
     os.makedirs(os.path.join(sp["dest"], _pure.INDEX_CELLS_DIR), exist_ok=True)
     for src, dst in sp["copy"]:
+        if os.path.exists(dst) and os.path.samefile(src, dst):
+            continue  # index built straight into Content (index_dir == dest): nothing to copy
         shutil.copyfile(src, dst)
     _log("zx.copied", cells=len(cells), dest=sp["dest"])
     removed = []

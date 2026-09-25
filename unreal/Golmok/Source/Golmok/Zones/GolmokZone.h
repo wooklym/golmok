@@ -213,8 +213,9 @@ protected:
 	virtual int32 BuildBlockers();
 
 	/**
-	 * Mesh for a manifest object path. Inside FinishAsyncLoad (bAssetsPreloaded) FSoftObjectPath::ResolveObject() first;
-	 * otherwise nullptr when the package does not exist (no StaticLoadObject probe, no flush), else LoadMeshAsset().
+	 * Mesh for a manifest object path. FSoftObjectPath::ResolveObject() first (resident after FinishAsyncLoad, or an
+	 * imported-but-unsaved editor asset); then nullptr when the package does not exist on disk (no StaticLoadObject
+	 * probe, no flush), else LoadMeshAsset().
 	 * Virtual for D-010 formats.
 	 */
 	virtual UStaticMesh* AcquireMeshAsset(const FString& ObjectPath);
