@@ -25,7 +25,9 @@ public class Golmok : ModuleRules
 		{
 			// WP-05: RHIGetGPUFrameCycles() for the debug HUD's GPU ms (Debug/GolmokDebugSubsystem.cpp).
 			// Remove together with GOLMOK_GPU_TIME_SOURCE if the symbol moved.
-			"RHI"
+			"RHI",
+			// WP-05 (PC fix, UE 5.8): GGameThreadTime / GRenderThreadTime live in RenderCore (RenderTimer.h), not Core.
+			"RenderCore"
 		});
 
 		// Editor-only automation tests (Tests/) start PIE through UnrealEd.

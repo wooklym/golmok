@@ -340,6 +340,22 @@ def _measure_mapping(work_dir):
     return scale, m
 
 
+def _move_asset(asset, dst):
+    """Move `asset` to the object path `dst` (/Game/.../Name), replacing an existing asset there."""
+    src = asset.get_path_name().split(".")[0]
+    if src == dst:
+        return asset
+    lib = unreal.EditorAssetLibrary
+    if lib.does_asset_exist(dst) and not lib.delete_asset(dst):
+        raise RuntimeError(f"synthetic_zone: could not replace {dst}")
+    if not lib.rename_asset(src, dst):
+        raise RuntimeError(f"synthetic_zone: could not move {src} -> {dst}")
+    moved = lib.load_asset(dst)
+    if moved is None:
+        raise RuntimeError(f"synthetic_zone: {dst} missing after move")
+    return moved
+
+
 def _import_geometry(geometry, folder, work_dir, scale, m):
     """Write every {name: boxes} of `geometry` as a GLB (pre-transformed for the measured importer mapping),
     import it as <folder>/<name>, verify the UE bounds, and make *_collision meshes complex-as-simple."""
@@ -348,8 +364,14 @@ def _import_geometry(geometry, folder, work_dir, scale, m):
         path = os.path.join(work_dir, f"{name}.glb")
         with open(path, "wb") as f:
             f.write(boxes_glb(written, name))
-        mesh = bm._import_glb(path, folder)
+        # UE 5.8 Interchange lays glTF imports out as <dest>/<source name>/StaticMeshes/<name> (V-03 finding);
+        # AGolmokZone loads the flat convention path <folder>/SM_<name> (spec §5), so import into a scratch
+        # subfolder and move the mesh there (same pattern as _measure_mapping's _probe folder).
+        scratch = f"{folder}/_import"
         expected_path = f"{folder}/{name}"
+        mesh = _move_asset(bm._import_glb(path, scratch), expected_path)
+        if unreal.EditorAssetLibrary.does_directory_exist(scratch):
+            unreal.EditorAssetLibrary.delete_directory(scratch)
         if mesh.get_path_name().split(".")[0] != expected_path:
             raise RuntimeError(
                 f"{name}: imported as {mesh.get_path_name()}, but AGolmokZone loads {expected_path}"
@@ -466,14 +488,19 @@ def _move_player_start(zone):
 def open_or_create_level(level_path):
     """Open the map at level_path, or create it with the L_Dev lighting (sun, sky, fog, post-process)."""
     level_editor = unreal.get_editor_subsystem(unreal.LevelEditorSubsystem)
+    from . import setup_dev_level as dev  # imported here: its defaults touch unreal.Vector at import time
+
     if unreal.EditorAssetLibrary.does_asset_exist(level_path):
         if not level_editor.load_level(level_path):
             raise RuntimeError(f"synthetic_zone: could not open {level_path}")
+        # A run that failed between new_level() (which saves the empty map) and save_current_level() leaves
+        # the map without lights (V-03: AGolmokTimeOfDay warns "lighting targets missing"); rebuild them.
+        if not any(isinstance(a, unreal.DirectionalLight) for a in _actors().get_all_level_actors()):
+            dev._build_lighting()
+            unreal.log(f"synthetic_zone: {level_path} had no lighting; rebuilt the L_Dev lighting")
         return False
     if not level_editor.new_level(level_path):
         raise RuntimeError(f"synthetic_zone: could not create {level_path}")
-    from . import setup_dev_level as dev  # imported here: its defaults touch unreal.Vector at import time
-
     dev._build_lighting()
     unreal.log(f"synthetic_zone: created {level_path} with the L_Dev lighting")
     return True
@@ -559,12 +586,16 @@ def register_interior_sublevel():
     path = sublevel_path(int_manifest)
     try:
         world = unreal.get_editor_subsystem(unreal.UnrealEditorSubsystem).get_editor_world()
+        persistent = world.get_path_name().split(".")[0]
         streaming = unreal.EditorLevelUtils.add_level_to_world(world, path, unreal.LevelStreamingDynamic)
         if streaming is None:
             raise RuntimeError(f"add_level_to_world({path}) returned None")
         streaming.set_editor_property("initially_loaded", False)
         streaming.set_editor_property("initially_visible", False)
-        unreal.get_editor_subsystem(unreal.LevelEditorSubsystem).save_current_level()
+        # add_level_to_world makes the new sublevel the *current* level, so save_current_level() would save
+        # the sublevel and leave the persistent map (which now references it) unsaved (V-03). Save by path.
+        if not unreal.EditorLoadingAndSavingUtils.save_map(world, persistent):
+            raise RuntimeError(f"save_map({persistent}) failed")
     except Exception as e:
         unreal.log_warning(
             "synthetic_zone: could not register the sublevel; add it in Window > Levels, "
@@ -573,6 +604,31 @@ def register_interior_sublevel():
         return None
     unreal.log(f"synthetic_zone: sublevel {path} registered in Levels (initially unloaded, hidden)")
     return streaming
+
+
+def unregister_interior_sublevel():
+    """Undo register_interior_sublevel(): remove the interior sublevel from the open persistent level's Levels
+    list and save the persistent map, so the default LevelInstance path goes back through LoadLevelInstance
+    instead of reusing the registered entry. Returns True when an entry was removed."""
+    int_manifest = _load_manifest(INTERIOR_ZONE_ID, INTERIOR_VERSION)
+    path = sublevel_path(int_manifest)
+    world = unreal.get_editor_subsystem(unreal.UnrealEditorSubsystem).get_editor_world()
+    persistent = world.get_path_name().split(".")[0]
+    streaming = unreal.GameplayStatics.get_streaming_level(world, path)
+    if streaming is None:
+        unreal.log(f"synthetic_zone: sublevel {path} is not registered in {persistent}")
+        return False
+    level = streaming.get_loaded_level()
+    if level is None:
+        raise RuntimeError(
+            f"synthetic_zone: {path} is registered but not loaded; remove it in Window > Levels"
+        )
+    if not unreal.EditorLevelUtils.remove_level_from_world(level):
+        raise RuntimeError(f"synthetic_zone: remove_level_from_world({path}) failed")
+    if not unreal.EditorLoadingAndSavingUtils.save_map(world, persistent):
+        raise RuntimeError(f"synthetic_zone: save_map({persistent}) failed")
+    unreal.log(f"synthetic_zone: sublevel {path} removed from the Levels list of {persistent}")
+    return True
 
 
 def run(geo_origin="area", move_player_start=True, import_assets=True, level=ZONE_TEST_MAP, interior=False):

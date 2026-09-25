@@ -90,34 +90,35 @@ namespace GolmokLightingJson
 	bool ReadNumber(const FJsonObjectPtr& Obj, const FString& Key, bool& bOutPresent, double& OutValue)
 	{
 		OutValue = 0.0;
-		const TSharedPtr<FJsonValue>* Found = Obj->Values.Find(Key);
-		bOutPresent = Found != nullptr && Found->IsValid();
+		// UE 5.8: FJsonObject::Values is keyed by UE::FSharedString, so look the field up by view instead of FString.
+		const TSharedPtr<FJsonValue> Found = Obj->TryGetField(Key);
+		bOutPresent = Found.IsValid();
 		if (!bOutPresent)
 		{
 			return true;
 		}
-		if ((*Found)->Type != EJson::Number)
+		if (Found->Type != EJson::Number)
 		{
 			return false;
 		}
-		OutValue = (*Found)->AsNumber();
+		OutValue = Found->AsNumber();
 		return true;
 	}
 
 	bool ReadBool(const FJsonObjectPtr& Obj, const FString& Key, bool& bOutPresent, bool& bOutValue)
 	{
 		bOutValue = false;
-		const TSharedPtr<FJsonValue>* Found = Obj->Values.Find(Key);
-		bOutPresent = Found != nullptr && Found->IsValid();
+		const TSharedPtr<FJsonValue> Found = Obj->TryGetField(Key);
+		bOutPresent = Found.IsValid();
 		if (!bOutPresent)
 		{
 			return true;
 		}
-		if ((*Found)->Type != EJson::Boolean)
+		if (Found->Type != EJson::Boolean)
 		{
 			return false;
 		}
-		bOutValue = (*Found)->AsBool();
+		bOutValue = Found->AsBool();
 		return true;
 	}
 
@@ -135,9 +136,10 @@ namespace GolmokLightingJson
 		}
 		for (const auto& Pair : Obj->Values)
 		{
-			if (!IsKnownPresetKey(Pair.Key))
+			const FString Key(*Pair.Key); // UE::FSharedString key -> FString
+			if (!IsKnownPresetKey(Key))
 			{
-				return FailPreset(Error, Name, FString::Printf(TEXT("unknown key '%s'"), *Pair.Key));
+				return FailPreset(Error, Name, FString::Printf(TEXT("unknown key '%s'"), *Key));
 			}
 		}
 
@@ -288,9 +290,10 @@ bool AGolmokTimeOfDay::ParsePresetsText(const FString& Json, TArray<FGolmokLight
 	}
 	for (const auto& Pair : Root->Values)
 	{
-		if (Pair.Key != KeySchemaVersion && Pair.Key != KeyCycle && Pair.Key != KeyPresets)
+		const FString Key(*Pair.Key); // UE::FSharedString key -> FString
+		if (Key != KeySchemaVersion && Key != KeyCycle && Key != KeyPresets)
 		{
-			return Fail(Error, FString::Printf(TEXT("unknown top-level key '%s'"), *Pair.Key));
+			return Fail(Error, FString::Printf(TEXT("unknown top-level key '%s'"), *Key));
 		}
 	}
 
@@ -308,7 +311,7 @@ bool AGolmokTimeOfDay::ParsePresetsText(const FString& Json, TArray<FGolmokLight
 			PresetPtr = *PresetObj;
 		}
 		FGolmokLightingPreset Preset;
-		if (!ParsePreset(Pair.Key, PresetPtr, Preset, Error))
+		if (!ParsePreset(FString(*Pair.Key), PresetPtr, Preset, Error))
 		{
 			return false;
 		}

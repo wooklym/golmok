@@ -927,6 +927,8 @@ Python 검증: (a) 헤더 순수성(`#include "` 없음, `<>` ⊆ 허용 7개, `
 - `Evaluate()` 포인터 안정성은 코드 방어 대신 규약(포털은 `AActor`, `Load()` 스택에서 `RequestLoad/Unload`는 항상 타이머 뒤)으로 보장하고 테스트가 `RegisterZone(` 부재를 강제. 하드닝은 Zone Index 발견 경로 구현 때.
 - `test_ue_wp05_fixture.py`에 `GolmokZoneSubsystem.cpp` 파일 해시 검사는 넣지 않았다(PC 세션의 정당한 API 수정을 막는다).
 
+**PC 검증(V-03, 2026-09-25, PC 세션 Fable 5.1)** — 🟢 통과. 컴파일 수정 1커밋(`e446504`: 5.8 `FJsonObject::Values`가 `UE::FSharedString` 키 → `TryGetField`/`FString(*Pair.Key)`; `GGameThreadTime`/`GRenderThreadTime`은 RenderCore 모듈·`RenderTimer.h`), Python 수정 1건(`84f33c5`: `register_interior_sublevel()`이 영속 맵 대신 서브레벨을 저장하던 버그 → `save_map`, `unregister_interior_sublevel()` 추가). 자동화 테스트 11/11(실내 있을 때 Portal.* 3개 실행, RoundTrip 3 cycle). 런북 §1~§8·§10 전부 통과, §9 패키징 미실행(선택). 경로 B: ✅ (Python 수정 1건 뒤). 설계와 다른 동작 4건(코드 미수정): `golmok.screenshot`에 HUD 포함, HUD `render` ms 0.00 빈발, night 프리셋 화면 검정(태양 off + real-time SkyLight), 포털 언로드 뒤 실내 `blocked` 표시 — 런북 §12 표. 그 외 §11 표의 불확실 API는 전부 5.8에서 그대로 동작(#1 구 `LoadLevelInstance`, #25 `RHIGetGPUFrameCycles`, #50 `OnPossessedPawnChanged`, #56 `TakeHighResScreenShot`, #65 `!DebugExecBindings=ClearArray`, #66 인스턴스 이름 재사용).
+
 **남은 것**
 - PC 검증 V-03(런북 §1~§12). 컴파일 에러는 §11 표로 고치고 `WP-05: PC fix` 커밋. 특히 `LoadLevelInstance` 시그니처·`RHIGetGPUFrameCycles`·`OnPossessedPawnChanged` 바인딩·`TakeHighResScreenShot` 파일명을 먼저 본다.
 - `Golmok.Portal.SharedInterior`는 Pending 형제 연기 분기를 자동으로 검증하지 않는다(런북 §5 수동).

@@ -33,6 +33,7 @@
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 #include "Portals/GolmokPortal.h"
+#include "RenderTimer.h" // GGameThreadTime / GRenderThreadTime (RenderCore in UE 5.8)
 #include "ShowFlags.h"
 #include "TimerManager.h"
 #include "UnrealClient.h"
