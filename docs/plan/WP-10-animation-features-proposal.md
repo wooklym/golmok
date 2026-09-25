@@ -1,6 +1,6 @@
 # WP-10 — 애니메이션 평가·게임 기능 제안 (문서·리서치)
 
-상태: ⚪ 대기 · 담당: 클라우드 Claude 세션(**Opus**; UE 코드 변경 없음) · 의존: 없음 · 검증: 사용자 승인(D-013~), PC 평가 런북(`runbooks/pc-verify-animation.md`)
+상태: 🟢 완료(2026-09-25, 문서; 제안 승인·V-08은 별도) · 담당: 클라우드 Claude 세션(**Opus**; UE 코드 변경 없음) · 의존: 없음 · 검증: 사용자 승인(D-013~), PC 평가 런북(`runbooks/pc-verify-animation.md`)
 
 ## 목표
 ROADMAP 1.3 "애니메이션: UE 5.8 기본 캐릭터·애니메이션 세트(Motion Matching 등 5.8 제공 기능 평가)"를 **리서치 문서 + PC 평가 런북**으로 만들고, DEVELOPMENT-PLAN §11 #6 "MVP 이후 게임 기능 우선순위(D-013~)"의 **제안 문서**를 써서 사용자가 결정할 수 있게 한다. V-03에서 발견된 night 프리셋 문제의 look-dev 메모를 남긴다. 코드는 바꾸지 않는다.
@@ -25,4 +25,33 @@ ROADMAP 1.3 "애니메이션: UE 5.8 기본 캐릭터·애니메이션 세트(Mo
 - UE 코드·설정·JSON을 바꾸지 않는다. 비용이 드는 선택(유료 에셋)은 제안만.
 
 ## 결과
-(세션이 작성)
+세션: session_011Jdzkehx5EZRAV1kX7PnGD (Opus 5.5, 단일 세션 + 읽기 전용 리뷰어 1명 — 블로킹 0, 수정 권고 4·사소 5건 전부 반영: 런북 `golmok.screenshot <tag>` 인자, Migrate 덮어쓰기 거절·`git add -A` 금지, 테스트 행 번호, 출처 보강), 2026-09-25. PR #17(draft). UE 코드·설정·JSON·에셋 변경 없음, 새 의존성 없음.
+
+**산출물**
+| # | 파일 | 요지 |
+|---|---|---|
+| 1 | [`research/09-animation-ue58.md`](../research/09-animation-ue58.md) | 현행(템플릿 마네킹 + `ABP_Unarmed`) 정리, Motion Matching(Pose Search)·Chooser·GASP 공식 문서 인용, 5.8 릴리스 노트 변경점 표(Pose Search·Chooser 연동 수정, `MotionMatchMulti` Experimental, Mover는 여전히 Experimental → 제외), 3안 비교·**권장: ② GASP 로코모션 이식을 먼저 시험**(게이트: 라이선스 원문·V-08 채점·LFS 용량) |
+| 2 | [`runbooks/pc-verify-animation.md`](../runbooks/pc-verify-animation.md) | V-08: §0 라이선스 확인(사용자) → §1 GASP 둘러보기(저장소 밖) → §2 ① 기준선 녹화 S1~S8 + `csvprofile` → §3 ② Migrate(`Content/Golmok_AnimEval/`, 시험 브랜치, 에셋 커밋 금지) → §4 ③ → §5 채점표 7항목 → §6 실패 대안 → §8 결과 표 |
+| 3 | [`design/game-features-proposal.md`](../design/game-features-proposal.md) + DECISIONS D-013~D-017(**제안**) | 포토 모드(M7 최소판) · Zone 지도·이동(Phase 2 초반) · 시간대 폴리시(M7)/날씨(Phase 2 중반, D-010 뒤) · 환경음(기본 M5~M7, 현장 녹음 Phase 2) · 세이브(Phase 2 초반, 경위도로 저장). 권장 우선순위 표 |
+| 4 | [`design/lighting-night-lookdev.md`](../design/lighting-night-lookdev.md) | night 검정 원인(태양 숨김 × 대기 0 × real-time SkyLight 0, 노출로는 해결 불가), 프로젝트 lux 스케일 주의, 후보 A~E(권장 A 달빛 + B 노출 상한 → Zone 뒤 E 가로등), PC look-dev 절차(커밋 없이, 값 회귀 테스트 주의) |
+| 5 | STATUS·ROADMAP 1.3·DEVELOPMENT-PLAN §1.3·§11 #6(+#8·#9 추가) | 갱신 |
+
+**출처**: Epic 공식 문서 12건을 컨테이너에서 직접 열어 문장 확인 — 5.8 릴리스 노트, Motion Matching, Game Animation Sample, Dynamic Asset Selection(Chooser), Third Person Template, Licenses and Pricing in Fab, Sky Lights, Auto Exposure, Sky Atmosphere, Taking Screenshots, Saving and Loading, MetaSounds. [2차] 1건(Wikipedia Lux 표). 게이트: ruff OK, `python -m pytest -q` 626 passed·3 skipped, `check_repo.py` OK.
+
+**확인 못 한 항목(열리지 않음 → 문서에 [확인 필요])**
+1. Fab EULA 원문(https://www.fab.com/eula, 403) — Standard License 조항, Epic 제작/UE 전용 콘텐츠 조건
+2. Unreal Engine EULA(https://www.unrealengine.com/eula/unreal, 403) — 템플릿 마네킹 등 엔진 동봉 콘텐츠
+3. Epic Content License Agreement(https://www.unrealengine.com/eula/content, 403)
+4. GASP Fab 리스팅의 라이선스 표기(fab.com, 403)
+5. GASP 5.8 업데이트 블로그(unrealengine.com tech-blog, 403) — 5.8 신규 기능은 [2차]로만 기재
+6. 통신비밀보호법 원문(law.go.kr 본문 로드 실패) — 환경음 녹음 리스크
+7. (PC에서 실측) Pose Search·Chooser 플러그인 성숙도 표시, GASP 용량·시퀀스 수, 스켈레톤 호환
+
+**사용자 결정 목록**
+1. D-013~D-017 각각 승인/수정/보류/폐기, 권장 우선순위 동의 여부(특히 환경음 기본판·포토 모드 최소판을 Phase 1 M7 선택 항목으로)
+2. GASP 라이선스 원문 확인(V-08 §0) → 문제없으면 V-08 진행, 이후 ①/②/③ 채택
+3. 사운드 라이브러리 구매 여부·현장 녹음을 촬영 가이드에 넣을지
+4. 날씨(비)를 Phase 2에 넣을지(D-010 뒤로 미뤄도 됨)
+5. night look-dev 조합(D-010 뒤 폴리시 단계)
+
+**병합 전 보완 리뷰**(오케스트레이터, Opus 읽기 전용 2차; 인용 URL을 다시 열어 문장 대조): 블로킹 1건 — `research/09`가 **Chooser 플러그인이 5.8 문서에서 Experimental**("Learn to use this Experimental feature, but use caution when shipping with it.")임을 빠뜨렸는데, 같은 문서가 Mover는 Experimental이라 제외하고 ②(GASP, Chooser 테이블 의존)를 권장해 잣대가 달랐다 → §2.3·요약 3·② 리스크 행에 기록(채택 결정 때 "Experimental 의존 허용 여부"를 함께 정함). 비블로킹 반영: UAF가 5.8 노트에 "시퀀서·크라우드 언급뿐"이라던 [확인] 표기는 틀림(Animation 절에 UAF 소절 있음 — OffsetRootBone·translational retargeting trait·end tick group) → 원문 인용으로 교체, 결론(시기상조)은 유지; 런북 규칙의 Migrate 대상 문구를 §3-1과 일치시킴, 경로 충돌 해결(GASP 쪽 폴더 이름 변경), BP·레벨 사본 저장 위치, 1080p PIE 설정·CSV 위치, §5 성능 조건의 "또는" 해석 명시, §7 미채택 시 정리 절차, ini/`.cpp` 행 번호, "D-002 표"→"항목". 게이트 재실행 후 병합.
