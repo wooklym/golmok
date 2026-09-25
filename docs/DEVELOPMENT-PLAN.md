@@ -116,9 +116,12 @@ UE 에디터와 실데이터 없이도 만들 수 있고, 합성 데이터로 �
 | WP-08 (선택) | 웹 내부 검수 뷰어 `tools/viewer` | 3D Tiles + Zone footprint + 충돌 오버레이(Three.js, MIT 스택) | Playwright 스모크 | 브라우저 | WP-02 |
 | **WP-09** | UE C++ 런타임 3: Zone Index 발견·비동기 로드 | `Zones/GolmokZoneIndex`(셀 파서, 3×3 셀 조회, `GolmokGeoMath` 셀 공식), `UGolmokZoneSubsystem::DiscoverZones`(Index 기반 스폰·파괴, `Evaluate()` 밖), `AGolmokZone::LoadAsync`(FStreamableManager, `Loading` 상태·취소), `zone_import --with-index`, 콘솔 `golmok.zone.index`, V-03 디버그 표시 정리(HUD render ms, 실내 `blocked`) | 합성 Index 픽스처 pytest, g++ 셀 공식 교차검증, UE 자동화 5개, PC 런북 | **빌드 + PIE**(배치 액터 없이 발견·로드, 히치 비교) | WP-04, WP-05, WP-06 |
 | **WP-10** | 애니메이션 평가·게임 기능 제안(문서) | `research/09-animation-ue58.md`, `runbooks/pc-verify-animation.md`, `design/game-features-proposal.md`(D-013~ 제안), `design/lighting-night-lookdev.md` | 링크 검사, 출처 인용 | PC 평가(런북), 사용자 승인 | — |
+| **WP-12** | 포토 모드 최소판(D-013) | `Photo/`(포토 모드 서브시스템·자유 카메라 폰, 반경·footprint 클램프, FOV·노출·DOF·롤, 캐릭터/오버레이 숨김), `Config/Golmok/photo.json`, `golmok.photo*` 콘솔, 사진 PNG + 메타 JSON, 순수 헤더 g++ 교차검증 | UE 자동화 `Golmok.Photo.*`, pytest, 런북 | **빌드 + PIE**(V-09) | WP-05, WP-09 |
+| **WP-13** | 환경음 기본(D-016 (a)) | `research/10-ambience-sources.md`(라이선스 원문 인용), `Audio/`(앰비언스 서브시스템 크로스페이드, 발소리 컴포넌트, 콘솔), `Config/Golmok/audio.json`, `audio_import.py`, WAV(LFS, ≤ 40 MB) 또는 플레이스홀더 생성기 | UE 자동화 `Golmok.Audio.*`, pytest, 런북 | **빌드 + PIE**(V-10) | WP-05, WP-12 |
 | **WP-11** | 웹 검수 뷰어 2차: 충돌·blocker 오버레이 | `tools/viewer` collision.glb/blockers.glb 오버레이·토글(Cesium.Model, glTF Y-up 변환), 서버 GLB 서빙(경로 탈출 금지), Playwright 스모크 | `npm test`, pytest | 브라우저 | WP-03, WP-06, WP-08 |
 
 - **후속(M1 이후, 2026-09-25 등록)**: 계획서에 남아 있던 항목을 WP-09(Zone Index 런타임 발견·비동기 로드 + V-03 디버그 표시 정리, Fable ultracode), WP-11(뷰어 충돌·blocker 오버레이, Opus), WP-10(애니메이션 평가·게임 기능 제안 문서, Opus)으로 묶었다. 순서 WP-09 → WP-11 → WP-10. `replaces.building_ids` 단위 런타임 숨김은 제외(베이스맵 타일이 건물을 병합하므로 빌드 단계 `golmok-zone exclude`가 정본, D-012).
+- **게임 기능(D-013~D-017 승인 2026-09-25, 권장 우선순위대로)**: WP-12 포토 모드 → WP-13 환경음 기본(둘 다 Fable ultracode, 1.6 폴리시의 선택 항목이며 MVP 범위 §1.3은 그대로) → **WP-14** 시간대 폴리시(D-015 (a), D-010 확정 뒤; night look-dev는 PC) → **WP-15** Zone 지도·이동 + 세이브(D-014·D-017, Phase 2 초반: Zone 2곳 이상·V-07 통과) → **WP-16** 날씨 비(D-015 (b), Phase 2 중반, D-010 뒤) → **WP-17** 현장 녹음 절차·Zone별 소리(D-016 (b), 문서·촬영 가이드, Opus). WP-14 이후 스펙은 착수 조건이 충족될 때 쓴다.
 - WP-08은 ROADMAP 1.6의 "(웹, 선택)"이었으나 2026-09-24에 CesiumJS 기반으로 **완료**했다(`tools/viewer`, `golmok-viewer`). UE 디버그 도구(WP-05)는 그대로 진행한다.
 - Phase 2 서버 파이프라인(COLMAP+gsplat)은 이 트랙에 넣지 않는다(D-005: MVP는 수동).
 
@@ -248,7 +251,7 @@ docs/plan/STATUS.md, docs/plan/WP-0N-<name>.md를 먼저 읽고, WP-0N을 처음
 **Phase 2 — 확장 (MVP 회고 후 상세 계획)**
 - 서버 자동화 파이프라인: COLMAP 4.2 + gsplat(D-002 준수), 충돌 메시 자동화, 정합·검수 자동 지표 → `pipeline/` (ARCHITECTURE §5). RunPod(Linux) 또는 국내 클라우드.
 - Zone 백로그 일괄 처리(C-02에서 쌓인 골목들), Zone Index 서빙(정적 JSON → 필요 시 PostGIS API).
-- 게임 기능: 포토 모드, Zone 지도·이동, 시간대·날씨, 환경음, 세이브. (D-013+ 결정)
+- 게임 기능(D-013~D-017 **승인** 2026-09-25): 포토 모드 확장(시간대 슬라이더·LUT·사진첩), Zone 지도·이동 + 세이브(WP-15), 날씨 비(WP-16), 현장 녹음·Zone별 소리(WP-17). 최소판·기본판(WP-12·13)은 Phase 1 1.6 선택 항목.
 - 크라우드 촬영 앱(ARKit 포즈, 촬영 표시, 지오펜스), 업로드·검수 도구, 동의·신고 관리.
 - 모바일 재평가.
 
@@ -268,7 +271,7 @@ docs/plan/STATUS.md, docs/plan/WP-0N-<name>.md를 먼저 읽고, WP-0N을 처음
 | 3 | 홈 Zone 선택(첫 촬영 후) | D-008 |
 | 4 | Postshot Studio 구독, XGRIDS 문의 발송 | D-005, D-009 |
 | 5 | S-Map 문의 발송 | 1.0e |
-| 6 | MVP 이후 게임 기능(포토 모드 등) 우선순위 — **제안 등록 2026-09-25(WP-10)**: D-013 포토 모드, D-014 Zone 지도·이동, D-015 시간대 폴리시·날씨, D-016 환경음, D-017 세이브. 상세 `design/game-features-proposal.md`. 승인·보류 결정 대기 | D-013~D-017 (제안) |
+| 6 | ~~MVP 이후 게임 기능 우선순위~~ → **2026-09-25 D-013~D-017 전부 승인, 권장 우선순위대로**(WP-12 → 13 → 14 → 15 → 16 → 17, §5.1). 남은 결정: 사운드 라이브러리 유료 구매 여부(WP-13이 후보·가격을 정리한 뒤) | D-013~D-017 (승인) |
 | 7 | 실내 동의 후보 가게 접촉 | C-05 |
 | 8 | 애니메이션: GASP 라이선스 원문 확인(Fab 리스팅·Fab EULA·UE EULA — 클라우드에서 403) → V-08 평가 뒤 3안 중 채택 | `runbooks/pc-verify-animation.md` §0·§8, D-002 |
 | 9 | night 프리셋 look-dev 조합 선택(D-010 뒤 폴리시) | `design/lighting-night-lookdev.md` |
