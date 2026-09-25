@@ -149,7 +149,7 @@
 ### 1.6 폴리시·성능·검수
 - 품질 목표 fps를 맞추도록 튜닝한다(Nanite, VSM, Lumen 설정, splat 예산).
 - 렌더 결과에서 얼굴·번호판 누락을 재검사한다(05 문서).
-- 내부 검수 뷰어(웹, 선택): splat과 충돌을 오버레이해 확인한다. — 🟢 WP-08(`golmok-viewer`: footprint·청크 bbox·포털·blockers 평면), 충돌·blocker **메시** 오버레이는 ⚪ WP-11.
+- 내부 검수 뷰어(웹, 선택): splat과 충돌을 오버레이해 확인한다. — 🟢 WP-08(`golmok-viewer`: footprint·청크 bbox·포털·blockers 평면) + 🟢 WP-11(2026-09-25, PR #16: 충돌·blocker **GLB 메시** 오버레이·토글, 원점 E·N·U 축, `--zone` 마운트, 축 변환 교차검증). splat 오버레이는 D-010 스파이크(V-05) 뒤.
 - Phase 1 회고를 하고 Phase 2 계획을 세운다.
 
 ---
