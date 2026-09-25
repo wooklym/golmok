@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "z": 16,
+  "x": 55873,
+  "y": 25379,
+  "zones": [
+    {
+      "id": "z_synthetic_001_interior",
+      "version": 1
+    },
+    {
+      "id": "z_synthetic_001",
+      "version": 1
+    }
+  ]
+}

@@ -45,6 +45,11 @@ namespace
 	{
 		return FMath::Max(Seconds, 0.001f);
 	}
+
+	/** WP-09: while the interior zone is still Loading after the debounce, the portal stays Pending and polls this often ... */
+	constexpr float InteriorLoadPollSeconds = 0.05f;
+	/** ... at most this long, then activates anyway (Warning). Not Config keys: the WP-05 [GolmokPortal] key set is frozen. */
+	constexpr float InteriorLoadTimeoutSeconds = 10.f;
 } // namespace
 
 AGolmokPortal::AGolmokPortal()
@@ -86,18 +91,11 @@ void AGolmokPortal::Configure(const AGolmokZone& OwnerZone, const FGolmokZonePor
 	SublevelPackagePath.Reset();
 	if (bIsEntry)
 	{
-		// Version of the interior: the placed zone actor's Version when it is in this level, else 1 (editor worlds
-		// have no zone subsystem).
-		int32 TargetVersion = 1;
+		// Version of the interior: the registered zone actor's Version (placed first), else the zone index entry's
+		// (WP-09, an interior discovered later), else 1 (editor worlds have no zone subsystem).
 		UWorld* World = OwnerZone.GetWorld();
 		UGolmokZoneSubsystem* Subsystem = World ? World->GetSubsystem<UGolmokZoneSubsystem>() : nullptr;
-		if (Subsystem)
-		{
-			if (const AGolmokZone* Target = Subsystem->FindZone(P.ToZone))
-			{
-				TargetVersion = FMath::Max(1, Target->Version);
-			}
-		}
+		const int32 TargetVersion = Subsystem ? FMath::Max(1, Subsystem->ResolveZoneVersion(P.ToZone)) : 1;
 		SublevelPackagePath = GolmokZoneManifest::SublevelPackagePath(P.ToZone, TargetVersion);
 	}
 	if (Trigger)
@@ -158,6 +156,7 @@ void AGolmokPortal::EndPlay(const EEndPlayReason::Type Reason)
 	{
 		World->GetTimerManager().ClearTimer(DebounceTimer);
 		World->GetTimerManager().ClearTimer(UnloadTimer);
+		World->GetTimerManager().ClearTimer(PreloadTimer);
 	}
 	if (AController* PC = BoundController.Get())
 	{
@@ -168,13 +167,14 @@ void AGolmokPortal::EndPlay(const EEndPlayReason::Type Reason)
 	{
 		const bool bWorldAlive =
 			World && !World->bIsTearingDown && Reason != EEndPlayReason::EndPlayInEditor && Reason != EEndPlayReason::Quit;
-		if (State == EGolmokPortalState::Active || State == EGolmokPortalState::Leaving)
+		if (IsHoldingInterior())
 		{
 			FString Msg;
 			StreamOut(Msg);
-			// The interior zone was loaded pinned, which the Evaluate() orphan-interior rule skips, so the unload is
-			// ours. It runs next tick: EndPlay is reached from AGolmokZone::Unload() -> DestroyPortals(), possibly
-			// inside Evaluate(), and nothing must re-enter the subsystem from there (design section 3-1).
+			// The interior zone was requested pinned (preload or activation), which the Evaluate() orphan-interior
+			// rule skips, so the unload is ours. It runs next tick: EndPlay is reached from AGolmokZone::Unload() ->
+			// DestroyPortals(), possibly inside Evaluate(), and nothing must re-enter the subsystem from there
+			// (design section 3-1).
 			UGolmokZoneSubsystem* Subsystem = GetZoneSubsystem();
 			if (bWorldAlive && Subsystem && Subsystem->FindZone(TargetZoneId))
 			{
@@ -196,6 +196,9 @@ void AGolmokPortal::EndPlay(const EEndPlayReason::Type Reason)
 		}
 	}
 	State = EGolmokPortalState::Idle;
+	bInteriorRequested = false;
+	InteriorRequestSeconds = 0.0;
+	bActivated = false;
 	bPlayerOverlapping = false;
 	bPlayerInside = false;
 	OverlappingPawn.Reset();
@@ -299,14 +302,33 @@ void AGolmokPortal::BeginPlayerOverlap(APawn* Pawn)
 	World->GetTimerManager().ClearTimer(UnloadTimer);
 	if (State == EGolmokPortalState::Leaving)
 	{
-		State = EGolmokPortalState::Active;
-		LastEvent = TEXT("re-entered trigger; unload cancelled");
+		if (bActivated)
+		{
+			State = EGolmokPortalState::Active;
+			LastEvent = TEXT("re-entered trigger; unload cancelled");
+		}
+		else
+		{
+			// WP-09: Leaving only to return a preloaded pin (EndPlayerOverlap / OnDebounceElapsed / LeaveInterior while
+			// Pending): CompleteActivation never ran, so there is no sublevel and the interior may still be Loading.
+			// Resume the Pending wait instead of going Active; the request (bInteriorRequested and its stamp) stands, so
+			// OnDebounceElapsed -> IsInteriorReady -> CompleteActivation finishes the activation without a second load.
+			State = EGolmokPortalState::Pending;
+			LastEvent = TEXT("re-entered trigger; interior still pending");
+			World->GetTimerManager().SetTimer(DebounceTimer, this, &AGolmokPortal::OnDebounceElapsed, TimerRate(DebounceSeconds), false);
+		}
 	}
 	if (State == EGolmokPortalState::Idle)
 	{
 		State = EGolmokPortalState::Pending;
+		bInteriorRequested = false;
+		InteriorRequestSeconds = 0.0;
+		bActivated = false;
 		LastEvent = TEXT("entered trigger");
 		World->GetTimerManager().SetTimer(DebounceTimer, this, &AGolmokPortal::OnDebounceElapsed, TimerRate(DebounceSeconds), false);
+		// WP-09: start the (async) interior load next tick, not on this overlap-callback stack, so it is usually
+		// Loaded by the time the debounce ends.
+		PreloadTimer = World->GetTimerManager().SetTimerForNextTick(this, &AGolmokPortal::PreloadInterior);
 	}
 }
 
@@ -328,6 +350,15 @@ void AGolmokPortal::EndPlayerOverlap()
 		if (World)
 		{
 			World->GetTimerManager().ClearTimer(DebounceTimer);
+			World->GetTimerManager().ClearTimer(PreloadTimer);
+		}
+		if (bInteriorRequested)
+		{
+			// The preload already pinned the interior: return it through the normal unload delay (cancels a load
+			// that is still in flight), never synchronously from here.
+			State = EGolmokPortalState::Active;
+			StartLeaving(TEXT("left trigger outward while interior loading"));
+			return;
 		}
 		State = EGolmokPortalState::Idle;
 		LastEvent = TEXT("left trigger before debounce");
@@ -452,15 +483,14 @@ bool AGolmokPortal::AnyEntryPortal(UWorld* World, const FString& ZoneId, const A
 
 bool AGolmokPortal::IsInteriorZoneInUse(UWorld* World, const FString& ZoneId, const AGolmokPortal* Except)
 {
-	return AnyEntryPortal(World, ZoneId, Except, [](const AGolmokPortal& Other)
-	{
-		return Other.State == EGolmokPortalState::Active || Other.State == EGolmokPortalState::Leaving;
-	});
+	return AnyEntryPortal(World, ZoneId, Except, [](const AGolmokPortal& Other) { return Other.IsHoldingInterior(); });
 }
 
 bool AGolmokPortal::HasPendingSibling(UWorld* World, const FString& ZoneId, const AGolmokPortal* Except)
 {
-	return AnyEntryPortal(World, ZoneId, Except, [](const AGolmokPortal& Other) { return Other.State == EGolmokPortalState::Pending; });
+	// A Pending portal that already requested the interior is "in use" (IsInteriorZoneInUse), not merely pending.
+	return AnyEntryPortal(World, ZoneId, Except,
+		[](const AGolmokPortal& Other) { return Other.State == EGolmokPortalState::Pending && !Other.bInteriorRequested; });
 }
 
 void AGolmokPortal::UnloadInteriorAfterEndPlay(UGolmokZoneSubsystem* Subsystem, const FString& ZoneId, const FString& InPortalId, float RetrySeconds)
@@ -488,9 +518,9 @@ void AGolmokPortal::UnloadInteriorAfterEndPlay(UGolmokZoneSubsystem* Subsystem, 
 		World->GetTimerManager().SetTimer(Retry, FTimerDelegate::CreateWeakLambda(Subsystem, MoveTemp(RetryUnload)), TimerRate(RetrySeconds), false);
 		return;
 	}
-	// The interior is not distance-managed, so the bBlocked flag RequestUnload sets is harmless.
+	// Portal source: the zone stays out of the distance rules (bPortalManaged) instead of being "blocked".
 	FString ZoneMsg;
-	Subsystem->RequestUnload(ZoneId, ZoneMsg);
+	Subsystem->RequestUnload(ZoneId, ZoneMsg, EGolmokZoneRequestSource::Portal);
 	UE_LOG(LogGolmok, Log, TEXT("Portal %s: gone -> %s"), *InPortalId, *ZoneMsg);
 }
 
@@ -502,14 +532,55 @@ void AGolmokPortal::OnDebounceElapsed()
 	{
 		return;
 	}
+	UWorld* World = GetWorld();
 	// A pawn that already crossed the plane and left the box inward still needs its interior loaded.
 	if (!bPlayerOverlapping && !bPlayerInside)
 	{
+		if (bInteriorRequested)
+		{
+			// Requested (preload) but the player is gone: give the pin back through the unload delay.
+			State = EGolmokPortalState::Active;
+			StartLeaving(TEXT("left before interior loaded"));
+			return;
+		}
 		State = EGolmokPortalState::Idle;
 		return;
 	}
-	FString Msg;
-	Activate(Msg);
+	FString ZoneMsg;
+	if (!bInteriorRequested)
+	{
+		RequestInterior(ZoneMsg); // the preload found no registered interior zone yet (or was skipped): request now
+	}
+	FString Why;
+	if (!IsInteriorReady(Why))
+	{
+		// Spec: never Active with an interior that is still streaming. Stay Pending and look again shortly.
+		if (LastEvent != TEXT("interior loading"))
+		{
+			LastEvent = TEXT("interior loading");
+			UE_LOG(LogGolmok, Log, TEXT("Portal %s: %s; waiting (poll %.2f s, at most %.0f s)"), *PortalId, *Why, InteriorLoadPollSeconds,
+				InteriorLoadTimeoutSeconds);
+		}
+		if (World)
+		{
+			World->GetTimerManager().SetTimer(DebounceTimer, this, &AGolmokPortal::OnDebounceElapsed, TimerRate(InteriorLoadPollSeconds), false);
+		}
+		return;
+	}
+	if (ZoneMsg.IsEmpty())
+	{
+		// Preloaded earlier: describe the interior's state the way RequestLoad's message would.
+		const UGolmokZoneSubsystem* Subsystem = GetZoneSubsystem();
+		const AGolmokZone* Interior = Subsystem ? Subsystem->FindZone(TargetZoneId) : nullptr;
+		if (Interior && Interior->IsLoading())
+		{
+			UE_LOG(LogGolmok, Warning, TEXT("Portal %s: %s"), *PortalId, *Why);
+		}
+		ZoneMsg = Interior ? FString::Printf(TEXT("zone %s %s (pinned)"), *TargetZoneId,
+							   Interior->IsLoaded() ? TEXT("loaded") : Interior->IsLoading() ? TEXT("loading") : TEXT("not loaded"))
+						   : Why;
+	}
+	CompleteActivation(ZoneMsg);
 }
 
 void AGolmokPortal::OnUnloadDelayElapsed()
@@ -534,9 +605,12 @@ void AGolmokPortal::OnUnloadDelayElapsed()
 	StreamOut(StreamMsg);
 	if (IsInteriorZoneInUse(World, TargetZoneId, this))
 	{
-		// Two doors into one interior: the other portal (Active, or Leaving with its own timer) owns the unload; the
-		// sublevel was kept by StreamOut() for the same reason.
+		// Two doors into one interior: the other portal (holding the interior, with its own timers) owns the unload;
+		// the sublevel was kept by StreamOut() for the same reason.
 		State = EGolmokPortalState::Idle;
+		bInteriorRequested = false;
+		InteriorRequestSeconds = 0.0;
+		bActivated = false;
 		LastEvent = TEXT("released; interior kept by another portal");
 		UE_LOG(LogGolmok, Log, TEXT("Portal %s: player left -> %s kept (another portal is active); %s"), *PortalId, *TargetZoneId, *StreamMsg);
 	}
@@ -547,50 +621,123 @@ void AGolmokPortal::OnUnloadDelayElapsed()
 		{
 			if (Subsystem->FindZone(TargetZoneId))
 			{
-				// The interior is not distance-managed, so the bBlocked flag RequestUnload sets is harmless.
-				Subsystem->RequestUnload(TargetZoneId, ZoneMsg);
+				// Portal source: the zone stays out of the distance rules (bPortalManaged) instead of being
+				// "blocked"; a load still in flight is cancelled.
+				Subsystem->RequestUnload(TargetZoneId, ZoneMsg, EGolmokZoneRequestSource::Portal);
 			}
 		}
 		State = EGolmokPortalState::Idle;
+		bInteriorRequested = false;
+		InteriorRequestSeconds = 0.0;
+		bActivated = false;
 		LastEvent = TEXT("unloaded");
-		UE_LOG(LogGolmok, Log, TEXT("Portal %s: player left -> unload %s; %s"), *PortalId, *TargetZoneId, *StreamMsg);
+		UE_LOG(LogGolmok, Log, TEXT("Portal %s: player left -> unload %s (%s); %s"), *PortalId, *TargetZoneId, *ZoneMsg, *StreamMsg);
 	}
 	if (bPlayerOverlapping && World)
 	{
 		// LeaveInterior() while the player stands in the trigger: Idle with a tracked overlap has no way back to
 		// Pending (BeginOverlap will not fire again), so re-arm the debounce; the interior returns after
-		// DebounceSeconds and Tick resumes the plane check.
+		// DebounceSeconds and Tick resumes the plane check. Same cycle start as Idle -> Pending (preload next tick).
 		State = EGolmokPortalState::Pending;
+		InteriorRequestSeconds = 0.0;
 		LastEvent = TEXT("unloaded; player still in trigger -> debounce re-armed");
 		World->GetTimerManager().SetTimer(DebounceTimer, this, &AGolmokPortal::OnDebounceElapsed, TimerRate(DebounceSeconds), false);
+		PreloadTimer = World->GetTimerManager().SetTimerForNextTick(this, &AGolmokPortal::PreloadInterior);
 		UE_LOG(LogGolmok, Log, TEXT("Portal %s: player still in the trigger -> reload in %.2f s"), *PortalId, DebounceSeconds);
 	}
 }
 
-bool AGolmokPortal::Activate(FString& OutMessage)
+void AGolmokPortal::PreloadInterior()
 {
+	if (State != EGolmokPortalState::Pending || bInteriorRequested)
+	{
+		return;
+	}
 	FString ZoneMsg;
-	if (UGolmokZoneSubsystem* Subsystem = GetZoneSubsystem())
+	if (RequestInterior(ZoneMsg))
 	{
-		if (Subsystem->FindZone(TargetZoneId))
-		{
-			Subsystem->RequestLoad(TargetZoneId, /*bPin*/ true, ZoneMsg);
-		}
-		else
-		{
-			ZoneMsg = FString::Printf(TEXT("no AGolmokZone '%s' in this level; sublevel only"), *TargetZoneId);
-			if (!bWarnedNoTargetZone)
-			{
-				bWarnedNoTargetZone = true;
-				UE_LOG(LogGolmok, Warning, TEXT("Portal %s: %s"), *PortalId, *ZoneMsg);
-			}
-		}
+		LastEvent = TEXT("interior preload requested");
+		UE_LOG(LogGolmok, Log, TEXT("Portal %s: interior preload requested -> %s"), *PortalId, *ZoneMsg);
 	}
-	else
-	{
-		ZoneMsg = TEXT("no zone subsystem in this world");
-	}
+	// Else: no registered interior zone yet (index discovery pending / absent); OnDebounceElapsed tries again.
+}
 
+bool AGolmokPortal::RequestInterior(FString& OutZoneMsg)
+{
+	UGolmokZoneSubsystem* Subsystem = GetZoneSubsystem();
+	if (!Subsystem)
+	{
+		OutZoneMsg = TEXT("no zone subsystem in this world");
+		return false;
+	}
+	if (bInteriorRequested)
+	{
+		OutZoneMsg = FString::Printf(TEXT("zone %s already requested (pinned)"), *TargetZoneId);
+		return true;
+	}
+	UWorld* World = GetWorld();
+	if (InteriorRequestSeconds <= 0.0 && World)
+	{
+		InteriorRequestSeconds = World->GetTimeSeconds(); // the Pending wait (InteriorLoadTimeoutSeconds) counts from the first attempt
+	}
+	if (!Subsystem->FindZone(TargetZoneId))
+	{
+		OutZoneMsg = FString::Printf(TEXT("no AGolmokZone '%s' in this level; sublevel only"), *TargetZoneId);
+		if (!bWarnedNoTargetZone && !Subsystem->IsZoneInIndex(TargetZoneId))
+		{
+			bWarnedNoTargetZone = true;
+			UE_LOG(LogGolmok, Warning, TEXT("Portal %s: %s"), *PortalId, *OutZoneMsg);
+		}
+		return false;
+	}
+	Subsystem->RequestLoad(TargetZoneId, /*bPin*/ true, OutZoneMsg, EGolmokZoneRequestSource::Portal);
+	bInteriorRequested = true;
+	return true;
+}
+
+bool AGolmokPortal::IsInteriorReady(FString& OutWhy) const
+{
+	const UGolmokZoneSubsystem* Subsystem = GetZoneSubsystem();
+	if (!Subsystem)
+	{
+		OutWhy = TEXT("no zone subsystem");
+		return true;
+	}
+	const UWorld* World = GetWorld();
+	const double Waited = (World && InteriorRequestSeconds > 0.0) ? World->GetTimeSeconds() - InteriorRequestSeconds : 0.0;
+	const bool bTimedOut = Waited >= static_cast<double>(InteriorLoadTimeoutSeconds);
+	const AGolmokZone* Interior = Subsystem->FindZone(TargetZoneId);
+	if (!Interior)
+	{
+		if (!bTimedOut && Subsystem->IsDiscoveryActive() && Subsystem->IsZoneInIndex(TargetZoneId))
+		{
+			OutWhy = TEXT("interior not discovered yet");
+			return false;
+		}
+		OutWhy = TEXT("no interior zone actor");
+		return true;
+	}
+	if (Interior->IsLoaded())
+	{
+		OutWhy = TEXT("interior loaded");
+		return true;
+	}
+	if (Interior->IsLoading())
+	{
+		if (bTimedOut)
+		{
+			OutWhy = FString::Printf(TEXT("interior still loading after %.1f s; activating anyway"), Waited);
+			return true;
+		}
+		OutWhy = TEXT("interior loading");
+		return false;
+	}
+	OutWhy = Interior->State == EGolmokZoneState::Failed ? TEXT("interior failed") : TEXT("interior not loaded");
+	return true;
+}
+
+void AGolmokPortal::CompleteActivation(const FString& ZoneMsg)
+{
 	FString SublevelMsg;
 	if (bStreamSublevel && !SublevelPackagePath.IsEmpty())
 	{
@@ -610,10 +757,42 @@ bool AGolmokPortal::Activate(FString& OutMessage)
 	}
 
 	State = EGolmokPortalState::Active;
+	bActivated = true; // a real activation (sublevel streamed in); the pin-return shortcut sets Active without it
 	LastEvent = TEXT("interior loaded");
-	OutMessage = FString::Printf(TEXT("Portal %s (%s -> %s): player within %.0f cm -> load [%s]; %s"), *PortalId, *OwnerZoneId, *TargetZoneId,
-		RadiusCm, *ZoneMsg, *SublevelMsg);
-	UE_LOG(LogGolmok, Log, TEXT("%s"), *OutMessage);
+	UE_LOG(LogGolmok, Log, TEXT("Portal %s (%s -> %s): player within %.0f cm -> load [%s]; %s"), *PortalId, *OwnerZoneId, *TargetZoneId, RadiusCm,
+		*ZoneMsg, *SublevelMsg);
+}
+
+bool AGolmokPortal::Activate(FString& OutMessage)
+{
+	if (State == EGolmokPortalState::Idle)
+	{
+		// A new cycle (golmok.portal enter from Idle), like BeginPlayerOverlap's Idle -> Pending: the Pending wait
+		// (InteriorLoadTimeoutSeconds) counts from this request, never from the stamp an earlier visit left behind.
+		bInteriorRequested = false;
+		InteriorRequestSeconds = 0.0;
+	}
+	FString ZoneMsg;
+	RequestInterior(ZoneMsg);
+	FString Why;
+	if (!IsInteriorReady(Why))
+	{
+		// EnterInterior while the interior streams: Pending + poll, exactly like the debounce path.
+		State = EGolmokPortalState::Pending;
+		bActivated = false;
+		LastEvent = TEXT("interior loading");
+		if (UWorld* World = GetWorld())
+		{
+			World->GetTimerManager().SetTimer(DebounceTimer, this, &AGolmokPortal::OnDebounceElapsed, TimerRate(InteriorLoadPollSeconds), false);
+		}
+		OutMessage = FString::Printf(TEXT("Portal %s (%s -> %s): %s; activates when ready [%s]"), *PortalId, *OwnerZoneId, *TargetZoneId, *Why,
+			*ZoneMsg);
+		UE_LOG(LogGolmok, Log, TEXT("%s"), *OutMessage);
+		return true;
+	}
+	CompleteActivation(ZoneMsg);
+	OutMessage = FString::Printf(TEXT("Portal %s (%s -> %s): active [%s]; sublevel %s"), *PortalId, *OwnerZoneId, *TargetZoneId, *ZoneMsg,
+		*GolmokLevelStreaming::Describe(GetWorld(), SublevelPackagePath));
 	return true;
 }
 
@@ -737,6 +916,7 @@ bool AGolmokPortal::EnterInterior(FString& OutMessage)
 	{
 		World->GetTimerManager().ClearTimer(UnloadTimer);
 		World->GetTimerManager().ClearTimer(DebounceTimer);
+		World->GetTimerManager().ClearTimer(PreloadTimer);
 	}
 	if (State != EGolmokPortalState::Active)
 	{
@@ -769,6 +949,19 @@ bool AGolmokPortal::LeaveInterior(FString& OutMessage)
 		OutMessage = FString::Printf(TEXT("portal %s leaving; %s unloads in %.1f s%s"), *PortalId, *TargetZoneId, UnloadDelaySeconds,
 			bPlayerOverlapping ? TEXT(" (player still in the trigger: reloads after the debounce)") : TEXT(""));
 	}
+	else if (State == EGolmokPortalState::Pending && bInteriorRequested)
+	{
+		// Requested (preload / poll) but not Active yet: stop polling and return the pin through the unload delay.
+		if (UWorld* World = GetWorld())
+		{
+			World->GetTimerManager().ClearTimer(DebounceTimer);
+			World->GetTimerManager().ClearTimer(PreloadTimer);
+		}
+		State = EGolmokPortalState::Active;
+		StartLeaving(TEXT("leave requested while interior loading"));
+		OutMessage = FString::Printf(TEXT("portal %s leaving (interior was still loading); %s unloads in %.1f s"), *PortalId, *TargetZoneId,
+			UnloadDelaySeconds);
+	}
 	else
 	{
 		OutMessage = FString::Printf(TEXT("portal %s is %s; nothing to unload"), *PortalId, StateName(State));
@@ -790,7 +983,14 @@ FString AGolmokPortal::Describe() const
 	{
 		return FString::Printf(TEXT("%s (%s -> %s) (marker)"), *PortalId, *OwnerZoneId, *TargetZoneId);
 	}
-	return FString::Printf(TEXT("%s (%s -> %s) %s %s; sublevel %s (%s)"), *PortalId, *OwnerZoneId, *TargetZoneId, StateName(State),
+	FString StateText = StateName(State);
+	if (State == EGolmokPortalState::Pending && bInteriorRequested)
+	{
+		const UWorld* World = GetWorld();
+		const double Waited = (World && InteriorRequestSeconds > 0.0) ? World->GetTimeSeconds() - InteriorRequestSeconds : 0.0;
+		StateText = FString::Printf(TEXT("pending(loading %.1f s)"), Waited);
+	}
+	return FString::Printf(TEXT("%s (%s -> %s) %s %s; sublevel %s (%s)"), *PortalId, *OwnerZoneId, *TargetZoneId, *StateText,
 		bPlayerInside ? TEXT("inside") : TEXT("outside"), *GolmokLevelStreaming::Describe(GetWorld(), SublevelPackagePath),
 		ModeName(InteriorStreamingMode));
 }

@@ -13,6 +13,9 @@ What lives here (docs/plan/WP-06-ue-python-automation.md, "설계 (확정)" §3-
 - interior portal round trip check and the sublevel light spec (D9, D10)
 - spike helpers: dwell path JSON (§4-7), -game command line and PowerShell script (§4-8), contact sheet
   HTML (§4-9) and the research/08 report template (§4-10)
+- WP-09 Zone Index sync (docs/plan/WP-09-ue-zone-index-async.md §3-7): cell file names, the index check
+  (spec §6 / zone-index.schema.json rules), the copy / remove plan into Content/Golmok/Zones/index and the
+  `zx.*` log lines of zone_index.py
 """
 
 from __future__ import annotations
@@ -21,6 +24,7 @@ import html
 import itertools
 import json
 import math
+import os
 import posixpath
 import re
 import struct
@@ -38,6 +42,13 @@ ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_]*$")
 ZONE_ID_RE = re.compile(r"^z_[a-z0-9]+(_[a-z0-9]+)*$")
 NAME_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")  # console names (tags, viewpoints, paths): C++ IsValidPathName
 VERSION_DIR_RE = re.compile(r"^v([1-9][0-9]*)$")
+# Zone Index (spec §6, WP-09): <zones_root>/index/zones.json + index/cells/<z>_<x>_<y>.json
+INDEX_DIR_NAME = "index"  # == tools zone/index.py INDEX_DIR_NAME
+INDEX_ZONES_NAME = "zones.json"
+INDEX_CELLS_DIR = "cells"
+INDEX_CELL_ZOOM = 16  # == tools zone/index.py CELL_ZOOM
+INDEX_KINDS = ("exterior", "interior")
+CELL_NAME_RE = re.compile(r"^(?P<z>\d+)_(?P<x>\d+)_(?P<y>\d+)\.json$")
 # Official UDIM convention BaseName.####.ext (1001..1999); other names the engine's UDIM detection matches
 # (UTextureFactory::UdimRegexPattern default "(.+?)[._](\d{4})$", index >= 1001: "_1002", ".2048") are only a
 # warning and are imported with UDIM detection off (design D5, runbook #38).
@@ -1245,6 +1256,166 @@ def png_size(head: bytes) -> tuple[int, int]:
     return width, height
 
 
+# ---- Zone Index sync (WP-09 design §3-7; spec §6 and docs/spec/zone-index.schema.json) ------------------
+
+
+def zones_root_of(zone_dir: str) -> str:
+    """'.../zones/<id>', '.../zones/<id>/v<n>' or '.../v<n>/manifest.json' -> '.../zones' (os.path.normpath)."""
+    path = os.path.normpath(str(zone_dir))
+    if os.path.basename(path) == "manifest.json":
+        path = os.path.dirname(path)
+    if VERSION_DIR_RE.match(os.path.basename(path)):
+        path = os.path.dirname(path)
+    return os.path.dirname(path)
+
+
+def parse_cell_name(name: str) -> tuple[int, int, int] | None:
+    """'16_55873_25379.json' -> (16, 55873, 25379); anything else ('16_-1_2.json', 'x16_1_2.json') -> None."""
+    m = CELL_NAME_RE.match(str(name))
+    if m is None:
+        return None
+    return int(m.group("z")), int(m.group("x")), int(m.group("y"))
+
+
+def cell_name(z: int, x: int, y: int) -> str:
+    """== tools zone/index.py cell_name (the CLI writes these names)."""
+    return f"{z}_{x}_{y}.json"
+
+
+def _is_finite_number(v) -> bool:
+    return isinstance(v, int | float) and not isinstance(v, bool) and math.isfinite(v)
+
+
+def _is_int(v) -> bool:
+    return isinstance(v, int) and not isinstance(v, bool)
+
+
+def _check_zone_entry(z, seen: dict[str, int]) -> list[str]:
+    problems: list[str] = []
+    if not isinstance(z, dict):
+        return ["zones.json: zones entry is not an object"]
+    zid = z.get("id")
+    where = f"zones.json: {zid!r}"
+    if not isinstance(zid, str) or not ZONE_ID_RE.match(zid):
+        problems.append(f"{where}: bad id (expected z_<lowercase>[_...])")
+        zid = None
+    version = z.get("version")
+    if not _is_int(version) or version < 1:
+        problems.append(f"{where}: version must be an integer >= 1 (got {version!r})")
+        version = None
+    if z.get("kind") not in INDEX_KINDS:
+        problems.append(f"{where}: kind must be one of {list(INDEX_KINDS)} (got {z.get('kind')!r})")
+    if not _is_int(z.get("priority")):
+        problems.append(f"{where}: priority must be an integer (got {z.get('priority')!r})")
+    bbox = z.get("bbox_wgs84")
+    if not isinstance(bbox, list | tuple) or len(bbox) != 4 or not all(_is_finite_number(v) for v in bbox):
+        problems.append(f"{where}: bbox_wgs84 must be 4 numbers [west, south, east, north]")
+    elif bbox[0] > bbox[2] or bbox[1] > bbox[3]:
+        problems.append(f"{where}: bbox_wgs84 west > east or south > north ({list(bbox)})")
+    if zid is not None and version is not None:
+        want = f"{zid}/v{version}/manifest.json"
+        if z.get("manifest") != want:
+            problems.append(f"{where}: manifest must be {want!r} (got {z.get('manifest')!r})")
+        if zid in seen:
+            problems.append(f"{where}: duplicate id")
+        else:
+            seen[zid] = version
+    return problems
+
+
+def check_index(zones_doc: dict, cells: dict[str, dict]) -> list[str]:
+    """Problems of a Zone Index about to be copied into Content ([] = good).
+
+    zones_doc = index/zones.json; cells = {file name: parsed cell JSON}. Rules (spec §6, schema): schema_version
+    1, cell_zoom 16, `zones` a list of {id (ZONE_ID_RE), version >= 1, kind exterior|interior, priority int,
+    bbox_wgs84 4 numbers with west <= east / south <= north, manifest == '<id>/v<version>/manifest.json'},
+    unique ids sorted by id; every cell file name parses as <z>_<x>_<y>.json and equals the (z, x, y) inside,
+    z == 16, each row's (id, version) is in zones.json with the same version, no duplicate ids in a cell.
+    """
+    problems: list[str] = []
+    if not isinstance(zones_doc, dict):
+        return ["zones.json: not a JSON object"]
+    if zones_doc.get("schema_version") != 1:
+        problems.append(f"zones.json: schema_version must be 1 (got {zones_doc.get('schema_version')!r})")
+    if zones_doc.get("cell_zoom") != INDEX_CELL_ZOOM:
+        problems.append(
+            f"zones.json: cell_zoom must be {INDEX_CELL_ZOOM} (got {zones_doc.get('cell_zoom')!r})"
+        )
+    zones = zones_doc.get("zones")
+    seen: dict[str, int] = {}
+    if not isinstance(zones, list):
+        problems.append("zones.json: zones must be a list")
+        zones = []
+    for z in zones:
+        problems += _check_zone_entry(z, seen)
+    ids = [z.get("id") for z in zones if isinstance(z, dict) and isinstance(z.get("id"), str)]
+    if ids != sorted(ids):
+        problems.append("zones.json: zones must be sorted by id")
+    for name in sorted(cells):
+        cell = cells[name]
+        where = f"cells/{name}"
+        parsed = parse_cell_name(name)
+        if parsed is None:
+            problems.append(f"{where}: file name must be <z>_<x>_<y>.json")
+            continue
+        if not isinstance(cell, dict):
+            problems.append(f"{where}: not a JSON object")
+            continue
+        if cell.get("schema_version") != 1:
+            problems.append(f"{where}: schema_version must be 1 (got {cell.get('schema_version')!r})")
+        inside = (cell.get("z"), cell.get("x"), cell.get("y"))
+        if inside != parsed:
+            problems.append(f"{where}: (z, x, y) inside is {inside}, not the file name {parsed}")
+        if parsed[0] != INDEX_CELL_ZOOM:
+            problems.append(f"{where}: z must be {INDEX_CELL_ZOOM}")
+        rows = cell.get("zones")
+        if not isinstance(rows, list):
+            problems.append(f"{where}: zones must be a list")
+            continue
+        cell_ids: set[str] = set()
+        for row in rows:
+            if not isinstance(row, dict) or not isinstance(row.get("id"), str) or "version" not in row:
+                problems.append(f"{where}: every zones entry needs id and version")
+                continue
+            rid, rver = row["id"], row["version"]
+            if rid in cell_ids:
+                problems.append(f"{where}: duplicate id {rid!r}")
+            cell_ids.add(rid)
+            if rid not in seen:
+                problems.append(f"{where}: {rid!r} is not in zones.json")
+            elif seen[rid] != rver:
+                problems.append(f"{where}: {rid!r} version {rver!r} != zones.json version {seen[rid]}")
+    return problems
+
+
+def index_sync_plan(index_dir: str, content_dir: str, source_cells: list[str], dest_cells: list[str]) -> dict:
+    """What zone_index.sync copies and removes (nothing is written here).
+
+    {'dest': <content_dir>/Golmok/Zones/index, 'copy': [(src, dst), ...] (zones.json first, then the source
+    cell files sorted by name), 'remove': [dst, ...] (dest cell files that are not in source_cells, sorted)}.
+    Paths are os.path joins of the arguments (os.path.normpath).
+    """
+    src_dir = os.path.normpath(str(index_dir))
+    dest = os.path.normpath(os.path.join(str(content_dir), *CONTENT_ZONES_REL.split("/"), INDEX_DIR_NAME))
+    copy = [(os.path.join(src_dir, INDEX_ZONES_NAME), os.path.join(dest, INDEX_ZONES_NAME))]
+    for name in sorted(set(source_cells)):
+        copy.append((os.path.join(src_dir, INDEX_CELLS_DIR, name), os.path.join(dest, INDEX_CELLS_DIR, name)))
+    stale = sorted(set(dest_cells) - set(source_cells))
+    remove = [os.path.join(dest, INDEX_CELLS_DIR, name) for name in stale]
+    return {"dest": dest, "copy": copy, "remove": remove}
+
+
+def index_missing_manifests(zones_doc: dict, exists: Callable[[str], bool]) -> list[str]:
+    """ids of zones.json whose '<id>/v<n>/manifest.json' (relative to the Content zones root) exists(...) is
+    False: zones the index announces but zone_import.run has not copied into Content yet (in id order)."""
+    missing = []
+    for z in zones_doc.get("zones", []):
+        rel = f"{z['id']}/v{z['version']}/manifest.json"
+        if not exists(rel):
+            missing.append(z["id"])
+    return missing
+
+
 # ---- logs (design §4-6: the single source of every log line; runbooks quote these) --------------------
 
 LOG = {
@@ -1299,6 +1470,13 @@ LOG = {
         "basemap_import: GeoOrigin lat={lat:.6f} lon={lon:.6f} h={h:.3f} "
         "(basemap origin; ellipsoidal = DEM orthometric + --geoid-offset)"
     ),
+    "zx.plan": "zone_index: plan {zones} zones, {cells} cells from {index_dir}",
+    "zx.copied": "zone_index: copied zones.json + {cells} cells -> {dest}",
+    "zx.removed": "zone_index: removed {n} stale cell files ({names})",
+    "zx.missing": "zone_index: WARNING {n} indexed zones have no manifest under Content yet ({ids})",
+    "zx.warn": "zone_index: WARNING {message}",
+    "zx.error": "zone_index: ERROR {step}: {message}",
+    "zx.done": "zone_index: done {zones} zones, {cells} cells -> {dest}",
 }
 
 
@@ -1325,8 +1503,11 @@ def _mapping_json(mapping) -> dict | None:
     return {"scale": float(scale), "m": [[float(v) for v in row] for row in m], "err": float(err)}
 
 
-def result_json(plan: dict, mappings: dict, assets: list[dict], warnings: list[str], route: str) -> dict:
-    """import_result.json (design §4-3). mappings: {'obj': (scale, m, err) | {...}, 'glb': ...}."""
+def result_json(
+    plan: dict, mappings: dict, assets: list[dict], warnings: list[str], route: str, index: dict | None = None
+) -> dict:
+    """import_result.json (design §4-3). mappings: {'obj': (scale, m, err) | {...}, 'glb': ...};
+    index = zone_index.sync() result of run(with_index=True) (WP-09), None otherwise."""
     return {
         "schema": 1,
         "zone_id": plan["zone_id"],
@@ -1338,6 +1519,7 @@ def result_json(plan: dict, mappings: dict, assets: list[dict], warnings: list[s
         "assets": list(assets),
         "warnings": list(warnings),
         "interior": None,
+        "index": None if index is None else dict(index),
     }
 
 

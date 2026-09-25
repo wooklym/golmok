@@ -565,3 +565,37 @@ def test_lerp_angle_deg(driver):
     assert run(driver, "angle", 10, 190, 0.5) == [100.0]  # exactly opposite: +180 wins
     assert run(driver, "angle", 10, -170, 0.5) == [100.0]
     assert run(driver, "angle", 0, 90, 0.5) == [45.0]
+
+
+# -------------------------------------------------------------------------------------------------------- (j)
+
+
+def hold(driver: Path, tokens: str) -> tuple[list[str], list[float]]:
+    """`hold`: (per-token outputs, final [Value, HeldCount, Total, bHeldLast])."""
+    res = run_raw(driver, "hold", stdin=tokens)
+    assert res.returncode == 0, res.stdout + res.stderr
+    lines = res.stdout.splitlines()
+    assert len(lines) == 2, res.stdout
+    return lines[0].split(), [float(v) for v in lines[1].split()]
+
+
+def test_hold_last_positive_sequence(driver):
+    # WP-09 design §8-1: 0 / NaN / negative samples keep the last positive value; 0 until the first positive
+    values, state = hold(driver, "0 5 0 0 6 nan -1 7")
+    assert [float(v) for v in values] == [0, 5, 5, 5, 6, 6, 6, 7]
+    assert state == [7.0, 5.0, 8.0, 0.0]  # Value 7, HeldCount 5, Total 8, last sample not held
+    values, state = hold(driver, "0 0 nan")
+    assert [float(v) for v in values] == [0, 0, 0]
+    assert state == [0.0, 3.0, 3.0, 1.0]
+    values, state = hold(driver, "2.5 inf 3")
+    assert [float(v) for v in values] == [2.5, float("inf"), 3.0]
+    assert state == [3.0, 0.0, 3.0, 0.0]
+
+
+def test_hold_state_resets(driver):
+    values, state = hold(driver, "5 0 reset")
+    assert values == ["5", "5", "reset"]
+    assert state == [0.0, 0.0, 0.0, 0.0]  # Reset(): Value 0, counters 0, bHeldLast false
+    values, state = hold(driver, "5 0 reset 0 3 0")
+    assert [v if v == "reset" else float(v) for v in values] == [5.0, 5.0, "reset", 0.0, 3.0, 3.0]
+    assert state == [3.0, 2.0, 3.0, 1.0]  # counted from the reset only

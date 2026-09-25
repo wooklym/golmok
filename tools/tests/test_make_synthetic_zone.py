@@ -575,6 +575,47 @@ def test_deterministic_and_check_mode(tmp_path):
     assert msz.main(["--out", str(tmp_path / "none"), "--check"]) == 1
 
 
+def test_offset_moves_origin_only(tmp_path):
+    """WP-09 --offset-m E,N: only the zone (and room) origin moves; geometry, textures, blockers and the file
+    set are unchanged, and the default 0,0 is byte-identical to no option."""
+    a, b, c = ((tmp_path / n).resolve() for n in ("a", "b", "c"))
+    assert msz.main(["--out", str(a), "--interior", "--quiet"]) == 0
+    assert msz.main(["--out", str(b), "--interior", "--offset-m", "200,0", "--quiet"]) == 0
+    assert msz.main(["--out", str(c), "--interior", "--offset-m", "0,0", "--quiet"]) == 0
+    assert _tree(a) == _tree(b) == _tree(c) == EXPECTED_FILES
+    origin_files = {f"zones/{z}/v1/{n}" for z in (ZONE, ROOM) for n in ("manifest.json", "expected.json")}
+    for rel in sorted(EXPECTED_FILES):
+        assert _normalized(a / rel, a) == _normalized(c / rel, c), rel  # 0,0 == default
+        same = _normalized(a / rel, a) == _normalized(b / rel, b)
+        assert same == (rel not in origin_files), rel
+    ma, mb = (_json(o / "zones" / ZONE / "v1" / "manifest.json") for o in (a, b))
+    assert (ma["origin"]["lat"], ma["origin"]["lon"]) == (37.5620, 126.9250)
+    assert mb["origin"]["lat"] == pytest.approx(ma["origin"]["lat"], abs=1e-7)
+    assert mb["origin"]["lon"] > ma["origin"]["lon"]
+    assert mb["origin"]["height_ellipsoidal"] == ma["origin"]["height_ellipsoidal"] == 50.0
+    assert mb["origin"]["lon"] == round(mb["origin"]["lon"], 7)
+    o = mb["origin"]
+    east, north, up = T.lonlat_to_enu(o["lon"], o["lat"], o["height_ellipsoidal"], msz.ZONE_ORIGIN)
+    assert abs(east - 200.0) < 0.5 and abs(north) < 0.5 and abs(up) < 0.5
+    assert mb["footprint_wgs84"] != ma["footprint_wgs84"] and mb["portals"] == ma["portals"]
+    # the room moved with its parent: same origin_in_parent, same door pair in room-local metres
+    ra, rb = (_json(o / "zones" / ROOM / "v1" / "manifest.json") for o in (a, b))
+    assert rb["origin"]["lon"] > ra["origin"]["lon"] and rb["portals"] == ra["portals"]
+    ea, eb = (_json(o / "zones" / ZONE / "v1" / "expected.json") for o in (a, b))
+    assert eb["interior"]["origin_in_parent_m"] == ea["interior"]["origin_in_parent_m"]
+    assert eb["zone_origin"][:2] == [o["lat"], o["lon"]] and eb["blockers"] != ea["blockers"]
+    assert msz.offset_origin(msz.ZONE_ORIGIN, 0.0, 0.0) == msz.ZONE_ORIGIN
+    assert msz.offset_origin(msz.ZONE_ORIGIN, 200.0, 0.0) == (o["lat"], o["lon"], 50.0)
+    assert msz.parse_offset(" 200 , -3.5 ") == (200.0, -3.5)
+    for bad in ("200", "a,b", "1,2,3", "nan,0", ",1"):
+        with pytest.raises(ValueError):
+            msz.parse_offset(bad)
+    # --check honours the offset; a bad --offset-m is an input error (2)
+    assert msz.main(["--out", str(b), "--interior", "--check", "--offset-m", "200,0"]) == 0
+    assert msz.main(["--out", str(b), "--interior", "--check"]) == 1
+    assert msz.main(["--out", str(tmp_path / "d"), "--offset-m", "200"]) == 2
+
+
 def test_round_trip_plan(run):
     """_pure.import_plan on the generated folder: no problems, chunks mode, asset set == expected.json."""
     import os

@@ -19,6 +19,7 @@ import numpy as np
 import pytest
 from zone_util import REPO
 
+from golmok_tools.zone import index as zi
 from golmok_tools.zone import transform as T
 
 HEADER = REPO / "unreal" / "Golmok" / "Source" / "Golmok" / "Geo" / "GolmokGeoMath.h"
@@ -28,6 +29,19 @@ AREA = (37.5600, 126.9230, 40.0)
 TOL = 1e-6
 
 DRIVER_SRC = Path(__file__).parent / "fixtures" / "ue" / "geomath_driver.cpp"
+# WP-09 design §2: the four z16 cells of the fixture zones (001 / 001_interior / 002); used as edge probes.
+FIXTURE_CELLS = [(55873, 25379), (55873, 25380), (55874, 25379), (55874, 25380)]
+# WP-09 design §2 example table: (lon, lat, z) -> (x, y). The C++ driver and Python must agree exactly.
+CELL_EXAMPLES = [
+    ((126.9250, 37.5620, 16), (55873, 25379)),  # spec §6 example = z_synthetic_001 origin
+    ((126.9230, 37.5600, 16), (55873, 25380)),  # area origin = level origin
+    ((126.9272636, 37.5620, 16), (55874, 25379)),  # z_synthetic_002 origin, 200 m east of 001
+    ((0.0, 0.0, 16), (32768, 32768)),
+    ((-180.0, 85.06, 16), (0, 0)),  # latitude clamp
+    ((180.0, -85.1, 16), (65535, 65535)),  # x / y clamp
+    ((126.9250, 37.5620, 0), (0, 0)),
+    ((126.9250, 37.5620, 20), (893983, 406079)),
+]
 
 
 def _compiler() -> list[str] | None:
@@ -247,3 +261,68 @@ def test_polygons_overlap(driver):
     assert not ovl(a, c) and not ovl(c, a)
     assert ovl(a, d) and ovl(d, a)
     assert ovl(a, e) and ovl(e, a)
+
+
+# -------------------------------------------------------------------------------------------- WP-09 cells
+
+
+def run_cells(driver: Path, points: list[tuple[float, float, int]]) -> list[tuple[int, int]]:
+    """`cells`: the batch goes through stdin (Windows argv limit); encoding= on both pipes (Windows CI)."""
+    text = "".join(f"{lon!r} {lat!r} {z}\n" for lon, lat, z in points)
+    res = subprocess.run([str(driver), "cells"], input=text, capture_output=True, text=True, encoding="utf-8")
+    assert res.returncode == 0, res.stdout + res.stderr
+    out = [tuple(int(v) for v in line.split()) for line in res.stdout.splitlines()]
+    assert len(out) == len(points)
+    return out  # type: ignore[return-value]
+
+
+def test_lonlat_to_cell_matches_python_exactly(driver):
+    # single-shot `cell` on the design §2 table (integers, exact)
+    for (lon, lat, z), expect in CELL_EXAMPLES:
+        assert zi.lonlat_to_tile(lon, lat, z) == expect, (lon, lat, z)
+        assert tuple(int(v) for v in run(driver, "cell", repr(lon), repr(lat), z)) == expect, (lon, lat, z)
+    # batch `cells`: random points at several zooms; lat spans the full range so the ±MAX_LAT clamp is hit
+    rng = np.random.default_rng(16)
+    points: list[tuple[float, float, int]] = []
+    for z in (0, 5, 16, 20, 30):
+        lons = rng.uniform(-180.0, 180.0, 600)
+        lats = rng.uniform(-90.0, 90.0, 600)
+        points += [(float(lon), float(lat), z) for lon, lat in zip(lons, lats, strict=True)]
+    # Probes just inside / outside the fixture cells' edges. Points EXACTLY on an edge are deliberately
+    # absent: floor() of a value that is an integer up to the last ulp of tan / asinh depends on the C runtime
+    # (MSVC vs glibc), so an exact boundary is the one input where C++ and Python may legitimately disagree
+    # by one cell (WP-09 design §3-1). ±1e-9° (~0.1 mm) is far beyond that rounding and still tests the edge.
+    for x, y in FIXTURE_CELLS:
+        w, s, e, n = zi.tile_bounds(x, y, 16)
+        for eps in (1e-9, 1e-6):
+            for lon in (w - eps, w + eps, e - eps, e + eps):
+                for lat in (s - eps, s + eps, n - eps, n + eps):
+                    points.append((lon, lat, 16))
+    got = run_cells(driver, points)
+    for (lon, lat, z), cell in zip(points, got, strict=True):
+        assert cell == zi.lonlat_to_tile(lon, lat, z), (lon, lat, z)
+    # the fixture cell probes really land in the four cells (or their direct neighbours)
+    inner = {(x, y) for x, y in FIXTURE_CELLS}
+    assert inner <= set(got[3000:])
+
+
+def test_cell_bounds_match_python(driver):
+    cases = [(x, y, 16) for x, y in FIXTURE_CELLS]
+    rng = np.random.default_rng(17)
+    for _ in range(50):
+        z = int(rng.integers(0, 31))
+        n = 2**z
+        cases.append((int(rng.integers(0, n)), int(rng.integers(0, n)), z))
+    for x, y, z in cases:
+        got = run(driver, "cellbounds", x, y, z)
+        ref = zi.tile_bounds(x, y, z)
+        assert np.abs(np.array(got) - np.array(ref)).max() < 1e-12, (x, y, z)
+        w, s, e, n = got
+        assert w < e and s < n
+    # the design §2 example row for cell (55873, 25379)
+    # Latitudes go through atan/sinh/exp: MSVC's libm differs from glibc in the last ulp (Windows CI saw
+    # 37.56199695314351 vs ...52), so compare the doubles approximately; the integer x/y above stay exact.
+    w, s, e, n = run(driver, "cellbounds", 55873, 25379, 16)
+    assert (w, s, e, n) == pytest.approx(
+        (126.9195556640625, 37.56199695314352, 126.925048828125, 37.566351224992246), rel=1e-12, abs=1e-12
+    )

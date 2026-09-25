@@ -3,9 +3,24 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <string>
 
 // Command-line driver for tools/tests/test_ue_geo_math.py. Prints doubles with 10-12 decimals.
+// WP-09 cell commands: cell <lon> <lat> <z> -> "x y"; cells (stdin, one "lon lat z" per line -> one "x y" per line;
+// Windows argv is limited to 32 KiB so batches go through stdin); cellbounds <x> <y> <z> -> "west south east north".
 using namespace GolmokGeoMath;
+
+static std::string readStdin()
+{
+	std::string in;
+	char buf[4096];
+	std::size_t n = 0;
+	while ((n = std::fread(buf, 1, sizeof(buf), stdin)) > 0)
+	{
+		in.append(buf, n);
+	}
+	return in;
+}
 
 static void p3(const Vec3& v) { std::printf("%.17g %.17g %.17g\n", v[0], v[1], v[2]); }
 
@@ -138,6 +153,49 @@ int main(int argc, char** argv)
 		BlockerAxes(readVec(argv + 2), w, h);
 		p3(w);
 		p3(h);
+	}
+	else if (!std::strcmp(cmd, "cell") && argc >= 5)
+	{
+		int x = 0, y = 0;
+		LonLatToCell(std::atof(argv[2]), std::atof(argv[3]), std::atoi(argv[4]), x, y);
+		std::printf("%d %d\n", x, y);
+	}
+	else if (!std::strcmp(cmd, "cells"))
+	{
+		// One "lon lat z" per stdin line; blank lines are skipped. Numbers are parsed with strtod / strtol so
+		// Python repr() output round-trips exactly.
+		const std::string in = readStdin();
+		std::size_t pos = 0;
+		while (pos < in.size())
+		{
+			std::size_t nl = in.find('\n', pos);
+			if (nl == std::string::npos)
+			{
+				nl = in.size();
+			}
+			const std::string line = in.substr(pos, nl - pos);
+			pos = nl + 1;
+			const char* s = line.c_str();
+			char* end = nullptr;
+			const double lon = std::strtod(s, &end);
+			if (end == s)
+			{
+				continue;
+			}
+			s = end;
+			const double lat = std::strtod(s, &end);
+			s = end;
+			const int z = static_cast<int>(std::strtol(s, &end, 10));
+			int x = 0, y = 0;
+			LonLatToCell(lon, lat, z, x, y);
+			std::printf("%d %d\n", x, y);
+		}
+	}
+	else if (!std::strcmp(cmd, "cellbounds") && argc >= 5)
+	{
+		double w = 0, s = 0, e = 0, n = 0;
+		CellBounds(std::atoi(argv[2]), std::atoi(argv[3]), std::atoi(argv[4]), w, s, e, n);
+		std::printf("%.17g %.17g %.17g %.17g\n", w, s, e, n);
 	}
 	else
 	{

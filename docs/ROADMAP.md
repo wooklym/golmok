@@ -123,7 +123,7 @@
 | 3인칭 캐릭터(C++): 걷기, 뛰기, 점프, Enhanced Input, 카메라 붐(충돌 보정) | 키보드·마우스와 게임패드로 조작 |
 | 애니메이션: 기본은 UE 5.8 기본 캐릭터·애니메이션 세트(Motion Matching 등 5.8 제공 기능 평가) — ⚪ WP-10(리서치 문서 + PC 평가 런북 `pc-verify-animation.md`, 3안 비교) | 이동이 자연스럽다 |
 | 조명 프리셋: 시간대(아침·흐림·저녁) 전환, Lumen, 안개 — 🟢 PC 검증 통과(V-03, 2026-09-25)(WP-05; night 프리셋은 태양 off + real-time SkyLight라 화면이 검어 look-dev에서 달빛/최소 lux 결정 필요): 단일 소스 `Config/Golmok/lighting_presets.json`(4 시간대 + `interior` 오버레이), `Lighting/GolmokTimeOfDay`(2 s 보간, 키 1~4/F5, 콘솔 `golmok.tod`), `lighting.py`가 같은 JSON을 읽음 | 시간대를 바꿔도 환경이 자연스럽다(D-010 결과에 따름) |
-| 디버그: 충돌 와이어프레임, 성능 HUD, 고정 카메라 경로 재생 — 🟢 PC 검증 통과(V-03, 2026-09-25)(WP-05; PIE 재생 CSV → `golmok-perf` 119 fps/1% low 104, HUD `render` ms 0.00 표시 문제는 WP-09): `Debug/GolmokDebugSubsystem`+`AGolmokHUD`(F1 HUD: fps 평균·1% low·Game/Render/GPU ms·Zone·프리셋·ENU 좌표, F2 충돌 표시, `golmok.path record/play --csv` → `golmok-perf`, `golmok.screenshot`), 통계·경로 JSON은 순수 헤더 `GolmokStatsMath.h`로 g++ 교차검증. 런북 `runbooks/pc-verify-wp05.md`(V-03) | 스파이크와 회귀 측정에 재사용 |
+| 디버그: 충돌 와이어프레임, 성능 HUD, 고정 카메라 경로 재생 — 🟢 PC 검증 통과(V-03, 2026-09-25)(WP-05; PIE 재생 CSV → `golmok-perf` 119 fps/1% low 104, HUD `render` ms 0.00 표시 문제는 WP-09 🟡에서 정리): `Debug/GolmokDebugSubsystem`+`AGolmokHUD`(F1 HUD: fps 평균·1% low·Game/Render/GPU ms·Zone·프리셋·ENU 좌표, F2 충돌 표시, `golmok.path record/play --csv` → `golmok-perf`, `golmok.screenshot`), 통계·경로 JSON은 순수 헤더 `GolmokStatsMath.h`로 g++ 교차검증. 런북 `runbooks/pc-verify-wp05.md`(V-03) | 스파이크와 회귀 측정에 재사용 |
 
 ### 1.4 골목 Zone 통합
 - D-010 방식으로 **골목 전체**를 처리하고 청크로 나눈다.
@@ -134,6 +134,7 @@
 - Zone 데이터 계약 — ✅ `spec/zone-manifest.md`(manifest·Index 스키마, 좌표·UE 매핑 규약) + `golmok-zone` CLI(WP-02). 배경 제외는 `golmok-zone exclude` → `golmok-basemap --exclude`.
 - UE 런타임 Geo·Zone — 🟢 PC 검증 통과(V-03, 2026-09-25; 합성 Zone 좌표·충돌·blocker·거리 로드/언로드·베이스맵 숨김 전부 런북 기대값과 일치)(WP-04): `Geo/`(ENU↔UE 변환, 원점 액터), `Zones/`(manifest 로더, 거리 로드/언로드, priority, 태그 기반 베이스맵 숨김). 검증 런북 `runbooks/pc-verify-wp04.md`(V-03).
 - 에디터 임포트 `golmok.zone_import`(WP-06) — 🟡 코드 완료·PC 검증 대기: WP-03 zone 폴더(OBJ 청크 + MTL/UDIM PNG + collision GLB + blockers.json) → 임포터 축 프로브 → 사전변환 사본 임포트(Nanite, bounds 검증) → UDIM VT 텍스처·`M_ZoneScan`·`MI_<material>` 슬롯 할당 → manifest 복사 → `AGolmokZone` 리빌드. 합성 zone 생성기 `tools/scripts/make_synthetic_zone.py`(클라우드 테스트)와 런북 `runbooks/pc-verify-wp06.md`(V-04).
+- Zone Index 런타임 발견·비동기 로드(WP-09) — 🟡 코드 완료·PC 검증 대기(V-07): 레벨에 액터를 놓지 않아도 `Content/Golmok/Zones/index/`(`golmok-zone index build` 출력, `zone_index.sync`)에서 플레이어 주변 3×3 셀의 zone을 Transient 스폰·파괴(배치 액터 우선), 청크 에셋은 `FStreamableManager` 비동기(`Loading` 상태, 완료는 다음 틱, 취소는 세대 검사), 포털은 실내를 선로드하고 `Loading`이면 Pending 유지. V-03 발견(HUD `render` ms 0.00 → `OnBeginFrame` 캐시+직전 유효값 유지, 실내 `blocked` → `portal` 표시) 정리. 콘솔 `golmok.zone.index`. 런북 `runbooks/pc-verify-wp09.md`.
 - 완료 기준: 골목 전 구간을 걷고 뛰는 동안 끼임, 떨림, 구멍이 없고, 품질 목표 fps를 달성한다.
 
 ### 1.5 실내 1곳

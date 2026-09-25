@@ -904,10 +904,11 @@ def test_result_json_written(fake, zone, zi):
     assert data == result
     assert list(data) == [
         "schema", "zone_id", "version", "asset_folder", "route", "obj_mapping", "glb_mapping", "assets",
-        "warnings", "interior",
+        "warnings", "interior", "index",
     ]  # fmt: skip
     assert (data["schema"], data["zone_id"], data["version"], data["asset_folder"]) == (1, ZONE, 1, FOLDER)
     assert data["route"] == "fbx" and data["interior"] is None and data["warnings"] == []
+    assert data["index"] is None  # WP-09: only run(with_index=True) fills it
     assert data["obj_mapping"] == {"scale": 100.0, "m": [list(r) for r in M_OBJ], "err": 0.0}
     assert data["glb_mapping"] == {"scale": 100.0, "m": [list(r) for r in IDENTITY], "err": 0.0}
     kinds = [a["kind"] for a in data["assets"]]

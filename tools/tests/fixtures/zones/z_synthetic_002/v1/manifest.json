@@ -1,0 +1,92 @@
+{
+  "schema_version": 1,
+  "zone_id": "z_synthetic_002",
+  "version": 1,
+  "kind": "exterior",
+  "parent_zone": null,
+  "origin": {
+    "lat": 37.562,
+    "lon": 126.9272636,
+    "height_ellipsoidal": 50.0
+  },
+  "origin_ecef": [-3041404.6812789054, 4046758.8222130165, 3867051.561014832],
+  "transform": [
+    -0.7993988642528366, 0.36625984756887076, -0.4762511731115237, -3041404.6812789054,
+    -0.60080067895374, -0.48732918657456475, 0.6336787893572722, 4046758.8222130165,
+    0.0, 0.7926941326712345, 0.6096195633578366, 3867051.561014832,
+    0.0, 0.0, 0.0, 1.0
+  ],
+  "footprint_wgs84": {
+    "type": "Polygon",
+    "coordinates": [
+      [
+        [126.927082507, 37.56199099],
+        [126.927444693, 37.56199099],
+        [126.927444694, 37.562144159],
+        [126.927082506, 37.562144159],
+        [126.927082507, 37.56199099]
+      ]
+    ]
+  },
+  "replaces": {
+    "building_ids": [],
+    "terrain_clip": true
+  },
+  "layers": {
+    "visual": {
+      "format": "nanite_mesh",
+      "chunks": [
+        {
+          "id": "c_w001_n000",
+          "uri": "visual/c_w001_n000.obj",
+          "bbox_enu": [[-15.0, 0.0, -0.3], [0.0, 15.0, 5.0]],
+          "tris": 66
+        },
+        {
+          "id": "c_e000_n000",
+          "uri": "visual/c_e000_n000.obj",
+          "bbox_enu": [[0.0, 0.0, 0.0], [15.0, 15.0, 6.0]],
+          "tris": 66
+        }
+      ]
+    },
+    "collision": {
+      "format": "glb",
+      "uri": "collision.glb",
+      "chunks": [
+        {
+          "id": "c_w001_n000",
+          "uri": "collision/c_w001_n000.glb",
+          "bbox_enu": [[-15.0, 0.0, -0.3], [0.0, 15.0, 5.0]]
+        },
+        {
+          "id": "c_e000_n000",
+          "uri": "collision/c_e000_n000.glb",
+          "bbox_enu": [[0.0, 0.0, 0.0], [15.0, 15.0, 6.0]]
+        }
+      ]
+    },
+    "blockers": {
+      "uri": "blockers.json"
+    }
+  },
+  "portals": [],
+  "priority": 10,
+  "quality": {
+    "icp_rmse_m": null,
+    "footprint_iou": null,
+    "reviewed_by": null,
+    "reviewed_at": null
+  },
+  "consent": {
+    "type": "public_street",
+    "record_id": null
+  },
+  "attribution": ["합성 테스트 데이터 (WP-06)"],
+  "sources": [
+    {
+      "capture_id": "synthetic",
+      "note": "make_synthetic_zone.py"
+    }
+  ]
+}

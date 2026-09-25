@@ -124,6 +124,13 @@ public:
 	/** True while the OnEndFrame sampler is bound. */
 	bool IsSamplerBound() const { return EndFrameHandle.IsValid(); }
 
+	/**
+	 * "render source 1: begin 12345 cycles, end 0 cycles, held 3/120 frames (since bind)" — golmok.stats second line,
+	 * runbook §7 (WP-09 design §3-6 / §6-1): which GRenderThreadTime reading feeds the render column and how often
+	 * a 0 sample kept the previous value (GolmokStatsMath::HoldLastPositive).
+	 */
+	FString DescribeRenderSource() const;
+
 	// ---- collision view ---------------------------------------------------------------------------------------
 
 	void SetCollisionVisible(bool bVisible);
@@ -188,6 +195,7 @@ public:
 
 private:
 	void OnEndFrame();
+	void OnBeginFrame();                                   // caches RenderCyclesAtBeginFrame (source 1 / 2)
 	void BindSampler(bool bOn);
 	void RecordSample();
 	void RefreshCollisionVisuals();
@@ -212,6 +220,10 @@ private:
 	GolmokStatsMath::RingBuffer Ring{2048};
 	GolmokStatsMath::Stats LastStats;
 	FDelegateHandle EndFrameHandle;
+	FDelegateHandle BeginFrameHandle;
+	GolmokStatsMath::HeldValue RenderHold;
+	uint32 RenderCyclesAtBeginFrame = 0;
+	uint32 RenderCyclesAtEndFrame = 0;                     // the OnEndFrame reading, for DescribeRenderSource only
 
 	/** Seconds sampled since the ring was created (HUD "warming" until it reaches StatsWindowSeconds). */
 	double SampledSeconds = 0.0;

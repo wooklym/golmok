@@ -110,6 +110,25 @@ namespace GolmokStatsMath
 		return static_cast<double>(Cycles) * SecondsPerCycle * 1000.0;
 	}
 
+	/** V-03: a 0 (or negative / NaN) render-thread reading means "not sampled yet", not "free": keep the last positive value. */
+	struct HeldValue
+	{
+		double Value = 0.0;           // 0 until the first positive sample
+		bool bHeldLast = false;       // the last Feed kept the previous value
+		std::size_t HeldCount = 0;    // samples that were held
+		std::size_t Total = 0;        // samples fed
+		void Reset() { Value = 0.0; bHeldLast = false; HeldCount = 0; Total = 0; }
+	};
+
+	/** Feed one sample (WP-09 design §3-6): returns the value to record — the sample when > 0, else the held one. */
+	inline double HoldLastPositive(HeldValue& State, double Sample)
+	{
+		++State.Total;
+		if (Sample > 0.0) { State.Value = Sample; State.bHeldLast = false; }   // NaN fails the comparison -> held
+		else { State.bHeldLast = true; ++State.HeldCount; }
+		return State.Value;
+	}
+
 	/**
 	 * numpy 'linear' percentile: sort, h = (P / 100) * (N - 1), lo = floor(h), x[lo] + (h - lo) * (x[lo + 1] - x[lo]).
 	 * N == 0 -> 0. P is clamped to [0, 100].
