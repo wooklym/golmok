@@ -61,7 +61,7 @@ ROADMAP "품질 목표"를 그대로 쓴다. 요약하면 (1) 고사양에서 4K
 ```
 Phase 0  조사·설계 ─────────────────────────────── ✅ 완료 (PR #1)
 Phase 1  MVP
-  ├ 1A  클라우드 코드 트랙   WP-01~07 (Claude Opus 세션, 순차)   ← 지금 여기
+  ├ 1A  클라우드 코드 트랙   WP-01~08 ✅ M1 (2026-09-25) → 후속 WP-09·11·10   ← 지금 여기
   ├ 1B  PC 셋업·검증 트랙    V-01~V-06 (PC Claude 세션 + 사용자)
   ├ 1C  촬영·데이터 트랙     C-01~C-06 (사용자)
   ├ 1D  스파이크 1.1 → D-010 (환경 표현 방식 확정)
@@ -73,7 +73,7 @@ Phase 3  법률 자문 · 약관·신고 · 공개 베타 · 배포
 
 | 마일스톤 | 내용 | 완료 기준 | 의존 |
 |---|---|---|---|
-| **M1 클라우드 코드 완료** | WP-01~07이 브랜치에 있고 클라우드 테스트(pytest, lint, CI) 통과 | `plan/STATUS.md`에 WP 전부 🟡 이상, CI 초록 | 없음 |
+| **M1 클라우드 코드 완료** — **🟢 2026-09-25** | WP-01~08이 main에 있고 클라우드 테스트(pytest, lint, CI) 통과 | `plan/STATUS.md`에 WP 전부 🟡 이상, CI 초록 (PR #2~#13) | 없음 |
 | **M2 PC 빌드·PIE 검증** | UE 5.8.3에서 C++ 빌드 성공, L_Dev에서 이동·시간대·디버그 HUD·Zone 로더(합성 데이터) 동작 | `runbooks/pc-verify-*.md` 체크리스트 통과, 스크린샷 | M1, V-01 |
 | **M3 배경 베이스맵** | 실데이터(SHP+DEM+정사)로 홈 Zone 반경 1km 배경 임포트, 캐릭터가 걸음 | ROADMAP 1.2 완료 기준 | M2, C-03 |
 | **M4 D-010 확정** | 스파이크 1.1 측정 완료, `research/08` 작성, 환경 표현 방식 결정 | D-010 승인 | M3, C-01, C-02, V-03 |
@@ -114,7 +114,11 @@ UE 에디터와 실데이터 없이도 만들 수 있고, 합성 데이터로 �
 | **WP-06** | UE Python 에디터 자동화 2차 | `zone_import.py`(청크 메시+UDIM VT+충돌 임포트·배치), `interior_setup.py`(실내 서브레벨·포털 배치), `spike_runner.py`(시점·프리셋·경로 일괄 캡처와 CSV 프로파일 안내), `basemap_import` 보강(exclude 반영) | 순수 함수 단위테스트(unreal 모듈 모킹), PC 런북 | 에디터 실행 | WP-03, WP-05 |
 | **WP-07** | 정합·검수 도구 `golmok-align` | GPS prior → 유사변환 → 베이스맵 LOD1과 ICP, 품질 지표(ICP RMSE, footprint IoU, 수직 기울기)를 manifest.quality에 기록, 블러 누락 재검사 리포트 | 합성 데이터 테스트 | 실 Zone 정합 | WP-02, WP-03 |
 | WP-08 (선택) | 웹 내부 검수 뷰어 `tools/viewer` | 3D Tiles + Zone footprint + 충돌 오버레이(Three.js, MIT 스택) | Playwright 스모크 | 브라우저 | WP-02 |
+| **WP-09** | UE C++ 런타임 3: Zone Index 발견·비동기 로드 | `Zones/GolmokZoneIndex`(셀 파서, 3×3 셀 조회, `GolmokGeoMath` 셀 공식), `UGolmokZoneSubsystem::DiscoverZones`(Index 기반 스폰·파괴, `Evaluate()` 밖), `AGolmokZone::LoadAsync`(FStreamableManager, `Loading` 상태·취소), `zone_import --with-index`, 콘솔 `golmok.zone.index`, V-03 디버그 표시 정리(HUD render ms, 실내 `blocked`) | 합성 Index 픽스처 pytest, g++ 셀 공식 교차검증, UE 자동화 5개, PC 런북 | **빌드 + PIE**(배치 액터 없이 발견·로드, 히치 비교) | WP-04, WP-05, WP-06 |
+| **WP-10** | 애니메이션 평가·게임 기능 제안(문서) | `research/09-animation-ue58.md`, `runbooks/pc-verify-animation.md`, `design/game-features-proposal.md`(D-013~ 제안), `design/lighting-night-lookdev.md` | 링크 검사, 출처 인용 | PC 평가(런북), 사용자 승인 | — |
+| **WP-11** | 웹 검수 뷰어 2차: 충돌·blocker 오버레이 | `tools/viewer` collision.glb/blockers.glb 오버레이·토글(Cesium.Model, glTF Y-up 변환), 서버 GLB 서빙(경로 탈출 금지), Playwright 스모크 | `npm test`, pytest | 브라우저 | WP-03, WP-06, WP-08 |
 
+- **후속(M1 이후, 2026-09-25 등록)**: 계획서에 남아 있던 항목을 WP-09(Zone Index 런타임 발견·비동기 로드 + V-03 디버그 표시 정리, Fable ultracode), WP-11(뷰어 충돌·blocker 오버레이, Opus), WP-10(애니메이션 평가·게임 기능 제안 문서, Opus)으로 묶었다. 순서 WP-09 → WP-11 → WP-10. `replaces.building_ids` 단위 런타임 숨김은 제외(베이스맵 타일이 건물을 병합하므로 빌드 단계 `golmok-zone exclude`가 정본, D-012).
 - WP-08은 ROADMAP 1.6의 "(웹, 선택)"이었으나 2026-09-24에 CesiumJS 기반으로 **완료**했다(`tools/viewer`, `golmok-viewer`). UE 디버그 도구(WP-05)는 그대로 진행한다.
 - Phase 2 서버 파이프라인(COLMAP+gsplat)은 이 트랙에 넣지 않는다(D-005: MVP는 수동).
 
@@ -128,6 +132,8 @@ UE 에디터와 실데이터 없이도 만들 수 있고, 합성 데이터로 �
 | V-04 | WP-06 에디터 Python 검증(합성 청크 임포트, 실내 서브레벨) | `runbooks/pc-verify-wp06.md` | V-03 |
 | V-05 | RealityScan/Postshot 실행 → WP-03·07 도구로 후처리·정합 → 스파이크 1.1 측정 | `runbooks/pc-spike.md`(WP-06에서 작성) | V-04, C-01, C-02 |
 | V-06 | 골목 Zone·실내 Zone 통합, 성능 튜닝, 패키징 | `runbooks/pc-integrate.md`(M4 이후 작성) | M4 |
+| V-07 | WP-09 Zone Index 발견·비동기 로드 검증(배치 액터 없이 발견·로드, 히치 비교) | `runbooks/pc-verify-wp09.md`(WP-09에서 작성) | V-04 |
+| V-08 | 애니메이션 3안 PC 평가(L_Dev, 게임패드) | `runbooks/pc-verify-animation.md`(WP-10에서 작성) | V-01 |
 
 ### 5.3 트랙 1C — 촬영·데이터·구매 (사용자)
 
