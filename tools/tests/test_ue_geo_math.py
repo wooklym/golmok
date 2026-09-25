@@ -320,5 +320,9 @@ def test_cell_bounds_match_python(driver):
         w, s, e, n = got
         assert w < e and s < n
     # the design §2 example row for cell (55873, 25379)
+    # Latitudes go through atan/sinh/exp: MSVC's libm differs from glibc in the last ulp (Windows CI saw
+    # 37.56199695314351 vs ...52), so compare the doubles approximately; the integer cell x/y above stay exact.
     w, s, e, n = run(driver, "cellbounds", 55873, 25379, 16)
-    assert (w, s, e, n) == (126.9195556640625, 37.56199695314352, 126.925048828125, 37.566351224992246)
+    assert (w, s, e, n) == pytest.approx(
+        (126.9195556640625, 37.56199695314352, 126.925048828125, 37.566351224992246), rel=1e-12, abs=1e-12
+    )

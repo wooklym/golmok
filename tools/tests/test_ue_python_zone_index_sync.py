@@ -137,8 +137,10 @@ def test_sync_removes_stale_cells_and_is_idempotent(fake, zx):
     dest = _dest(fake)
     (dest / "cells").mkdir(parents=True)
     stale = dest / "cells" / "16_1_1.json"
-    stale.write_text('{"schema_version": 1, "z": 16, "x": 1, "y": 1, "zones": []}\n', encoding="utf-8")
-    (dest / "cells" / "notes.txt").write_text("kept: not a cell file\n", encoding="utf-8")
+    stale.write_text(
+        '{"schema_version": 1, "z": 16, "x": 1, "y": 1, "zones": []}\n', encoding="utf-8", newline="\n"
+    )
+    (dest / "cells" / "notes.txt").write_text("kept: not a cell file\n", encoding="utf-8", newline="\n")
     result = zx.sync(str(FIXTURE_ZONES))
     assert result["removed"] == ["16_1_1.json"] and not stale.exists()
     assert (dest / "cells" / "notes.txt").is_file()
@@ -164,21 +166,21 @@ def test_sync_rejects_broken_index_before_writing(fake, zx, tmp_path, case):
     cells = root / "index" / "cells"
     zones_path = root / "index" / "zones.json"
     if case == "broken_cell_json":
-        (cells / CELLS[0]).write_text("{not json", encoding="utf-8")
+        (cells / CELLS[0]).write_text("{not json", encoding="utf-8", newline="\n")
     elif case == "version_mismatch":
         cell = json.loads((cells / CELLS[1]).read_text("utf-8"))
         cell["zones"][0]["version"] = 2
-        (cells / CELLS[1]).write_text(json.dumps(cell), encoding="utf-8")
+        (cells / CELLS[1]).write_text(json.dumps(cell), encoding="utf-8", newline="\n")
     elif case == "manifest_path":
         doc = json.loads(zones_path.read_text("utf-8"))
         doc["zones"][0]["manifest"] = "z_synthetic_001/v2/manifest.json"
-        zones_path.write_text(json.dumps(doc), encoding="utf-8")
+        zones_path.write_text(json.dumps(doc), encoding="utf-8", newline="\n")
     elif case == "name_vs_content":
         (cells / CELLS[0]).rename(cells / "16_55873_25381.json")
     else:
         cell = json.loads((cells / CELLS[1]).read_text("utf-8"))
         cell["zones"].append({"id": "z_ghost_001", "version": 1})
-        (cells / CELLS[1]).write_text(json.dumps(cell), encoding="utf-8")
+        (cells / CELLS[1]).write_text(json.dumps(cell), encoding="utf-8", newline="\n")
     with pytest.raises(zx.ZoneIndexError) as info:
         zx.sync(str(root))
     err = info.value
@@ -268,7 +270,7 @@ def test_run_with_index_missing_folder_warns_not_fails(fake, zi, zone_copy):
     assert result["index"] is None and not _logs(fake)
     # a broken index is still a failure of the "index" step (only a missing one is tolerated)
     shutil.copytree(FIXTURE_INDEX, zone_copy / "index")
-    (zone_copy / "index" / "cells" / CELLS[0]).write_text("{", encoding="utf-8")
+    (zone_copy / "index" / "cells" / CELLS[0]).write_text("{", encoding="utf-8", newline="\n")
     with pytest.raises(zi.ZoneImportError) as info:
         zi.run(str(zone_copy / ZONE), level=DEFAULT_LEVEL, geo_origin="area", with_index=True)
     assert info.value.step == "check" and str(info.value).startswith("zone_index: ERROR check: ")
