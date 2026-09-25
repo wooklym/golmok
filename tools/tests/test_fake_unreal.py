@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import importlib
 import json
+import os
 import sys
 import time
 import types
@@ -577,10 +578,13 @@ def test_viewpoints_capture_runs_on_the_fake(fake, unreal):
     assert capture is not None and len(fake.callbacks) == 1
     fake_unreal.tick(fake, 60)
     shot = Path(fake.saved_dir) / "Screenshots" / "Golmok" / "a" / "current" / "far_01.png"
-    assert capture.saved == [str(shot)] and capture.missing == [] and shot.exists()
+    # os.path.join of the UE-style "/"-path gives mixed separators on Windows: compare normalized paths.
+    assert [os.path.normpath(p) for p in capture.saved] == [os.path.normpath(shot)]
+    assert capture.missing == [] and shot.exists()
     assert pure.png_size(shot.read_bytes()[:24]) == (viewpoints.RES_X, viewpoints.RES_Y)
     assert not fake.callbacks and fake.logs[-1] == (
         "log",
         f"Capture 'a' done: 1 saved, 0 missing -> {shot.parent.parent}",
     )
-    assert fake.calls_of("high_res_screenshot") == [("high_res_screenshot", str(shot))]
+    shots = [(k, os.path.normpath(v)) for k, v in fake.calls_of("high_res_screenshot")]
+    assert shots == [("high_res_screenshot", os.path.normpath(shot))]
