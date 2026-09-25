@@ -1,6 +1,6 @@
 # WP-06 — UE Python 에디터 자동화 2차
 
-상태: 🔵 진행 중 · 담당: 클라우드 Claude 세션(**Fable 5.1 ultracode**, 모델 정책 DEVELOPMENT-PLAN §7.4) · 의존: WP-03, WP-05 · 검증: G2/G3(`runbooks/pc-verify-wp06.md`, `runbooks/pc-spike.md`)
+상태: 🟡 코드 완료·PC 검증 대기 · 담당: 클라우드 Claude 세션(**Fable 5.1 ultracode**, 모델 정책 DEVELOPMENT-PLAN §7.4) · 의존: WP-03, WP-05 · 검증: G2/G3(`runbooks/pc-verify-wp06.md`, `runbooks/pc-spike.md`)
 
 ## 목표
 후처리 결과(WP-03)를 에디터에 넣고 Zone 액터(WP-04)를 배치하는 일, 실내 서브레벨·포털 준비, 스파이크 1.1 측정을 **한 줄 명령**으로 만든다. `unreal` API 호출은 얇게, 계산은 순수 함수로 분리해 클라우드에서 테스트한다.
@@ -1053,4 +1053,49 @@ def tick(fake, n: int, dt: float = 0.1)           # 등록된 slate 콜백을 n�
 심판이 갈린 곳과 결정: ① UDIM `_####` — 심판 1(A 결함)은 "`.####`만, `_####`는 경고", 심판 2(그래프트)는 "`_####` 허용" → **`.####`만 인정, `_####`는 경고**(공식 문서 인용이 `.####`뿐이고 UE 정규식 기본값은 미확인). ② `-game` 종료 감지 — 심판 2는 `CsvProfile Stop` 로그 마커(A), 심판 1은 A의 그 마커가 실제로 찍히지 않는다고 지적 → **`-ExitAfterCsvProfiling` + 타임아웃 + `GolmokDebugSubsystem: csv:` 줄**. ③ 포털 불일치 — B는 경고, C는 오류 → **오류**(§8 12). ④ 스크린샷 폴더 접두 — "그대로 또는 문서화" → **접두 없음**.
 
 ## 결과
-(세션이 작성)
+세션: session_011qpTa7U7onDnW7L9jNSgwA (Fable 5.1 ultracode; 심판·회의론자·수정 에이전트는 모델 정책대로 Opus 5.5) · 2026-09-24~25 · 상태 **🟡 코드 완료·PC 검증 대기** (G2 `runbooks/pc-verify-wp06.md`, V-04; 스파이크는 `runbooks/pc-spike.md`, V-05). PR #12.
+
+**진행 방식(ultracode)** — ① 설계 패널: API 현실성 / 데이터·경로 규약 / 검증 가능성 3안(Fable) → Opus 심판 2명 채점(검증 가능성안 41/50 승) → 종합해 위 "설계 (확정)"(심판 지적 44건 반영표 §9). 설계 전에 5.8 Python API 레퍼런스 40여 클래스와 UDIM 공식 문서를 이 컨테이너에서 직접 확인해 `citations`로 고정했다. ② 구현: A단계 `_pure.py`+생성기(병렬) → B단계 가짜 `unreal`·런북 → `zone_import`‖`spike_runner` → `interior_setup` → 통합. 중간에 main의 V-03 결과(PR #13, PC 수정 4건)를 병합해 반영. ③ 적대적 검증 1라운드: 리뷰어 4관점(API 정확성 / UDIM·VT 규약 / 스펙·경로·C++ 계약 / 런북·PC 발견 준수, Fable) → 소견마다 Opus 회의론자 2명(엔진 사실·코드 맥락) 반박 → 둘 다 반박한 것만 기각 → 파일 그룹별 Opus 수정(테스트 먼저) → Opus 게이트. 2라운드는 리뷰어 3명이 소견 6건을 낸 시점에서 오케스트레이터 지시(비용)로 중단했고, 그 6건은 미검증 상태로 아래 표에 남긴다(병합 전 Opus 보완 리뷰에서 이어짐).
+
+**한 것** (`unreal/Golmok/Content/Python/golmok/` 기준)
+- `_pure.py`(1.8k줄, `unreal`·numpy 비의존): 에셋 경로 규약(`asset_paths`)·UDIM 파싱/블록 좌표/그룹·MTL 파싱·OBJ 스트리밍(mtllib/usemtl/bounds/프로브)·임포트 계획 `import_plan`(§4-1 dict, 문제/경고 문자열 §4-5)·bbox/허용오차·임포터 매핑 측정(basemap_import와 동일성 테스트)·OBJ/GLB 사전변환(법선·감김 반전, `G·A·G⁻¹`)·로그 형식 `LOG`(단일 소스)·결과 JSON·포털 왕복 검사·실내 서브레벨 스펙·스파이크(시점/태그/dwell 경로 JSON/`-game` 명령줄/PowerShell/컨택트 시트 HTML/리포트 템플릿).
+- `zone_import.py`: `run(zone_dir, version=None, level=None, geo_origin=None, save=True, remeasure=False, reimport_textures=True)` — 계획(에디터 호출 0회) → 프로브로 OBJ 임포터 사다리(`fbx`→`interchange`→`legacy_flag`)·매핑 측정·캐시 → 텍스처(UDIM VT, 병합 판정, `make_udim_virtual_texture_from_texture2_ds` 폴백) → `M_ZoneScan`/`M_ZoneScan_NoVT`(마스터 소유 기본 텍스처 `T_ZoneScanDefault*`) → `MI_<material>` → 청크(사전변환 사본, Nanite, bounds 검증, 슬롯 3단 할당) → 충돌(`collision.chunks` 우선, complex-as-simple) → `manifest.json`·`blockers.json` 복사 → GeoOrigin → `AGolmokZone` 리빌드 → `import_result.json`. 모든 임포트는 V-03 발견대로 `<folder>/_import` 스크래치 → 규약 경로로 이동.
+- `interior_setup.py`: 포털 왕복 검사(같은 점 ≤ 5 cm·반대 yaw ≤ 1°, 실패 시 에디터 호출 0회) → 부모 Content manifest(레벨의 부모 액터 버전) → `zone_import.import_assets` 재사용 → 실내 zone 리빌드/언로드 → 서브레벨 `L_<zone_id>`(태그 `GolmokInteriorSetup` PointLight 1개, 레벨 좌표, 재실행은 태그 액터만 교체) → 부모 리빌드 → 저장 → (선택) 경로 B 등록(`save_map`).
+- `spike_runner.py`: `prepare`(시점 10개 이름 고정) · `capture_all(mode="pie"|"editor", quit_editor=False)`(PIE 상태기계: `golmok.hud 0` → 프리셋 → 시점별 600 s dwell 경로 재생 → `HighResShot 2560x1440` → 파일 대기 → `stopplay`; 헤드리스는 `quit_editor()`) · `perf_all`(PIE 참고치) · `save_layer_levels`(`L_Spike_<tag>`) · `game_scripts`(`-game -RenderOffscreen … golmok.path play <walk> --csv` `.ps1`, Saved 후보 2곳, `label_suffix`) · `contact_sheet` · `report_template`.
+- 보강: `materials.build_zone_scan_material/zone_scan_instance`, `basemap_import._set_geo_origin`(베이스맵 origin → `AGolmokGeoOrigin`), `synthetic_zone`(`_spawn_interior_sublevel(specs, delete_tag, on_removed)`, 태그 스펙, `register_interior_sublevel(zone_id, version)` 재실행 안전), `viewpoints.capture(on_done=)`·출력 폴더 normpath.
+- `tools/scripts/make_synthetic_zone.py`: RealityScan 흉내 원본(OBJ+MTL, UDIM PNG 1001/1002/1011 + 단일 PNG + 명시 타일 1장, 순수 파이썬 PNG·5×7 비트맵 숫자) → 실제 `golmok-mesh chunk/collision --per-chunk/blockers` → `zones/z_synthetic_scan_001/v1/`(+`--interior` 방 zone, door_1↔door_out 왕복) + `expected.json`(런북·테스트 정본: 청크 `c_w001_n000`/`c_e000_n000` 66/66 tri, 레벨 좌표 = 스펙 표 C). 결정적 출력·`--check`.
+- 테스트(`tools/tests/`): `fake_unreal.py`(스크립트형 가짜 `unreal`: 실제 파일을 읽는 가짜 임포터·인메모리 레지스트리·호출 기록·가짜 시계·엄격한 옵션 속성) + `test_ue_python_pure.py` 60 · `test_make_synthetic_zone.py` 19 · `test_fake_unreal.py` 14 · `test_ue_python_zone_import.py` 35 · `test_ue_python_interior_setup.py` 13 · `test_ue_python_spike_runner.py` 30 = **+171개**(전체 **494 passed, 3 skipped**). 런북 드리프트 테스트(런북에 인용된 로그 ↔ `_pure.LOG` 양방향, 가짜가 만든 로그 블록 ↔ 런북 §2/§4/§8/§9 줄 단위)와 터치포인트 화이트리스트 테스트(`unreal.<Name>`이 런북 §12 표 또는 기존 모듈에 있어야 함)가 문서와 코드를 묶는다.
+- 문서: `runbooks/pc-verify-wp06.md`(체크리스트 §1~§11, 불확실 API 표 §12 38행), `runbooks/pc-spike.md`(S0~S15, 예상 시간·실패 시 대안), README 2곳, ROADMAP 1.1·1.4·1.5, `.gitignore`(합성 zone 에셋·`L_Spike_*`).
+
+**테스트 로그(클라우드)**: `ruff check .` All checks passed · `ruff format --check .` 86 files already formatted · `python -m pytest -q` **494 passed, 3 skipped**(skip = torch/rawpy/타일 검증기 환경) · `check_repo.py` OK. CI: Windows 잡에서 경로 구분자·`rglob` 순서 실패 4건을 오케스트레이터 메모로 받아 즉시 수정(테스트는 `os.path.normpath`·`sorted` 규칙, `viewpoints.capture`는 모듈에서 normpath). 최종 커밋 결과는 PR #12 체크 참조.
+
+**적대적 검증 표**
+| 라운드 | 원시 소견 | 확정(수정) | 반박(기각) | 비고 |
+|---|---|---|---|---|
+| 1 | 33 (major 18 · minor 15) | 28 | 5 | 확정 전부 수정, 테스트 먼저 작성(+26). 반박 5: Nanite 폴백 100 % 강제(basemap과 같은 설정이 의도), UDIM 크기 판정의 0×0 경합(에디터 동기 임포트), UDIM 팩 경로 런북 검사 누락(§2 체크가 이미 공통), Full Precision UV 미설정(단순 정밀도로 충분·설계 범위 밖), HUD 포함 §12 행 누락(월드 서브시스템이라 다음 PIE에 잔류 없음) |
+| 2 | 6 (udim 3안 중 3명 완료 시점 중단) | — | — | **미검증·미반영**: ① UDIM 병합 판정이 컴파일 전 크기를 읽을 가능성 ② Full Precision UV(1라운드 기각과 같은 논점) ③ TIF/JPG 앵커의 크기 판정(PNG만 IHDR) ④ `MI_<safe(material)>` 이름 충돌 미검출 ⑤ 비인덱스 TRIANGLES의 감김 반전 ⑥ 설계 본문 §3-1/§3-2의 UDIM 문구가 코드와 다름(아래 "설계 대비 변경") |
+
+**설계 대비 변경(구현·리뷰에서 확정; 설계 본문은 원안 그대로, 이 표가 우선)**
+| 항목 | 설계 | 구현 | 이유 |
+|---|---|---|---|
+| PIE 캡처 창(D11, §3-4 WINDOW) | `LevelEditorPlaySettings` 1280×720 새 창, 스크린샷 = 창×2 | `editor_request_begin_play()`는 항상 레벨 뷰포트에서 재생 → WINDOW 상태 제거, 스크린샷은 `HighResShot 2560x1440 filename=…`으로 해상도 고정; `configure_pie_window`는 유인 새 창 PIE 보조 | 리뷰 F1 |
+| `PlayModeType` 멤버 | `PLAY_MODE_TYPE_PLAY_IN_EDITOR_FLOATING` | `PLAY_MODE_IN_EDITOR_FLOATING`(getattr 가드) | 리뷰 F6 |
+| 마스터 기본 텍스처(D6) | 그 실행의 첫 VT 텍스처 | 마스터 소유 `T_ZoneScanDefault`(VT)·`_NoVT`(생성 256 px 회색) | zone 삭제·재임포트 시 댕글링(F4·L2-01·L2-04) |
+| 임포트 배치 | `destination_name`으로 규약 경로 직접 | `<folder>/_import` 스크래치 → `_move_asset` → 스크래치 삭제(`zi.moved` 로그) | V-03 Interchange 배치(`<dest>/<소스명>/StaticMeshes/…`) |
+| UDIM 의심 이름 | `_####` 경고 | 엔진 규칙 `[._]####`(≥1001)로 경고 범위 확대, 단일 텍스처는 `import_udi_ms=False`, 크기 불일치 시 파일명 변경 안내(#38) | L2-02 |
+| `interior_setup` 등록 경로 B | 8단계 뒤 `register` | 마지막 단계(부모 리빌드·저장 뒤), `save_map` 패턴, 이미 등록된 항목 재사용 | V-03 #4, F3/F8 |
+| 부모 버전 | Content 최신 v | 레벨의 `Zone_<parent>` 액터 버전 | R1-04 |
+| `capture_all` 인자 | `mode` | + `quit_editor=False`(헤드리스는 `SystemLibrary.quit_editor()`) | V-03 #3 |
+| `game_scripts` | 라벨 `<tag>_<preset>_<walk>` | + `label_suffix`(1080p 외 해상도·DLSS 구분) | L4-03 |
+| 경로 상수 | 3곳 하드코딩 | `_pure.PATH_FOLDER`/`SCREENSHOT_FOLDER`(ini와 대조 테스트) | R1-06 |
+| 합성 박스 UV | — | u∝+x·v∝z 고정 규칙: 숫자는 남면(−y)에서만 바로 읽힘(런북 §2 명시) | L2-06 |
+
+**불확실 API**: 5.8 Python API 레퍼런스가 이번엔 열려 이름·시그니처는 확인했다(`citations`: AssetImportTask, Interchange 파이프라인 속성 `import_udi_ms`, Texture2D `virtual_texture_streaming`, StaticMeshEditorSubsystem, MaterialEditingLibrary, MaterialSamplerType, LevelEditorSubsystem PIE, EditorLevelUtils, UDIMTextureFunctionLibrary 등). 확인 못 한 것은 **동작**(OBJ가 레거시 FBX인지, `factory` 지정이 Interchange를 우회하는지, UDIM 자동 병합·크기 표기, 슬롯 이름 규약, PIE 시작 틱, `-ExecCmds` 시점, 임포트 후 텍스처/OBJ 배치 폴더 등) — 런북 §12 표 38행에 대안과 함께.
+
+**판단한 것(스펙과 다른 점, 되돌리기 쉬움)** — 설계 §8 끝 목록 그대로: `blockers.glb` 미임포트(C++는 `blockers.json`만 읽음)·Content 복사는 `manifest.json`+`blockers.json`뿐 · MI는 청크당이 아니라 MTL 머티리얼당 · `collision.chunks`가 있으면 단일 `collision.glb` 미임포트 · 실내 서브레벨에 PostProcessVolume 없음(WP-05 오버레이가 실내 룩 담당) · Python은 `AGolmokPortal`을 놓지 않음 · 시점 이름 3/4/3·기본 프리셋 night 제외 · `-game`은 CSV 전용(스크린샷은 PIE; C++ `golmok.later` 미추가) · UDIM 파일명은 공식 규약만 인정 · 합성 실내 원점 = 방 남서 모서리.
+
+**남은 것 / PC 인계(V-04, `pc-verify-wp06.md`)**
+- §1 생성기 → §2 `zi.run(...)`(route·매핑 실측·UDIM 병합 표기·Nanite 청크 bbox를 결과 표에) → §3 PIE 걷기 → §4 `it.run(...)` → §5 포털 왕복 → §6 재실행 → §7 `capture_all` 리허설(에디터 창 뒤로 보낸 채 한 번 더) → §8 `-game` 성능 스크립트 → §11 결과 표. 컴파일/실행 오류는 §12 표 번호로 고치고 `WP-06: PC fix …` 커밋.
+- 미검증 2라운드 소견 6건(위 표)은 병합 전 Opus 보완 리뷰 또는 V-04에서 판정. 특히 ③(TIF UDIM)·④(MI 이름 충돌)는 실데이터에서 먼저 드러날 수 있다.
+- 스파이크(V-05)는 `pc-spike.md` S0~S15; `night` 프리셋 화면 검정·HUD render ms 0·언로드 뒤 `blocked` 표시는 WP-09/D-010 몫(V-03 발견).
+
