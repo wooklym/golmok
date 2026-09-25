@@ -219,3 +219,13 @@ def test_main_rejects_duplicate_zone(tmp_path: Path, capsys):
     with pytest.raises(SystemExit):
         vs.main(["--zone", str(zdir), "--zone", str(zdir / "manifest.json"), "--no-browser"])
     assert "두 번" in capsys.readouterr().err
+
+
+def test_overlong_names_give_404_not_a_dropped_connection(zone_served, served):
+    base, zones, _ = zone_served
+    long = "a" * 300
+    assert vs.resolve(f"/zones/z_test_001/v1/{long}.json", None, zones) is None
+    assert get(f"{base}/zones/z_test_001/v1/{long}.json")[0] == 404
+    dbase, data = served
+    assert vs.resolve(f"/data/{long}", data) is None
+    assert get(f"{dbase}/{long}")[0] == 404

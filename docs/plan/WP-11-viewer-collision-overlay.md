@@ -37,7 +37,7 @@
 | 4 | `tools/viewer/README.md` (신규) | 실행·화면·축 변환 근거·OBJ 미표시 이유·자동화 API·테스트 |
 
 ### 테스트
-- pytest **617 passed, 3 skipped**(이전 569 → +48: `test_viewer_server.py` 2 → 35, `test_viewer_zonemath.py` 14 신규). 심볼릭 링크 테스트는 권한 없는 Windows에서 skip, zonemath 교차검증은 `node`가 PATH에 없으면 skip(GitHub 러너에는 있음).
+- pytest **618 passed, 3 skipped**(이전 569 → +49: `test_viewer_server.py` 2 → 36, `test_viewer_zonemath.py` 14 신규). 심볼릭 링크 테스트는 권한 없는 Windows에서 skip, zonemath 교차검증은 `node`가 PATH에 없으면 skip(GitHub 러너에는 있음).
 - `npm test`: 단위 5 pass, 스모크 OK — 18 타일, zone 2개·모델 4개, 배치 오차 collision 6e-9 m·blockers 0 m(Cesium 기본 보정이면 10.6 m), 토글 9항목 통과.
 - ruff check/format, `check_repo.py` OK.
 
@@ -49,6 +49,9 @@
 5. 따라서 `GLTF_TO_ZONE` = row-major `[1,0,0,0, 0,0,−1,0, 0,1,0,0, 0,0,0,1]`(x축 +90°, det +1). Cesium `Axis.Y_UP_TO_Z_UP`(`@cesium/engine/Source/Scene/Axis.js`, column-major `[1,0,0, 0,0,1, 0,−1,0]`)과 같은 값. Cesium `ModelUtility.getAxisCorrectionMatrix`는 glTF 기본값(upAxis Y, forwardAxis Z)에서 `Z_UP_TO_X_UP`까지 곱해 zone을 90° 돌리므로(동 → 북) 끄고 우리 행렬만 쓴다.
 6. 검증: `tests/test_viewer_zonemath.py`가 zonemath.js를 Node로 실행해 `enu_to_gltf`/`gltf_to_enu`, `zone.transform.zone_transform`(yaw 0/30/−135°)·`enu_to_ecef`, `blockers.plane_axes`/`plane_box`(법선 7종), **실제 `blockers.glb`의 raw POSITION**과 비교. 브라우저에서는 스모크의 배치 검사.
 - "확인 필요" 항목 없음. 단 실측 zone(RealityScan 내보내기)은 `golmok-mesh collision --up`으로 입력 축을 맞춘 뒤 GLB가 위 규약으로 나오므로, V-05에서 실제 zone을 뷰어로 열어 원점 축과 메시가 맞는지 한 번 볼 것.
+
+### 리뷰
+읽기 전용 리뷰어 1명(34f6160): 블로킹 없음. 축 변환·Cesium 옵션(`upAxis Z/forwardAxis X` → 보정 항등, `gltf: Uint8Array`+`basePath` 유효, `show:false`여도 `ready`)과 Windows 경로(드라이브·UNC·ADS·예약 이름·8.3·끝 점/공백) 탈출 없음을 확인. minor 4건 반영: ① `resolve()`의 `is_dir()`가 긴 이름(ENAMETOOLONG)에서 예외 → 연결 끊김 대신 404(테스트 추가, 기존 `/data`·뷰어 경로도 해당) ② manifest JSON·필수 필드 오류를 `golmok.errors`에 기록 ③ GLB 로딩 중 zone 행 제거 시 모델 고아 방지(`zone.removed`) ④ `errorEvent`가 난 모델은 `ready` 대기에서 제외(60 초 대기 방지). 지적된 약점: 스모크 배치 검사는 중심만 비교 — 점 단위 대응은 `test_viewer_zonemath.py`가 맡는다.
 
 ### 남은 것
 - CI에는 `npm test` 잡이 없다(WP-08부터 로컬 게이트). 축 변환은 CI python 잡의 `test_viewer_zonemath.py`(Node)로 검사된다. 필요하면 별도 WP로 Playwright CI 잡(브라우저 다운로드 포함) 추가.

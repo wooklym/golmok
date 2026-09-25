@@ -83,10 +83,10 @@ def resolve(url_path: str, data_dir: Path | None, zones: dict[str, Path] | None 
         root_r = root.resolve()
         full = (root / rel).resolve()  # follows symbolic links: a link out of the root fails below
         full.relative_to(root_r)
+        if full.is_dir():  # can raise OSError (e.g. ENAMETOOLONG on Linux)
+            full = full / "index.html"
     except (ValueError, OSError):
         return None
-    if full.is_dir():
-        full = full / "index.html"
     if suffixes is not None and full.suffix.lower() not in suffixes:
         return None
     return full

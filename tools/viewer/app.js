@@ -198,9 +198,13 @@
       debugWireframe: document.getElementById('wire').checked,
       show: false
     });
-    model.errorEvent.addEventListener(function (e) { golmok.errors.push(kind + ' model ' + url + ': ' + (e && e.message || e)); });
+    if (zone.removed) { model.destroy(); return null; }  // zone row removed while the GLB was loading
+    zone.models[kind] = { url: url, model: model, bytes: bytes.length, failed: false };
+    model.errorEvent.addEventListener(function (e) {
+      zone.models[kind].failed = true;
+      golmok.errors.push(kind + ' model ' + url + ': ' + (e && e.message || e));
+    });
     viewer.scene.primitives.add(model);
-    zone.models[kind] = { url: url, model: model, bytes: bytes.length };
     applyZoneVisibility(zone);
     return model;
   }
@@ -223,8 +227,14 @@
     setStatus('Zone 로딩: ' + url);
     var r = await fetch(url);
     if (!r.ok) { golmok.errors.push('zone fetch ' + url + ' ' + r.status); setStatus('실패: ' + url); throw new Error(r.status); }
-    var m = await r.json();
-    var mat = zoneMatrix(m);
+    var m, mat;
+    try {
+      m = await r.json();
+      if (!m || !m.origin || !m.footprint_wgs84 || !Array.isArray(m.transform)) throw new Error('origin / footprint_wgs84 / transform 없음');
+      mat = zoneMatrix(m);
+    } catch (e) {
+      golmok.errors.push('zone manifest ' + url + ': ' + (e && e.message || e)); setStatus('실패: ' + url); throw e;
+    }
     var ds = new Cesium.CustomDataSource(m.zone_id + '/v' + m.version);
     var ents = ds.entities;
     var h0 = m.origin.height_ellipsoidal;
@@ -263,7 +273,7 @@
       add('portals', { name: 'portal dir ' + p.id, polyline: { positions: [toEcef(mat, pos), toEcef(mat, tip)], width: 3, material: ZONE_COLORS.portal } });
     });
 
-    var zone = { url: url, manifest: m, dataSource: ds, groups: groups, models: {}, shown: true, entityCount: 0 };
+    var zone = { url: url, manifest: m, dataSource: ds, groups: groups, models: {}, shown: true, removed: false, entityCount: 0 };
     var layersM = m.layers || {};
     var blockersUri = layersM.blockers && layersM.blockers.uri;
     if (blockersUri && !/\.glb$/i.test(blockersUri)) {
@@ -321,6 +331,7 @@
     var x = document.createElement('button');
     x.className = 'x'; x.textContent = '×'; x.title = '제거';
     x.onclick = function () {
+      zone.removed = true;
       viewer.dataSources.remove(zone.dataSource, true);
       Object.keys(zone.models).forEach(function (k) { viewer.scene.primitives.remove(zone.models[k].model); });
       row.remove(); zones.splice(zones.indexOf(zone), 1);
@@ -437,7 +448,7 @@
       var started = Date.now();
       (function poll() {
         var tilesDone = layers.every(function (l) { return l.tileset.tilesLoaded; });
-        var modelsDone = zones.every(function (z) { return Object.keys(z.models).every(function (k) { return z.models[k].model.ready; }); });
+        var modelsDone = zones.every(function (z) { return Object.keys(z.models).every(function (k) { return z.models[k].model.ready || z.models[k].failed; }); });
         if ((tilesDone && modelsDone) || Date.now() - started > 60000) return resolve();
         setTimeout(poll, 250);
       })();
