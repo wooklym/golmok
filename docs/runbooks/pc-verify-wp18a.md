@@ -104,8 +104,8 @@ V-12는 실제 Zone, 없으면 L_Basemap_Yeonnam에서 **프록시2종 × PBR/5.
 | 검사 | 실행 결과 |
 |---|---|
 | Python3.12.10 / ruff check·format / check_repo | 통과, format95개 파일 |
-| pytest 전체 | 608 passed, 42 skipped, 208 warnings (52.44s). 로컬 g++ 없음으로 교차검증 skip 포함. 기존 의존성 deprecation 경고 |
-| g++ 교차검증 CI | GitHub Actions Linux3.11/3.12 및 Windows3.12+MinGW 결과는 구현 PR checks 참조. 로컬 skip을 통과로 바꾸지 않음 |
+| pytest 전체 | 608 passed, 42 skipped, 208 warnings (수정 뒤 재실행34.50s). 로컬 g++ 없음으로 교차검증 skip 포함. 기존 의존성 deprecation 경고 |
+| g++ 교차검증 CI | 코드 수정 커밋 b8105f2의 [Actions](https://github.com/wooklym/golmok/actions/runs/36248981836): Linux3.11/3.12 및 Windows3.12+MinGW 각각 **647 passed, 3 skipped**, 전체5 jobs success. 최신 문서/병합 커밋 결과는 구현 PR checks 참조. 로컬 skip을 통과로 바꾸지 않음 |
 | add-mannequin / UE5.8.3 빌드 | 실행·성공. 새 MSVC 버전 안내/C4996 기존 경고 있음. 초기 include 오류 수정 후 성공 |
 | Character 필터 | Config/Runtime 2 Success, 실패0. 초기 proxy offset−92 회귀를 수정한 뒤−69 단언 통과 |
 | 전체 UE (합성 실내 fixture 준비 후) | **18 Success = succeeded13 + succeededWithWarnings5, failed0, notRun0**, 39.11s. Character2·기존Movement·Portal4·Zone5 등 전부 실행 |
