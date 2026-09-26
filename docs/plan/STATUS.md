@@ -3,7 +3,7 @@
 갱신 규칙: 각 세션이 시작·종료 시 자기 행을 고친다. 상태 기호:
 ⚪ 대기 · 🔵 진행 중 · 🟡 코드 완료·PC 검증 대기 · 🟢 완료 · 🔴 막힘 · ⏸ 보류
 
-마지막 갱신: 2026-09-25 (WP-09/10/11 병합 완료, D-013~D-017 승인 → WP-12 착수)
+마지막 갱신: 2026-09-27 (WP-18 설계 병합 기록·D-018 ① 승인, #23 구현 병합과 V-11 GUI/V-12는 별도)
 
 ## 마일스톤
 
@@ -39,11 +39,13 @@
 
 Astra는 이 표를 고치지 않는다. 병합하는 Fable 세션이 Astra WP 문서의 "병합 시 반영" 문안으로 고친다. 예약 번호: WP-18(18a·18b), V-11, V-12, D-018, research/11.
 
+이번 #22/#23은 2026-09-27 사용자가 Astra 자체 리뷰·병합을 직접 지시해 Astra가 병합 기록까지 반영한다. 상시 규칙의 변경은 아니다(D-018).
+
 | 항목 | 내용 | 상태 | 담당 | 메모 |
 |---|---|---|---|---|
-| WP-18 | 플레이어 캐릭터: 디자인·제작 경로·18a 플레이스홀더 캐릭터 목록·교체 (병행) | ⚪ 대기 | **ChatGPT Astra**(DEVELOPMENT-PLAN §7.6 캐릭터 레인, 리뷰·병합 Fable ultracode) | 브랜치 `astra/wp-18-*` → PR(Astra는 병합하지 않음). 설계 PR: `design/character-concept.md`, `research/11-character-pipeline.md`, `plan/WP-18-characters.md`, D-018 제안(문안은 WP 문서 "병합 시 반영"). 18a PR: `Source/Golmok/Characters/` + `Config/Golmok/characters.json`, 핫스팟(`GolmokCharacter` 등)은 표지 달린 훅만. 18b(실제 에셋·리타깃·이모트)는 V-08 채택안·룩 검증(V-12)·D-018 ② 뒤. |
-| V-11 | WP-18a 캐릭터 목록·교체 검증 | ⚪ 대기 | PC 세션 | 런북 `runbooks/pc-verify-wp18a.md`(WP-18a에서 Astra 작성): 빌드 → `test.ps1 -Filter Golmok.Character` → PIE에서 캐릭터 교체, 포털·포토 모드와 함께, 기본 캐릭터 `Golmok.Player.Movement` 기준 유지 |
-| V-12 | 캐릭터 룩 검증(프록시) | ⚪ 대기 | PC 세션(Fable) | WP-18 설계 뒤, D-018 ② 전: 구매 없이 만든 프록시(마네킹 머티리얼·비율 변형)를 골목 Zone(없으면 `L_Basemap_Yeonnam`)에 두고 조명 프리셋 4개·포토 모드로 스크린샷 → 사용자 채점. |
+| WP-18 | 플레이어 캐릭터 | 🔵 설계 완료·18a 스택 PR 검증 완료 | **ChatGPT Astra**, 이번 자체 리뷰·병합 사용자 승인 | [설계 #22](https://github.com/wooklym/golmok/pull/22): A~D/이미지7장/의뢰서 초안/자체 리뷰 완료, D-018 ① 승인. [구현 #23](https://github.com/wooklym/golmok/pull/23)에서 로스터4종·같은 폰 교체·훅2건·UE19 Success 기록. 18b는V-08/V-12/② 이후 |
+| V-11 | WP-18a 캐릭터 목록·교체 검증 | 🟡 헤드리스 통과·GUI 대기 | Astra 헤드리스 / Fable PC 후속 | #23에서 빌드·Character3/전체UE19 Success, 실제 포털3회 왕복+실내 교체/확대 거절 통과. GUI 보행·계단·실제 경로 재생·WP-12 포토·hitch/VRAM은 미실행. 런북은 #23의 `runbooks/pc-verify-wp18a.md` |
+| V-12 | 캐릭터 룩 검증(프록시) | ⚪ 대기 | Fable 실행·소유자 채점 | [WP-18](WP-18-characters.md) 절차: 프록시2×재질3×조명4 예비 비교, 채택 구성의 배경4곳 재검증. Toon 사본의 PBR 대조군, 야간 환경 실패의 부분 완료 구분. 실제4.5등신 V-08 시험과 최종 에셋 검수 별도 |
 
 ## 트랙 1B — PC 검증 (PC Claude 세션)
 
@@ -72,6 +74,7 @@ Astra는 이 표를 고치지 않는다. 병합하는 Fable 세션이 Astra WP �
 | C-06 | S-Map 문의 발송 | ⚪ |
 
 ## 결정 필요 (세션이 발견한 것)
+- **D-018 ②**: ① 제작 가설·18a는 승인. V-08/V-12 뒤 최종 룩·이름·외주 예산/계약·비공개 에셋 보관·필요 라이선스/출시 표시를 결정한다. [D-018](../DECISIONS.md), [WP-18](WP-18-characters.md). 모든 지출은② 이후.
 - ~~D-013~D-017 게임 기능 제안~~ → 2026-09-25 **전부 승인, 권장 우선순위대로**(WP-12 → 17). 남은 결정: **사운드 라이브러리 유료 구매 여부**(WP-13이 후보·가격 정리 뒤), 유료 모션 팩(V-08 뒤)
 - **애니메이션 에셋 라이선스**: GASP Fab 리스팅·Fab EULA·UE EULA 원문 확인(클라우드 403) → V-08 §0, D-002 기록
 - night 프리셋 look-dev 조합(D-010 뒤, `design/lighting-night-lookdev.md` §4)
