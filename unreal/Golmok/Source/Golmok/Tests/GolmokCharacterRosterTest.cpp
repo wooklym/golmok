@@ -81,6 +81,7 @@ namespace GolmokCharacterRosterTest
 			Test->TestEqual(TEXT("proxy half height"), Character->GetCapsuleComponent()->GetUnscaledCapsuleHalfHeight(), 69.f);
 			Test->TestTrue(TEXT("feet preserved"), FMath::IsNearlyEqual(Character->GetActorLocation().Z - 69.0, Feet));
 			Test->TestTrue(TEXT("proxy mesh scale"), Character->GetMesh()->GetRelativeScale3D().Equals(FVector(.8, .8, .75)));
+			Test->AddInfo(FString::Printf(TEXT("proxy mesh offset: %s"), *Character->GetMesh()->GetRelativeLocation().ToString()));
 			Test->TestTrue(TEXT("proxy mesh offset"), Character->GetMesh()->GetRelativeLocation().Equals(FVector(0, 0, -69)));
 			Test->TestEqual(TEXT("proxy walk"), Character->GetCharacterMovement()->MaxWalkSpeed, 145.f);
 			Test->TestEqual(TEXT("proxy run"), Character->GetRunSpeed(), 380.f);
@@ -136,7 +137,8 @@ namespace GolmokCharacterRosterTest
 			TemporaryPawn->Destroy();
 
 			Character->GetCharacterMovement()->MaxWalkSpeed = Character->GetWalkSpeed();
-			IConsoleCommand* Command = IConsoleManager::Get().FindConsoleObject(TEXT("golmok.character"))->AsCommand();
+			IConsoleObject* Object = IConsoleManager::Get().FindConsoleObject(TEXT("golmok.character"));
+			IConsoleCommand* Command = Object ? Object->AsCommand() : nullptr;
 			if (Test->TestNotNull(TEXT("registered character command"), Command))
 			{
 				Command->Execute({TEXT("list")}, World, *GLog);

@@ -19,7 +19,7 @@
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 #include "Player/GolmokCharacter.h"
-#include "ScopedMovementUpdate.h"
+#include "Engine/ScopedMovementUpdate.h"
 #include "Serialization/JsonReader.h"
 #include "Serialization/JsonSerializer.h"
 #include "UObject/SoftObjectPath.h"
@@ -376,22 +376,24 @@ bool UGolmokCharacterSubsystem::ApplyEntry(AGolmokCharacter* InCharacter, const 
 	}
 	{
 		FScopedMovementUpdate Scoped(Capsule, EScopedUpdate::DeferredUpdates);
-		if (bResize)
-		{
-			Capsule->SetCapsuleSize(static_cast<float>(D.Radius), static_cast<float>(D.HalfHeight), false);
-			InCharacter->SetActorLocation(Center, false, nullptr, ETeleportType::TeleportPhysics);
-		}
 		USkeletalMeshComponent* Mesh = InCharacter->GetMesh();
 		Mesh->SetSkeletalMesh(NewMesh);
-		Mesh->SetRelativeLocationAndRotation(GolmokCharacters::ToVector(D.MeshOffset), FRotator(0.0, D.MeshYaw, 0.0));
-		Mesh->SetRelativeScale3D(GolmokCharacters::ToVector(D.MeshScale));
 		Mesh->SetAnimInstanceClass(NewAnimClass);
+		Mesh->SetRelativeScale3D(GolmokCharacters::ToVector(D.MeshScale));
+		Mesh->SetRelativeLocationAndRotation(GolmokCharacters::ToVector(D.MeshOffset), FRotator(0.0, D.MeshYaw, 0.0));
 		InCharacter->CacheInitialMeshOffset(Mesh->GetRelativeLocation(), Mesh->GetRelativeRotation());
 		InCharacter->GetCameraBoom()->TargetArmLength = static_cast<float>(D.Boom);
 		InCharacter->GetCameraBoom()->SocketOffset = GolmokCharacters::ToVector(D.Socket);
 		InCharacter->GetFollowCamera()->SetFieldOfView(static_cast<float>(D.Fov));
 		InCharacter->SetMovementSpeeds(static_cast<float>(D.Walk), static_cast<float>(D.Run));
 		CurrentId = InEntry.Id;
+		// Finish child transforms before moving their deferred parent. Otherwise a child
+		// update can recompute its relative offset against a stale parent world transform.
+		if (bResize)
+		{
+			Capsule->SetCapsuleSize(static_cast<float>(D.Radius), static_cast<float>(D.HalfHeight), false);
+			InCharacter->SetActorLocation(Center, false, nullptr, ETeleportType::TeleportPhysics);
+		}
 	}
 	OutMessage = FString::Printf(TEXT("selected %s (%s / %s)"), *InEntry.Id, *InEntry.NameKo, *InEntry.NameEn);
 	return true;
