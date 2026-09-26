@@ -1,6 +1,6 @@
 # WP-18 — 플레이어 캐릭터
 
-상태: **설계 가설·리뷰 준비, D-018 ① 승인 대기** · 담당: **ChatGPT Astra**, 리뷰 **Fable ultracode**.
+상태: **설계·18a 코드/헤드리스 완료, GUI 검증·D-018 ①/Fable 리뷰 대기** · 담당: **ChatGPT Astra**, 리뷰 **Fable ultracode**.
 의존: WP-01 캐릭터, WP-04/05/09 포털·Zone·디버그, WP-12 포토 모드(통합 검증), WP-13 오디오 키 계약(18b), V-08(최종 애니메이션).
 검증: Python/CI, V-11(18a PC), V-12(룩 가설, Fable 실행·소유자 채점). 2026-09-26.
 
@@ -109,9 +109,25 @@ Fable PC 세션이 실 Zone(없으면 L_Basemap_Yeonnam)에서 회색 콘크리�
 
 공개 저장소에 Fab·외주 원본 넣지 않음. default ini 불변. 처음 로드가 실패하면 기존 플레이가 가능해야 한다. 돈이 드는 일/외부 메시지 발송 없음. 에디터 GUI 실행 전 `gui-foreground.lock` 확인, fps 측정은 다른 UE 프로세스 없을 때만. 원문 확인 못한 항목은 사실로 확정하지 않는다.
 
-## 결과 (구현 PR에서 작성)
+## 결과
 
-설계 A1~A5·B1~B6·C/D와 컨셉7장을 작성했다. 런타임 코드·실행 결과·V-11 런북은 [스택 구현 PR #23](https://github.com/wooklym/golmok/pull/23)의 이 절에서 기록한다. 설계 PR은 구현 결과를 이미 병합한 것으로 표시하지 않는다.
+2026-09-26, 별도 worktree에서 실행했다. [설계 PR #22](https://github.com/wooklym/golmok/pull/22) → [스택 구현 PR #23](https://github.com/wooklym/golmok/pull/23) 순서이며 아직 병합하지 않았다. 설계 최종 커밋67ee125를 `git merge origin/astra/wp-18-design`으로 받았고 충돌은 없었다.
+
+| 산출물 | 상태·근거 |
+|---|---|
+| A~D / B6 | 완료. 아트3안·후보6종/N1·KIPRIS6건 검색식·제작6경로·UE5.8 원문·D-018·외주 의뢰서 초안. 조건 미확인은 각 표에 남김 |
+| A4 이미지 | 최종7장1536×1024 JPG, 로컬 git LFS pointer7개·업로드 완료. 모든 그림에 컨셉 표시, 실제 입력 프롬프트 별도 문서. 모루빛 무드의 연령감/얼굴 일치·정확한 등신은 최종 인간 원화 검수 필요 |
+| 로스터/스키마 | 완료. Manny/Quinn/proxy135/proxy110, default Manny. [스키마](../spec/characters.schema.json)와 실제 JSON·유한수/관계 검증, 오류 시 전체 거절 |
+| 런타임/콘솔 | 완료. WorldSubsystem+빙의 델리게이트, 같은 폰 교체, `golmok.character list\|<id>`, 발밑/달리기 상태 보존·천장 겹침 거절. UI/저장/새 키/발소리 연결 없음 |
+| 훅 | 5ecb47f `GolmokCharacter` public 속도 setter, d530c3d 콘솔 등록 목록. 두 독립 커밋·표지, 기존 줄 삭제0 |
+| Python 게이트 | 설계: ruff/check_repo 성공, format93개, pytest590 passed/39 skipped. 구현: ruff/check_repo 성공, format95개, pytest608 passed/42 skipped. 양쪽208 warnings, 로컬 g++ skip 포함 |
+| CI 코드 검증 | b8105f2의 [Actions](https://github.com/wooklym/golmok/actions/runs/36248981836) 전체5 jobs success. Linux3.11/3.12·Windows3.12+MinGW 각각647 passed/3 skipped. 최신 head checks도 PR에서 확인 |
+| UE5.8.3 | add-mannequin·build 성공. Character 필터2 Success. 합성 실내 준비 후 전체 **18 Success(13+경고5), failed0/notRun0**, 39.11s. Movement180/500cm/s·점프90cm, 기존 테스트 수정 없음 |
+| V-11/V-12 | [PC 런북](../runbooks/pc-verify-wp18a.md) 완료. **GUI 포털과 교체 조합·실내 교체·WP-12 실제 사진·최초 로드 hitch/VRAM·V-12 채점 미실행**. V-11 전체 완료로 표시하지 않음 |
+
+UE 실행에서 `FScopedMovementUpdate` include 경로와 부모 캡슐의 지연 이동 후 메시 offset이−92로 남는 문제를 발견했다. 메시 상대변환을 먼저 적용하는 순서로 수정한 뒤−69/고정 발밑 단언과 전체 회귀 테스트가 통과했다. 전체 UE 경고5건은 L_Dev GeoOrigin/의도된 누락 Zone 자산·버전 fixture 경고이며 개별 state는 전부 Success다. nullrhi의 HUD fps는 성능 결과로 사용하지 않았다.
+
+최종 동기화 때 main은5c6f225이며 WP-12(`claude/hopeful-allen-f0a0jb`)와 공통 파일은 `test_ue_wp09_fixture.py` 한 개다. WP-12가 먼저 병합되면 photo 줄 먼저/character 줄 뒤로 보존한다. `pc/v08-animation`과 파일 충돌은 없다. 구매·발주·외부 의뢰 발송·새 라이선스 의존성 설치는 하지 않았다. 다음 실행은 D-018 ①/Fable 리뷰 뒤 V-11 GUI, WP-12 통합, V-12 및 V-08의 실제4.5등신 프록시 시험이다.
 
 ## 병합 시 반영
 
