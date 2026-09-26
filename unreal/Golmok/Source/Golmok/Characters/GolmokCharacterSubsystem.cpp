@@ -379,6 +379,9 @@ bool UGolmokCharacterSubsystem::ApplyEntry(AGolmokCharacter* InCharacter, const 
 		USkeletalMeshComponent* Mesh = InCharacter->GetMesh();
 		Mesh->SetSkeletalMesh(NewMesh);
 		Mesh->SetAnimInstanceClass(NewAnimClass);
+		// ApplyCharacterVisuals exposes the capsule when the ini mesh cannot load.
+		// A valid roster mesh replaces that fallback; do not propagate to the mesh.
+		Capsule->SetHiddenInGame(true);
 		Mesh->SetRelativeScale3D(GolmokCharacters::ToVector(D.MeshScale));
 		Mesh->SetRelativeLocationAndRotation(GolmokCharacters::ToVector(D.MeshOffset), FRotator(0.0, D.MeshYaw, 0.0));
 		InCharacter->CacheInitialMeshOffset(Mesh->GetRelativeLocation(), Mesh->GetRelativeRotation());

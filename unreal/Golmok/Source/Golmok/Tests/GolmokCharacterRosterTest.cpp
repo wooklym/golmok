@@ -35,6 +35,7 @@ namespace GolmokCharacterRosterTest
 		// Literals, deliberately independent of the JSON and math helper.
 		Test->TestEqual(TEXT("default radius"), Character->GetCapsuleComponent()->GetUnscaledCapsuleRadius(), 42.f);
 		Test->TestEqual(TEXT("default half height"), Character->GetCapsuleComponent()->GetUnscaledCapsuleHalfHeight(), 92.f);
+		Test->TestTrue(TEXT("default hides fallback capsule"), Character->GetCapsuleComponent()->bHiddenInGame);
 		Test->TestTrue(TEXT("default mesh offset"), Character->GetMesh()->GetRelativeLocation().Equals(FVector(0, 0, -92)));
 		Test->TestTrue(TEXT("default mesh rotation"), Character->GetMesh()->GetRelativeRotation().Equals(FRotator(0, -90, 0)));
 		Test->TestTrue(TEXT("default mesh scale"), Character->GetMesh()->GetRelativeScale3D().Equals(FVector::OneVector));
@@ -76,7 +77,16 @@ namespace GolmokCharacterRosterTest
 			// Stay away from map props; no physics tick occurs inside this transaction scenario.
 			Character->SetActorLocation(FVector(500, 0, 1000), false, nullptr, ETeleportType::TeleportPhysics);
 			const double Feet = Character->GetActorLocation().Z - 92.0;
+			// State left by ApplyCharacterVisuals when the ini mesh is absent.
+			Character->GetMesh()->SetSkeletalMesh(nullptr);
+			Character->GetCapsuleComponent()->SetHiddenInGame(false);
+			Test->TestFalse(TEXT("invalid id keeps fallback"), System->SelectCharacter(TEXT("missing_id"), Message));
+			Test->TestFalse(TEXT("failed selection leaves fallback visible"), Character->GetCapsuleComponent()->bHiddenInGame);
+			Test->TestNull(TEXT("failed selection leaves mesh absent"), Character->GetMesh()->GetSkeletalMeshAsset());
 			Test->TestTrue(TEXT("switch proxy135"), System->SelectCharacter(TEXT("proxy135"), Message));
+			Test->TestTrue(TEXT("valid roster mesh hides fallback capsule"), Character->GetCapsuleComponent()->bHiddenInGame);
+			Test->TestFalse(TEXT("capsule hiding does not hide mesh"), Character->GetMesh()->bHiddenInGame);
+			Test->TestFalse(TEXT("capsule hiding does not hide actor"), Character->IsHidden());
 			Test->TestEqual(TEXT("proxy radius"), Character->GetCapsuleComponent()->GetUnscaledCapsuleRadius(), 33.6f);
 			Test->TestEqual(TEXT("proxy half height"), Character->GetCapsuleComponent()->GetUnscaledCapsuleHalfHeight(), 69.f);
 			Test->TestTrue(TEXT("feet preserved"), FMath::IsNearlyEqual(Character->GetActorLocation().Z - 69.0, Feet));
