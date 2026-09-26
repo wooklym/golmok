@@ -1,8 +1,10 @@
 # V-11 — WP-18a 캐릭터 로스터 PC 검증
 
-2026-09-27 갱신 · 작성/헤드리스 실행 ChatGPT Astra · GUI 후속 Fable PC. 이번 #22/#23은 사용자 지시로 Astra 자체 리뷰·병합.
-**코드·UE 헤드리스 통과, GUI·WP-12 통합/룩 검증 대기.** D-018 ①은 승인됐으며 설계 PR → 구현 PR 병합 뒤 아래 남은 항목을 진행한다. V-12 채점과 대조군/야간 실패의 판정은 [WP-18](../plan/WP-18-characters.md)의 최신 절차를 따른다.
+2026-09-27 갱신 · 작성/헤드리스·standalone GUI 기초 검증 ChatGPT Astra · 지속 보행/품질 후속 Fable PC. 이번 #22/#23은 사용자 지시로 Astra 자체 리뷰·병합.
+**코드·UE 헤드리스 통과, GUI 교체·점프 확인, 지속 보행·WP-12 통합/룩 검증 대기.** D-018 ①은 승인됐으며 설계 PR → 구현 PR 병합 뒤 아래 남은 항목을 진행한다. V-12 채점과 대조군/야간 실패의 판정은 [WP-18](../plan/WP-18-characters.md)의 최신 절차를 따른다.
 계약과 D-018은 [WP-18](../plan/WP-18-characters.md), 아트 판단은 [컨셉](../design/character-concept.md), 예산은 [제작 사양](../research/11-character-pipeline.md).
+
+병합 후 최신 진행: [WP-18 후속 기록](../plan/WP-18-followup.md). 실제 경로 재생/복귀 자동화는 실행 통과했고, WP-12 실통합은 상대 코드의 UE5.8 컴파일 오류를 재현했다. 아래 초기 결과표보다 후속 기록을 우선한다.
 
 ## 1. 안전한 별도 PC 작업 폴더
 
@@ -80,7 +82,7 @@ golmok.character missing_id
 
 2026-09-27 `Golmok.Character.PortalRoundTrip`에서 실제 플레이어 캡슐을 문 앞/뒤로 옮겨 overlap·문 평면 검사·비동기 실내 로드/해제를 **3회 왕복**했다. 문 앞 proxy135→Manny, 진입 뒤 proxy110, 실내 Quinn 교체에서 폰/Controller·XY/발 위치·출입 상태를 검사했다. 합성 실내의 공중 표식 아래에서는 확대를 거절하고 옆에서는 성공해야 한다. 실내에서 unload delay(3초)보다 오래 기다려도 실내가 유지되고, 실외로 나가면 지연 후 서브레벨/Zone이 해제됨을 확인했다. `EnterInterior/LeaveInterior` 강제 호출 없이 실제 overlap/틱으로 출입했다.
 
-이 검사는 이동 컴포넌트를 멈추고 위치를 지정하므로 걷기·계단·시각 애니메이션 판정을 대신하지 않는다. **위 GUI 조합/영상과 실제 경로 재생은 여전히 미실행**이다. 비캐릭터 임시 Pawn 복귀와 기존 `Golmok.Portal.PawnSwap`/`RoundTrip`은 별도 자동화에서도 통과했다.
+이 검사는 이동 컴포넌트를 멈추고 위치를 지정하므로 걷기·계단·시각 애니메이션 판정을 대신하지 않는다. **위 포털 GUI 조합/영상은 여전히 미실행**이다. 실제 경로 재생은 후속 `Golmok.Character.PathRoundTrip`에서 실행 통과했다(§8). 비캐릭터 임시 Pawn 복귀와 기존 `Golmok.Portal.PawnSwap`/`RoundTrip`은 별도 자동화에서도 통과했다.
 
 ## 5. WP-12 병합 뒤 사진·V-12
 
@@ -124,3 +126,28 @@ V-12는 실제 Zone, 없으면 L_Basemap_Yeonnam에서 **프록시2종 × PBR/5.
 헤드리스 보고서: `unreal/Golmok/Saved/Automation/Report/index.json`, 로그는 같은 worktree의 `Saved/Logs`에 있다(ignored). 재실행하면 보고서가 대체된다. V-11 전체 완료는 위 GUI 미검증 항목까지 채운 뒤 기록한다.
 
 2026-09-27 자체 리뷰/설계 동기화 뒤 병합 전 재검증: UE 빌드 성공, 전체 **19 Success(14+경고5)/실패0/미실행0, 63.89s**, 실제 포털3회 왕복 완료. Python608 passed/42 skipped/208 warnings(33.27s), ruff/format95개/check_repo 성공. 이후 main497566f 동기화는 이미 받은 설계와 동일해 구현 코드 변화가 없었다.
+
+## 8. 후속 자동화와 화면 없는 렌더 증거
+
+- `Golmok.Character.PathRoundTrip`: 실제 Debug 경로를 2초 재생하고 자연 종료를 기다린다. 수동 Pawn 교체 모사와 달리 `StartPlayback`·`StopPlayback` 수명을 통과한다.
+- `Golmok.Character.PhotoIntegration`: WP-12가 함께 빌드될 때만 실제 Photo 서브시스템을 검사한다. main만 빌드하면 `NOT EXECUTED` 경고다. 이 상태를 사진 모드 통과로 보고하지 않는다. WP-12 `0806da8`의 컴파일 실패 위치는 [후속 기록](../plan/WP-18-followup.md)에 있다.
+- `Golmok.Character.RenderEvidence`: 아래 명시적 옵션과 GPU RHI가 필요하다. 일반 헤드리스 실행의 `NOT EXECUTED`는 정상이며 렌더 성공이 아니다. 옵션을 주고 `-nullrhi`를 같이 주면 명확한 오류로 실패한다.
+
+```powershell
+# 기존 빌드/L_Dev/마네킹 준비 뒤, 다른 검사와 같은 프로젝트를 동시에 실행하지 않는다.
+& 'C:\Program Files\Epic Games\UE_5.8\Engine\Binaries\Win64\UnrealEditor-Cmd.exe' `
+  'C:\Users\user\golmok-astra\wp-18a-roster\unreal\Golmok\Golmok.uproject' `
+  '-ExecCmds=Automation RunTests Golmok.Character.RenderEvidence;Quit' `
+  '-ReportExportPath=C:\Users\user\golmok-astra\wp-18a-roster\unreal\Golmok\Saved\Automation\WP18Followup\render-report' `
+  -GolmokCharacterRenderEvidence -RenderOffscreen -unattended -nosplash -nopause -nosound -ResX=1280 -ResY=720
+```
+
+결과는 `Saved/Automation/WP18Render/<UTC시각-GUID>/`의 PNG와 `capture.txt`다. 게임 뷰포트만 요청하며 데스크톱·다른 앱을 촬영하지 않는다. **실제 PNG 크기를 확인**한다. PIE 뷰포트 크기는 `ResX/ResY`와 다를 수 있다. 프록시2×조명4 + Quinn/Manny 정오 대조 + 발 전체를 보는 프록시2개의 붐1.5배 진단 구도, 총12장이다. 진단 구도는 기본 카메라 설정 변경이 아니다.
+
+`selection_cpu_ms`는 해당 세션에서 `SelectCharacter` API가 동기로 걸린 시간이다. 처음 요청된 메시/재사용 메시 여부와 OS/DDC 캐시 상태가 다르므로 cold-load hitch·GPU ms·프레임 끊김·VRAM 수치로 바꾸어 보고하지 않는다. 렌더 이미지는 템플릿 PBR·L_Dev에서 관찰한 증거이며 V-12의 실 배경·Toon·장난감·얼굴/DOF·최종4.5등신·소유자 채점은 계속 별도다.
+
+## 9. 보안 창 처리 뒤 standalone GUI 결과
+
+2026-09-27 Astra가 사용자 보안 창 처리 후 L_Dev의1280×720 게임 창에서4종 목록, Quinn→proxy135→proxy110→Manny 교체, 각4종 Space 점프·착지, 잘못된 ID 거절을 확인했다. 엔진 캡처4장(2560×1440)과 로그·검증 범위는 [후속 기록의 GUI 절](../plan/WP-18-followup.md#보안-창-처리-뒤-gui-검증)에 있다. 두 프록시의 기본 구도에서는 발끝이 하단에 잘렸다.
+
+이 결과는 §7 초기 표의 GUI 전부 미실행 상태를 **기초 동작 부분 확인**으로 갱신한다. 지속 키 입력·보행 주기·달리기 중 교체, 턱/계단/붐 충돌, 포털 GUI 영상, PIE 재시작, 초기 메시 실패 후 GUI 복구는 아직 실행하지 않았다. WP-12 컴파일 차단 해소 뒤 사진 통합6조합을 실행하고, 품질 채점은 V-12에서 별도로 한다.
