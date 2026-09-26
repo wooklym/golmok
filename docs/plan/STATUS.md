@@ -35,6 +35,16 @@
 | WP-12 | 포토 모드 최소판(D-013) | ⚪ 대기 | — | 스펙 `plan/WP-12-photo-mode.md`. 일시정지·자유 카메라(반경·footprint 클램프)·FOV/노출/DOF·캐릭터 숨김·고해상도 PNG + 메타 JSON, `Config/Golmok/photo.json`, 순수 헤더 g++ 교차검증, 런북 V-09 |
 | WP-13 | 환경음 기본(D-016 (a)) | ⚪ 대기 | — | 스펙 `plan/WP-13-ambience-audio.md`. `research/10` 사운드 출처(라이선스 원문), `Audio/` 앰비언스 크로스페이드·발소리(거리 기반, 재질)·실내/시간대 전환, `audio.json`, `audio_import.py`, WAV(LFS ≤ 40 MB) 또는 플레이스홀더, 런북 V-10 |
 
+## 병행 트랙 — ChatGPT Astra (DEVELOPMENT-PLAN §7.6)
+
+Astra는 이 표를 고치지 않는다. 병합하는 Fable 세션이 Astra WP 문서의 "병합 시 반영" 문안으로 고친다. 예약 번호: WP-18(18a·18b), V-11, V-12, D-018, research/11.
+
+| 항목 | 내용 | 상태 | 담당 | 메모 |
+|---|---|---|---|---|
+| WP-18 | 플레이어 캐릭터: 디자인·제작 경로·18a 플레이스홀더 캐릭터 목록·교체 (병행) | ⚪ 대기 | **ChatGPT Astra**(DEVELOPMENT-PLAN §7.6 캐릭터 레인, 리뷰·병합 Fable ultracode) | 브랜치 `astra/wp-18-*` → PR(Astra는 병합하지 않음). 설계 PR: `design/character-concept.md`, `research/11-character-pipeline.md`, `plan/WP-18-characters.md`, D-018 제안(문안은 WP 문서 "병합 시 반영"). 18a PR: `Source/Golmok/Characters/` + `Config/Golmok/characters.json`, 핫스팟(`GolmokCharacter` 등)은 표지 달린 훅만. 18b(실제 에셋·리타깃·이모트)는 V-08 채택안·룩 검증(V-12)·D-018 ② 뒤. |
+| V-11 | WP-18a 캐릭터 목록·교체 검증 | ⚪ 대기 | PC 세션 | 런북 `runbooks/pc-verify-wp18a.md`(WP-18a에서 Astra 작성): 빌드 → `test.ps1 -Filter Golmok.Character` → PIE에서 캐릭터 교체, 포털·포토 모드와 함께, 기본 캐릭터 `Golmok.Player.Movement` 기준 유지 |
+| V-12 | 캐릭터 룩 검증(프록시) | ⚪ 대기 | PC 세션(Fable) | WP-18 설계 뒤, D-018 ② 전: 구매 없이 만든 프록시(마네킹 머티리얼·비율 변형)를 골목 Zone(없으면 `L_Basemap_Yeonnam`)에 두고 조명 프리셋 4개·포토 모드로 스크린샷 → 사용자 채점. |
+
 ## 트랙 1B — PC 검증 (PC Claude 세션)
 
 | V | 내용 | 상태 | 메모 |
