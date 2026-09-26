@@ -11,6 +11,7 @@
 #include "Engine/World.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/PlayerController.h"
+#include "GameFramework/SpringArmComponent.h"
 #include "HAL/FileManager.h"
 #include "Lighting/GolmokTimeOfDay.h"
 #include "Misc/App.h"
@@ -57,13 +58,13 @@ namespace GolmokCharacterRosterRenderTest
 			if (!Character || !Roster || !Lighting || World->GetTimeSeconds() < 0.6f) return false;
 			const TCHAR* Id = Case < 4 || Case == 10 ? TEXT("proxy135") : Case < 8 || Case == 11 ? TEXT("proxy110") : Case == 8 ? TEXT("quinn") : TEXT("manny");
 			const TCHAR* Light = Presets[Case < 8 ? Case % 4 : 1];
-			const TCHAR* View = Case >= 10 ? TEXT("feet_pitch_minus12") : TEXT("default_pitch0");
+			const TCHAR* View = Case >= 10 ? TEXT("feet_boom1p5_pitch0") : TEXT("default_pitch0");
 			if (Phase == 0)
 			{
 				Character->GetCharacterMovement()->DisableMovement();
 				Character->SetActorLocation(FVector(500, 0, Character->GetCapsuleComponent()->GetUnscaledCapsuleHalfHeight() + 2), false, nullptr, ETeleportType::TeleportPhysics);
 				Character->SetActorRotation(FRotator(0, 180, 0));
-				PC->SetControlRotation(FRotator(Case >= 10 ? -12.f : 0.f, 0, 0));
+				PC->SetControlRotation(FRotator::ZeroRotator);
 				if (UGolmokDebugSubsystem* Debug = World->GetSubsystem<UGolmokDebugSubsystem>()) Debug->SetHudVisible(false);
 				FString Message;
 				const double Before = FPlatformTime::Seconds();
@@ -74,9 +75,11 @@ namespace GolmokCharacterRosterRenderTest
 					Test->AddError(Message);
 					return true;
 				}
+				// A diagnostic view only: the default shoulder camera crops feet at this aspect ratio.
+				if (Case >= 10) Character->GetCameraBoom()->TargetArmLength *= 1.5f;
 				if (!Test->TestTrue(TEXT("render evidence applies original lighting preset"), Lighting->ApplyPreset(FName(Light), true))) return true;
 				File = Folder / FString::Printf(TEXT("%s_pbr_%s_%s.png"), Id, Light, View);
-				Manifest += FString::Printf(TEXT("id=%s light=%s view=%s fov=%.4f selection_cpu_ms=%.3f capsule_center=%s file=%s\n"), Id, Light, View, Character->GetFollowCamera()->FieldOfView, SelectionMs, *Character->GetActorLocation().ToString(), *FPaths::GetCleanFilename(File));
+				Manifest += FString::Printf(TEXT("id=%s light=%s view=%s fov=%.4f boom_cm=%.4f selection_cpu_ms=%.3f capsule_center=%s file=%s\n"), Id, Light, View, Character->GetFollowCamera()->FieldOfView, Character->GetCameraBoom()->TargetArmLength, SelectionMs, *Character->GetActorLocation().ToString(), *FPaths::GetCleanFilename(File));
 				FFileHelper::SaveStringToFile(Manifest, *(Folder / TEXT("capture.txt")), FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);
 				PhaseAt = Now;
 				Phase = 1;
