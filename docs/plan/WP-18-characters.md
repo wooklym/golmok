@@ -70,7 +70,7 @@ OnWorldBeginPlay에서 첫 PC에 AddDynamic. 즉시 이미 빙의된 폰을 처�
 2. 대상은 첫 PC의 AGolmokCharacter. 정지 중 또는 ViewTarget이 캐릭터가 아니면 수동 교체를 거절한다(WP-12 촬영/TimeDilation 모드도 ViewTarget으로 감지). 경로 폰, crouch, 물리 시뮬레이션·비단위 액터 스케일/기울어진 캡슐은 범위 밖으로 거절한다. 콘솔에서 이유를 알린다.
 3. 새 메시·ABP를 모두 로드하고 애니메이션 클래스의 TargetSkeleton과 메시 Skeleton이 같은지 검사한다. **18a는 같은 스켈레톤만 허용**. GASP/다른 리그의 허용은 18b retarget ABP가 완료된 뒤 설계를 확장한다. 실패하면 기존 메시·수치·id 유지.
 4. 기존 발밑 = 캡슐 중심 Z−기존 half. 새 중심 = 발밑+새 half. XY/회전/속도는 보존. 새 캡슐 위치/크기의 blocking overlap을 기존 collision response로 검사해 천장·벽에 겹치면 거절. 크기/위치 동일한 기본 재적용은 이동/overlap 검사 생략.
-5. 검증 뒤 scoped movement update 안에서 캡슐·중심·메시·오프셋·스케일·ABP·카메라·속도 적용. 중간 overlap 이벤트 노출을 줄인다. 메시의 initial offset cache도 갱신. actor hidden/collision flags·ViewTarget·time dilation은 건드리지 않는다. 마지막에 현재 id 갱신. 로드가 동기식이므로 첫 교체 히치는 V-11에 측정 항목으로 남긴다.
+5. 검증 뒤 scoped movement update 안에서 메시·오프셋·스케일·ABP·initial offset cache·카메라·속도·현재 id를 갱신한 다음 캡슐 크기/중심을 바꾼다. 지연된 부모 이동보다 자식 메시 상대변환을 먼저 설정해야 실제 Z offset이 유지된다. scope 종료 때 overlap을 알리므로 관찰자는 완성된 교체 상태를 본다. actor hidden/collision flags·ViewTarget·time dilation은 건드리지 않는다. 로드가 동기식이므로 첫 교체 히치는 V-11에 측정 항목으로 남긴다.
 
 포털: 반지름/높이가 달라지면 실제 overlap은 재평가되지만 평면을 넘는 XY 이동은 발생하지 않는다. 실내 상태·Zone pin을 인위적으로 바꾸지 않는다. Zone loader: XY 위치가 같아 거리 기준 유지. 포토: 진입 전에 바꾸고 새 FOV를 상속받도록 한다. 포토 중엔 교체 거절. 경로: 경로 폰을 무시하고 복귀 시 같은 선택 복원.
 
@@ -86,7 +86,7 @@ OnWorldBeginPlay에서 첫 PC에 AddDynamic. 즉시 이미 빙의된 폰을 처�
 - JSON schema: 필수·추가 키·배열 길이·유효/잘못된 경로·범위, default 존재·중복id·속도/캡슐 관계는 semantic 검사로 보강.
 - 순수 C++: 기준 리터럴, 두 프록시, 무작위 유효 입력 Python 교차계산, NaN/Inf/범위·관계 실패. stdin 입력/UTF-8, g++ `-Wall -Wextra -Werror -pedantic`.
 - UE `Golmok.Character.Config`: 실제 JSON, malformed·duplicate·unknown default·타입/관계 실패, 파서 실패 원자성.
-- UE `Golmok.Character.Roster`: L_Dev PIE/nullrhi. 자동 default 적용을 리터럴로 검사(경로·캡슐·메시 offset/yaw/scale·카메라·속도), Quinn/프록시/Manny 왕복, 잘못된 id 보존, 달리기 상태 보존, 발밑 보존, 천장 겹침 거절, 비캐릭터 폰 무시/복귀, 정지/뷰타깃 교체 거절. 기존 `Golmok.Player.Movement` 수정 없이 전체 실행.
+- UE `Golmok.Character.Runtime`: L_Dev PIE/nullrhi. 자동 default 적용을 리터럴로 검사(경로·캡슐·메시 offset/yaw/scale·카메라·속도), Quinn/프록시/Manny 왕복, 잘못된 id 보존, 달리기 상태 보존, 발밑 보존, 천장 겹침 거절, 비캐릭터 폰 무시/복귀, 정지/뷰타깃 교체 거절. 기존 `Golmok.Player.Movement` 수정 없이 전체 실행.
 - 실제 GUI 포털 왕복·실내 교체·Quinn 스켈레톤·사진/그림자 품질은 V-11/V-12 기록. Python 성공을 UE 성공으로 대체하지 않는다.
 
 ### 18b 개요
@@ -97,7 +97,7 @@ OnWorldBeginPlay에서 첫 PC에 AddDynamic. 즉시 이미 빙의된 폰을 처�
 
 ### V-12 절차·채점
 
-Fable PC 세션이 실 Zone(없으면 L_Basemap_Yeonnam)에서 회색 콘크리트·붉은 벽돌·초록 대문·간판 색면 배경 4곳을 선정한다. 실명 간판/인물이 없는 검수 가능 구도만 저장한다. 18a 키/폭 프록시 2개 × 재질3안 × 조명4프리셋, 기본 거리와 얼굴0.5m/사진 f2.8·f8을 같은 위치에서 비교한다. 없는 배경은 무지 색판으로 대체했다고 기록한다.
+Fable PC 세션이 실 Zone(없으면 L_Basemap_Yeonnam)에서 회색 콘크리트·붉은 벽돌·초록 대문·간판 색면 배경 4곳을 선정한다. 실명 간판/인물이 없는 검수 가능 구도만 저장한다. 18a 키/폭 프록시 2개 × 재질3안(Toon은 5.8 Substrate 실험 기능, 기존 설정 후처리는 별도 대조군) × 조명4프리셋, 기본 거리와 얼굴0.5m/사진 f2.8·f8을 같은 위치에서 비교한다. 없는 배경은 무지 색판으로 대체했다고 기록한다.
 
 소유자가 배경 조화·실루엣·사진 매력·발밑/벽 그림자·비율 감각을 각1~5로 채점. 권장 통과 가설: 평균4 이상, 어느 항목도3 미만 없음, 천장/계단 관통·그림자 수신 실패는 별도 blocker. 캐릭터당 프레임 GPU ms·VRAM peak와 D-010 경로를 같이 적는다. 최종 캐릭터 승인에는 4.5등신 별도 프록시의 V-08 동작 영상도 필요하다.
 
@@ -111,7 +111,7 @@ Fable PC 세션이 실 Zone(없으면 L_Basemap_Yeonnam)에서 회색 콘크리�
 
 ## 결과 (구현 PR에서 작성)
 
-(미완 — 다음 실행)
+설계 A1~A5·B1~B6·C/D와 컨셉7장을 작성했다. 런타임 코드·실행 결과·V-11 런북은 [스택 구현 PR #23](https://github.com/wooklym/golmok/pull/23)의 이 절에서 기록한다. 설계 PR은 구현 결과를 이미 병합한 것으로 표시하지 않는다.
 
 ## 병합 시 반영
 
