@@ -1,6 +1,6 @@
 # WP-18 — 플레이어 캐릭터
 
-상태: **설계 자체 리뷰·18a 코드/헤드리스 완료·D-018 ① 승인, 병합 준비·GUI 검증 대기** · 담당/이번 리뷰·병합: **ChatGPT Astra(2026-09-27 사용자 지시)**. 최종 엔진 품질 검증은 Fable PC 후속.
+상태: **🟡 설계 자체 리뷰·18a 코드/헤드리스 완료·D-018 ① 승인, PC GUI 검증 대기** · 담당/이번 리뷰·병합: **ChatGPT Astra(2026-09-27 사용자 지시)**. 최종 엔진 품질 검증은 Fable PC 후속.
 의존: WP-01 캐릭터, WP-04/05/09 포털·Zone·디버그, WP-12 포토 모드(통합 검증), WP-13 오디오 키 계약(18b), V-08(최종 애니메이션).
 검증: Python/CI, V-11(18a PC), V-12(룩 가설, Fable 실행·소유자 채점). 2026-09-26.
 
@@ -118,7 +118,7 @@ Fable PC 세션이 실 Zone(없으면 L_Basemap_Yeonnam)에서 회색 콘크리�
 
 ## 결과
 
-2026-09-26, 별도 worktree에서 실행했다. [설계 PR #22](https://github.com/wooklym/golmok/pull/22) → [스택 구현 PR #23](https://github.com/wooklym/golmok/pull/23) 순서이며 아직 병합하지 않았다. 설계 최종 커밋67ee125를 `git merge origin/astra/wp-18-design`으로 받았고 충돌은 없었다.
+2026-09-26~27, 별도 worktree에서 실행했다. [설계 PR #22](https://github.com/wooklym/golmok/pull/22) → [구현 PR #23](https://github.com/wooklym/golmok/pull/23) 순서다. 아래 초기 실행 뒤 캡슐 복구 수정·포털 통합 자동화·자체 리뷰와 병합 문안 반영을 추가했다. 설계67ee125 동기화는 충돌 없이 완료했고, 자체 리뷰 반영442d52f 동기화에서는 이 문서 상태 머리말만 충돌해 승인/리뷰 기록과 구현 완료를 함께 보존했다.
 
 | 산출물 | 상태·근거 |
 |---|---|
@@ -142,7 +142,7 @@ UE 실행에서 `FScopedMovementUpdate` include 경로와 부모 캡슐의 지�
 
 수정 후 UE5.8.3 빌드 성공, Character 필터2 Success, 전체 **18 Success(13+경고5), failed0/notRun0, 39.87s**. Python ruff/check_repo 성공, format95개, pytest **608 passed/42 skipped/208 warnings, 40.12s**. 경고와 로컬 g++ skip은 위 결과와 같다. 리뷰의 향후 uncrouch 참고사항은 현재 crouch 미지원 범위에 해당하며, crouch를 도입할 때 CDO 캡슐/메시 오프셋 복원과 로스터 크기 유지의 통합 검사가 필요하다.
 
-소유자는 이날 Astra의 병합 실행을 승인했다. 별도의 Fable ultracode 사전 리뷰 조건은 충족 여부/이번 두 PR 예외를 확인 중이며, 아직 병합하지 않았다. V-11 GUI와 WP-12 실제 포토 통합은 계속 미실행 상태다.
+당시 소유자의 병합 실행 승인은 있었으나 별도의 Fable 사전 리뷰 조건을 확인 중이었다. 이후 소유자가 설계 자체 리뷰 후 머지를 지시해 이번 두 PR의 검토/병합 방식을 확정했다(아래 리뷰 절). V-11 GUI와 WP-12 실제 포토 통합은 계속 미실행 상태다.
 
 ### 2026-09-27 V-11 포털 통합 자동화 보강
 
@@ -172,7 +172,9 @@ UE 실행에서 `FScopedMovementUpdate` include 경로와 부모 캡슐의 지�
 
 ## 병합 시 반영
 
-2026-09-27: 사용자에게 위임받은 Astra가 STATUS·DECISIONS(D-002/D-018)·ROADMAP·DEVELOPMENT-PLAN·game-features-proposal에 아래 문안을 반영했다. 설계 PR의 공유 상태는 #23 구현이 이미 main에 들어간 것으로 표시하지 않는다. 구현 병합 직전 #23에서 그 상태를 갱신한다.
+최종 병합 준비 기록(2026-09-27): 설계 #22는 **497566f**로 main에 병합했다. #23 base를 main으로 바꾸고 `git merge origin/main`으로 동기화했다. 이미 받은 설계442d52f와 같아 추가 파일 충돌/코드 변경은 없었다. 앞선 설계 동기화의 유일한 충돌은 이 문서 상태 머리말이며 구현 결과와 새 승인/리뷰 기록을 모두 보존했다. 최종 로컬 재검증: UE 빌드 성공·**19 Success(14+경고5), failed0/notRun0, 63.89s**, Python **608 passed/42 skipped/208 warnings, 33.27s**, ruff/format95개/check_repo/diff check 통과. 구현 소스/테스트는 이 재검증 이후 불변이며 최종 head CI 확인 뒤 merge commit으로 병합한다.
+
+2026-09-27: 사용자에게 위임받은 Astra가 STATUS·DECISIONS(D-002/D-018)·ROADMAP·DEVELOPMENT-PLAN·game-features-proposal에 아래 문안을 반영했다. #22는 설계/스택 상태를, #23은 설계·18a 코드 완료 및V-11 GUI·WP-12 포토·V-12 대기를 기록한다. 이 병합 기록은 실제 에셋 발주·최종 품질 승인이 아니다.
 
 ### D-018 | ① 승인·② 대기 | 2026-09-27 — 캐릭터 선택·교체와 고유 캐릭터 제작
 

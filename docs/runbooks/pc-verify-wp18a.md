@@ -1,7 +1,7 @@
 # V-11 — WP-18a 캐릭터 로스터 PC 검증
 
-2026-09-27 갱신 · 작성/헤드리스 실행 ChatGPT Astra · GUI 후속 Fable PC · 리뷰 Fable ultracode.
-**코드·UE 헤드리스 통과, GUI·WP-12 통합/룩 검증 대기.** D-018 ① 승인·설계 PR → 구현 PR 병합 뒤 아래 남은 항목을 진행한다.
+2026-09-27 갱신 · 작성/헤드리스 실행 ChatGPT Astra · GUI 후속 Fable PC. 이번 #22/#23은 사용자 지시로 Astra 자체 리뷰·병합.
+**코드·UE 헤드리스 통과, GUI·WP-12 통합/룩 검증 대기.** D-018 ①은 승인됐으며 설계 PR → 구현 PR 병합 뒤 아래 남은 항목을 진행한다. V-12 채점과 대조군/야간 실패의 판정은 [WP-18](../plan/WP-18-characters.md)의 최신 절차를 따른다.
 계약과 D-018은 [WP-18](../plan/WP-18-characters.md), 아트 판단은 [컨셉](../design/character-concept.md), 예산은 [제작 사양](../research/11-character-pipeline.md).
 
 ## 1. 안전한 별도 PC 작업 폴더
@@ -122,3 +122,5 @@ V-12는 실제 Zone, 없으면 L_Basemap_Yeonnam에서 **프록시2종 × PBR/5.
 2026-09-27 [Claude 리뷰 지적](https://github.com/wooklym/golmok/pull/23#discussion_r4111832801) 수정 후 재실행: UE 빌드 성공, Character2 Success, 전체18 Success(13+경고5)/실패0/미실행0, 39.87s. Python 게이트도 통과(608 passed/42 skipped/208 warnings, 40.12s). Runtime은 ini 메시 실패와 같은 `mesh=null`/대체 캡슐 표시 상태에서 잘못된 선택은 표시를 유지하고, 정상 로스터 메시 적용은 캡슐만 숨기며 메시와 Actor는 표시하는 회귀를 추가했다. GUI 검증에는 이 초기 실패 → 정상 선택 복구도 포함한다. 향후 crouch 지원 시 uncrouch의 CDO 크기/offset 복원은 별도 검증한다.
 
 헤드리스 보고서: `unreal/Golmok/Saved/Automation/Report/index.json`, 로그는 같은 worktree의 `Saved/Logs`에 있다(ignored). 재실행하면 보고서가 대체된다. V-11 전체 완료는 위 GUI 미검증 항목까지 채운 뒤 기록한다.
+
+2026-09-27 자체 리뷰/설계 동기화 뒤 병합 전 재검증: UE 빌드 성공, 전체 **19 Success(14+경고5)/실패0/미실행0, 63.89s**, 실제 포털3회 왕복 완료. Python608 passed/42 skipped/208 warnings(33.27s), ruff/format95개/check_repo 성공. 이후 main497566f 동기화는 이미 받은 설계와 동일해 구현 코드 변화가 없었다.
