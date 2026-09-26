@@ -7,7 +7,8 @@
 /**
  * Debug overlay (WP-05 design section 4-8): draws the lines of UGolmokDebugSubsystem::GetHudLines() with the engine
  * small font over a translucent box while the HUD is visible (golmok.hud / F1). While a path plays with the HUD
- * hidden only the "path:" progress line is drawn. High resolution screenshots (golmok.screenshot) never include it.
+ * hidden only the "path:" progress line is drawn. It is hidden by photo mode while capturing (WP-12); golmok.screenshot
+ * includes it (V-03).
  * Set as HUDClass by AGolmokGameMode. Config: [/Script/Golmok.GolmokHUD] in DefaultGame.ini.
  */
 UCLASS(Config = Game)

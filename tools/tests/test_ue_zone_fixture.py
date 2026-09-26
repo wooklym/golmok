@@ -141,7 +141,15 @@ def _headers(*folders: str) -> list[Path]:
     return out
 
 
-CONVENTION_FOLDERS = ("Geo", "Zones", "Lighting", "Portals", "Debug", "Player")  # WP-05 adds the last four
+CONVENTION_FOLDERS = (
+    "Geo",
+    "Zones",
+    "Lighting",
+    "Portals",
+    "Debug",
+    "Player",
+    "Photo",
+)  # WP-05 adds four, WP-12 Photo
 
 
 @pytest.mark.parametrize("header", _headers(*CONVENTION_FOLDERS), ids=lambda p: p.name)

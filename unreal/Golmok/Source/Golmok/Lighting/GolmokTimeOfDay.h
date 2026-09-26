@@ -155,6 +155,9 @@ public:
 	/** 0..1 progress of the running transition (1 when none). */
 	float GetTransitionAlpha() const;
 
+	/** Moves a running transition's start forward by DeltaSeconds (photo mode: world time that passed while paused). No-op when not transitioning. */
+	void ShiftTransitionStart(double DeltaSeconds);
+
 	/** Reads the current values off the lighting actors (tests). False when no target actor was found. */
 	bool CaptureState(FGolmokLightingState& Out) const;
 

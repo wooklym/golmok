@@ -6,6 +6,7 @@
 
 class AGolmokTimeOfDay;
 class UGolmokDebugSubsystem;
+class UGolmokPhotoModeSubsystem;
 class UInputAction;
 class UInputMappingContext;
 
@@ -18,8 +19,12 @@ class UInputMappingContext;
  *
  *   F1 HUD on/off        F2 collision view on/off      1..4 lighting preset cycle[0..3]      F5 next preset
  *   F9 record toggle (QuickPathName)                   F10 playback toggle (last played / QuickPathName, no csv)
+ *   P photo mode on/off (WP-12; also Gamepad_Special_Left) - a player feature: IMC_GolmokPhotoToggle is always added
+ *   at PhotoTogglePriority, whatever bDebugKeysEnabled says. The photo actions themselves belong to
+ *   UGolmokPhotoModeSubsystem; SetupInputComponent only hands it the input component (BindInput).
  *
- * BeginPlay also guarantees one AGolmokTimeOfDay in the level (AGolmokTimeOfDay::FindOrSpawn).
+ * While photo mode is on it suspends the debug keys (SetDebugKeysSuspended: IMC_GolmokDebug removed, re-added when
+ * bDebugKeysEnabled). BeginPlay also guarantees one AGolmokTimeOfDay in the level (AGolmokTimeOfDay::FindOrSpawn).
  * Config: [/Script/Golmok.GolmokPlayerController] in DefaultGame.ini.
  */
 UCLASS(Config = Game)
@@ -39,6 +44,13 @@ public:
 	/** Cached AGolmokTimeOfDay of the level, spawned (transient) when the level has none. Null outside game worlds. */
 	AGolmokTimeOfDay* GetTimeOfDay();
 
+	/** true: IMC_GolmokDebug removed (photo mode); false: re-added when bDebugKeysEnabled. AddMappingContext() early-returns while suspended. */
+	void SetDebugKeysSuspended(bool bSuspended);
+	bool IsDebugKeysSuspended() const { return bDebugKeysSuspended; }
+
+	/** Priority of IMC_GolmokPhotoToggle: above IMC_GolmokDebug (1), below the subsystem's IMC_GolmokPhoto (3). */
+	static constexpr int32 PhotoTogglePriority = 2;
+
 protected:
 	virtual void BeginPlay() override;
 	virtual void SetupInputComponent() override;
@@ -57,6 +69,9 @@ private:
 	void OnNextPreset();
 	void OnToggleRecord();
 	void OnTogglePlay();
+
+	/** P / Gamepad_Special_Left: UGolmokPhotoModeSubsystem::Toggle; logs "P: <message>". */
+	void OnTogglePhoto();
 
 	/** ApplyPreset(GetCycle()[Index]); warns when Index is outside the cycle (e.g. presets file missing). */
 	void ApplyPresetIndex(int32 Index);
@@ -101,6 +116,16 @@ private:
 	/** F10 */
 	UPROPERTY(Transient)
 	TObjectPtr<UInputAction> PlayAction;
+
+	/** IMC_GolmokPhotoToggle: P, Gamepad_Special_Left; always added (bDebugKeysEnabled-independent). */
+	UPROPERTY(Transient)
+	TObjectPtr<UInputMappingContext> PhotoToggleContext;
+
+	/** P / Gamepad_Special_Left (bTriggerWhenPaused = true): IA_GolmokPhotoToggle */
+	UPROPERTY(Transient)
+	TObjectPtr<UInputAction> PhotoToggleAction;
+
+	bool bDebugKeysSuspended = false;
 
 	TWeakObjectPtr<AGolmokTimeOfDay> TimeOfDay;
 };
