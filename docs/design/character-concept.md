@@ -12,10 +12,10 @@
 | 방식 | 엔진 소스 수정 없는 구현 | 배경·실루엣·사진 | 접지·비용과 판정 |
 |---|---|---|---|
 | **스타일라이즈드 PBR** | Opaque Default Lit, 피부는 약한 Subsurface Profile 비교, 거칠기/노멀/재질 AO. Material Instance에서 팔레트·거칠기 조절 | 회색 벽에는 밝은 살구, 붉은 벽돌에는 남색, 초록 대문에는 크림색 경계가 읽힌다. 과한 피부 모공은 제외 | 실제 광원 아래 직접광·간접광과 VSM을 사용. 권장 가설 |
-| 툰·셀 | Default Lit의 명암을 유지한 색면 단순화 + CustomDepth/Stencil로 캐릭터만 선택하는 후처리 밴딩/외곽선. Unlit+수동 N·L은 비교 프록시만 | 멀리서는 잘 읽히나 간판 색과 경쟁하고 DOF 경계에 테두리 번짐 가능 | 후처리가 최종 광량을 다시 양자화해 실제 환경의 색 번짐을 약화할 수 있다. 소스 수정 없는 근사안이며 ‘정확한 커스텀 toon BRDF’가 아니다 |
+| 툰·셀 | UE 5.8 **Substrate Toon BSDF + Toon Profile**(Experimental, Blendable GBuffer legacy)로 면 자체 명암/정반사를 조절. 별도 엔진 셰이더 추가 없음. 기존 설정의 대조군은 Default Lit+Stencil 후처리 | 색면 실루엣이 강함. 계단식 음영과 실제 골목의 거친 명암이 충돌할지 비교. DOF 속 가는 윤곽선은 별도 검사 | [확인] 5.8 공식 릴리스 노트는 로컬·스카이 라이트, Lumen GI, 자체 음영 제어를 명시. 실험 기능이므로 Launcher 5.8.3에서 VSM/자체 그림자·사진을 V-12로 검증. PBR 권장을 바꾸기 전 같은 구도 비교 |
 | 미니어처·장난감 | Opaque Default Lit 또는 Clear Coat, 두툼한 모서리·도장 러프니스 | 사진 속 작은 장난감이라는 서사는 강함. 플라스틱 피부·유광 하이라이트가 인물 감정과 경쟁 | VSM 접지는 가능하나 낮은 시점과 강한 DOF가 골목 전체를 모형처럼 보이게 할 위험 |
 
-커스텀 셰이딩 모델을 추가하거나 deferred lighting pass를 고치는 구현은 Launcher 5.8.3/엔진 소스 불변 원칙 때문에 제외한다. Substrate는 필요조건이 아니다. 기존 프로젝트 설정 그대로 Default Lit부터 검증하고, 계층 재질이 사진에 실질적인 차이를 줄 때만 별도 비교한다.
+커스텀 셰이딩 모델을 추가하거나 deferred lighting pass를 고치는 외부 구현은 Launcher 5.8.3/엔진 소스 불변 원칙 때문에 제외한다. 엔진에 포함된 실험적 Toon BSDF는 이 금지와 다르며 비교 대상이다. **PBR 기본안에 Substrate 전환은 필요 없다.** 전환 실험은 별도 로컬 프록시 프로젝트에서 하고 공유 렌더 설정은 이번 PR에서 바꾸지 않는다.
 
 ### 공식 근거와 적용 한계
 
@@ -26,7 +26,9 @@
 | [확인] [Epic Shading Models](https://dev.epicgames.com/documentation/en-us/unreal-engine/shading-models-in-unreal-engine), Default Lit | “makes use of direct and indirect lighting” | 불투명 PBR/장난감의 광 반응 근거. Unlit는 간접광을 받는 표면으로 간주하지 않는다 |
 | [확인] [Epic Lumen](https://dev.epicgames.com/documentation/en-us/unreal-engine/lumen-global-illumination-and-reflections-in-unreal-engine), Material Ambient Occlusion | “provides reliable self-occlusion on Skeletal Meshes” | 자체 음영은 VSM 직접 그림자와 Lumen 간접광/재질 AO를 구분. AO에는 Allow Static Lighting 비활성 조건이 있어 현 설정 확인 후 V-12 비교 |
 | [확인] [Epic VSM](https://dev.epicgames.com/documentation/en-us/unreal-engine/virtual-shadow-maps-in-unreal-engine) | “Plausible soft shadows with reasonable, controllable performance costs” | CastShadow가 켜진 스켈레탈 메시와 그림자 수신 표면을 함께 시험. 애니메이션으로 캐시가 무효화되는 비용도 측정 |
-| [확인] [Epic Cinematic DOF](https://dev.epicgames.com/documentation/en-us/unreal-engine/cinematic-depth-of-field-in-unreal-engine) | 문서 본문 확인, 인용·설정별 세부 판정은 V-12 | 얼굴에 초점을 놓고 f/2.8·f/8 비교. 큰 머리의 앞뒤 깊이 때문에 눈과 귀가 동시에 흐려지는지 확인. 불투명 옷·머리카락 덩어리를 우선 |
+| [확인] [Epic Cinematic DOF](https://dev.epicgames.com/documentation/en-us/unreal-engine/cinematic-depth-of-field-in-unreal-engine) | “Smaller F-stop numbers create a shallower DOF” | 얼굴에 초점을 놓고 f/2.8·f/8 비교. 큰 머리의 앞뒤 깊이 때문에 눈과 귀가 동시에 흐려지는지 확인. 불투명 옷·머리카락 덩어리를 우선 |
+
+[확인] [5.8 릴리스 노트](https://dev.epicgames.com/documentation/unreal-engine/unreal-engine-5-8-release-notes), Substrate NPR Shading: “experimental Substrate Toon Shading”. 웹 추출의 timeout 후 브라우저에서 원문을 직접 확인했다. [확인] [Auto Exposure](https://dev.epicgames.com/documentation/en-us/unreal-engine/auto-exposure-in-unreal-engine): “single, fixed exposure value”. 비교 사진은 Manual 노출을 고정하고, Physical Camera Exposure 사용 여부·ISO·셔터를 기록한다. DOF만 바꾼 샷과 노출 보정을 섞지 않는다.
 
 위 문서가 Golmok의 최종 룩을 보증하지는 않는다. PBR도 흐린 날 구운 텍스처와 저녁 태양의 방향이 다르면 캐릭터만 강하게 빛난다. V-12에서는 EV −1/0/+1, 정면·역광, 자체 코 밑 그림자와 신발 접촉부를 동일 구도에서 비교한다. 순백/순흑은 피하고 피부 러프니스 0.45~0.65, 직물 0.65~0.9를 출발점으로 한다. 툰 후처리는 DOF 전후 위치에 따라 경계가 달라지므로 별도 검증 없이 채택하지 않는다.
 
@@ -43,11 +45,13 @@
 
 [확인] [Nintendo 개발자 인터뷰: Kirby and the Forgotten Land](https://www.nintendo.com/au/news-and-articles/ask-the-developer-vol-4-kirby-and-the-forgotten-land/)는 쇼핑몰의 사실적인 디테일에 대해 “The realistic touches make that stage more relatable”라고 설명한다. 같은 인터뷰에서 에스컬레이터를 과하게 넣은 초기안은 게임플레이에 맞춰 줄였다고 한다. **해석**: 익숙한 공간의 재질·생활 디테일은 남기되 동선과 캐릭터의 읽힘을 우선해야 한다. 이 작품은 실촬영 복원 게임은 아니므로 Golmok과 동일한 증거로 확대하지 않는다.
 
+[확인] [Nintendo 이펙트 제작자 인터뷰: Super Mario Odyssey](https://www.nintendo.co.jp/jobs/keyword/61.html)는 마리오식 이펙트만 쓰면 실사풍 배경에서 뜨고, 사실적인 이펙트만 쓰면 캐릭터다움이 약해졌다고 설명한다. 해결 기준은 “マリオに近いほどデフォルメ、離れるほどリアル”(마리오에 가까울수록 과장하고, 멀수록 사실적으로)였다. **해석**: 서로 다른 스타일을 섞는 것 자체보다 접촉·움직임을 연결하는 시각 규칙이 중요하다. Golmok에서는 발밑 그림자와 옷/소품 반응은 환경에 맞추고, 얼굴·자세에서 개성을 유지하는 가설로 시험한다. 원작의 이펙트나 캐릭터를 복제하는 제안이 아니다.
+
 작은 캐릭터와 사실적인 도시의 대비가 매력적이어도, 포토그래메트리의 거친 노이즈·구운 그림자와 지나치게 매끈한 피부가 함께 있으면 합성처럼 보일 수 있다(디자인 가설). 무드 그림은 이 가설의 설명 자료이지 엔진 룩 검증 결과가 아니다.
 
 ## A2. 스케일·비율·애니메이션 감각
 
-최종 첫 캐릭터 목표는 **키 135 cm, 4.5등신(머리 30 cm), 성인으로 읽히는 얼굴·의상**이다. 유아 같은 보행을 요구하지 않는다. 캡슐 반지름 32 cm/반높이 69 cm, 메시 발 원점 Z −69, 카메라 붐 260 cm·소켓 (0,35,45)·FOV 75°를 첫 룩 시험값으로 제안한다. 골목 80 cm 통로는 캡슐 지름 64 cm 대비 좌우 8 cm 여유에 불과하므로 벽·가방 관통을 따로 본다. MaxStepHeight 25 cm와 점프·중력은 18a에서 그대로 둔다. 짧은 다리가 25 cm 턱을 성인처럼 넘는 모습은 리타깃/풋 IK 검증 항목이다.
+최종 첫 캐릭터 목표는 **키 135 cm, 4.5등신(머리 30 cm), 성인으로 읽히는 얼굴·의상**이다. 유아 같은 보행을 요구하지 않는다. 캡슐 반지름 33.6 cm/반높이 69 cm, 메시 발 원점 Z −69, 카메라 붐 260 cm·소켓 (0,35,45)·FOV 75°를 첫 룩 시험값으로 제안한다. 골목 80 cm 통로는 캡슐 지름 67.2 cm 대비 좌우 6.4 cm 여유에 불과하므로 벽·가방 관통을 따로 본다. MaxStepHeight 25 cm와 점프·중력은 18a에서 그대로 둔다. 짧은 다리가 25 cm 턱을 성인처럼 넘는 모습은 리타깃/풋 IK 검증 항목이다.
 
 135 cm 시점은 대문과 담장이 크게 보여 탐험의 감각이 생기지만 간판을 보기 위해 위를 많이 보거나, 카메라가 계단에 가려질 수 있다. 붐 충돌/ProbeSize 14 cm는 유지하고 220/260/300 cm 붐을 V-12에서 비교한다. 110 cm 초소형은 계단·실내 감각 비교용 극단값이며 첫 제작 비율은 아니다.
 
@@ -78,7 +82,7 @@
 
 - 콘셉트·성격: 화분을 가꾸며 걷는 60대 남성. 느긋하고 세심한 관찰자.
 - 서울 연결: 낮은 주택의 화분·평상 문화에서 출발, 특정 직업·세대의 희화화 없이 개인 취미로 표현.
-- 실루엣·팔레트: 넓은 어깨와 둥근 배, 짧은 은발, 반소매 니트와 일자 바지. 황토 `#CBA866`, 가지색 `#55475C`, 크림 `#EEE6D5`. 작은 접이식 무지 천 가방.
+- 실루엣·팔레트: 넓은 어깨와 둥근 배, 짧은 은발, 니트 카디건과 일자 바지. 황토 `#CBA866`, 가지색 `#55475C`, 크림 `#EEE6D5`. 작은 접이식 무지 천 가방.
 - 아이들/이모트: 잎을 눈높이에서 관찰, 어깨 풀기, 가방 정리. 포토: 담장 앞 양손을 뒤로 모은 자세.
 - 골격·비용: 휴머노이드 이족 M+(1.2 가설); 배와 팔 관통/느린 전환 보정. 145 cm·5등신.
 - 커스터마이즈: 니트 조끼, 안경 유무, 신발/가방 색. 나이를 줄이는 미용 보정은 기본으로 하지 않음.
@@ -121,31 +125,60 @@
 
 다양성 점검: 사람 4/의인화 2, 여성·남성·논바이너리·성별 미정, 아동·청년·중년·노년, 마른 체형·넉넉한 체형·비휴머노이드. 피부색·나이·성별을 능력치나 직업 고정관념과 연결하지 않는다. 첫 세트 한 명만으로 이 다양성을 달성했다고 주장하지 않는다.
 
-## A4. 컨셉 이미지 (미완 — 다음 실행)
+## A4. 컨셉 이미지
+
+첫 세트 c01의 턴어라운드·무드를 먼저 생성한 뒤 나머지5종을 제작했다. 도구는 모두 **OpenAI 내장 image_gen**, 생성일2026-09-26이다. 모든 최종 파일은 **1536×1024 JPG**이며 각 그림 안에 **“컨셉 참고용, 최종 에셋 아님”**을 표시했다. 긴 프롬프트는 표의 링크에서 실제 입력 원문 전체를 읽을 수 있다.
+
+| 대상·이미지 | 도구 | 생성 프롬프트 |
+|---|---|---|
+| [c01 모루빛 턴어라운드](../images/characters/c01-morubit-turnaround.jpg) | image_gen 신규 생성 → 자체 출력 비율 편집 | [P01 + P01-edit](character-image-prompts.md#p01) |
+| [c01 모루빛 골목 무드](../images/characters/c01-morubit-mood.jpg) | image_gen, 텍스트만 사용 | [P02-final](character-image-prompts.md#p02-final) |
+| [c02 두온 컨셉](../images/characters/c02-duon-concept.jpg) | image_gen, 텍스트만 사용 | [P03](character-image-prompts.md#p03) |
+| [c03 새결 컨셉](../images/characters/c03-saegyeol-concept.jpg) | image_gen, 텍스트만 사용 | [P04](character-image-prompts.md#p04) |
+| [c04 나릿 컨셉](../images/characters/c04-narit-concept.jpg) | image_gen, 텍스트만 사용 | [P05](character-image-prompts.md#p05) |
+| [c05 솔뭉 컨셉](../images/characters/c05-solmung-concept.jpg) | image_gen, 텍스트만 사용 | [P06](character-image-prompts.md#p06) |
+| [c06 담울 컨셉](../images/characters/c06-damul-concept.jpg) | image_gen, 텍스트만 사용 | [P07](character-image-prompts.md#p07) |
+
+AI 그림의 cm·등신 표기는 프롬프트의 목표값이다. **그림을 재서 정확한 4.5등신이라고 검증한 자료가 아니다.** 정/측/후면의 세부 봉제·소품과 얼굴은 인간 최종 원화에서 정합을 다시 맞춘다. 모루빛의 무드는 연령감·조명·짧은 비율을 조정하며 텍스트만으로 재생성했다. 제출 무드도 턴어라운드보다 어려 보일 수 있으므로 **성인 연령감과 얼굴 일치는 미해결 아트 검수 항목**이다. 제출본은 최종 얼굴·비율 승인과 엔진 룩 시험을 대체하지 않는다.
+
+JPG 변환은 RGB/품질93·긴 변1600px 이하 형식 처리만 했다. 선택한 출력7개만 `docs/images/characters/`에 두며, 도구가 저장한 PNG와 폐기안은 공개 저장소에 넣지 않는다. `.gitattributes`의 기존 JPG 규칙과 로컬 git LFS를 사용한다.
 
 ## A5. 권리 점검
 
 ### 후보별 점검표
 
-텍스트 검토 단계이며 이미지 생성 뒤 유사성을 다시 확인한다. 비교 목록: 카카오프렌즈, 라인프렌즈, BT21, 산리오, 포켓몬, 동물의 숲. 기존 캐릭터 이름·그림을 생성 입력으로 사용하지 않는다. 아래 ‘의도 없음’은 권리 비침해 결론이 아니다.
+최종 출력의 실루엣·얼굴·색·소품을 육안 검토했다. 비교 범주는 카카오프렌즈, 라인프렌즈, BT21, 산리오, 포켓몬, 동물의 숲 등 기존 캐릭터 IP다. 특정 IP의 상징·의상·얼굴 조합을 그대로 재현한 명백한 요소는 이번 검토에서 발견하지 못했으나, 전체 IP 목록을 역검색한 법률 심사는 아니다. 기존 캐릭터 이름·그림을 생성 입력으로 사용하지 않았다. 아래 결과는 비침해 보증이 아니다.
 
-| 후보 | 기존 IP 유사성 검토 포인트 | 실제 브랜드·상징·랜드마크 | 가칭 상태 |
+| 후보 | 출력 검토와 남은 유사성 위험 | 실제 브랜드·상징·랜드마크 | 가칭 상태 |
 |---|---|---|---|
-| c01 | 둥근 얼굴+단발만으로 특정 IP를 재현하지 않도록 비대칭 의상·얼굴 비례 검수 | 의도 없음, 무지 소품 | KIPRIS 기록 아래 |
-| c02 | 둥근 노인형 게임 캐릭터와 얼굴·조끼 조합 비교 | 의도 없음 | KIPRIS 기록 아래 |
-| c03 | 기존 아동 캐릭터의 머리/배낭/팔레트 조합 비교 | 학교·교복·실존 아동 없음 | KIPRIS 기록 아래 |
-| c04 | 얼굴선·윗머리·점퍼의 고유 조합 확인 | 상표 없는 종이 소품 | KIPRIS 기록 아래 |
-| c05 | 마스코트와 겹칠 위험 높음. 구형 동물 대신 비대칭 솔방울·세 발 | 해치·도시 마스코트 사용 안 함 | KIPRIS 기록 아래 |
-| c06 | 새형 IP의 눈/부리/몸통 비율과 대조 필요 | 공공 조류 심벌 없음 | KIPRIS 기록 아래 |
+| c01 | 비대칭 단발/재킷·통바지 확인. 큰 눈의 보편적 3D 얼굴 유형은 남아 사람의 얼굴 재설계 필요 | 로고·상호 발견 안 됨, 무지 소품/가상 골목 | KIPRIS 기록 아래 |
+| c02 | 은발·배·니트 조합에서 특정 고유 장식 발견 안 됨. 노년형 캐릭터와 일반적 체형 중복 가능 | 로고·공공 상징 발견 안 됨 | KIPRIS 기록 아래 |
+| c03 | 곱슬/사각 조끼/배낭 확인. 큰 눈의 아동형 디자인은 흔해 최종 얼굴 차별화 필요 | 학교·교복·실존 아동 참조 없음, 로고 발견 안 됨 | KIPRIS 기록 아래 |
+| c04 | 넉넉한 체형·윗머리·종이 프레임 조합 확인. 후속 원화에서 얼굴선 고유성 강화 | 상표 없는 종이 소품, 로고 발견 안 됨 | KIPRIS 기록 아래 |
+| c05 | 비대칭 솔방울·세 발 확인. 식물 정령 장르 유사성 위험은 남아 최종 눈/입 재설계 검수 | 해치·공공 마스코트 상징 발견 안 됨 | KIPRIS 기록 아래 |
+| c06 | 작은 부리·인간형 팔/손 확인. 새 종족 게임 캐릭터와 유형 유사성 높음; 후속 채택 전 전문 비교 우선 | 공공 조류 심벌·로고 발견 안 됨 | KIPRIS 기록 아래 |
 
-### KIPRIS 검색 기록 (미완 — 다음 실행)
+### KIPRIS 검색 기록
+
+[확인] 2026-09-26 [KIPRIS 국내 상표 검색](https://www.kipris.or.kr/khome/search/searchResult.do)의 상표 탭에서 **상표명칭 TN + 상품분류 TC**를 사용했다. 아래 `+`는 OR, `*`는 AND다. 류는 09(게임 소프트웨어), 28(완구), 41(엔터테인먼트)이며 상품/서비스명·유사군의 최종 선정은 별도 검토가 필요하다. 특허 검색 결과를 상표 결과로 세지 않았다.
+
+| 후보 | 실제 검색식 | 류 | 총 검색 결과 | 조치 |
+|---|---|---|---:|---|
+| c01 | `TN=[모루빛+Morubit]*TC=[09+28+41]` | 09·28·41 | 0 | 가칭 유지, 유사 발음·철자·도형 및 타류 저명상표 검토 남음 |
+| c02 | `TN=[두온+Duon]*TC=[09+28+41]` | 09·28·41 | 26 | 상표 후보로 승인하지 않음, 후속 채택 시 명칭 재설계 우선 |
+| c03 | `TN=[새결+Saegyeol]*TC=[09+28+41]` | 09·28·41 | 2 | 개별 지정상품·권리 상태·유사명 검토 전 가칭만 사용 |
+| c04 | `TN=[나릿+Narit]*TC=[09+28+41]` | 09·28·41 | 5 | 개별 검토/명칭 대체 필요 |
+| c05 | `TN=[솔뭉+Solmung]*TC=[09+28+41]` | 09·28·41 | 0 | 가칭 유지, 유사상표 검색 남음 |
+| c06 | `TN=[담울+Damul]*TC=[09+28+41]` | 09·28·41 | 2 | 개별 검토/명칭 대체 필요 |
+
+검색은 한/영 OR 조합의 반환 건수이며 각각의 정확 일치 등록 건수가 아니다. 결과가 있는 이름의 침해를 확정하거나, 0건 이름의 등록/사용 가능성을 보증하지 않는다. 해외 권리·미등록 표지·도형 유사성도 이 검색으로 해결되지 않는다. 영구 데이터는 `c01` 등 id로 연결하고 이름은 최종 발주/공개 전에 다시 결정한다.
 
 ### AI 출력물 권리·저작물성·표시
 
 | 사안 | 원문·확인 수준(2026-09-26) | 프로젝트 적용 |
 |---|---|---|
 | 이미지 도구 출력 권리 | [확인] [OpenAI 이용약관, Content](https://openai.com/policies/row-terms-of-use/): “own the Output”; “output may not be unique” | 도구와 사용자 사이 권리 배분이며 국가의 저작권 성립·제3자 비침해 보증이 아님. 생성 그림은 컨셉 자료로 명시 |
-| 한국 | [확인 필요] 문체부 2023-12-27 보도자료 PDF는 검색되나 본문 열기 실패. [2차: 한국저작권위원회가 안내서를 소개한 원문] [위원회 글](https://www.copyright.or.kr/information-materials/trend/the-copyright/view.do?brdctsno=53928): 인간의 창작 기여 없는 AI 산출물 등록 불가라는 안내 | 최종 캐릭터는 사람이 새로 그린 표정·실루엣·의상 설계와 조형 과정, 날짜 있는 PSD/Blend 버전·수정 이유·양도 계약을 보관. 단순 리토폴로지만으로 창작성 확보라고 단정하지 않음 |
+| 한국 | [확인] 문체부·한국저작권위원회 [2025.6 등록 안내서](https://www.copyright.or.kr/information-materials/publication/research-report/view.do?brdctsno=54253), 첨부 PDF 본문 12·13·18·22쪽 직접 열람: “인간의 창작적 기여가 있는 부분에만 미침” | 인간 기여 없는 산출물은 저작물/등록 대상이 아니고, 기여가 인정되는 표현 부분은 보호 가능. 프롬프트 지시만으로는 인정 가능성이 낮음. 사람이 다시 설계한 얼굴·실루엣·의상과 PSD/Blend 날짜별 버전·수정 이유·양도 계약을 보관. 단순 리토폴로지만으로 창작성 확보라고 단정하지 않음 |
 | 미국 | [확인] [US Copyright Office, 2025-01-29](https://www.copyright.gov/newsnet/2025/1060.html): “not the mere provision of prompts” | 프롬프트만으로 보호되는 것이 아니며 사람이 결정한 표현·배열·변형의 범위를 기록. 순수 AI 부분과 인간 창작 부분을 구분 |
 | 한국 AI 표시 | [확인] [AI기본법 제31조](https://www.law.go.kr/LSW/lsSideInfoP.do?docCls=jo&joBrNo=00&joNo=0031&lsiSeq=282791&urlMode=lsScJoRltInfoR): “생성형 인공지능에 의하여 생성되었다는 사실을 표시하여야 한다” | 법 조문은 확인했으나 오프라인 사전 제작 에셋만 포함하는 게임에 대한 사업자 해당성·시행령 예외 적용은 [확인 필요]. 모든 AI 에셋 게임이 면제/의무라고 단정하지 않음. 출시 전 D-009 자문에 구체적인 사용 흐름 제공 |
 | Steam | [확인] [Content Survey](https://partner.steamgames.com/doc/gettingstarted/contentsurvey?language=english): “content that ships with your game and is consumed by players” | 출하 아트에 AI 도움 결과가 남으면 Pre-Generated로 실제 사용 내역 신고. 개발 참고 이미지만 쓰고 최종 아트를 사람이 새로 만든 경우도 작업기록을 바탕으로 출시 당시 설문 재확인. 배포 채널 자체는 미정 |
