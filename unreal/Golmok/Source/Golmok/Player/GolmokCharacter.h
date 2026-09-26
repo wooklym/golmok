@@ -83,4 +83,9 @@ private:
 
 	UPROPERTY(Config, EditAnywhere, Category = "Visuals")
 	FSoftClassPath AnimClassPath;
+
+	// [WP-18 hook] 로스터가 private 이동 속도를 기존 달리기 상태와 함께 갱신한다.
+public:
+	void SetMovementSpeeds(float InWalkSpeed, float InRunSpeed);
+	// [/WP-18 hook]
 };
