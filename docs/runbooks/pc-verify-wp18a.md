@@ -1,7 +1,7 @@
 # V-11 — WP-18a 캐릭터 로스터 PC 검증
 
 2026-09-27 갱신 · 작성/헤드리스·standalone GUI 기초 검증 ChatGPT Astra · 지속 보행/품질 후속 Fable PC. 이번 #22/#23은 사용자 지시로 Astra 자체 리뷰·병합.
-**코드·UE 헤드리스 통과, GUI 교체·점프 확인, 지속 보행·WP-12 통합/룩 검증 대기.** D-018 ①은 승인됐으며 설계 PR → 구현 PR 병합 뒤 아래 남은 항목을 진행한다. V-12 채점과 대조군/야간 실패의 판정은 [WP-18](../plan/WP-18-characters.md)의 최신 절차를 따른다.
+**코드·UE 헤드리스/4종 지속 이동·지형 통과, GUI 교체·점프 확인. 보행 영상·WP-12 통합/룩 검증 대기.** D-018 ①은 승인됐으며 설계 PR → 구현 PR 병합 뒤 아래 남은 항목을 진행한다. V-12 채점과 대조군/야간 실패의 판정은 [WP-18](../plan/WP-18-characters.md)의 최신 절차를 따른다.
 계약과 D-018은 [WP-18](../plan/WP-18-characters.md), 아트 판단은 [컨셉](../design/character-concept.md), 예산은 [제작 사양](../research/11-character-pipeline.md).
 
 병합 후 최신 진행: [WP-18 후속 기록](../plan/WP-18-followup.md). 실제 경로 재생/복귀 자동화는 실행 통과했고, WP-12 실통합은 상대 코드의 UE5.8 컴파일 오류를 재현했다. 아래 초기 결과표보다 후속 기록을 우선한다.
@@ -129,9 +129,13 @@ V-12는 실제 Zone, 없으면 L_Basemap_Yeonnam에서 **프록시2종 × PBR/5.
 
 ## 8. 후속 자동화와 화면 없는 렌더 증거
 
+- `Golmok.Character.Locomotion`: 4종 각각 실제 `APlayerController::InputKey` → Enhanced Input으로 Shift+W 유지 중 교체, 달리기 속도/이동량, Shift 해제 뒤 걷기, 완전 정지, 점프/착지를 검사한다. 초기화의 키 해제와 재입력은 별도 틱에 처리한다. 테스트 시작점만 배치하며 코스 통과 중 위치를 지정하지 않는다.
+- 같은 검사에서25cm 턱 통과/40cm 장애물 차단,80cm 통로(84cm 성인 캡슐은 차단,67.2cm 프록시는 통과), 통로 안 확대 거절, L_Dev의17cm×10계단 상승·하강, 벽 앞 붐 수축·복귀를 확인한다. 임시 충돌 박스는 PIE에만 만들고 성공/실패/종료 시 정리한다. 속도 기대값은 JSON 재읽기 대신 계약 리터럴이며 ±10%, 높이는 캡슐 바닥과 지면 간 엔진 여유를 포함해 ±3cm다.
 - `Golmok.Character.PathRoundTrip`: 실제 Debug 경로를 2초 재생하고 자연 종료를 기다린다. 수동 Pawn 교체 모사와 달리 `StartPlayback`·`StopPlayback` 수명을 통과한다.
 - `Golmok.Character.PhotoIntegration`: WP-12가 함께 빌드될 때만 실제 Photo 서브시스템을 검사한다. main만 빌드하면 `NOT EXECUTED` 경고다. 이 상태를 사진 모드 통과로 보고하지 않는다. WP-12 `0806da8`의 컴파일 실패 위치는 [후속 기록](../plan/WP-18-followup.md)에 있다.
 - `Golmok.Character.RenderEvidence`: 아래 명시적 옵션과 GPU RHI가 필요하다. 일반 헤드리스 실행의 `NOT EXECUTED`는 정상이며 렌더 성공이 아니다. 옵션을 주고 `-nullrhi`를 같이 주면 명확한 오류로 실패한다.
+
+이동 기능만 재현하려면 `tools/ue/test.ps1 -SetupDevLevel -Filter Golmok.Character.Locomotion`을 사용한다. 실행 결과는 [후속 기록](../plan/WP-18-followup.md)을 확인한다. 이 물리·입력 자동화는 실제 키보드 플레이 영상, 발 미끄러짐·관절·리타깃 품질 검수를 대신하지 않는다.
 
 ```powershell
 # 기존 빌드/L_Dev/마네킹 준비 뒤, 다른 검사와 같은 프로젝트를 동시에 실행하지 않는다.
@@ -150,4 +154,4 @@ V-12는 실제 Zone, 없으면 L_Basemap_Yeonnam에서 **프록시2종 × PBR/5.
 
 2026-09-27 Astra가 사용자 보안 창 처리 후 L_Dev의1280×720 게임 창에서4종 목록, Quinn→proxy135→proxy110→Manny 교체, 각4종 Space 점프·착지, 잘못된 ID 거절을 확인했다. 엔진 캡처4장(2560×1440)과 로그·검증 범위는 [후속 기록의 GUI 절](../plan/WP-18-followup.md#보안-창-처리-뒤-gui-검증)에 있다. 두 프록시의 기본 구도에서는 발끝이 하단에 잘렸다.
 
-이 결과는 §7 초기 표의 GUI 전부 미실행 상태를 **기초 동작 부분 확인**으로 갱신한다. 지속 키 입력·보행 주기·달리기 중 교체, 턱/계단/붐 충돌, 포털 GUI 영상, PIE 재시작, 초기 메시 실패 후 GUI 복구는 아직 실행하지 않았다. WP-12 컴파일 차단 해소 뒤 사진 통합6조합을 실행하고, 품질 채점은 V-12에서 별도로 한다.
+이 결과는 §7 초기 표의 GUI 전부 미실행 상태를 **기초 동작 부분 확인**으로 갱신한다. 이후 §8 Locomotion에서 지속 키 입력·달리기 중 교체·턱/계단/붐 충돌은 물리 자동화로 확인했다. 보행 주기/관절/발 미끄러짐의 시각 검수, 포털 GUI 영상, PIE 재시작, 초기 메시 실패 후 GUI 복구는 아직 실행하지 않았다. WP-12 컴파일 차단 해소 뒤 사진 통합6조합을 실행하고, 품질 채점은 V-12에서 별도로 한다.

@@ -1,4 +1,4 @@
-# WP-18 후속 — 실제 경로·포토 통합·렌더 증거
+# WP-18 후속 — 이동·실제 경로·포토 통합·렌더 증거
 
 2026-09-27 · ChatGPT Astra · 기준 main `3c8f1b0` · 브랜치 `astra/wp-18-followup`
 
@@ -12,6 +12,7 @@
 | 실제 WP-12와 로스터 | `Golmok.Character.PhotoIntegration`: proxy135/proxy110/Quinn × GamePause/TimeDilation, 총6조합. 카메라 갱신 후 FOV/캡슐 앵커 상속, 실제 여러 틱에 걸친 교체 거절·숨김/위치/메시/시간 배율 보존, 종료 복원과 교체 재개 | **테스트 구현·통합 브랜치에서 해당 파일 컴파일 완료, 실행 차단**. WP-12 자체의 UE5.8 접근 오류는 아래 기록. main에는 Photo가 없어 `NOT EXECUTED` 경고 |
 | 렌더 증거 | `Golmok.Character.RenderEvidence`: 명시적 실행 옵션으로만 두 프록시 × 조명4종, Quinn/Manny 정오 대조, 프록시 붐1.5배 진단 구도. 기존 템플릿 PBR·L_Dev·정면·원래 조명값. 게임 뷰포트만 저장 | **D3D12 실제 렌더12장 저장·디코딩 확인**, 대표 구도 육안 검토. 야간 미가시성 재현. 본 V-12의 실 배경·재질3안·얼굴/DOF·소유자 채점과 구별 |
 | GUI 조작 | `computer-use`로 L_Dev standalone 게임에서 콘솔·Space·F1 입력 | 사용자 보안 창 처리 후 **4종 교체·점프/착지·잘못된 ID 거절 확인**. 기본 카메라 구도와 HUD 좌표를 관찰하고 엔진 캡처4장 저장. 지속 보행·달리기·계단·포털 영상은 미완 |
+| 지속 입력·지형 통과 | `Golmok.Character.Locomotion`: 실제 InputKey/Enhanced Input으로4종의 달리기 중 교체·걷기 복귀, 점프,25cm 턱/40cm 장애물,80cm 통로, 계단 왕복, 카메라 충돌 | **실행 통과**, 필터1 Success/경고0/실패0,83.82s. 위치 배치는 코스 출발점에만 사용. nullrhi 물리 검사이며 GUI 보행 영상/애니메이션 품질 판정은 별도 |
 
 `__has_include("Photo/GolmokPhotoModeSubsystem.h")`는 테스트의 컴파일 경계다. Photo가 없는 빌드에서 가짜 서브시스템으로 대체하지 않는다. WP-12가 들어오면 동일 테스트가 실제 Photo API를 컴파일·실행한다. 기본 헤드리스에서 렌더 증거도 `NOT EXECUTED`로 남는다. 두 경고를 테스트 통과 개수에 섞어 연동/화질 성공으로 읽지 않는다.
 
@@ -75,9 +76,30 @@
 
 GUI 기록 반영 후 Python 게이트 재실행: ruff check·format95·check_repo 통과, **608 passed / 42 skipped / 208 warnings, 33.09s**. 이번 추가 변경은 문서2개뿐이므로 UE 빌드/전체 자동화는 위 코드 검증 결과를 유지한다.
 
+## 지속 보행·달리기·지형 기능 검증
+
+2026-09-27 후속으로 `Tests/GolmokCharacterRosterMovementTest.cpp`를 추가했다. 기존 `Golmok.Player.Movement`의 실제 `APlayerController::InputKey` 패턴을 사용하며 게임 런타임·기존 이동 테스트·공유 설정을 바꾸지 않는다. 각 코스 시작점만 배치하고, **측정 구간은 키를 누른 상태로 유지한 채 여러 게임 틱 동안 실제 이동·충돌**로 통과한다. Shift+W를 해제하지 않고 다른 로스터를 적용한 뒤 속도와 전진 거리, 폰/XY/캡슐 바닥 보존을 확인한다.
+
+| 캐릭터 | 교체 뒤 달리기 실측 | Shift 해제 뒤 걷기 실측 | 점프 정점 | 80cm 통로 |
+|---|---|---|---|---|
+| Manny | 500cm/s | 180cm/s | 89.99cm | 폭84cm 캡슐이 입구에서 차단 |
+| Quinn | 500cm/s | 180cm/s | 89.99cm | 폭84cm 캡슐이 입구에서 차단 |
+| proxy135 | 380cm/s | 145cm/s | 89.99cm | 폭67.2cm 캡슐 통과, 내부에서 Manny 확대 거절 후145cm/s 유지 |
+| proxy110 | 310cm/s | 120cm/s | 89.99cm | 폭67.2cm 캡슐 통과, 내부에서 Manny 확대 거절 후120cm/s 유지 |
+
+4종 모두 키 해제 뒤 정지,25cm 턱 통과,40cm 장애물 앞 차단, L_Dev의17cm×10계단을 걸어 올라170cm 랜딩 도달 후 하강, 벽면에서 붐 수축/열린 방향 복귀를 통과했다. 계단 랜딩의 캡슐 바닥은171.91–172.07cm, 내려온 바닥은2.15–2.37cm였다. 이는 CharacterMovement의 바닥 간격을 포함하며 메시 발본 위치/발 미끄러짐 측정은 아니다. 속도는 독립 계약 리터럴의 ±10%, 바닥 높이는 ±3cm로 검사한다. 차단 검사는 장애물까지 실제 접근한 위치와 정지 속도를 함께 요구한다.
+
+최초 테스트 실행에서는 초기화의 키 해제와 누르기를 같은 프레임에 보내 첫 이동 구간이0cm/s로 실패했다. 해제 이벤트가 처리된 뒤 별도 준비 단계에서 누르도록 테스트를 수정하자 기존 게임 코드 변경 없이4종 전 구간이 통과했다. 초기 실패 보고서도 `Saved/Automation/WP18Followup/locomotion-initial-report.json`에 보관했다. 실패를 성공으로 바꾸려고 속도 단언이나 장애물 조건을 완화하지 않았다.
+
+최종 필터 결과: **1 Success, 경고0/실패0/미실행0,83.82s**. UE5.8.3 빌드 성공. 결과 `Saved/Automation/WP18Followup/locomotion-report.json`, 로그 `Saved/Logs/WP18-Locomotion.log`.
+
+전체 UE 회귀: **23 Success(16+경고7), failed0/notRun0,149.37s**. 이 중 PhotoIntegration/RenderEvidence의 명시적 NOT EXECUTED2개를 빼면 **실제 실행 성공21개**다. 새 Locomotion은 전체 실행에서도83.85s로 통과했고, 기존 Movement·캐릭터 포털3회 왕복·실제 경로·Zone 검사도 통과했다. 보고서 `Saved/Automation/WP18Followup/locomotion-full-report.json`, 출력 `locomotion-full-tests.txt`, 로그 `Saved/Logs/WP18-LocomotionFull.log`. Python 최종 게이트: **608 passed / 42 skipped / 208 warnings,33.57s**, ruff check/format95/check_repo 성공.
+
+V-11의 지속 이동·지형 항목은 이제 **물리/입력 자동화 확인, GUI 영상·애니메이션 품질 대기**로 구분한다. 단발 GUI 입력의 제약은 남아 있으며, 위 테스트를 실제 키보드 플레이 영상이나 최종 리타깃 품질 합격으로 표기하지 않는다. WP-12 원격 head는 여전히 `0806da8`이며 포토 컴파일 차단 상태가 바뀌지 않았다.
+
 ## 병합 시 반영
 
-- V-11: 실제 경로 폰 왕복·선택 복원 자동화와 standalone GUI4종 교체·점프·착지·잘못된 ID 거절 확인을 추가한다. GUI 보행·계단·포털 영상과 사진 통합은 아직 완료 표시하지 않는다.
+- V-11: 실제 경로 폰 왕복·선택 복원,4종 지속 입력/달리기 중 교체/지형 통과 자동화와 standalone GUI4종 교체·점프·착지·잘못된 ID 거절 확인을 추가한다. GUI 보행·계단·포털 영상과 사진 통합은 아직 완료 표시하지 않는다.
 - WP-12/V-09: 위 `0806da8`의 UE5.8.3 컴파일 차단 두 종류를 소유 PC 세션에서 해결하고, Character.PhotoIntegration과 기존 Photo 검사를 같이 실행한다.
 - V-12: 템플릿 렌더 증거는 환경/캡처 준비 검증이다. 실 배경4곳·PBR/Toon/장난감 비교·얼굴0.5m/f2.8/f8·GPU/VRAM·소유자 채점과 실제4.5등신 리타깃은 별도다.
 - 이번 변경의 최종 리뷰·병합 기록과 CI는 후속 PR에 남긴다. #22/#23에 한정한 자체 리뷰 예외를 독립 Fable 검토로 확대해 표기하지 않는다.
