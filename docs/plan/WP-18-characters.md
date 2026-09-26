@@ -70,7 +70,7 @@ OnWorldBeginPlay에서 첫 PC에 AddDynamic. 즉시 이미 빙의된 폰을 처�
 2. 대상은 첫 PC의 AGolmokCharacter. 정지 중 또는 ViewTarget이 캐릭터가 아니면 수동 교체를 거절한다(WP-12 촬영/TimeDilation 모드도 ViewTarget으로 감지). 경로 폰, crouch, 물리 시뮬레이션·비단위 액터 스케일/기울어진 캡슐은 범위 밖으로 거절한다. 콘솔에서 이유를 알린다.
 3. 새 메시·ABP를 모두 로드하고 애니메이션 클래스의 TargetSkeleton과 메시 Skeleton이 같은지 검사한다. **18a는 같은 스켈레톤만 허용**. GASP/다른 리그의 허용은 18b retarget ABP가 완료된 뒤 설계를 확장한다. 실패하면 기존 메시·수치·id 유지.
 4. 기존 발밑 = 캡슐 중심 Z−기존 half. 새 중심 = 발밑+새 half. XY/회전/속도는 보존. 새 캡슐 위치/크기의 blocking overlap을 기존 collision response로 검사해 천장·벽에 겹치면 거절. 크기/위치 동일한 기본 재적용은 이동/overlap 검사 생략.
-5. 검증 뒤 scoped movement update 안에서 메시·오프셋·스케일·ABP·initial offset cache·카메라·속도·현재 id를 갱신한 다음 캡슐 크기/중심을 바꾼다. 지연된 부모 이동보다 자식 메시 상대변환을 먼저 설정해야 실제 Z offset이 유지된다. scope 종료 때 overlap을 알리므로 관찰자는 완성된 교체 상태를 본다. actor hidden/collision flags·ViewTarget·time dilation은 건드리지 않는다. 로드가 동기식이므로 첫 교체 히치는 V-11에 측정 항목으로 남긴다.
+5. 검증 뒤 scoped movement update 안에서 메시·오프셋·스케일·ABP·initial offset cache·카메라·속도·현재 id를 갱신한 다음 캡슐 크기/중심을 바꾼다. 지연된 부모 이동보다 자식 메시 상대변환을 먼저 설정해야 실제 Z offset이 유지된다. scope 종료 때 overlap을 알리므로 관찰자는 완성된 교체 상태를 본다. 유효한 로스터 메시 적용에 성공하면 ini 메시 실패 시 보였던 대체 캡슐만 숨긴다(자식 전파 없음). actor hidden/collision flags·ViewTarget·time dilation은 건드리지 않는다. 로드가 동기식이므로 첫 교체 히치는 V-11에 측정 항목으로 남긴다.
 
 포털: 반지름/높이가 달라지면 실제 overlap은 재평가되지만 평면을 넘는 XY 이동은 발생하지 않는다. 실내 상태·Zone pin을 인위적으로 바꾸지 않는다. Zone loader: XY 위치가 같아 거리 기준 유지. 포토: 진입 전에 바꾸고 새 FOV를 상속받도록 한다. 포토 중엔 교체 거절. 경로: 경로 폰을 무시하고 복귀 시 같은 선택 복원.
 
@@ -128,6 +128,14 @@ Fable PC 세션이 실 Zone(없으면 L_Basemap_Yeonnam)에서 회색 콘크리�
 UE 실행에서 `FScopedMovementUpdate` include 경로와 부모 캡슐의 지연 이동 후 메시 offset이−92로 남는 문제를 발견했다. 메시 상대변환을 먼저 적용하는 순서로 수정한 뒤−69/고정 발밑 단언과 전체 회귀 테스트가 통과했다. 전체 UE 경고5건은 L_Dev GeoOrigin/의도된 누락 Zone 자산·버전 fixture 경고이며 개별 state는 전부 Success다. nullrhi의 HUD fps는 성능 결과로 사용하지 않았다.
 
 최종 동기화 때 main은5c6f225이며 WP-12(`claude/hopeful-allen-f0a0jb`)와 공통 파일은 `test_ue_wp09_fixture.py` 한 개다. WP-12가 먼저 병합되면 photo 줄 먼저/character 줄 뒤로 보존한다. `pc/v08-animation`과 파일 충돌은 없다. 구매·발주·외부 의뢰 발송·새 라이선스 의존성 설치는 하지 않았다. 다음 실행은 D-018 ①/Fable 리뷰 뒤 V-11 GUI, WP-12 통합, V-12 및 V-08의 실제4.5등신 프록시 시험이다.
+
+### 2026-09-27 리뷰 지적 수정
+
+[Claude 코드리뷰의 지적](https://github.com/wooklym/golmok/pull/23#discussion_r4111832801)을 반영했다. ini 메시 로드 실패로 대체 캡슐이 표시된 상태에서 로스터 메시를 정상 적용하면 캡슐만 숨긴다. 실패한 선택은 대체 표시를 유지한다. 회귀 검사는 메시가 없는 상태에서 잘못된 id 거절 → 정상 프록시 적용 → 캡슐 숨김 및 메시/Actor 표시 유지를 확인한다. 이 리뷰는 코드 읽기만 수행했다고 명시되어 있으며 Fable ultracode 리뷰 조건의 충족 근거로 간주하지 않는다.
+
+수정 후 UE5.8.3 빌드 성공, Character 필터2 Success, 전체 **18 Success(13+경고5), failed0/notRun0, 39.87s**. Python ruff/check_repo 성공, format95개, pytest **608 passed/42 skipped/208 warnings, 40.12s**. 경고와 로컬 g++ skip은 위 결과와 같다. 리뷰의 향후 uncrouch 참고사항은 현재 crouch 미지원 범위에 해당하며, crouch를 도입할 때 CDO 캡슐/메시 오프셋 복원과 로스터 크기 유지의 통합 검사가 필요하다.
+
+소유자는 이날 Astra의 병합 실행을 승인했다. 별도의 Fable ultracode 사전 리뷰 조건은 충족 여부/이번 두 PR 예외를 확인 중이며, 아직 병합하지 않았다. V-11 GUI와 WP-12 실제 포토 통합은 계속 미실행 상태다.
 
 ## 병합 시 반영
 

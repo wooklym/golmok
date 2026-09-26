@@ -113,4 +113,6 @@ V-12는 실제 Zone, 없으면 L_Basemap_Yeonnam에서 **프록시2종 × PBR/5.
 | 기본 이동 실측 | 걷기/좌우/후진180cm/s, 달리기500cm/s, 점프 정점90cm. 기존 테스트 수정 없음 |
 | GUI/실제 포털과 교체/포토 통합/성능/V-12 | **미실행**, Fable PC 후속. 최종 4.5등신 캐릭터 제작/리타깃은18b |
 
+2026-09-27 [Claude 리뷰 지적](https://github.com/wooklym/golmok/pull/23#discussion_r4111832801) 수정 후 재실행: UE 빌드 성공, Character2 Success, 전체18 Success(13+경고5)/실패0/미실행0, 39.87s. Python 게이트도 통과(608 passed/42 skipped/208 warnings, 40.12s). Runtime은 ini 메시 실패와 같은 `mesh=null`/대체 캡슐 표시 상태에서 잘못된 선택은 표시를 유지하고, 정상 로스터 메시 적용은 캡슐만 숨기며 메시와 Actor는 표시하는 회귀를 추가했다. GUI 검증에는 이 초기 실패 → 정상 선택 복구도 포함한다. 향후 crouch 지원 시 uncrouch의 CDO 크기/offset 복원은 별도 검증한다.
+
 헤드리스 보고서: `unreal/Golmok/Saved/Automation/Report/index.json`, 로그는 같은 worktree의 `Saved/Logs`에 있다(ignored). 재실행하면 보고서가 대체된다. V-11 전체 완료는 위 GUI 미검증 항목까지 채운 뒤 기록한다.
