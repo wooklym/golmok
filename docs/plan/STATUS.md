@@ -3,7 +3,7 @@
 갱신 규칙: 각 세션이 시작·종료 시 자기 행을 고친다. 상태 기호:
 ⚪ 대기 · 🔵 진행 중 · 🟡 코드 완료·PC 검증 대기 · 🟢 완료 · 🔴 막힘 · ⏸ 보류
 
-마지막 갱신: 2026-09-27 (WP-18 설계 병합 기록·D-018 ① 승인, #23 구현 병합과 V-11 GUI/V-12는 별도)
+마지막 갱신: 2026-09-27 (WP-18 설계·18a 병합 기록, D-018 ① 승인. V-11 GUI·WP-12 포토 통합·V-12 대기)
 
 ## 마일스톤
 
@@ -43,8 +43,8 @@ Astra는 이 표를 고치지 않는다. 병합하는 Fable 세션이 Astra WP �
 
 | 항목 | 내용 | 상태 | 담당 | 메모 |
 |---|---|---|---|---|
-| WP-18 | 플레이어 캐릭터 | 🔵 설계 완료·18a 스택 PR 검증 완료 | **ChatGPT Astra**, 이번 자체 리뷰·병합 사용자 승인 | [설계 #22](https://github.com/wooklym/golmok/pull/22): A~D/이미지7장/의뢰서 초안/자체 리뷰 완료, D-018 ① 승인. [구현 #23](https://github.com/wooklym/golmok/pull/23)에서 로스터4종·같은 폰 교체·훅2건·UE19 Success 기록. 18b는V-08/V-12/② 이후 |
-| V-11 | WP-18a 캐릭터 목록·교체 검증 | 🟡 헤드리스 통과·GUI 대기 | Astra 헤드리스 / Fable PC 후속 | #23에서 빌드·Character3/전체UE19 Success, 실제 포털3회 왕복+실내 교체/확대 거절 통과. GUI 보행·계단·실제 경로 재생·WP-12 포토·hitch/VRAM은 미실행. 런북은 #23의 `runbooks/pc-verify-wp18a.md` |
+| WP-18 | 플레이어 캐릭터 | 🟡 설계·코드 완료·PC GUI 검증 대기 | **ChatGPT Astra**, 이번 자체 리뷰·병합 사용자 승인 | [설계 #22](https://github.com/wooklym/golmok/pull/22) → [구현 #23](https://github.com/wooklym/golmok/pull/23). A~D/이미지7장/의뢰서 초안/자체 리뷰·D-018 ① 승인. 로스터4종·같은 폰 교체·훅2건·UE19 Success, [결과](WP-18-characters.md)·[런북](../runbooks/pc-verify-wp18a.md). 18b는V-08/V-12/② 이후 |
+| V-11 | WP-18a 캐릭터 목록·교체 검증 | 🟡 헤드리스 통과·GUI 대기 | Astra 헤드리스 / Fable PC 후속 | 빌드·Character3/전체UE19 Success, 실제 포털3회 왕복+실내 교체/확대 거절 통과. GUI 보행·계단·실제 경로 재생·WP-12 포토·hitch/VRAM은 미실행. [런북](../runbooks/pc-verify-wp18a.md) |
 | V-12 | 캐릭터 룩 검증(프록시) | ⚪ 대기 | Fable 실행·소유자 채점 | [WP-18](WP-18-characters.md) 절차: 프록시2×재질3×조명4 예비 비교, 채택 구성의 배경4곳 재검증. Toon 사본의 PBR 대조군, 야간 환경 실패의 부분 완료 구분. 실제4.5등신 V-08 시험과 최종 에셋 검수 별도 |
 
 ## 트랙 1B — PC 검증 (PC Claude 세션)

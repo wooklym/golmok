@@ -1,6 +1,6 @@
 # WP-18 — 플레이어 캐릭터
 
-상태: **설계 자체 리뷰 완료·D-018 ① 승인, #22 병합 준비** · 담당/이번 리뷰·병합: **ChatGPT Astra(2026-09-27 사용자 지시)**. 최종 엔진 품질 검증은 Fable PC 후속.
+상태: **🟡 설계 자체 리뷰·18a 코드/헤드리스 완료·D-018 ① 승인, PC GUI 검증 대기** · 담당/이번 리뷰·병합: **ChatGPT Astra(2026-09-27 사용자 지시)**. 최종 엔진 품질 검증은 Fable PC 후속.
 의존: WP-01 캐릭터, WP-04/05/09 포털·Zone·디버그, WP-12 포토 모드(통합 검증), WP-13 오디오 키 계약(18b), V-08(최종 애니메이션).
 검증: Python/CI, V-11(18a PC), V-12(룩 가설, Fable 실행·소유자 채점). 2026-09-26.
 
@@ -18,7 +18,7 @@
 
 - 설계: [A 컨셉](../design/character-concept.md), [B 제작 경로](../research/11-character-pipeline.md), 이 문서 C/D, 컨셉 JPG 7장(첫 세트1×2 + 나머지5×1), `docs/outreach/character-commission-draft.md`.
 - 18a: `Characters/GolmokCharacterSubsystem.{h,cpp}`, 순수 `GolmokCharacterMath.h`, `Config/Golmok/characters.json`, `docs/spec/characters.schema.json`.
-- 테스트: `Tests/GolmokCharacterRosterTest.cpp`의 `Golmok.Character.*`, `test_ue_character_roster_math.py`+stdin C++ driver, `test_ue_config_characters.py`.
+- 테스트: `Tests/GolmokCharacterRosterTest.cpp`, `Tests/GolmokCharacterRosterPortalTest.cpp`의 `Golmok.Character.*`, `test_ue_character_roster_math.py`+stdin C++ driver, `test_ue_config_characters.py`.
 - 런북: `docs/runbooks/pc-verify-wp18a.md`(V-11, V-12 절차).
 
 ## 설계 — WP-18a
@@ -70,7 +70,7 @@ OnWorldBeginPlay에서 첫 PC에 AddDynamic. 즉시 이미 빙의된 폰을 처�
 2. 대상은 첫 PC의 AGolmokCharacter. 정지 중 또는 ViewTarget이 캐릭터가 아니면 수동 교체를 거절한다(WP-12 촬영/TimeDilation 모드도 ViewTarget으로 감지). 경로 폰, crouch, 물리 시뮬레이션·비단위 액터 스케일/기울어진 캡슐은 범위 밖으로 거절한다. 콘솔에서 이유를 알린다.
 3. 새 메시·ABP를 모두 로드하고 애니메이션 클래스의 TargetSkeleton과 메시 Skeleton이 같은지 검사한다. **18a는 같은 스켈레톤만 허용**. GASP/다른 리그의 허용은 18b retarget ABP가 완료된 뒤 설계를 확장한다. 실패하면 기존 메시·수치·id 유지.
 4. 기존 발밑 = 캡슐 중심 Z−기존 half. 새 중심 = 발밑+새 half. XY/회전/속도는 보존. 새 캡슐 위치/크기의 blocking overlap을 기존 collision response로 검사해 천장·벽에 겹치면 거절. 크기/위치 동일한 기본 재적용은 이동/overlap 검사 생략.
-5. 검증 뒤 scoped movement update 안에서 메시·오프셋·스케일·ABP·initial offset cache·카메라·속도·현재 id를 갱신한 다음 캡슐 크기/중심을 바꾼다. 지연된 부모 이동보다 자식 메시 상대변환을 먼저 설정해야 실제 Z offset이 유지된다. scope 종료 때 overlap을 알리므로 관찰자는 완성된 교체 상태를 본다. actor hidden/collision flags·ViewTarget·time dilation은 건드리지 않는다. 로드가 동기식이므로 첫 교체 히치는 V-11에 측정 항목으로 남긴다.
+5. 검증 뒤 scoped movement update 안에서 메시·오프셋·스케일·ABP·initial offset cache·카메라·속도·현재 id를 갱신한 다음 캡슐 크기/중심을 바꾼다. 지연된 부모 이동보다 자식 메시 상대변환을 먼저 설정해야 실제 Z offset이 유지된다. scope 종료 때 overlap을 알리므로 관찰자는 완성된 교체 상태를 본다. 유효한 로스터 메시 적용에 성공하면 ini 메시 실패 시 보였던 대체 캡슐만 숨긴다(자식 전파 없음). actor hidden/collision flags·ViewTarget·time dilation은 건드리지 않는다. 로드가 동기식이므로 첫 교체 히치는 V-11에 측정 항목으로 남긴다.
 
 포털: 반지름/높이가 달라지면 실제 overlap은 재평가되지만 평면을 넘는 XY 이동은 발생하지 않는다. 실내 상태·Zone pin을 인위적으로 바꾸지 않는다. Zone loader: XY 위치가 같아 거리 기준 유지. 포토: 진입 전에 바꾸고 새 FOV를 상속받도록 한다. 포토 중엔 교체 거절. 경로: 경로 폰을 무시하고 복귀 시 같은 선택 복원.
 
@@ -87,6 +87,7 @@ OnWorldBeginPlay에서 첫 PC에 AddDynamic. 즉시 이미 빙의된 폰을 처�
 - 순수 C++: 기준 리터럴, 두 프록시, 무작위 유효 입력 Python 교차계산, NaN/Inf/범위·관계 실패. stdin 입력/UTF-8, g++ `-Wall -Wextra -Werror -pedantic`.
 - UE `Golmok.Character.Config`: 실제 JSON, malformed·duplicate·unknown default·타입/관계 실패, 파서 실패 원자성.
 - UE `Golmok.Character.Runtime`: L_Dev PIE/nullrhi. 자동 default 적용을 리터럴로 검사(경로·캡슐·메시 offset/yaw/scale·카메라·속도), Quinn/프록시/Manny 왕복, 잘못된 id 보존, 달리기 상태 보존, 발밑 보존, 천장 겹침 거절, 비캐릭터 폰 무시/복귀, 정지/뷰타깃 교체 거절. 기존 `Golmok.Player.Movement` 수정 없이 전체 실행.
+- UE `Golmok.Character.PortalRoundTrip`: L_ZoneTest/합성 실내에서 실제 overlap·문 평면 판정으로3회 왕복. 문 앞 확대/진입 뒤 축소/실내 교체·표식 아래 확대 거절, 동일 폰/발 위치/실내 유지·해제를 검사. 이동을 멈추고 캡슐 위치를 지정하므로 실제 보행·시각 품질 검증과 구별한다.
 - 실제 GUI 포털 왕복·실내 교체·Quinn 스켈레톤·사진/그림자 품질은 V-11/V-12 기록. Python 성공을 UE 성공으로 대체하지 않는다.
 
 ### 18b 개요
@@ -115,9 +116,41 @@ Fable PC 세션이 실 Zone(없으면 L_Basemap_Yeonnam)에서 회색 콘크리�
 
 공개 저장소에 Fab·외주 원본 넣지 않음. default ini 불변. 처음 로드가 실패하면 기존 플레이가 가능해야 한다. 돈이 드는 일/외부 메시지 발송 없음. 에디터 GUI 실행 전 `gui-foreground.lock` 확인, fps 측정은 다른 UE 프로세스 없을 때만. 원문 확인 못한 항목은 사실로 확정하지 않는다.
 
-## 결과 (구현 PR에서 작성)
+## 결과
 
-설계 A1~A5·B1~B6·C/D와 컨셉7장을 작성했다. 런타임 코드·실행 결과·V-11 런북은 [스택 구현 PR #23](https://github.com/wooklym/golmok/pull/23)의 이 절에서 기록한다. 설계 PR은 구현 결과를 이미 병합한 것으로 표시하지 않는다.
+2026-09-26~27, 별도 worktree에서 실행했다. [설계 PR #22](https://github.com/wooklym/golmok/pull/22) → [구현 PR #23](https://github.com/wooklym/golmok/pull/23) 순서다. 아래 초기 실행 뒤 캡슐 복구 수정·포털 통합 자동화·자체 리뷰와 병합 문안 반영을 추가했다. 설계67ee125 동기화는 충돌 없이 완료했고, 자체 리뷰 반영442d52f 동기화에서는 이 문서 상태 머리말만 충돌해 승인/리뷰 기록과 구현 완료를 함께 보존했다.
+
+| 산출물 | 상태·근거 |
+|---|---|
+| A~D / B6 | 완료. 아트3안·후보6종/N1·KIPRIS6건 검색식·제작6경로·UE5.8 원문·D-018·외주 의뢰서 초안. 조건 미확인은 각 표에 남김 |
+| A4 이미지 | 최종7장1536×1024 JPG, 로컬 git LFS pointer7개·업로드 완료. 모든 그림에 컨셉 표시, 실제 입력 프롬프트 별도 문서. 모루빛 무드의 연령감/얼굴 일치·정확한 등신은 최종 인간 원화 검수 필요 |
+| 로스터/스키마 | 완료. Manny/Quinn/proxy135/proxy110, default Manny. [스키마](../spec/characters.schema.json)와 실제 JSON·유한수/관계 검증, 오류 시 전체 거절 |
+| 런타임/콘솔 | 완료. WorldSubsystem+빙의 델리게이트, 같은 폰 교체, `golmok.character list\|<id>`, 발밑/달리기 상태 보존·천장 겹침 거절. UI/저장/새 키/발소리 연결 없음 |
+| 훅 | 5ecb47f `GolmokCharacter` public 속도 setter, d530c3d 콘솔 등록 목록. 두 독립 커밋·표지, 기존 줄 삭제0 |
+| Python 게이트 | 설계: ruff/check_repo 성공, format93개, pytest590 passed/39 skipped. 구현: ruff/check_repo 성공, format95개, pytest608 passed/42 skipped. 양쪽208 warnings, 로컬 g++ skip 포함 |
+| CI 코드 검증 | b8105f2의 [Actions](https://github.com/wooklym/golmok/actions/runs/36248981836) 전체5 jobs success. Linux3.11/3.12·Windows3.12+MinGW 각각647 passed/3 skipped. 최신 head checks도 PR에서 확인 |
+| UE5.8.3 | add-mannequin·build 성공. Character 필터2 Success. 합성 실내 준비 후 전체 **18 Success(13+경고5), failed0/notRun0**, 39.11s. Movement180/500cm/s·점프90cm, 기존 테스트 수정 없음 |
+| V-11/V-12 | [PC 런북](../runbooks/pc-verify-wp18a.md) 완료. **GUI 포털과 교체 조합·실내 교체·WP-12 실제 사진·최초 로드 hitch/VRAM·V-12 채점 미실행**. V-11 전체 완료로 표시하지 않음 |
+
+UE 실행에서 `FScopedMovementUpdate` include 경로와 부모 캡슐의 지연 이동 후 메시 offset이−92로 남는 문제를 발견했다. 메시 상대변환을 먼저 적용하는 순서로 수정한 뒤−69/고정 발밑 단언과 전체 회귀 테스트가 통과했다. 전체 UE 경고5건은 L_Dev GeoOrigin/의도된 누락 Zone 자산·버전 fixture 경고이며 개별 state는 전부 Success다. nullrhi의 HUD fps는 성능 결과로 사용하지 않았다.
+
+최종 동기화 때 main은5c6f225이며 WP-12(`claude/hopeful-allen-f0a0jb`)와 공통 파일은 `test_ue_wp09_fixture.py` 한 개다. WP-12가 먼저 병합되면 photo 줄 먼저/character 줄 뒤로 보존한다. `pc/v08-animation`과 파일 충돌은 없다. 구매·발주·외부 의뢰 발송·새 라이선스 의존성 설치는 하지 않았다. 다음 실행은 D-018 ①/Fable 리뷰 뒤 V-11 GUI, WP-12 통합, V-12 및 V-08의 실제4.5등신 프록시 시험이다.
+
+### 2026-09-27 리뷰 지적 수정
+
+[Claude 코드리뷰의 지적](https://github.com/wooklym/golmok/pull/23#discussion_r4111832801)을 반영했다. ini 메시 로드 실패로 대체 캡슐이 표시된 상태에서 로스터 메시를 정상 적용하면 캡슐만 숨긴다. 실패한 선택은 대체 표시를 유지한다. 회귀 검사는 메시가 없는 상태에서 잘못된 id 거절 → 정상 프록시 적용 → 캡슐 숨김 및 메시/Actor 표시 유지를 확인한다. 이 리뷰는 코드 읽기만 수행했다고 명시되어 있으며 Fable ultracode 리뷰 조건의 충족 근거로 간주하지 않는다.
+
+수정 후 UE5.8.3 빌드 성공, Character 필터2 Success, 전체 **18 Success(13+경고5), failed0/notRun0, 39.87s**. Python ruff/check_repo 성공, format95개, pytest **608 passed/42 skipped/208 warnings, 40.12s**. 경고와 로컬 g++ skip은 위 결과와 같다. 리뷰의 향후 uncrouch 참고사항은 현재 crouch 미지원 범위에 해당하며, crouch를 도입할 때 CDO 캡슐/메시 오프셋 복원과 로스터 크기 유지의 통합 검사가 필요하다.
+
+당시 소유자의 병합 실행 승인은 있었으나 별도의 Fable 사전 리뷰 조건을 확인 중이었다. 이후 소유자가 설계 자체 리뷰 후 머지를 지시해 이번 두 PR의 검토/병합 방식을 확정했다(아래 리뷰 절). V-11 GUI와 WP-12 실제 포토 통합은 계속 미실행 상태다.
+
+### 2026-09-27 V-11 포털 통합 자동화 보강
+
+`GolmokCharacterRosterPortalTest.cpp`를 레인 안에 추가했다. 문 앞 확대, 진입 후 축소, 실내 확대 거절/성공, 실내3초 이상 유지, 출구 통과 후3초 해제를 실제 포털 overlap과 틱으로 **3회 왕복**했다. 동일 폰/Controller·XY/발 위치·문 평면 거리·실내 조명·서브레벨/Zone 수명을 검사한다. 첫 실행의 실내 Quinn 실패는 공중 표식 큐브 아래 확대가 막힌 것이므로, 이를 거절 사례로 남기고 옆으로150cm 이동한 뒤 성공을 검사했다. 런타임 코드를 완화하지 않았다.
+
+빌드 성공, Character **3 Success**, 전체 **19 Success(14+경고5), failed0/notRun0, 63.79s**. 새 통합 검사24.08s에 `cycle 1/3`, `2/3`, `3/3 complete`가 전부 기록됐다. Python/ruff/check_repo도 통과(608 passed/42 skipped/208 warnings, 32.85s). 합성 맵/실내가 없으면 `NOT EXECUTED` 경고를 내므로 실행 로그 없이 통합 통과로 기록하지 않는다. UBT가 새 C++를 발견하도록 `-gather`로 소스 목록을 갱신한 뒤 실제 컴파일을 확인했다.
+
+자동화는 이동을 멈추고 캡슐 위치를 지정했다. GUI 보행·계단·Quinn 애니메이션/화면·실제 경로 재생·WP-12 포토·hitch/VRAM·V-12 채점은 여전히 후속 검증이다. 다른 레인/핫스팟 변경은 추가하지 않았다.
 
 ## 리뷰 — 2026-09-27 Astra 자체 검토
 
@@ -139,7 +172,9 @@ Fable PC 세션이 실 Zone(없으면 L_Basemap_Yeonnam)에서 회색 콘크리�
 
 ## 병합 시 반영
 
-2026-09-27: 사용자에게 위임받은 Astra가 STATUS·DECISIONS(D-002/D-018)·ROADMAP·DEVELOPMENT-PLAN·game-features-proposal에 아래 문안을 반영했다. 설계 PR의 공유 상태는 #23 구현이 이미 main에 들어간 것으로 표시하지 않는다. 구현 병합 직전 #23에서 그 상태를 갱신한다.
+최종 병합 준비 기록(2026-09-27): 설계 #22는 **497566f**로 main에 병합했다. #23 base를 main으로 바꾸고 `git merge origin/main`으로 동기화했다. 이미 받은 설계442d52f와 같아 추가 파일 충돌/코드 변경은 없었다. 앞선 설계 동기화의 유일한 충돌은 이 문서 상태 머리말이며 구현 결과와 새 승인/리뷰 기록을 모두 보존했다. 최종 로컬 재검증: UE 빌드 성공·**19 Success(14+경고5), failed0/notRun0, 63.89s**, Python **608 passed/42 skipped/208 warnings, 33.27s**, ruff/format95개/check_repo/diff check 통과. 구현 소스/테스트는 이 재검증 이후 불변이며 최종 head CI 확인 뒤 merge commit으로 병합한다.
+
+2026-09-27: 사용자에게 위임받은 Astra가 STATUS·DECISIONS(D-002/D-018)·ROADMAP·DEVELOPMENT-PLAN·game-features-proposal에 아래 문안을 반영했다. #22는 설계/스택 상태를, #23은 설계·18a 코드 완료 및V-11 GUI·WP-12 포토·V-12 대기를 기록한다. 이 병합 기록은 실제 에셋 발주·최종 품질 승인이 아니다.
 
 ### D-018 | ① 승인·② 대기 | 2026-09-27 — 캐릭터 선택·교체와 고유 캐릭터 제작
 
