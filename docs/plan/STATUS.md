@@ -34,6 +34,7 @@
 | WP-11 | 웹 검수 뷰어 2차(충돌·blocker 메시 오버레이) | 🟢 완료 | session_01CSQya6KM72tpKC8L7aowSx (Opus 5.5) | `tools/viewer/zonemath.js`(glTF Y-up → zone-local → ECEF 한 곳, Cesium 기본 축 보정 끔 — 기본값이면 90° 돌아감) · `app.js` collision/blockers GLB `Cesium.Model`·오버레이 체크박스 6개·원점 E·N·U 축 · `golmok-viewer --zone`(`/zones/<zone_id>/v<n>/`, 확장자 화이트리스트, 경로 탈출 거절) · pytest +49(전체 618 passed) · `npm test` 단위 5 + 스모크(zone 2·모델 4·배치 오차 < 5 cm·토글). OBJ 청크는 bbox만. CI에는 `npm test` 잡 없음(로컬 게이트). 병합 전 Opus 보완 리뷰 5건(스모크가 사용자 `GOLMOK_DATA` 폴더에 쓰지 않음, CORS 헤더 제거, Windows 예약 이름 거절, zone_id fullmatch·64자, transform 16개 검사) 반영. PR #16
 | WP-12 | 포토 모드 최소판(D-013) | ⚪ 대기 | — | 스펙 `plan/WP-12-photo-mode.md`. 일시정지·자유 카메라(반경·footprint 클램프)·FOV/노출/DOF·캐릭터 숨김·고해상도 PNG + 메타 JSON, `Config/Golmok/photo.json`, 순수 헤더 g++ 교차검증, 런북 V-09 |
 | WP-13 | 환경음 기본(D-016 (a)) | ⚪ 대기 | — | 스펙 `plan/WP-13-ambience-audio.md`. `research/10` 사운드 출처(라이선스 원문), `Audio/` 앰비언스 크로스페이드·발소리(거리 기반, 재질)·실내/시간대 전환, `audio.json`, `audio_import.py`, WAV(LFS ≤ 40 MB) 또는 플레이스홀더, 런북 V-10 |
+| WP-18 | 플레이어 캐릭터: 디자인·제작 경로·18a 플레이스홀더 캐릭터 목록·교체 (병행) | ⚪ 대기 | **ChatGPT Astra**(DEVELOPMENT-PLAN §7.6 캐릭터 레인, 리뷰·병합 Fable ultracode) | 브랜치 `astra/wp-18-*` → PR(Astra는 병합하지 않음). 설계 PR: `design/character-concept.md`, `research/11-character-pipeline.md`, `plan/WP-18-characters.md`, D-018 제안(문안은 WP 문서 "병합 시 반영"). 18a PR: `Source/Golmok/Characters/` + `Config/Golmok/characters.json`, 핫스팟(`GolmokCharacter` 등)은 표지 달린 훅만. 18b(실제 에셋·리타깃·이모트)는 V-08 채택안·룩 검증(V-12)·D-018 ② 뒤. 예약 번호: WP-18, V-11, V-12, D-018, research/11 |
 
 ## 트랙 1B — PC 검증 (PC Claude 세션)
 
@@ -49,6 +50,8 @@
 | V-08 | 애니메이션 3안 PC 평가 | ⚪ 대기 | 런북 `runbooks/pc-verify-animation.md`(V-01 뒤, 독립): **§0 사용자가 GASP 라이선스 원문 확인**(Fab 리스팅·Fab EULA·UE EULA) → §1 GASP Create Project(저장소 밖)·플러그인·스켈레톤 기록 → §2 ① 기준선 녹화 S1~S8 + `csvprofile` → §3 ② GASP 로코모션 Migrate(`Content/Golmok_AnimEval/`, 브랜치 `pc/v08-animation`, 에셋 커밋 금지) → §4 ③(막힐 때만) → §5 사용자 채점 → §8 결과 |
 | V-09 | WP-12 포토 모드 검증 | ⚪ 대기 | 런북 `runbooks/pc-verify-wp12.md`(WP-12 뒤): 진입/조절/촬영/복원, 배율별 VRAM, 벽·zone 밖 이탈 시도, 실내 촬영 |
 | V-10 | WP-13 환경음 검증 | ⚪ 대기 | 런북 `runbooks/pc-verify-wp13.md`(WP-13 뒤): `audio_import` → 낮/밤·실내 크로스페이드·발소리 재질·착지, 볼륨 밸런스, 플레이스홀더면 실제 파일 교체 |
+| V-11 | WP-18a 캐릭터 목록·교체 검증 | ⚪ 대기 | 런북 `runbooks/pc-verify-wp18a.md`(WP-18a에서 Astra 작성): 빌드 → `test.ps1 -Filter Golmok.Character` → PIE에서 캐릭터 교체, 포털·포토 모드와 함께, 기본 캐릭터 `Golmok.Player.Movement` 기준 유지 |
+| V-12 | 캐릭터 룩 검증(프록시) | ⚪ 대기 | WP-18 설계 뒤, D-018 ② 전: 구매 없이 만든 프록시(마네킹 머티리얼·비율 변형)를 골목 Zone(없으면 `L_Basemap_Yeonnam`)에 두고 조명 프리셋 4개·포토 모드로 스크린샷 → 사용자 채점. PC 세션(Fable) |
 
 ## 트랙 1C — 사용자
 
