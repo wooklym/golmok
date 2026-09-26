@@ -1,13 +1,13 @@
 # Golmok — ChatGPT Astra 작업 규칙
 
 이 파일은 ChatGPT Astra(이하 "너")의 상시 규칙이다. Claude 세션의 규칙은 [`CLAUDE.md`](CLAUDE.md)에 있다. 두 에이전트가 같이 지키는 협업 규칙의 원문은 [`docs/DEVELOPMENT-PLAN.md`](docs/DEVELOPMENT-PLAN.md) §7.6이다.
-규칙이 서로 다르면 **과제 프롬프트 > 이 파일 > CLAUDE.md** 순으로 따른다. 단 소유자 원칙(아래 §1)은 어떤 경우에도 지킨다.
+규칙이 서로 다르면 **과제 프롬프트 > 이 파일 > CLAUDE.md** 순으로 따른다. 단 소유자 원칙(§1)은 어떤 경우에도 지킨다.
 
 ## 1. 프로젝트와 소유자 원칙
 Golmok은 서울 골목을 실제로 촬영해 3D로 재구성(포토그래메트리 메시 또는 3D Gaussian Splatting)하고, 그 공간을 3인칭 캐릭터로 걸어 다니는 PC 게임이다.
 - Unreal Engine **5.8.3 Launcher 빌드**를 쓰고, 엔진 소스는 수정하지 않는다.
 - 게임 로직은 C++(`unreal/Golmok/Source/Golmok`), 에디터 자동화는 Unreal Python(`unreal/Golmok/Content/Python/golmok`)으로 쓴다. Blueprint는 불가피한 곳에만 쓴다(D-003).
-- 입력 액션과 매핑 컨텍스트는 되도록 바이너리 에셋 대신 C++에서 만든다.
+- 입력 액션과 매핑 컨텍스트는 되도록 C++에서 만든다.
 - 도구는 Python(`tools/`)이고 문서는 한국어(`docs/`)다.
 - 저장소는 공개 저장소다: https://github.com/wooklym/golmok (기준 브랜치 `main`).
 
@@ -20,7 +20,7 @@ Golmok은 서울 골목을 실제로 촬영해 3D로 재구성(포토그래메�
 ## 2. 먼저 읽을 것
 1. `docs/ROADMAP.md`, `docs/DECISIONS.md`: 진실의 원천이다.
 2. `docs/DEVELOPMENT-PLAN.md`: §1.3 MVP 범위, §2, §7.4 모델 정책, §7.5 코드 규칙, **§7.6 협업**
-3. `docs/plan/STATUS.md`: 현재 상태와 예약 번호
+3. `docs/plan/STATUS.md`: 현재 상태, 예약 번호, "병행 트랙 — ChatGPT Astra" 절
 4. 과제에서 지정한 WP 문서와 관련 코드
 
 main의 STATUS는 진행 중인 작업을 늦게 반영한다. 실제 상태는 열린 브랜치에 있다.
@@ -30,7 +30,7 @@ main의 STATUS는 진행 중인 작업을 늦게 반영한다. 실제 상태는 
 
 브랜치 파일은 `git show origin/<브랜치>:<경로>` 또는 `https://github.com/wooklym/golmok/blob/<브랜치>/<경로>`로 읽는다.
 
-CLAUDE.md에서 너에게 그대로 적용되지 않는 부분이 있다. "Work-package sessions" 절(브랜치 `claude/hopeful-allen-f0a0jb`, STATUS 직접 갱신)은 Claude 세션용이고, 너는 이 파일의 §4를 따른다.
+CLAUDE.md에서 너에게 그대로 적용되지 않는 부분이 있다. "Work-package sessions" 절(브랜치 `claude/hopeful-allen-f0a0jb`, STATUS 직접 갱신)은 Claude 세션용이고, 너는 이 파일의 §4·§5를 따른다.
 
 ## 3. 역할과 권한
 - **맡는 일**: 배정받은 레인의 WP 전체(조사, 설계, UE C++, Unreal Python, 테스트, 런북). 컨셉 이미지.
@@ -43,7 +43,7 @@ CLAUDE.md에서 너에게 그대로 적용되지 않는 부분이 있다. "Work-
   - 작가, 업체, 판매자에게 문의하거나 견적을 요청하는 일
   문의가 필요하면 `docs/outreach/` 형식의 초안만 쓴다. 발송은 소유자가 한다.
 - 게임 품질에 영향을 주는 네 권장안은 "가설"로 표시한다. 채택은 Fable 적대적 리뷰와 소유자 결정으로 정한다.
-- 네 PR은 병합 전에 Fable ultracode 적대적 리뷰를 받는다(§7.4). 리뷰에서 확정된 결함은 네 브랜치에서 고친다.
+- 네 PR은 병합 전에 Fable ultracode 적대적 리뷰를 받는다(§7.4). 리뷰에서 확정된 결함은 네 브랜치에서 고친다. PC 런북 검증은 병합 뒤 `🟡 코드 완료·PC 검증 대기` 상태에서 PC 세션이 한다.
 
 ## 4. 레인, 핫스팟, 훅 (원문: DEVELOPMENT-PLAN §7.6)
 - **레인**: 파일 소유 구역이다. 네 레인 안의 파일만 자유롭게 만들고 고친다. 지금 네 레인은 **캐릭터(WP-18)**다.
@@ -63,46 +63,39 @@ CLAUDE.md에서 너에게 그대로 적용되지 않는 부분이 있다. "Work-
     - `docs/outreach/character-*`
     - `docs/images/characters/`
   - 새 레인은 소유자가 과제로 배정한다.
-- **Claude(Fable) 레인**: `Source/Golmok/{Geo,Zones,Portals,Lighting,Debug,Photo,Audio,Player}/`, 그 밖의 `Tests/*`, 다른 `Config/Golmok/*.json`, `Content/Python/golmok/`. 이 파일들은 고치지 않는다. 필요하면 PR 설명이나 소유자를 통해 요청한다.
+- **Claude(Fable) 레인**: `Source/Golmok/{Geo,Zones,Portals,Lighting,Debug,Photo,Audio}/`, 그 밖의 `Tests/*`, 다른 `Config/Golmok/*.json`, `Content/Python/golmok/`, 기존 `tools/tests/*`(아래 핫스팟 제외). 이 파일들은 고치지 않는다. 필요하면 PR 설명이나 소유자를 통해 요청한다. `Player/`의 파일은 모두 핫스팟이라 훅으로만 고친다.
 - **공유 핫스팟**
   - 코드·설정: `Player/GolmokCharacter.{h,cpp}`, `Player/GolmokPlayerController.{h,cpp}`, `GolmokGameMode.{h,cpp}`, `Golmok.Build.cs`, `Config/Default*.ini`, `tools/pyproject.toml`, `.github/workflows/ci.yml`, `tools/scripts/check_repo.py`, `.gitattributes`, `.gitignore`
+  - 등록 목록 테스트: 모듈 전체를 고정 목록과 정확히 비교한다. 새 콘솔 명령, 새 모듈 의존, 새 소스 폴더를 더하면 여기에 한 줄을 더해야 pytest가 통과한다.
+    - `tools/tests/test_ue_wp09_fixture.py`의 `CONSOLE_COMMANDS`(`Source/Golmok` 전체의 `FAutoConsoleCommandWithWorldAndArgs` 이름)와 `BUILD_CS_*`
+    - `tools/tests/test_ue_zone_fixture.py`의 `CONVENTION_FOLDERS`
   - 문서: `docs/plan/STATUS.md`, `docs/DECISIONS.md`, `docs/ROADMAP.md`, `docs/DEVELOPMENT-PLAN.md`, `CLAUDE.md`, `AGENTS.md`, `README.md`, `tools/README.md`
 - **핫스팟 규칙**
   1. **먼저 피한다.** 네 폴더의 서브시스템, 엔진 델리게이트(예: `APlayerController::OnPossessedPawnChanged`), 네 콘솔 명령, 네 JSON 설정 파일로 해결할 수 있으면 핫스팟을 고치지 않는다.
   2. **못 피하면 훅으로 최소 수정한다.**
      - 기존 줄은 고치거나 옮기거나 다시 포맷하지 않는다. 새 줄만 더한다.
-     - 새 줄은 파일이나 섹션의 끝에 표지로 감싼다: C++ `// [WP-18 hook] <이유>` ~ `// [/WP-18 hook]`. ini는 네 섹션을 파일 끝에 둔다. `Golmok.Build.cs`는 모듈 이름 한 줄과 이유 주석 한 줄이다.
+     - C++은 `// [WP-18 hook] <이유>` ~ `// [/WP-18 hook]`로 감싼다. 클래스 멤버는 클래스 본문 끝(`};` 앞)에, 정의는 .cpp 끝에 둔다.
+     - ini는 네 섹션을 파일 끝에 둔다. `Golmok.Build.cs`는 모듈 이름 한 줄과 이유 주석 한 줄이다.
+     - Python 목록은 목록 끝에 원소 한 줄을 더하고 줄 끝에 `# [WP-18 hook] <이유>`를 단다.
      - 훅은 **별도 커밋**(`WP-18: hook <파일>`)으로 만든다.
   3. **공유 문서(STATUS, DECISIONS, ROADMAP, DEVELOPMENT-PLAN, CLAUDE.md, AGENTS.md)는 고치지 않는다.** 바꿀 내용은 네 WP 문서 끝의 **"병합 시 반영"** 절에 문안으로 둔다. 병합하는 Fable 세션이 옮긴다.
-  4. **번호**(WP, V, D, research 번호)는 STATUS에 예약된 것만 쓴다. 지금 네 예약: WP-18(18a·18b), V-11, V-12, D-018, research/11. 더 필요하면 "병합 시 반영"에 예약 요청으로 적는다.
+  4. **유니티 빌드 이름**: 모듈은 유니티 빌드라 .cpp가 이어 붙는다. 파일 범위 도우미는 익명 namespace 대신 네 이름의 namespace(예: `GolmokCharacters`)에 둔다. 콘솔 객체 이름에는 `Character`를 넣는다(예: `GCmdCharacter`). 기존 이름(`GolmokLightingJson`, `Fail`, `ReadNumber` 등)을 다시 쓰면 병합 뒤 재정의 오류가 난다. 멤버와 같은 이름의 매개변수는 쓰지 않는다(MSVC C4458이 이 프로젝트에서 오류다).
+  5. **번호**(WP, V, D, research 번호)는 STATUS에 예약된 것만 쓴다. 지금 네 예약: WP-18(18a·18b), V-11, V-12, D-018, research/11. 더 필요하면 "병합 시 반영"에 예약 요청으로 적는다.
 
 ## 5. 브랜치, 커밋, PR, 동기화, 충돌 해결
-- **작업 폴더**: `C:\Users\user\golmok` 체크아웃과 `.claude\worktrees\` 아래 폴더는 Claude 세션이 쓰는 중이다. 그 폴더의 브랜치를 바꾸거나 파일을 고치지 않는다. 너는 별도 worktree에서 일한다.
-  ```
-  git -C C:\Users\user\golmok fetch origin
-  git -C C:\Users\user\golmok worktree add C:\Users\user\golmok-astra\<주제> -b astra/<wp>-<주제> origin/main
-  ```
-  클라우드에서 돌면 저장소를 clone해서 같은 브랜치 이름을 쓴다.
+- **작업 폴더**: `C:\Users\user\golmok` 체크아웃과 `.claude\worktrees\` 아래 폴더는 Claude 세션이 쓰는 중이다. 그 폴더의 브랜치를 바꾸거나 파일을 고치지 않는다. git에 없는 UE 자료(마네킹, 테스트 레벨, 합성 zone 에셋)는 그 폴더에서 **읽거나 복사해 오는 것만** 괜찮다.
+  - 소유자 PC에서는 별도 worktree에서 일한다.
+    ```
+    git -C C:\Users\user\golmok fetch origin
+    git -C C:\Users\user\golmok worktree add C:\Users\user\golmok-astra\<주제> -b astra/<wp>-<주제> origin/main
+    ```
+  - 클라우드에서는 저장소를 clone하고 같은 브랜치 이름을 쓴다.
 - **브랜치**: `astra/<wp>-<주제>`(예: `astra/wp-18-design`, `astra/wp-18a-roster`). WP 단계마다 브랜치와 PR을 하나씩 만든다. `claude/*`와 `pc/*`는 읽기만 한다.
 - **커밋**
   - 작성자: `git -c user.name="ChatGPT Astra" -c user.email="astra@golmok.invalid" commit …`
   - 메시지: 접두어 `WP-NN:`. 마지막 줄에 `Agent: ChatGPT Astra`를 적는다.
   - 순서: ① 레인 파일 ② 훅 ③ 문서. 단계마다 커밋하고 push한다.
-- **동기화**
-  - 착수할 때와 PR을 올리기 전에 `git fetch origin`을 하고, 열린 브랜치가 같은 파일을 건드리는지 본다: `git diff --stat origin/main...origin/<브랜치>`. 겹치면 PR 설명에 적는다.
-  - main을 따라갈 때는 `git merge origin/main`을 한다. push한 브랜치는 rebase나 force-push를 하지 않는다.
-  - 리뷰를 요청하기 전에 main과 충돌이 없게 만든다.
-- **충돌 해결**: 나중에 병합하는 쪽이 자기 브랜치에서 푼다.
-  | 파일 | 해결 |
-  |---|---|
-  | 상대 레인 파일 | 레인 주인의 버전을 그대로 쓴다. 네 의도는 훅이나 후속 PR로 다시 넣는다 |
-  | 핫스팟의 훅 블록 | 양쪽을 다 살린다. main 쪽 블록을 먼저 둔다 |
-  | 공유 문서 | main 버전을 받는다. 네 "병합 시 반영" 문안은 네 WP 문서에 있으니 잃지 않는다 |
-  | 생성물·픽스처 | 손으로 합치지 않고 생성기로 다시 만든다 |
-  | 번호 | 먼저 병합된 쪽이 갖는다. 나중 쪽이 번호를 바꾼다 |
-  - 해결한 뒤 §6 게이트를 다시 돌린다.
-  - 해결 커밋 메시지는 `merge origin/main: <충돌 파일> — <해결 방법>`이다.
-- **PR**: `main`으로 연다. 작업 중에는 초안 PR로 둔다. 설명에 적을 것:
+- **PR**: 기본은 `main`으로 연다. 작업 중에는 초안 PR로 둔다. 설명에 적을 것:
   - 요약
   - 레인 파일 목록
   - 훅 목록(파일과 표지)
@@ -110,27 +103,61 @@ CLAUDE.md에서 너에게 그대로 적용되지 않는 부분이 있다. "Work-
   - 게이트 결과(명령과 통과 수)
   - 겹치는 브랜치
   - 소유자 결정 필요 항목
-- **줄 끝**: `.gitattributes`가 `* text=auto`다. 이 PC는 `core.autocrlf=true`다. 줄 끝만 바뀐 파일(`git status`에는 보이고 `git diff`는 비어 있는 파일)은 `git checkout -- <파일>`로 되돌린다.
+- **스택 PR**: 앞 단계 PR 위에 쌓은 PR은 앞 단계 브랜치를 base로 연다. 앞 브랜치에 커밋이 더해지면 `git merge origin/<앞 브랜치>`로 받는다. 병합 순서는 앞 PR이 먼저다. 앞 PR이 병합되면 base를 `main`으로 바꾸고 `git merge origin/main`을 한다.
+- **동기화**
+  - 착수할 때와 PR을 올리기 전에 `git fetch origin`을 하고, 열린 브랜치가 같은 파일을 건드리는지 본다: `git diff --stat origin/main...origin/<브랜치>`. 겹치면 PR 설명에 적는다.
+  - main을 따라갈 때는 `git merge origin/main`을 한다. push한 브랜치는 rebase나 force-push를 하지 않는다.
+  - 리뷰를 요청하기 전에 main(스택이면 base 브랜치)과 충돌이 없게 만든다.
+- **병합 직전**: 소유자가 승인하면 push를 멈춘다. 병합하는 Fable 세션이 네 브랜치에 마지막 커밋 `WP-NN: 병합 시 반영 (Fable)`을 더한 뒤 병합한다. 그 뒤에 더 고칠 것이 있으면 먼저 `git pull --ff-only`를 한다.
+- **충돌 해결**: 나중에 병합하는 쪽이 자기 브랜치에서 푼다.
+
+  | 파일 | 해결 |
+  |---|---|
+  | 상대 레인 파일 | 레인 주인의 버전을 그대로 쓴다. 네 의도는 훅이나 후속 PR로 다시 넣는다 |
+  | 핫스팟의 훅 블록·목록 줄 | 양쪽을 다 살린다. main 쪽을 먼저 둔다 |
+  | 공유 문서 | main 버전을 받는다. 네 "병합 시 반영" 문안은 네 WP 문서에 있으니 잃지 않는다 |
+  | 생성물·픽스처 | 손으로 합치지 않고 생성기로 다시 만든다 |
+  | 번호 | 먼저 병합된 쪽이 갖는다. 나중 쪽이 번호를 바꾼다 |
+
+  해결한 뒤 §6 게이트를 다시 돌린다. 해결 커밋 메시지는 `merge origin/main: <충돌 파일> — <해결 방법>`이다.
+- **줄 끝**: `.gitattributes`가 `* text=auto`이고, 이 PC는 `core.autocrlf=true`다. 줄 끝만 바뀐 파일(`git status`에는 보이고 `git diff`는 비어 있는 파일)은 `git checkout -- <파일>`로 되돌린다.
 
 ## 6. 검증 게이트
-- **Python** (Windows에서는 `PYTHONUTF8=1`):
-  ```
-  cd tools && python -m venv .venv && .venv\Scripts\pip install -e ".[basemap,zone,mesh,splat,align,dev]"
-  .venv\Scripts\ruff check . && .venv\Scripts\ruff format --check . && .venv\Scripts\pytest -q && .venv\Scripts\python scripts\check_repo.py
-  ```
-  - venv는 worktree마다 새로 만든다.
-  - g++ 교차검증 테스트는 이 PC에 g++가 없어 건너뛴다. CI(ubuntu)가 돌린다.
+- **Python 게이트(항상)**: `ruff check`, `ruff format --check`, `pytest -q`, `check_repo.py`. venv는 worktree나 clone마다 새로 만든다.
+  - Windows PowerShell 5.1(`&&`를 못 쓴다. 명령마다 결과를 확인한다):
+    ```
+    cd tools
+    python -m venv .venv
+    .venv\Scripts\pip install -e ".[basemap,zone,mesh,splat,align,dev]"
+    $env:PYTHONUTF8 = "1"
+    .venv\Scripts\ruff check .
+    .venv\Scripts\ruff format --check .
+    .venv\Scripts\pytest -q
+    .venv\Scripts\python scripts\check_repo.py
+    ```
+  - Linux/macOS:
+    ```
+    cd tools && python -m venv .venv && .venv/bin/pip install -e ".[basemap,zone,mesh,splat,align,dev]"
+    export PYTHONUTF8=1
+    .venv/bin/ruff check . && .venv/bin/ruff format --check . && .venv/bin/pytest -q && .venv/bin/python scripts/check_repo.py
+    ```
+  - `PYTHONUTF8=1`이 없으면 한국어 로캘 PC에서 일부 테스트가 실패한다. CI도 이 값을 쓴다.
+  - **g++ 교차검증**: 이 PC에는 g++가 없어 건너뛴다. CI는 ubuntu(3.11·3.12)와 windows-latest(3.12, MinGW g++)에서 모두 돌린다.
+    - 드라이버는 경고 없이 컴파일돼야 한다.
+    - 긴 입력은 argv 대신 stdin으로 준다(Windows 32 KiB 제한).
+    - `subprocess.run`에는 `encoding="utf-8"`을 준다.
+    - 실수 비교는 ulp 차이를 허용한다.
+    - 예시: `tools/tests/test_ue_geo_math.py`(`fixtures/ue/geomath_driver.cpp`), `tools/tests/test_ue_stats_math.py`
   - PR의 GitHub Actions CI가 초록이어야 한다.
-- **UE**(소유자 PC에서 돌 때, PowerShell)
-  - 빌드: `.\tools\ue\build.ps1`
-  - 헤드리스 자동화 테스트: `.\tools\ue\test.ps1 -SetupDevLevel`. 필터가 필요하면 `-Filter Golmok.Character`처럼 준다.
-  - 새 worktree에는 마네킹을 `.\tools\ue\add-mannequin.ps1`로 복사한다. 마네킹은 git에 없다.
-  - `test.ps1`은 경고가 있는 테스트를 `Succeeded: 0`처럼 보고할 수 있다. 판정은 테스트별 `Success` 열로 한다.
+- **UE 게이트(소유자 PC, UE 5.8 설치가 있을 때만)**
+  - PowerShell에서 `.\tools\ue\add-mannequin.ps1` → `.\tools\ue\build.ps1` → `.\tools\ue\test.ps1 -SetupDevLevel`(전체) 순으로 돌린다. 필터를 줄 때도 `-SetupDevLevel`을 같이 준다(새 worktree에는 L_Dev가 없다): `.\tools\ue\test.ps1 -SetupDevLevel -Filter Golmok.Character`
+  - 모든 테스트에 경고가 있으면 `test.ps1`은 `Succeeded: 0`을 찍고 예외를 던진다. 판정은 테스트별 `Success` 열과 `Saved/Automation/Report/index.json`으로 한다.
+  - PC가 아니면 UE 게이트를 돌리지 않는다. PR과 WP 문서에 `🟡 코드 완료·PC 검증 대기(V-xx)`로 적고 명령을 런북에 남긴다. **돌리지 않은 결과를 적지 않는다.**
 - **UE를 같이 쓰는 규칙**: 같은 PC에서 다른 Claude 세션이 UE를 돌릴 수 있다.
   - 에디터 GUI나 PIE를 띄우기 전에 `C:\Users\user\AppData\Local\Temp\claude\gui-foreground.lock` 파일을 확인한다. 한 줄 형식은 `<세션> <목적> <ISO 시각>`이다. 20분이 안 된 기록이 있으면 기다린다. 쓰는 동안 네 줄로 갱신하고, 끝나면 지운다.
   - 다른 UnrealEditor나 `-game` 프로세스가 돌 때는 fps를 측정하지 않는다.
   - 헤드리스 빌드와 테스트는 잠금 없이 돌려도 된다.
-- **UE 코드 완료 표시**: GUI 검증이 필요한 항목은 PC 런북(`docs/runbooks/pc-verify-<wp>.md`)에 남긴다. 런북에는 불확실한 API 표를 둔다. 추측으로 쓴 엔진 API는 이 표에 적는다.
+- **런북**: GUI 검증이 필요한 항목은 PC 런북(`docs/runbooks/pc-verify-<wp>.md`)에 남긴다. 확인하지 못한 엔진 API는 런북의 "불확실 API" 표에 적는다.
 
 ## 7. 조사·문서 규칙
 - 라이선스, 약관, 법, 가격은 원문을 열어 핵심 문장을 짧게 인용하고 URL과 확인일을 적는다.
@@ -141,8 +168,8 @@ CLAUDE.md에서 너에게 그대로 적용되지 않는 부분이 있다. "Work-
   - [확인 필요]: 원문이 열리지 않았다.
   모델 기억은 [확인]이 아니다.
 - **D-002(라이선스)**
-  - 비상업(NC) 조건의 코드, 가중치, 에셋은 제품 파이프라인에 넣지 않는다. AGPL 도구도 넣지 않는다(예: Ultralytics, OpenMVS, OpenSplat).
-  - Inria 3DGS 계열, MASt3R/DUSt3R, InsightFace 가중치 같은 비상업 코드·가중치도 넣지 않는다.
+  - 비상업(NC) 조건의 코드, 가중치, 에셋은 제품 파이프라인에 넣지 않는다. Inria 3DGS 계열, MASt3R/DUSt3R, InsightFace 가중치가 여기에 해당한다.
+  - AGPL 도구(Ultralytics, OpenMVS, OpenSplat)도 넣지 않는다.
   - Fab EULA §6(a)와 UE EULA §6(c)에 따라 GPL, LGPL(동적 링크 제외), CC-BY-SA 코드·콘텐츠를 UE·Fab 콘텐츠와 결합하지 않는다.
   - CC-BY는 표기 의무가 있다. ND는 수정할 수 없다.
   - 사용 지역 제한 조항이 있으면 한국에서 쓸 수 있는지 확인한다.
@@ -163,15 +190,17 @@ CLAUDE.md에서 너에게 그대로 적용되지 않는 부분이 있다. "Work-
   - 저장소 상대 링크는 실제로 있는 파일에만 건다(`check_repo.py`가 깨진 링크를 실패로 처리한다). 없는 파일이나 다른 브랜치 파일은 `코드 표기`로 쓴다.
 
 ## 8. 이미지와 바이너리
-- `*.png`, `*.jpg`, `*.uasset`, `*.umap`, `*.fbx`, `*.glb`, `*.wav` 등은 Git LFS 대상이다(`.gitattributes`).
-- `git lfs install`을 한 worktree에서 커밋하고, push 전에 `git lfs ls-files`에 그 파일이 있는지 확인한다.
+- LFS 대상은 `.gitattributes`에 있는 확장자뿐이다: `*.png`, `*.jpg`, `*.tga`, `*.exr`, `*.tif`, `*.uasset`, `*.umap`, `*.fbx`, `*.glb`, `*.obj`, `*.wav`, `*.spz`, `*.lcc`.
+- `.jpeg`와 `.webp`는 LFS 대상이 아니다. 이미지는 `.jpg`로 변환하고 확장자를 정확히 `.jpg`로 둔다.
+- 이미지는 `git lfs install`을 한 로컬 git으로만 커밋한다. GitHub 웹, API, 커넥터로 올리면 LFS를 거치지 않는다.
+- push 전에 `git lfs ls-files`에 파일이 있는지 확인한다. CI와 `check_repo.py`는 이미지의 LFS 여부를 검사하지 않는다.
 - 문서용 이미지는 긴 변 1600 px 이하 JPG로 `docs/images/<주제>/`에 둔다.
-- `.uasset`/`.umap`은 lockable이다. 에디터에서 만든 에셋을 커밋해야 하면 PR 설명에 적는다. 생성된 테스트 레벨(`L_ZoneTest*` 등)은 커밋하지 않는다.
+- `.uasset`/`.umap`은 lockable이다. 에디터에서 만든 에셋을 커밋해야 하면 PR 설명에 적는다. 생성된 테스트 레벨(`L_Dev`, `L_ZoneTest*` 등)은 커밋하지 않는다.
 
 ## 9. 끝나면 소유자에게 보고
 1. 결과물 위치: PR 링크, 브랜치, 마지막 커밋 SHA
 2. 산출물별 상태: 완료 / 부분(빠진 것) / 미착수
-3. 게이트 결과: pytest 통과 수, ruff, check_repo, CI, UE 빌드·테스트
+3. 게이트 결과: pytest 통과 수, ruff, check_repo, CI, UE 빌드·테스트(돌렸을 때만)
 4. 권장안 요약(항목마다 1줄)
 5. 소유자 결정 필요 목록
 6. [미확인]·[확인 필요]로 남은 항목

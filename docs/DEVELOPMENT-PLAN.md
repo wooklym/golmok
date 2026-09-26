@@ -119,12 +119,12 @@ UE 에디터와 실데이터 없이도 만들 수 있고, 합성 데이터로 �
 | **WP-12** | 포토 모드 최소판(D-013) | `Photo/`(포토 모드 서브시스템·자유 카메라 폰, 반경·footprint 클램프, FOV·노출·DOF·롤, 캐릭터/오버레이 숨김), `Config/Golmok/photo.json`, `golmok.photo*` 콘솔, 사진 PNG + 메타 JSON, 순수 헤더 g++ 교차검증 | UE 자동화 `Golmok.Photo.*`, pytest, 런북 | **빌드 + PIE**(V-09) | WP-05, WP-09 |
 | **WP-13** | 환경음 기본(D-016 (a)) | `research/10-ambience-sources.md`(라이선스 원문 인용), `Audio/`(앰비언스 서브시스템 크로스페이드, 발소리 컴포넌트, 콘솔), `Config/Golmok/audio.json`, `audio_import.py`, WAV(LFS, ≤ 40 MB) 또는 플레이스홀더 생성기 | UE 자동화 `Golmok.Audio.*`, pytest, 런북 | **빌드 + PIE**(V-10) | WP-05, WP-12 |
 | **WP-11** | 웹 검수 뷰어 2차: 충돌·blocker 오버레이 | `tools/viewer` collision.glb/blockers.glb 오버레이·토글(Cesium.Model, glTF Y-up 변환), 서버 GLB 서빙(경로 탈출 금지), Playwright 스모크 | `npm test`, pytest | 브라우저 | WP-03, WP-06, WP-08 |
-| **WP-18** | 플레이어 캐릭터(**ChatGPT Astra**, §7.6 캐릭터 레인) | 설계: `design/character-concept.md`, `research/11-character-pipeline.md`, `plan/WP-18-characters.md`, D-018 제안. 18a: `Characters/`(캐릭터 목록 `Config/Golmok/characters.json`, 플레이스홀더 마네킹 교체, 콘솔), 핫스팟은 훅만. 18b: 실제 에셋·리타깃·이모트 | pytest, g++ 교차검증, UE 자동화 `Golmok.Character.*`, Fable 리뷰 | **빌드 + PIE**(V-11 18a, V-12 룩 검증) | 18a: WP-05·WP-09. 18b: V-08, D-018 ② |
 
 - **후속(M1 이후, 2026-09-25 등록)**: 계획서에 남아 있던 항목을 WP-09(Zone Index 런타임 발견·비동기 로드 + V-03 디버그 표시 정리, Fable ultracode), WP-11(뷰어 충돌·blocker 오버레이, Opus), WP-10(애니메이션 평가·게임 기능 제안 문서, Opus)으로 묶었다. 순서 WP-09 → WP-11 → WP-10. `replaces.building_ids` 단위 런타임 숨김은 제외(베이스맵 타일이 건물을 병합하므로 빌드 단계 `golmok-zone exclude`가 정본, D-012).
 - **게임 기능(D-013~D-017 승인 2026-09-25, 권장 우선순위대로)**: WP-12 포토 모드 → WP-13 환경음 기본(둘 다 Fable ultracode, 1.6 폴리시의 선택 항목이며 MVP 범위 §1.3은 그대로) → **WP-14** 시간대 폴리시(D-015 (a), D-010 확정 뒤; night look-dev는 PC) → **WP-15** Zone 지도·이동 + 세이브(D-014·D-017, Phase 2 초반: Zone 2곳 이상·V-07 통과) → **WP-16** 날씨 비(D-015 (b), Phase 2 중반, D-010 뒤) → **WP-17** 현장 녹음 절차·Zone별 소리(D-016 (b), 문서·촬영 가이드, Opus). WP-14 이후 스펙은 착수 조건이 충족될 때 쓴다.
 - WP-08은 ROADMAP 1.6의 "(웹, 선택)"이었으나 2026-09-24에 CesiumJS 기반으로 **완료**했다(`tools/viewer`, `golmok-viewer`). UE 디버그 도구(WP-05)는 그대로 진행한다.
 - Phase 2 서버 파이프라인(COLMAP+gsplat)은 이 트랙에 넣지 않는다(D-005: MVP는 수동).
+- **병행(ChatGPT Astra, §7.6 캐릭터 레인, 2026-09-26 등록)**: **WP-18** 플레이어 캐릭터 — 설계(`design/character-concept.md`, `research/11-character-pipeline.md`, `plan/WP-18-characters.md`, D-018 제안) → 18a(`Characters/`, `Config/Golmok/characters.json`, 플레이스홀더 마네킹 교체·콘솔, 핫스팟은 훅만; pytest·g++ 교차검증·UE 자동화 `Golmok.Character.*`, 검증 V-11) → 18b(실제 에셋·리타깃·이모트, V-08·V-12 룩 검증·D-018 ② 뒤).
 
 ### 5.2 트랙 1B — PC 셋업·검증 (PC Claude 세션 + 사용자)
 
@@ -204,7 +204,7 @@ docs/plan/STATUS.md, docs/plan/WP-0N-<name>.md를 먼저 읽고, WP-0N을 처음
 
 ### 7.4 모델·예산·시간
 - **모델 정책(2026-09-24 사용자 지시, 반드시 준수)**: Unreal Engine을 다루거나 게임성(비주얼·플레이 감각·성능)에 **직접** 영향을 주는 작업(WP-04·05·06, 이후 Zone 통합·조명·폴리시·스파이크 판단 등)은 **Claude Fable 5.1 + ultracode**(멀티 에이전트 워크플로: 설계 패널 → 구현 → 적대적 검증)로 한다. 조사, 파일 다운로드, 문서 정리, 단순 도구·CI처럼 비교적 단순한 작업은 오케스트레이터가 판단해 **Sonnet 또는 Opus**로 한다. WP-01~03(CI, Zone 스펙, 후처리 도구)은 정책 이전에 Opus로 시작했으므로 **병합 전에 Fable ultracode 적대적 리뷰**를 거친다.
-- **ChatGPT Astra 병행(2026-09-26 사용자 결정)**: ChatGPT Astra도 §7.6 레인 안에서 UE C++를 포함한 구현을 맡는다. Unreal이나 게임성에 영향을 주는 Astra 변경은 병합 전에 **Fable ultracode 적대적 리뷰**와 PC 런북 검증을 거친다. 엔진 안 품질의 최종 판단(룩 검증, 스파이크, 폴리시)은 계속 Fable이 한다.
+- **ChatGPT Astra 병행(2026-09-26 사용자 결정)**: ChatGPT Astra도 §7.6 레인 안에서 UE C++를 포함한 구현을 맡는다. Unreal이나 게임성에 영향을 주는 Astra 변경은 병합 전에 **Fable ultracode 적대적 리뷰**를 거친다. PC 런북 검증은 Claude WP와 같이 병합 뒤 `🟡 코드 완료·PC 검증 대기` 상태에서 PC 세션이 한다. 엔진 안 품질의 최종 판단(룩 검증, 스파이크, 폴리시)은 계속 Fable이 한다.
 - 권한 모드: auto. 세션당 예상 1~3시간(Fable ultracode 세션은 더 길 수 있다).
 - 오케스트레이션: 설계 세션(이 문서를 쓴 세션)이 WP 세션을 하나씩 만들고, 끝나면 브랜치를 받아 pytest·STATUS·CI를 확인하고, 조건(CI 초록·충돌 없음·STATUS 🟢/🟡)을 만족하면 PR을 merge commit으로 병합한 뒤(사용자 승인 2026-09-24) 다음 세션을 만든다.
 - 실패·중단 시: 같은 WP를 새 세션으로 다시 시작한다. STATUS의 인계 메모 덕분에 이어서 할 수 있다.
@@ -231,22 +231,26 @@ docs/plan/STATUS.md, docs/plan/WP-0N-<name>.md를 먼저 읽고, WP-0N을 처음
 | 레인 | 주인 | 경로 |
 |---|---|---|
 | 캐릭터(WP-18) | Astra | `unreal/Golmok/Source/Golmok/Characters/`, `Source/Golmok/Tests/GolmokCharacterRoster*.cpp`, `unreal/Golmok/Config/Golmok/characters.json`, `tools/tests/test_ue_character_roster*.py`, `tools/tests/test_ue_config_characters.py`, `tools/tests/fixtures/ue/charactermath*`, `docs/design/character-*`, `docs/spec/characters*`, `docs/research/11-*`, `docs/plan/WP-18*`, `docs/runbooks/pc-verify-wp18*`, `docs/outreach/character-*`, `docs/images/characters/` |
-| 기존 게임 시스템 | Fable | `Source/Golmok/{Geo,Zones,Portals,Lighting,Debug,Photo,Audio,Player}/`, 그 밖의 `Source/Golmok/Tests/*`, `Config/Golmok/*.json`(위 캐릭터 파일 제외), `unreal/Golmok/Content/Python/golmok/` |
+| 기존 게임 시스템 | Fable | `Source/Golmok/{Geo,Zones,Portals,Lighting,Debug,Photo,Audio}/`, `Player/`(파일이 모두 핫스팟이라 아래 훅 규칙을 따른다), 그 밖의 `Source/Golmok/Tests/*`, `Config/Golmok/*.json`(위 캐릭터 파일 제외), `unreal/Golmok/Content/Python/golmok/`, 기존 `tools/tests/*`(아래 핫스팟 제외) |
 | 파이썬 도구 | 배정한 쪽 | `tools/golmok_tools/<모듈>/` 모듈 단위 |
 | 문서 | 작성자 | 자기 WP 문서와 자기가 만든 research·design·runbook 문서 |
 
 **공유 핫스팟 파일**: 두 쪽 모두 고칠 수 있지만 충돌이 잘 나는 파일이다.
 - 코드·설정: `Source/Golmok/Player/GolmokCharacter.{h,cpp}`, `Player/GolmokPlayerController.{h,cpp}`, `GolmokGameMode.{h,cpp}`, `Golmok.Build.cs`, `Config/Default*.ini`, `tools/pyproject.toml`, `.github/workflows/ci.yml`, `tools/scripts/check_repo.py`, `.gitattributes`, `.gitignore`
+- 등록 목록 테스트: 모듈 전체를 고정 목록과 정확히 비교하는 테스트다. 새 콘솔 명령, 새 모듈 의존, 새 소스 폴더를 더하면 이 목록에 한 줄을 더해야 한다.
+  - `tools/tests/test_ue_wp09_fixture.py`의 `CONSOLE_COMMANDS`(모든 `FAutoConsoleCommandWithWorldAndArgs` 이름)와 `BUILD_CS_*`
+  - `tools/tests/test_ue_zone_fixture.py`의 `CONVENTION_FOLDERS`
 - 문서: `docs/plan/STATUS.md`, `docs/DECISIONS.md`, `docs/ROADMAP.md`, `docs/DEVELOPMENT-PLAN.md`, `CLAUDE.md`, `AGENTS.md`, `README.md`, `tools/README.md`
 
 핫스팟 규칙:
 1. **먼저 피한다.** 자기 폴더의 서브시스템, 엔진 델리게이트(예: `APlayerController::OnPossessedPawnChanged`), 자기 콘솔 명령, 자기 JSON 설정(`Config/Golmok/<기능>.json`)으로 해결할 수 있으면 핫스팟을 고치지 않는다.
 2. **못 피하면 훅(hook)으로 최소 수정한다.**
    - 기존 줄은 고치거나 옮기거나 다시 포맷하지 않는다. 새 줄만 더한다. 기존 줄을 꼭 고쳐야 하면 PR 설명에 이유를 적는다.
-   - 새 줄은 파일이나 섹션의 끝에 표지로 감싸 둔다: C++ `// [WP-NN hook] …` ~ `// [/WP-NN hook]`. ini는 자기 섹션을 파일 끝에 둔다. Build.cs는 모듈 이름 한 줄과 이유 주석 한 줄이다.
+   - 새 줄은 파일이나 섹션의 끝에 표지로 감싸 둔다: C++ `// [WP-NN hook] …` ~ `// [/WP-NN hook]`. 클래스 멤버는 클래스 본문의 끝(`};` 앞)에 둔다. ini는 자기 섹션을 파일 끝에 둔다. Build.cs는 모듈 이름 한 줄과 이유 주석 한 줄이다. Python 목록은 원소 한 줄을 목록 끝에 더하고 줄 끝에 `# [WP-NN hook] <이유>`를 단다.
    - 훅은 **별도 커밋**(`WP-NN: hook <파일>`)으로 둔다. 충돌이 나면 그 커밋만 새 main 위에 다시 적용한다.
-3. **공유 문서는 Claude 쪽이 고친다.** Claude WP 세션은 지금처럼 STATUS의 자기 행을 고친다. Astra는 자기 WP 문서 끝의 "병합 시 반영" 절에 문안을 두고, 병합하는 Fable 세션이 옮긴다.
-4. **번호**(WP, V, D, research 번호)는 STATUS에 예약된 것만 쓴다. 새 번호가 필요하면 "병합 시 반영"에 예약 요청으로 적는다. 두 쪽이 같은 번호를 쓰면 먼저 병합된 쪽이 그 번호를 갖는다.
+3. **공유 문서는 Claude 쪽이 고친다.** Claude WP 세션은 지금처럼(§7.2) STATUS의 자기 행, ROADMAP, D-002 표를 제자리에서 고친다. 공유 문서에는 훅 표지를 쓰지 않는다. Astra는 자기 WP 문서 끝의 "병합 시 반영" 절에 문안을 두고, 병합하는 Fable 세션이 옮긴다. STATUS의 Astra 행은 "병행 트랙" 절에 따로 두어 다른 표와 붙지 않게 한다.
+4. **유니티 빌드 이름**: 모듈은 유니티 빌드라 .cpp들이 이어 붙는다. 파일 범위 도우미는 익명 namespace 대신 자기 이름의 namespace(예: `GolmokCharacters`)에 둔다. 두 브랜치가 각자 통과해도 병합 뒤 이름이 겹치면 빌드가 깨진다(`tools/tests/test_lighting_presets.py`의 모듈 전체 검사는 익명 namespace만 잡는다).
+5. **번호**(WP, V, D, research 번호)는 STATUS에 예약된 것만 쓴다. 새 번호가 필요하면 "병합 시 반영"에 예약 요청으로 적는다. 두 쪽이 같은 번호를 쓰면 먼저 병합된 쪽이 그 번호를 갖는다.
 
 **동기화**
 - 착수할 때와 PR을 올리기 전에 `git fetch origin`을 하고, 열린 브랜치가 같은 파일을 건드리는지 본다: `git diff --stat origin/main...origin/<브랜치>`(특히 `claude/hopeful-allen-f0a0jb`, `pc/*`, `astra/*`). 겹치면 PR 설명에 적는다.
@@ -268,13 +272,21 @@ docs/plan/STATUS.md, docs/plan/WP-0N-<name>.md를 먼저 읽고, WP-0N을 처음
 
 **Astra PR 리뷰·병합**
 - Astra PR 설명: 요약, 레인 파일 목록, 훅 목록(파일·표지), "병합 시 반영" 위치, 테스트 결과, 겹치는 브랜치.
-- 병합 전: Fable ultracode 적대적 리뷰(Unreal·게임성 영향이면 필수) → 확정 결함은 Astra가 자기 브랜치에서 고친다(사용자가 지시하면 Fable이 직접) → 사용자 승인 → "병합 시 반영" 문안을 공유 문서에 옮기고 merge commit으로 병합.
+- 병합 흐름
+  1. Fable ultracode 적대적 리뷰를 받는다(Unreal·게임성에 영향이 있으면 필수). 결과는 PR 리뷰 코멘트로 남긴다.
+  2. 확정 결함은 Astra가 자기 브랜치에서 고친다. 사용자가 지시하면 Fable이 직접 고친다.
+  3. 사용자가 승인한다.
+  4. Astra가 push를 멈춘 것을 확인한다. 병합 세션이 Astra 브랜치에 **마지막 커밋 하나**(`WP-NN: 병합 시 반영 (Fable)`)를 더한다. 이 커밋은 리뷰 요약을 WP 문서 "리뷰" 절에, "병합 시 반영" 문안을 STATUS·DECISIONS·ROADMAP·DEVELOPMENT-PLAN에 옮긴다. Claude가 Astra 브랜치와 레인 파일을 고치는 유일한 예외다.
+  5. merge commit으로 병합한다. PC 검증은 병합 뒤 🟡 상태에서 한다(§7.4).
+- 스택 PR(앞 단계 PR 위에 쌓은 PR)은 앞 단계 브랜치를 base로 연다. 앞 PR부터 병합한다. 앞 PR이 병합되면 base를 `main`으로 바꾸고 `git merge origin/main`을 한다.
 - 리뷰 세션 프롬프트 템플릿:
 ```
 당신은 Golmok의 Astra PR 리뷰·병합 세션이다(Fable 5.1 ultracode). CLAUDE.md, DEVELOPMENT-PLAN §7.4·§7.6,
 AGENTS.md, 브랜치 astra/<…>의 WP 문서와 diff를 읽는다. 레인·훅 규칙 위반, 정확성, 게임 품질, 라이선스를
-적대적으로 검증하고 결과를 WP 문서 "리뷰" 절에 남긴다. 확정 결함은 Astra에게 돌려보낸다(사용자가 지시하면 직접 고친다).
-사용자 승인 뒤 "병합 시 반영" 문안을 STATUS·DECISIONS·ROADMAP·DEVELOPMENT-PLAN에 옮기고 merge commit으로 병합한다.
+적대적으로 검증하고 결과를 PR 리뷰 코멘트로 남긴다. 확정 결함은 Astra에게 돌려보낸다(사용자가 지시하면 직접 고친다).
+사용자 승인 뒤, Astra가 push를 멈춘 것을 확인하고 Astra 브랜치에 마지막 커밋 `WP-NN: 병합 시 반영 (Fable)`을 더한다.
+이 커밋으로 리뷰 요약을 WP 문서 "리뷰" 절에, "병합 시 반영" 문안을 STATUS·DECISIONS·ROADMAP·DEVELOPMENT-PLAN에 옮긴다.
+그다음 merge commit으로 병합한다.
 ```
 
 ---
