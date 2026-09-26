@@ -230,7 +230,7 @@ docs/plan/STATUS.md, docs/plan/WP-0N-<name>.md를 먼저 읽고, WP-0N을 처음
 
 | 레인 | 주인 | 경로 |
 |---|---|---|
-| 캐릭터(WP-18) | Astra | `unreal/Golmok/Source/Golmok/Characters/`, `Source/Golmok/Tests/GolmokCharacterRoster*.cpp`, `unreal/Golmok/Config/Golmok/characters.json`, `tools/tests/test_ue_character_roster*.py`, `tools/tests/test_ue_config_characters.py`, `tools/tests/fixtures/ue/charactermath*`, `docs/design/character-*`, `docs/research/11-*`, `docs/plan/WP-18*`, `docs/runbooks/pc-verify-wp18*`, `docs/outreach/character-*`, `docs/images/characters/` |
+| 캐릭터(WP-18) | Astra | `unreal/Golmok/Source/Golmok/Characters/`, `Source/Golmok/Tests/GolmokCharacterRoster*.cpp`, `unreal/Golmok/Config/Golmok/characters.json`, `tools/tests/test_ue_character_roster*.py`, `tools/tests/test_ue_config_characters.py`, `tools/tests/fixtures/ue/charactermath*`, `docs/design/character-*`, `docs/spec/characters*`, `docs/research/11-*`, `docs/plan/WP-18*`, `docs/runbooks/pc-verify-wp18*`, `docs/outreach/character-*`, `docs/images/characters/` |
 | 기존 게임 시스템 | Fable | `Source/Golmok/{Geo,Zones,Portals,Lighting,Debug,Photo,Audio,Player}/`, 그 밖의 `Source/Golmok/Tests/*`, `Config/Golmok/*.json`(위 캐릭터 파일 제외), `unreal/Golmok/Content/Python/golmok/` |
 | 파이썬 도구 | 배정한 쪽 | `tools/golmok_tools/<모듈>/` 모듈 단위 |
 | 문서 | 작성자 | 자기 WP 문서와 자기가 만든 research·design·runbook 문서 |

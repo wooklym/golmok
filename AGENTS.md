@@ -56,7 +56,7 @@ CLAUDE.md에서 너에게 그대로 적용되지 않는 부분이 있다. "Work-
     - `tools/tests/test_ue_config_characters.py`
     - `tools/tests/fixtures/ue/charactermath*`
   - 문서·이미지
-    - `docs/design/character-*`
+    - `docs/design/character-*`, `docs/spec/characters*`
     - `docs/research/11-*`
     - `docs/plan/WP-18*`
     - `docs/runbooks/pc-verify-wp18*`
