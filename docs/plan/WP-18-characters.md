@@ -18,7 +18,7 @@
 
 - 설계: [A 컨셉](../design/character-concept.md), [B 제작 경로](../research/11-character-pipeline.md), 이 문서 C/D, 컨셉 JPG 7장(첫 세트1×2 + 나머지5×1), `docs/outreach/character-commission-draft.md`.
 - 18a: `Characters/GolmokCharacterSubsystem.{h,cpp}`, 순수 `GolmokCharacterMath.h`, `Config/Golmok/characters.json`, `docs/spec/characters.schema.json`.
-- 테스트: `Tests/GolmokCharacterRosterTest.cpp`의 `Golmok.Character.*`, `test_ue_character_roster_math.py`+stdin C++ driver, `test_ue_config_characters.py`.
+- 테스트: `Tests/GolmokCharacterRosterTest.cpp`, `Tests/GolmokCharacterRosterPortalTest.cpp`의 `Golmok.Character.*`, `test_ue_character_roster_math.py`+stdin C++ driver, `test_ue_config_characters.py`.
 - 런북: `docs/runbooks/pc-verify-wp18a.md`(V-11, V-12 절차).
 
 ## 설계 — WP-18a
@@ -87,6 +87,7 @@ OnWorldBeginPlay에서 첫 PC에 AddDynamic. 즉시 이미 빙의된 폰을 처�
 - 순수 C++: 기준 리터럴, 두 프록시, 무작위 유효 입력 Python 교차계산, NaN/Inf/범위·관계 실패. stdin 입력/UTF-8, g++ `-Wall -Wextra -Werror -pedantic`.
 - UE `Golmok.Character.Config`: 실제 JSON, malformed·duplicate·unknown default·타입/관계 실패, 파서 실패 원자성.
 - UE `Golmok.Character.Runtime`: L_Dev PIE/nullrhi. 자동 default 적용을 리터럴로 검사(경로·캡슐·메시 offset/yaw/scale·카메라·속도), Quinn/프록시/Manny 왕복, 잘못된 id 보존, 달리기 상태 보존, 발밑 보존, 천장 겹침 거절, 비캐릭터 폰 무시/복귀, 정지/뷰타깃 교체 거절. 기존 `Golmok.Player.Movement` 수정 없이 전체 실행.
+- UE `Golmok.Character.PortalRoundTrip`: L_ZoneTest/합성 실내에서 실제 overlap·문 평면 판정으로3회 왕복. 문 앞 확대/진입 뒤 축소/실내 교체·표식 아래 확대 거절, 동일 폰/발 위치/실내 유지·해제를 검사. 이동을 멈추고 캡슐 위치를 지정하므로 실제 보행·시각 품질 검증과 구별한다.
 - 실제 GUI 포털 왕복·실내 교체·Quinn 스켈레톤·사진/그림자 품질은 V-11/V-12 기록. Python 성공을 UE 성공으로 대체하지 않는다.
 
 ### 18b 개요
@@ -136,6 +137,14 @@ UE 실행에서 `FScopedMovementUpdate` include 경로와 부모 캡슐의 지�
 수정 후 UE5.8.3 빌드 성공, Character 필터2 Success, 전체 **18 Success(13+경고5), failed0/notRun0, 39.87s**. Python ruff/check_repo 성공, format95개, pytest **608 passed/42 skipped/208 warnings, 40.12s**. 경고와 로컬 g++ skip은 위 결과와 같다. 리뷰의 향후 uncrouch 참고사항은 현재 crouch 미지원 범위에 해당하며, crouch를 도입할 때 CDO 캡슐/메시 오프셋 복원과 로스터 크기 유지의 통합 검사가 필요하다.
 
 소유자는 이날 Astra의 병합 실행을 승인했다. 별도의 Fable ultracode 사전 리뷰 조건은 충족 여부/이번 두 PR 예외를 확인 중이며, 아직 병합하지 않았다. V-11 GUI와 WP-12 실제 포토 통합은 계속 미실행 상태다.
+
+### 2026-09-27 V-11 포털 통합 자동화 보강
+
+`GolmokCharacterRosterPortalTest.cpp`를 레인 안에 추가했다. 문 앞 확대, 진입 후 축소, 실내 확대 거절/성공, 실내3초 이상 유지, 출구 통과 후3초 해제를 실제 포털 overlap과 틱으로 **3회 왕복**했다. 동일 폰/Controller·XY/발 위치·문 평면 거리·실내 조명·서브레벨/Zone 수명을 검사한다. 첫 실행의 실내 Quinn 실패는 공중 표식 큐브 아래 확대가 막힌 것이므로, 이를 거절 사례로 남기고 옆으로150cm 이동한 뒤 성공을 검사했다. 런타임 코드를 완화하지 않았다.
+
+빌드 성공, Character **3 Success**, 전체 **19 Success(14+경고5), failed0/notRun0, 63.79s**. 새 통합 검사24.08s에 `cycle 1/3`, `2/3`, `3/3 complete`가 전부 기록됐다. Python/ruff/check_repo도 통과(608 passed/42 skipped/208 warnings, 32.85s). 합성 맵/실내가 없으면 `NOT EXECUTED` 경고를 내므로 실행 로그 없이 통합 통과로 기록하지 않는다. UBT가 새 C++를 발견하도록 `-gather`로 소스 목록을 갱신한 뒤 실제 컴파일을 확인했다.
+
+자동화는 이동을 멈추고 캡슐 위치를 지정했다. GUI 보행·계단·Quinn 애니메이션/화면·실제 경로 재생·WP-12 포토·hitch/VRAM·V-12 채점은 여전히 후속 검증이다. 다른 레인/핫스팟 변경은 추가하지 않았다.
 
 ## 병합 시 반영
 

@@ -1,6 +1,6 @@
 # V-11 — WP-18a 캐릭터 로스터 PC 검증
 
-2026-09-26 · 작성/헤드리스 실행 ChatGPT Astra · GUI 후속 Fable PC · 리뷰 Fable ultracode.
+2026-09-27 갱신 · 작성/헤드리스 실행 ChatGPT Astra · GUI 후속 Fable PC · 리뷰 Fable ultracode.
 **코드·UE 헤드리스 통과, GUI·WP-12 통합/룩 검증 대기.** D-018 ① 승인·설계 PR → 구현 PR 병합 뒤 아래 남은 항목을 진행한다.
 계약과 D-018은 [WP-18](../plan/WP-18-characters.md), 아트 판단은 [컨셉](../design/character-concept.md), 예산은 [제작 사양](../research/11-character-pipeline.md).
 
@@ -45,6 +45,8 @@ Set-Location tools
 
 `Golmok.Character.Config`는 실제 JSON과 오류 원자성을, `.Runtime`은 자동 default·Quinn·프록시·기본 복귀·실패 시 보존을 검사한다. Runtime의 Manny 검증은 현재 값을 서로 비교하는 방식 대신 경로와 수치를 리터럴로 단언한다. 캡슐42/92, 메시Z−92/Yaw−90/scale1, 붐320/소켓(0,45,55)/FOV80, 속도180/500을 검사한다.
 
+`.PortalRoundTrip`은 `L_ZoneTest`와 합성 실내 서브레벨을 사용한다. 누락된 환경에서는 `NOT EXECUTED` 경고를 내므로 완료 수만 보고 통합 통과로 기록하지 않는다. 새 C++ 파일을 추가했는데 빌드가 `Target is up to date`로 끝나면 UBT 소스 목록 캐시가 이전 상태일 수 있다. 프로젝트 파일을 다시 생성하거나 `Build.bat GolmokEditor Win64 Development -Project=<이 worktree의 Golmok.uproject> -WaitMutex -NoHotReloadFromIDE -gather`로 재수집하고 새 파일의 컴파일 로그를 확인한다. 이 실행에서는 실제 `GolmokCharacterRosterPortalTest.cpp` 컴파일을 확인했다.
+
 ## 3. GUI PIE 교체
 
 L_Dev를 열고 PIE 시작 후 콘솔에서 다음을 차례로 실행한다. `list`는 Output Log에서 확인한다.
@@ -76,7 +78,9 @@ golmok.character missing_id
 | 실내 | proxy110으로 낮은 곳에서 Manny 요청 | 겹침이면 원자적으로 거절. 여유 있는 바닥은 발 위치 유지하고 성공 |
 | 경로 재생 | 기존 경로 기록/재생 시작 → 로스터 명령 → 재생 종료 | 경로 폰에는 적용하지 않음. 원래 캐릭터 복귀 시 이전 선택이 재적용됨 |
 
-자동화는 실제 비캐릭터 임시 Pawn 빙의/복귀와 기존 `Golmok.Portal.PawnSwap`/`RoundTrip`을 각각 통과했다. **캐릭터 크기 교체와 실제 포털을 동시에 쓰는 위 GUI 조합은 아직 실행하지 않았다.**
+2026-09-27 `Golmok.Character.PortalRoundTrip`에서 실제 플레이어 캡슐을 문 앞/뒤로 옮겨 overlap·문 평면 검사·비동기 실내 로드/해제를 **3회 왕복**했다. 문 앞 proxy135→Manny, 진입 뒤 proxy110, 실내 Quinn 교체에서 폰/Controller·XY/발 위치·출입 상태를 검사했다. 합성 실내의 공중 표식 아래에서는 확대를 거절하고 옆에서는 성공해야 한다. 실내에서 unload delay(3초)보다 오래 기다려도 실내가 유지되고, 실외로 나가면 지연 후 서브레벨/Zone이 해제됨을 확인했다. `EnterInterior/LeaveInterior` 강제 호출 없이 실제 overlap/틱으로 출입했다.
+
+이 검사는 이동 컴포넌트를 멈추고 위치를 지정하므로 걷기·계단·시각 애니메이션 판정을 대신하지 않는다. **위 GUI 조합/영상과 실제 경로 재생은 여전히 미실행**이다. 비캐릭터 임시 Pawn 복귀와 기존 `Golmok.Portal.PawnSwap`/`RoundTrip`은 별도 자동화에서도 통과했다.
 
 ## 5. WP-12 병합 뒤 사진·V-12
 
@@ -94,7 +98,7 @@ V-12는 실제 Zone, 없으면 L_Basemap_Yeonnam에서 **프록시2종 × PBR/5.
 | `FJsonObject::Values`/`TryGetField(FString)` | 확인 | Values는 개수만 읽고 TryGetField로 필수 키를 확인해 FSharedString 변환을 피함. 실제 JSON/잘못된 키 Config 테스트 성공 |
 | `UAnimBlueprintGeneratedClass::TargetSkeleton` 및 Quinn 같은 ABP | 확인(로드·설정) | Runtime 실제 Quinn mesh/ABP 경로 성공. 시각 애니메이션 품질은 GUI 대기 |
 | `FScopedMovementUpdate`, `CacheInitialMeshOffset` | 확인 | include는 `Engine/ScopedMovementUpdate.h`. 메시를 부모 캡슐 이동 전에 갱신한 뒤 proxy offsetZ−69와 고정 발밑 단언 성공 |
-| `OverlapBlockingTestByChannel`+capsule response | 확인(자동화) | 인공 천장으로 확대 거절·모든 값 유지. 실제 문/실내 조합은 §4 대기 |
+| `OverlapBlockingTestByChannel`+capsule response | 확인(자동화) | 인공 천장과 합성 실내 표식 아래 확대 거절, 여유 지점 성공. 실제 포털과 교체3회 왕복 통과. GUI는 §4 대기 |
 | WP-12 실제 포토 actor/time dilation·앵커 | 미확인 통합 | Runtime의 별도 ViewTarget/paused 거절은 성공. WP-12 병합 뒤 §5 |
 | 첫 soft load hitch·교체 peak VRAM·패키지 cook | 미확인 | nullrhi는 GPU 성능 근거 아님. JSON soft path만으로 cook 보장 안 됨. 18b 패키징 검증 별도 |
 | 4.5등신 GASP, Toon/Mutable, Nanite+모프/cloth, groom | 미확인 실작품 조합 | 문서 기능 존재와 별개. V-08/V-12/18b에서 실제 에셋으로 측정 |
@@ -112,6 +116,8 @@ V-12는 실제 Zone, 없으면 L_Basemap_Yeonnam에서 **프록시2종 × PBR/5.
 | 전체 UE 경고 | L_Dev GeoOrigin 부재 안내, 의도된 누락 Zone chunk/collision과 version mismatch fixture 경고. 개별 state는 전부 Success. missing asset 경고를 실자산 품질 합격으로 읽지 않음 |
 | 기본 이동 실측 | 걷기/좌우/후진180cm/s, 달리기500cm/s, 점프 정점90cm. 기존 테스트 수정 없음 |
 | GUI/실제 포털과 교체/포토 통합/성능/V-12 | **미실행**, Fable PC 후속. 최종 4.5등신 캐릭터 제작/리타깃은18b |
+
+2026-09-27 포털 통합 자동화 추가 후 최신 결과: **UE 전체19 Success(14+경고5), failed0/notRun0, 63.79s**. Character 필터는3 Success이며, 새 `PortalRoundTrip`24.08s에서3회 왕복 완료 로그를 확인했다. Python/ruff/check_repo 성공(608 passed/42 skipped/208 warnings, 32.85s). 위 초기 표의 포털+교체 미실행은 이제 **GUI 조합만** 해당한다. 화면/실제 보행·실제 경로 재생·포토·성능/V-12는 계속 대기다.
 
 2026-09-27 [Claude 리뷰 지적](https://github.com/wooklym/golmok/pull/23#discussion_r4111832801) 수정 후 재실행: UE 빌드 성공, Character2 Success, 전체18 Success(13+경고5)/실패0/미실행0, 39.87s. Python 게이트도 통과(608 passed/42 skipped/208 warnings, 40.12s). Runtime은 ini 메시 실패와 같은 `mesh=null`/대체 캡슐 표시 상태에서 잘못된 선택은 표시를 유지하고, 정상 로스터 메시 적용은 캡슐만 숨기며 메시와 Actor는 표시하는 회귀를 추가했다. GUI 검증에는 이 초기 실패 → 정상 선택 복구도 포함한다. 향후 crouch 지원 시 uncrouch의 CDO 크기/offset 복원은 별도 검증한다.
 
