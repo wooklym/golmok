@@ -14,9 +14,9 @@
 ## 0. 대상 파일
 | 파일 (`unreal/Golmok/` 기준, 그 외 저장소 기준) | 내용 |
 |---|---|
-| `Source/Golmok/Photo/GolmokPhotoMath.h` | 순수 헤더(따옴표 include는 `Geo/GolmokGeoMath.h`·`Debug/GolmokStatsMath.h` 2개): `ClampParam/Quantize/StepLinear/StepGeometric/StepTable/NearestIndex/WrapDeg180/FovToFocalMm`, `ClampToSphere/ClampToPolygonXY/Constrain`, `PhotoMeta`+`FormatPhotoMetaJson`(g++ 교차검증 `tools/tests/fixtures/ue/photomath_driver.cpp`) |
+| `Source/Golmok/Photo/GolmokPhotoMath.h` | 순수 헤더(따옴표 include는 `Geo/GolmokGeoMath.h`·`Debug/GolmokStatsMath.h` 2개): `ClampParam/Quantize/StepLinear/StepGeometric/StepTable/NearestIndex/WrapDeg180/FovToFocalMm`, `ClampToSphere/ClampToPolygonXY/Constrain`(V-09 후속 a6c48a3: `ClampToPolygonXY`는 경계 거리 ≥ inset인 침식 영역으로 내향 법선 투영, `EffectiveInsetCm`·`MoveInsetCm`·`Constraint::Current`), `PhotoMeta`+`FormatPhotoMetaJson`(g++ 교차검증 `tools/tests/fixtures/ue/photomath_driver.cpp`) |
 | `Source/Golmok/Photo/GolmokPhotoModeSubsystem.{h,cpp}` | `UGolmokPhotoModeSubsystem`(월드 서브시스템, Game/PIE): `GolmokPhotoJson` 파서, 상태기계 `Inactive/Active/Shooting/Captured/Exiting`, `Enter/Exit/Toggle/Reset/Shoot`, `StepParam/SetParam/SetMultiplier`, `OnEndFrame` 캡처 창, `BuildMeta/WriteMeta`, 오버레이 줄, 입력 자산 `IA_GolmokPhoto*` 21개 + `IMC_GolmokPhoto`(우선순위 3), 콘솔 `golmok.photo`·`golmok.photo.shoot`·`golmok.photo.reset`·`golmok.photo.set`; 복원 스냅샷 공개 계약 `FGolmokPhotoRestoreState` + `GetRestoreState() const`(f5c8861, WP-18 로스터×포토 테스트용) |
-| `Source/Golmok/Photo/GolmokPhotoCameraPawn.{h,cpp}` | `AGolmokPhotoCameraPawn`: 구(`PhotoSphere`, QueryOnly, WorldDynamic)·카메라(`PhotoCamera`), `bTickEvenWhenPaused`, `MoveConstrained`(구 → 다각형 → 스윕, `bStartPenetrating`이면 앵커 쪽 10 cm 후퇴), `ApplyOptics`(PP 오버라이드), `EndPlay → Owner->OnPhotoPawnEndPlay` |
+| `Source/Golmok/Photo/GolmokPhotoCameraPawn.{h,cpp}` | `AGolmokPhotoCameraPawn`: 구(`PhotoSphere`, QueryOnly, WorldDynamic)·카메라(`PhotoCamera`), `bTickEvenWhenPaused`, `MoveConstrained`(구 → 다각형 → 스윕, 막히면 남은 이동을 충돌면에 투영해 한 번 더 — V-09 후속 6c36fd3, `bStartPenetrating`이면 앵커 쪽 10 cm 후퇴), `ApplyOptics`(PP 오버라이드), `EndPlay → Owner->OnPhotoPawnEndPlay` |
 | `Source/Golmok/Debug/GolmokDebugSubsystem.{h,cpp}` | `RequestHighResScreenshot(AbsolutePathNoExt, Multiplier, OutMessage, OutEffectiveMultiplier)` public 분리(`TakeHighResScreenShot()` false면 1x 재시도), `TakeScreenshot`은 래퍼; `StartRecording/StartPlayback` 첫 검사 `photo mode is on (golmok.photo 0 first)` |
 | `Source/Golmok/Debug/GolmokHUD.{h,cpp}` | `DrawHUD` 첫머리 `IsHudSuppressed()`(= 캡처 창) 가드 + 왼쪽 아래 포토 오버레이(흰/노랑·시안·회색·초록), 클래스 주석 정정 |
 | `Source/Golmok/Player/GolmokPlayerController.{h,cpp}` | `IA_GolmokPhotoToggle`(P, `Gamepad_Special_Left`, `bTriggerWhenPaused`)·`IMC_GolmokPhotoToggle`(우선순위 2, 항상), `OnTogglePhoto`(로그 `P: …`), `SetDebugKeysSuspended/IsDebugKeysSuspended`, `SetupInputComponent`가 `Photo->BindInput(Input)` 위임; `GetFullTickWhenPausedFlag/SetFullTickWhenPausedFlag`(f5c8861 — `APlayerController::bShouldPerformFullTickWhenPaused`가 5.8.3에서 protected라 원시 비트 스냅샷·복원, §12 #3) |
@@ -25,7 +25,7 @@
 | `Source/Golmok/Zones/GolmokZoneSubsystem.{h,cpp}` | 추가만: `AGolmokZone* FindLoadedZoneAt(const FVector2D& LevelUEPointCm) const`(Loaded + footprint 포함 + `ZoneWins`) |
 | `Source/Golmok/Lighting/GolmokTimeOfDay.{h,cpp}` | 추가만: `void ShiftTransitionStart(double DeltaSeconds)`(전환 중 아니면 no-op) |
 | `Source/Golmok/Tests/GolmokPhotoTest.cpp` | 자동화 3개 `Golmok.Photo.EnterExit / Clamp / MetaJson`(`EditorContext \| ProductFilter`, `L_Dev`, 대기는 전부 `FPlatformTime`) |
-| `Config/DefaultGame.ini` | `[/Script/Golmok.GolmokPhotoModeSubsystem]` 11키(§4·§5·§6·§7 참조): `ConfigFile=Golmok/photo.json`, `PhotoFolder=Screenshots/Golmok/photo`, `ScreenshotMultiplier=2`, `MaxMultiplier=3`, `MaxDistanceM=3.0`, `CollisionRadiusCm=15`, `FootprintMarginM=0.2`, `MoveSpeedMps=1.5`, `PreCaptureFrames=2`, `PostCaptureFrames=2`, `PauseMode=GamePause`. 다른 섹션·`DefaultInput.ini`(`!DebugExecBindings=ClearArray`) 무변경 |
+| `Config/DefaultGame.ini` | `[/Script/Golmok.GolmokPhotoModeSubsystem]` 11키(§4·§5·§6·§7 참조): `ConfigFile=Golmok/photo.json`, `PhotoFolder=Screenshots/Golmok/photo`, `ScreenshotMultiplier=2`, `MaxMultiplier=2`(V-09 4834941, 원래 3), `MaxDistanceM=3.0`, `CollisionRadiusCm=15`, `FootprintMarginM=0.2`, `MoveSpeedMps=1.5`, `PreCaptureFrames=2`, `PostCaptureFrames=2`, `PauseMode=GamePause`. 다른 섹션·`DefaultInput.ini`(`!DebugExecBindings=ClearArray`) 무변경 |
 | `Config/Golmok/photo.json` | 단일 소스: `schema_version 1`, `params` 5개(`fov ev focus fstop roll`), `toggles` 3개(`dof character_hidden overlay_hidden`), `hints.keyboard/gamepad` 3줄씩. `../Config/Golmok` UFS 스테이징 줄이 덮음 |
 | `tools/tests/test_ue_photo_math.py`, `test_ue_config_photo.py`, `test_ue_wp12_fixture.py`, `fixtures/ue/photomath_driver.cpp` | 클라우드 CI(초록); PC에서는 `pytest -q`로만 재확인 |
 | `docs/research/05-legal-policy.md` 항목 7 | 사용자 촬영 스크린샷 외부 공유(자문 대상, 판단 없음) |
@@ -191,6 +191,7 @@ PIE 시작(PlayerStart = 001 zone-local (0, −5, 0) m, `Zone_z_synthetic_001` L
   LogGolmok: golmok.photo.reset: reset (fov 65.0 ev +0.00 focus 3.000 f/2.80 dof off roll +0.0, character shown, overlay shown, pose restored)
   ```
   `ev -1.5`처럼 부호·소수가 `'…' is not a number`로 거부되면 §12 #42(`IsNumeric`)로 고친다. 포토 밖에서 `golmok.photo.set fov 35` → `golmok.photo.set: ERROR not active`, `golmok.photo.reset` → `golmok.photo.reset: ERROR not active`.
+- [ ] **종료 밝기**(PR #27 리뷰 A2, 67f9d8c `SetGameCameraCutThisFrame`): EV `+3.00`으로 올린 채 P로 나가면 **종료 직후 첫 프레임부터** 플레이어 화면 밝기가 진입 전과 같다(밝게 시작해 서서히 어두워지면 눈 적응 이력이 이어진 것 → §12 #63). EV `−3.00`도 같은 확인. 휘도 평균(PIL 등)으로 진입 전·종료 직후 0.1 s·1 s를 §13에.
 - [ ] **화질 관찰**(§12 #8): 정지 상태에서 카메라를 움직이는 동안·멈춘 직후의 TSR 고스팅·Lumen 노이즈·눈 적응 정지 여부를 §13에 적고(스크린샷 ①에 담기게), 심하면 `PreCaptureFrames`를 올려 §5·§6에서 비교.
 
 ## 5. 촬영
@@ -247,10 +248,10 @@ Space(또는 Enter, 콘솔 `golmok.photo.shoot`). 순서: 같은 틱 `State = Sh
 RTX 5060 8 GB, 1440p 뷰포트 기준(설계 §6-6 추정치 검증). `stat RHI`(render target memory)는 촬영 **전에** 읽고 촬영 중에는 `stat none`; GPU 전용 메모리 피크는 작업 관리자. **3x는 OOM 크래시 가능성**이 있으니 다른 작업을 저장한 뒤 실행.
 ```
 golmok.photo.set mult 2      → golmok.photo.set: mult 2      (오버레이 1행 끝 `2x`)
-golmok.photo.set mult 3      → golmok.photo.set: mult 3      (`3x`)
-golmok.photo.set mult 4      → golmok.photo.set: ERROR multiplier must be 1..3 (MaxMultiplier)
-golmok.photo.set mult 0      → golmok.photo.set: ERROR multiplier must be 1..3 (MaxMultiplier)
+golmok.photo.set mult 3      → golmok.photo.set: ERROR multiplier must be 1..2 (MaxMultiplier)
+golmok.photo.set mult 0      → golmok.photo.set: ERROR multiplier must be 1..2 (MaxMultiplier)
 ```
+3x 측정은 `Config\DefaultGame.ini` `MaxMultiplier`를 **임시로 3**으로 바꿨을 때만 가능하다(그때 `mult 3` → `golmok.photo.set: mult 3`, `mult 4`·`mult 0` → `… 1..3 …`). 측정 뒤 2로 되돌리고 커밋하지 않는다(V-09 4834941 확정값 2, 3 복귀는 사용자 결정).
 - [ ] 각 배율 3장(`golmok.photo.shoot`; 로그 `shooting -> … (3x, meta …)` → `screenshot requested -> ….png (3x, written on the next frame)` → `capture window closed (… present after x.xx s)`):
 
   | 배율 | 해상도(PNG 실측) | VRAM 피크 GB | 소요 s(`present after`) | PNG MB | 결과 |
@@ -264,10 +265,16 @@ golmok.photo.set mult 0      → golmok.photo.set: ERROR multiplier must be 1..3
 - [ ] 스크린샷 ② = 2x PNG 축소본(오버레이 없음).
 
 ## 7. 제약(`L_ZoneTest`)
-- [ ] **벽**: 파사드·blocker(`glass_1`) 앞으로 밀기 → 표면에서 `CollisionRadiusCm`(15 cm) 앞에 정지, 관통 0(§12 #16). 밀착 상태에서 다른 방향으로 이동이 계속 된다(`bStartPenetrating` 후퇴가 매 틱 반복되면 §12 #40). 스크린샷 ③.
+**V-09 후속 재검증(2026-09-27 수정분 a6c48a3·6c36fd3)**: V-09에서 실패한 §7만 다시 한다(§1 빌드·`test.ps1 -Filter Golmok.Photo` 3/3 먼저). 드라이버는 V-09와 같이 폰 위치를 **틱마다** 샘플(`GetActorLocation`, 틱 번호·y·경계 거리)해 §13에 표로 남긴다. 판정 기대값:
+- footprint 남쪽 경계(V-09에서 y 980.0 ↔ 999.8 톱니): 경계 쪽으로 S(또는 해당 방향 키)를 누르고 있으면 샘플 y가 **단조 증가해 980.0(= 경계 − 20 cm)에서 멈추고 그 뒤 변동 0**(±0.01 cm 이내 — 틱 dt 반올림 외 없음). 999.x나 980 이하로 되돌아가는 샘플이 하나라도 있으면 ✗(§12 #58). 동쪽 경계도 같게.
+- 같은 경계에서 대각선(경계 쪽 + 옆): 법선 좌표는 980.0 고정, 접선 좌표는 1.5 m/s × 접선 성분으로 계속 변한다(미끄러짐). 앵커(캐릭터)가 법선 위에 없어도 옆으로 끌리지 않는다(접선 입력 0이면 접선 좌표 불변).
+- 볼록 모서리로 대각선: 두 경계 모두 20 cm 안쪽 꼭짓점에서 멈추고 변동 0. 오목 코너가 있으면 반경 20 cm 호를 따라 돈다(전의 "걸림" 없음).
+- 진입 시 카메라가 이미 경계 20 cm 안(띠 안)이면: 첫 이동에서 튀지 않고(샘플 간 이동 ≤ 1.25 cm × Shift배), 바깥으로 밀면 그 자리 유지, 안쪽으로 움직이면 여유가 20 cm까지 다시 는다. 진입 카메라가 footprint 밖이면 첫 이동에서 안으로 들어간다(전과 같음, 튐 폭을 §13에).
+- 벽(#60): 파사드에 대고 **W+D·W+A 대각선** → 표면 15 cm 앞 유지하며 벽을 따라 이동(V-09: 1 s 0.3 cm → 기대: 1 s에 1.5 m/s × sin(입사각)만큼, 45°면 ≈ 1.06 m). 모서리(두 벽)에서는 멈춤, 진동·관통 없음. 슬라이드가 footprint 경계에 닿으면 경계 20 cm 안쪽에서 멈춤(벽 → 다각형 재클램프).
+- [ ] **벽**: 파사드·blocker(`glass_1`) 앞으로 밀기 → 표면에서 `CollisionRadiusCm`(15 cm) 앞에 정지, 관통 0(§12 #16). 밀착 상태에서 다른 방향으로 이동이 계속 된다(`bStartPenetrating` 후퇴가 매 틱 반복되면 §12 #40). **대각선으로 밀면 벽을 따라 미끄러진다**(위 기대값, §12 #60·#62). 스크린샷 ③.
 - [ ] **구**: 캐릭터에서 3 m 밖으로 밀기 → 구 표면에서 정지, 오버레이 1행 거리 = 분모(`3.0 / 3.0 m`, 진입 카메라가 3 m 밖이었으면 그 거리로 넓어진 유효 반경, 예 `3.3 / 3.3 m` — `GetEffectiveRadiusCm()`). 첫 이동에서 카메라가 앵커 쪽으로 튀지 않는다. 위로도 같다(높이 상한 없음, 구만).
 - [ ] **바닥**: 아래로(Q) → 바닥 15 cm 위에서 정지(로우 앵글 허용; 뚫고 내려가면 §12 #49).
-- [ ] **footprint**: 캐릭터를 001 footprint 경계 1 m 안에 세우고(`golmok.collision 1`로 충돌 메시·blocker·트리거를 보며 경계 확인 → `golmok.collision: …`) P → 카메라를 바깥으로 → 경계 `FootprintMarginM`(0.2 m) 안쪽에서 정지(다각형 클램프; 구 밖으로 밀리면 이동 취소 = 그 자리 유지). 오목 코너 근처에서 "걸리는" 느낌은 설계 §11-7의 알려진 한계 — 있었는지만 §13에.
+- [ ] **footprint**: 캐릭터를 001 footprint 경계 1 m 안에 세우고(`golmok.collision 1`로 충돌 메시·blocker·트리거를 보며 경계 확인 → `golmok.collision: …`) P → 카메라를 바깥으로 → 경계 `FootprintMarginM`(0.2 m) 안쪽에서 **톱니 없이** 정지하고 대각선 입력이면 경계를 따라 미끄러진다(위 틱 샘플 기대값; 다각형 클램프, 구와 동시에 걸리면 둘 다 만족하는 점 또는 이동 취소 = 그 자리 유지). 예각 꼭짓점·20 cm의 두 배보다 좁은 목에서 멈추는 것은 설계 §11-7의 남은 한계 — 있었는지만 §13에.
 - [ ] **zone 밖**: footprint 밖 도로(001 서쪽 등, `golmok.zone.list`의 어느 loaded zone에도 포함되지 않는 곳)에서 P →
   ```
   LogGolmok: photo: photo mode on (fov 80.0, no zone, paused)
@@ -308,6 +315,7 @@ golmok.photo.set mult 0      → golmok.photo.set: ERROR multiplier must be 1..3
   ```
   → UFS 스테이징 문제(설계 §11-8) → §13. 두 번째 시도부터는 `bConfigFailed`가 남아 파일 접근 없이 같은 메시지(재시작해야 다시 읽음). 설계와 다름: 설계 §2-3은 `photo.json: <error>`만 적었으나 코드는 `cannot enter: ` 접두를 붙인다.
 - [ ] 패키지에서 촬영 → `<GameDir>\Saved\Screenshots\Golmok\photo\<stamp>.png`+`.json` 생성.
+- [ ] **잔상(§12 #57, PR #27 리뷰 A1)**: 패키지에서도 §4와 같은 장면(캐릭터가 화면에 있는 채 P → 카메라를 옆으로 옮기고 돌린 직후 촬영)에서 화면·PNG에 캐릭터 잔상이 없다. 엔진의 `bWorldIsPaused` 대입이 에디터 빌드 분기에만 있다면 패키지는 원래 잔상이 없고 c026815는 무해한 no-op — 결과(잔상 있음/없음)를 §13에.
 
 ## 11. PIE 종료
 - [ ] **포토 모드 켠 채** Stop(Esc) →
@@ -381,12 +389,14 @@ golmok.photo.set mult 0      → golmok.photo.set: ERROR multiplier must be 1..3
 | 54 | `Tests/GolmokPhotoTest.cpp:563` — `UCapsuleComponent::GetScaledCapsuleHalfHeight()`(`Components/CapsuleComponent.h`) | 모듈 최초 사용; 이름·스케일 포함 의미 [2차] | `GetUnscaledCapsuleHalfHeight()` 또는 상수 92 | 빌드 | ✅ 빌드 |
 | 55 | `Photo/GolmokPhotoModeSubsystem.cpp` `AddPhotoContext(bool)` — 서브시스템이 `AddMappingContext(PhotoContext, 3)`/`RemoveMappingContext(PhotoContext)`를 **PC 소유 `AGolmokPlayerController::AddMappingContext()`와 별개로** 호출하고, PC는 `SetDebugKeysSuspended`로 디버그 컨텍스트만 제거·복귀 | 두 소유자가 같은 `UEnhancedInputLocalPlayerSubsystem`의 컨텍스트 스택을 번갈아 바꿀 때 재빙의(`OnPossess` → `AddMappingContext()` 재호출)가 포토 컨텍스트를 덮거나 우선순위를 재정렬하지 않는지 [2차]; §10 #6은 오버로드만 다룸 | 재빙의는 포토 중 거부(이미 `StartPlayback` 거부); 그래도 흔들리면 PC의 `AddMappingContext()`가 `Photo->IsActive()`일 때 포토 컨텍스트를 재추가 | 런북 §3 정지 중 F키 무반응·P 종료 후 F1 복귀 | ✅ 종료 뒤 F1·프리셋 키 복귀 |
 | 56 | (적대 검증 STATE-2, 확인 불가) 정지 중 `APlayerController::PlayerTick` → `TickPlayerInput(dt, dt == 0)` 경로 — 엔진 소스를 기억으로 옮긴 것이고 출처 없음 [미확인 가설] | 이 경로가 사실이라도 캐릭터 `IMC_Default` 액션이 정지 중 발화할 수 있는지는 #5와 같은 문제. 포토 IMC(우선순위 3, 모든 액션 `bConsumeInput = true`)가 같은 키를 덮으므로 코드 변경 없음 | #5 대안: `AGolmokCharacter`에 `RemoveMappingContextForPhoto()` public 추가 | §3 포토 중 WASD·마우스·Space·Shift → P로 나간 뒤 캐릭터 위치·회전 불변(#5와 같은 확인) | ✅ #5와 같은 확인 |
-| 57 | (V-09 PC) 정지 월드 렌더: `FSceneViewFamily::bWorldIsPaused = !UWorld::IsCameraMoveable()` → `SceneVisibility.cpp`에서 `bStatePrevViewInfoIsReadOnly = true` → TSR·Lumen 이력 고정 | GamePause 포토에서 카메라를 움직이면 이전 프레임의 캐릭터 잔상이 화면·PNG에 남음(1 s 뒤에도) | `Enter()`에서 `UWorld::bIsCameraMoveableWhenPaused`(엔진 public 비트, `IsCameraMoveable()`이 읽음) 저장 후 true, `RestoreAll()`에서 복원. 게임은 정지 유지, 뷰 이력만 갱신 | §3·§5 이동·회전 직후 화면·PNG | 수정(c026815): GUI 재검증에서 잔상 0(이동 중·정지 직후·회전·H 숨김·2x PNG) |
-| 58 | (V-09 PC) `GolmokPhotoMath::ClampToPolygonXY` — 다각형 **안**의 점은 그대로 받고, 밖으로 나간 점만 경계 + `InsetCm` 안쪽으로 되돌림 | 경계로 밀면 0~20 cm 띠 안을 앞뒤로 오가는 톱니(1.5 m/s에서 약 16틱마다 20 cm 후퇴) — 20 cm 안쪽 정지가 아님 | 안쪽 점도 경계까지 거리 < `InsetCm`이고 이전 위치보다 가까워지면 거부(이전 위치 유지)하거나 inset 다각형으로 클램프. g++ 드라이버·pytest 기대값도 함께 | §7 footprint(틱 샘플) | 미수정(설계·수학 헤더 — 클라우드): 남쪽 경계 y 980.0 ↔ 999.8 반복, 동쪽도 같음 |
+| 57 | (V-09 PC) 정지 월드 렌더: `FSceneViewFamily::bWorldIsPaused = !UWorld::IsCameraMoveable()` → `SceneVisibility.cpp`에서 `bStatePrevViewInfoIsReadOnly = true` → TSR·Lumen 이력 고정 | GamePause 포토에서 카메라를 움직이면 이전 프레임의 캐릭터 잔상이 화면·PNG에 남음(1 s 뒤에도) | `Enter()`에서 `UWorld::bIsCameraMoveableWhenPaused`(엔진 public 비트, `IsCameraMoveable()`이 읽음) 저장 후 true, `RestoreAll()`에서 복원. 게임은 정지 유지, 뷰 이력만 갱신 | §3·§5 이동·회전 직후 화면·PNG; §10 패키지 같은 장면 | 수정(c026815): GUI 재검증에서 잔상 0(이동 중·정지 직후·회전·H 숨김·2x PNG). **범위(PR #27 리뷰 A1)**: `bWorldIsPaused` 대입은 엔진 `SceneView.cpp`의 `#else`(WITH_EDITOR) 분기에만 있음(5.6·5.7 소스 미러 확인, 5.8.3 미확인) → PIE·`-game`(에디터 바이너리)에서는 잔상·수정 효과가 있고 패키지 빌드에서는 둘 다 없을 가능성이 높음(§10 확인). 67f9d8c: 복원 계약 `FGolmokPhotoRestoreState::bCameraMoveableWhenPaused` |
+| 58 | (V-09 PC) `GolmokPhotoMath::ClampToPolygonXY` — 다각형 **안**의 점은 그대로 받고, 밖으로 나간 점만 경계 + `InsetCm` 안쪽으로 되돌림 | 경계로 밀면 0~20 cm 띠 안을 앞뒤로 오가는 톱니(1.5 m/s에서 약 16틱마다 20 cm 후퇴) — 20 cm 안쪽 정지가 아님 | 안쪽 점도 경계까지 거리 < `InsetCm`이고 이전 위치보다 가까워지면 거부(이전 위치 유지)하거나 inset 다각형으로 클램프. g++ 드라이버·pytest 기대값도 함께 | §7 footprint(틱 샘플) | V-09: 남쪽 경계 y 980.0 ↔ 999.8 반복, 동쪽도 같음. **수정(a6c48a3, 클라우드 — PC 재검증 대기)**: 침식 영역 {안 ∧ 경계 거리 ≥ inset}으로 내향 법선 투영(볼록 모서리 = 두 offset 선 교점, 반사 꼭짓점 = 호), 앵커 방향은 최후 폴백만; 현재 위치가 띠 안이면 그 거리 유지(튐 없음). pytest: 60틱+ 연속 이동 단조 수렴·진동 0·접선 미끄러짐·오목·좁은·예각 |
 | 59 | (V-09 PC) HighResShot 저장이 게임 스레드의 한 프레임 안에서 동기로 끝남 | 촬영마다 화면이 멈춤: 1x 0.32 s, 2x 1.2 s, 3x 3~6 s(첫 장 6.29 s). 3x GPU 전체 사용 피크 7.73/8.15 GB | 3x 상한 해제는 비동기 저장(`FImageWriteQueue`) 경로나 진행 표시가 있어야. 지금은 `MaxMultiplier=2` | §6 | 수정(4834941): `MaxMultiplier=2`(런북 §6 규칙). 2x 1.2 s 정지는 남음 — 사용자 판단 |
-| 60 | (V-09 PC) `AGolmokPhotoCameraPawn::MoveConstrained` — 스윕이 막히면 그 틱 이동을 멈춤(면 따라 미끄러짐 없음) | 벽에 대고 대각선으로 밀면 카메라가 붙어 움직이지 않음(W+D 1 s = 0.3 cm); 평행 입력만 이동 | 막힌 이동을 충돌면에 투영해 나머지 성분으로 한 번 더 스윕(`SlideAlongSurface`식) | §7 벽 | 미수정(조작감 — 클라우드) |
-| 61 | (V-09 PC) `PauseMode=TimeDilation`(0.0001): 눈 적응이 팽창된 월드 시간으로 돈다 | TimeDilation에서는 잔상은 없지만 EV를 바꿔도 화면 밝기가 전혀 안 바뀜(+1·0 모두 153.2); 사전 정지 종료 로그가 `unpaused`(실제로는 정지 유지 — 코드상 TD면 항상 `unpaused`) | GamePause + #57이 기본. TimeDilation을 쓰려면 수동 노출 또는 폰 CustomTimeDilation 보정 필요 | §3 대안 경로 | 관찰(기본값 GamePause 유지) |
-| 62+ | (PC 세션 추가) | | | | |
+| 60 | (V-09 PC) `AGolmokPhotoCameraPawn::MoveConstrained` — 스윕이 막히면 그 틱 이동을 멈춤(면 따라 미끄러짐 없음) | 벽에 대고 대각선으로 밀면 카메라가 붙어 움직이지 않음(W+D 1 s = 0.3 cm); 평행 입력만 이동 | 막힌 이동을 충돌면에 투영해 나머지 성분으로 한 번 더 스윕(`SlideAlongSurface`식) | §7 벽 | V-09: W+D 1 s = 0.3 cm. **수정(6c36fd3, 클라우드 — PC 재검증 대기)**: `(Target − Start)·(1 − Hit.Time)`을 `FVector::VectorPlaneProject(…, Hit.Normal)`로 투영, 현재 위치에서 `Constrain` 재클램프 후 두 번째 스윕(최대 2회), `bStartPenetrating` 후퇴 유지(§12 #62) |
+| 61 | (V-09 PC) `PauseMode=TimeDilation`(0.0001): 눈 적응이 팽창된 월드 시간으로 돈다 | TimeDilation에서는 잔상은 없지만 EV를 바꿔도 화면 밝기가 전혀 안 바뀜(+1·0 모두 153.2); 사전 정지 종료 로그가 `unpaused`(실제로는 정지 유지 — 코드상 TD면 항상 `unpaused`) | GamePause + #57이 기본. TimeDilation을 쓰려면 수동 노출 또는 폰 CustomTimeDilation 보정 필요 | §3 대안 경로 | 관찰(기본값 GamePause 유지). 원인: 눈 적응(`AutoExposureSpeedUp/Down`)이 팽창된 `DeltaWorldTime`(0.0001배)으로 적분돼 20 EV/s도 사실상 0 — 코드 변경 없음 |
+| 62 | (V-09 후속, 클라우드 6c36fd3) `FVector::VectorPlaneProject(V, PlaneNormal)`(static) · `SetActorLocation(…, bSweep true, &Hit)`의 `FHitResult::Time`(Start→Target 중 이동한 비율, 0..1) · `Hit.Normal`(`FVector_NetQuantizeNormal` → `FVector`) | 이름·정적 여부; 스윕 이동의 `Time`이 풀백(`MIN_TICK_TIME`식 소량 후퇴) 전 값인지 — 슬라이드 길이가 약간 길거나 짧아도 두 번째 스윕·재클램프가 막으므로 동작은 안전 | 컴파일 오류면 `V - (V | N) * N`(= `V - FVector::DotProduct(V, N) * N`); 슬라이드가 벽을 파고들면(`bStartPenetrating` 반복) `Hit.ImpactNormal`로 | §7 벽 대각선(1 s 이동 거리) | 미확인 |
+| 63 | (PR #27 리뷰 A2, 67f9d8c) `APlayerCameraManager::SetGameCameraCutThisFrame()`(public) — 복원 프레임에 카메라 컷 → 눈 적응·TSR·모션 블러 이력 리셋 | 이름·접근성; 뷰 타깃 변경과 같은 프레임에서 효과 | 없으면 `PC->PlayerCameraManager->bGameCameraCutThisFrame = true`; 그래도 밝기가 이어지면 종료 프레임에 눈 적응 리셋 관찰만 기록 | §4 종료 밝기(EV ±3) | 미확인 |
+| 64+ | (PC 세션 추가) | | | | |
 
 ## 13. 결과 기록
 V-09 PC 세션(Claude Desktop 워크트리 `upbeat-rosalind-95c87c`, 사용자 PC, 모델 Claude Fable 5.1로 시작 — 세션 중 Opus 5.5로 바뀜, 커밋 서명 기준), 날짜 2026-09-28. UE 5.8.3, VS 18 Community(MSVC 14.51), GPU RTX 5060 8 GB(드라이버 617.14, 2560×1440 모니터), 뷰포트 **2554×1354**(PIE 새 창 2560×1392 — 작업 표시줄 때문에 1440 불가), 브랜치 `pc/v09-verify-wp12`(main a4764c8 = PR #24 병합 뒤).

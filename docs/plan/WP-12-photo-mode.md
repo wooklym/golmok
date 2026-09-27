@@ -55,7 +55,7 @@
 | 14 | 스크린샷 API | `UGolmokDebugSubsystem::RequestHighResScreenshot(const FString& AbsolutePathNoExt, int32 Multiplier, FString& OutMessage, int32& OutEffectiveMultiplier)` public 분리; `TakeScreenshot`은 경로 조립 + 이 함수 호출(메시지 3종 불변). `TakeHighResScreenShot()`의 bool 반환을 검사해 false면 1x 재시도(현재 코드는 무시 — F5, 분리 시 함께 고침) | J-product-4·F6 |
 | 15 | 메타 | 스펙 필드 + `dof.enabled`만. `preset`은 `CurrentPreset == None`이면 `null`(`"current"`는 폴더 규약일 뿐), zone·geo는 그룹 단위 null, `file`·`resolution`·`+interior` 없음. lon/lat 7자리·height 3·ue_location 2·rotation 3·fov 1·ev 2·focal 3·fstop 2 | X11·X12·J-product-12/13 |
 | 16 | footprint zone 선택 | `UGolmokZoneSubsystem::FindLoadedZoneAt(const FVector2D& LevelUEPointCm) const` public 추가(읽기 전용, `Zones` 순회 + `ZoneWins`: priority↓ → version↓ → id; `RegisterZone/RequestLoad` 호출 없음). 진입 시 1회 + `Shoot` 시 재조회해 footprint 복사 | J-engine-8: 규칙이 셋이면 메타 `zone_id`와 HUD/스트리밍이 다른 zone을 가리킴. ③의 TActorIterator 규칙(실내→priority→id)은 `ZoneWins`(private)와 불일치라 채택하지 않음 |
-| 17 | 구·다각형 충돌 | 순서 구 → 다각형(inset은 앵커 방향, 결과를 `PointInPolygon`으로 재검사; 오목 대응) → 스윕. 다각형 클램프 결과가 구 밖이거나 재검사 실패면 **이동 취소**(앵커는 둘 다의 안, 직전 위치도 둘 다 만족하므로 항상 안전). 스윕은 첫 블로킹 히트에서 정지(슬라이드 없음 — 최소판), `bStartPenetrating`이면 앵커 쪽 10 cm 후퇴 | X14(③) |
+| 17 | 구·다각형 충돌 | 순서 구 → 다각형(**V-09 후속**: inset 20 cm만큼 줄인 침식 영역으로 내향 법선 투영 — §6-2) → 스윕. 다각형 클램프 결과가 구 밖이거나 재검사 실패면 **이동 취소**(앵커는 둘 다의 안, 직전 위치도 둘 다 만족하므로 항상 안전). 스윕이 막히면 남은 이동을 충돌면에 투영해 한 번 더 스윕(**V-09 후속**, 최대 2회 — §6-3), `bStartPenetrating`이면 앵커 쪽 10 cm 후퇴 | X14(③) |
 | 18 | 콘솔 | `golmok.photo [0\|1]`(인자 없음 = **토글**, `golmok.hud` 규약), `golmok.photo.shoot`, `golmok.photo.reset`, + `golmok.photo.set <fov\|ev\|focus\|fstop\|roll\|dof\|char\|overlay\|mult> <value>`(헤드리스 드라이버가 키 없이 값·배율 검증). 매 전이 때 상태 한 줄 로그 | X15 |
 | 19 | ini | `[/Script/Golmok.GolmokPhotoModeSubsystem]` 11키(§7): `ConfigFile PhotoFolder ScreenshotMultiplier MaxMultiplier MaxDistanceM CollisionRadiusCm FootprintMarginM MoveSpeedMps PreCaptureFrames PostCaptureFrames PauseMode`. 우선순위는 코드 상수, `bPhotoKeyEnabled` 없음. JSON = params·toggles 기본·hints만(`camera`·`keys` 블록 없음) | X16·J-product-11 |
 | 20 | 폰 EndPlay·월드 해체 | 폰 `EndPlay(Reason)`은 항상 `Owner->OnPhotoPawnEndPlay(this, Reason)`. 서브시스템: `State == Exiting`(자기 Destroy)이면 무시; `Reason == Destroyed && !World->bIsTearingDown`이면 정상 `Exit("pawn destroyed")`; 그 밖(`EndPlayInEditor`/`Quit`/`LevelTransition`/해체 중)이면 PC·정지·뷰 타깃을 건드리지 않고 내부 상태·`OnEndFrame`·IMC 참조만 정리. `Deinitialize`도 같은 "월드 죽음" 경로. **유일한 예외**(수정 STATE-4, 2026-09-27): 게임 뷰포트 클라이언트는 월드가 아니라 GameInstance/WorldContext 소유라 -game `open`/`RestartLevel` 뒤에도 살아남으므로 `TeardownForDeadWorld`도 `SetSuppressTransitionMessage(bSavedSuppressTransition)`을 복원한다 | J-engine-10 |
@@ -212,11 +212,15 @@ namespace GolmokPhotoMath
 	inline bool ClampToSphere(const Vec3& Center, double RadiusCm, Vec3& P);
 	/** Nearest point of the ring boundary (parallel arrays, N >= 3) to (X, Y); returns its distance, OutEdge = segment j (j -> j+1), ties: lowest j. */
 	inline double NearestBoundaryPoint(const double* Xs, const double* Ys, std::size_t N, double X, double Y, double& OutX, double& OutY, std::size_t& OutEdge);
+	// (V-09 후속 2026-09-27: 아래 5개 + Constraint 두 필드 추가, ClampToPolygonXY·Constrain 의미 변경 — §6-2)
+	inline double RingArea2(const double* Xs, const double* Ys, std::size_t N);   // 부호 면적 x2 (> 0 반시계)
+	inline bool EdgeInwardNormal(const double* Xs, const double* Ys, std::size_t N, std::size_t j, double& OutNx, double& OutNy);
+	inline double SignedBoundaryDistance(const double* Xs, const double* Ys, std::size_t N, double X, double Y); // 안 +, 밖 -
+	inline double EffectiveInsetCm(const double* Xs, const double* Ys, std::size_t N, double AnchorX, double AnchorY, double InsetCm);
 	/**
-	 * XY clamp into the ring: inside (GolmokGeoMath::PointInPolygon) -> 0, unchanged. Outside -> nearest boundary point Q,
-	 * then InsetCm toward (AnchorX, AnchorY) (the character, always inside), at most the distance to the anchor;
-	 * returns 1 when the nudged point passes PointInPolygon, 2 when it does not (Out = Q on the boundary; the caller keeps
-	 * its previous position). N < 3 -> 0, unchanged.
+	 * XY clamp into the eroded ring S = {inside and boundary distance >= EffectiveInsetCm}: in S -> 0, unchanged; else
+	 * projected along the inward normal (Q + n * Inset, convex corners = intersection of the two offset lines) -> 1;
+	 * no point of S within FootprintMaxIterations -> 2, X/Y unchanged. N < 3 -> 0.
 	 */
 	inline int ClampToPolygonXY(const double* Xs, const double* Ys, std::size_t N, double AnchorX, double AnchorY, double InsetCm, double& X, double& Y);
 	struct Constraint
@@ -227,11 +231,14 @@ namespace GolmokPhotoMath
 		const double* Xs = nullptr;        // footprint ring (level UE cm), N = 0 -> no polygon
 		const double* Ys = nullptr;
 		std::size_t N = 0;
+		bool bHasCurrent = false;          // Current = the pawn's position before this move
+		Vec3 Current{};
 	};
+	inline double MoveInsetCm(const Constraint& C); // InsetCm, lowered to Current's boundary distance when Current is inside the band
 	/**
-	 * Sphere -> polygon, then re-checked: result must be inside the sphere AND (N == 0 or PointInPolygon). Returns 0 = accepted
-	 * (Out written), 1 = accepted after a sphere clamp, 2 = accepted after a polygon clamp, 3 = both, -1 = rejected (Out untouched;
-	 * the pawn keeps its previous position). The pawn calls this once per tick before the sweep.
+	 * Sphere -> polygon (up to 4 rounds), then re-checked: inside the sphere AND (N == 0 or ClampToPolygonXY == 0 with
+	 * MoveInsetCm). Returns 0 / 1 (sphere) / 2 (polygon) / 3 (both) / -1 = rejected (Out untouched). The pawn calls it
+	 * before each of its (at most 2) sweeps.
 	 */
 	inline int Constrain(const Constraint& C, const Vec3& Desired, Vec3& Out);
 
@@ -494,7 +501,7 @@ private:
 	bool bFast = false;  float RadiusCm = 15.f;  int32 TickCount = 0;
 };
 ```
-Tick(정지 중에도 실행, 입력 동결 중이면 카운터만 증가): `LocalDt = clamp(FApp::GetDeltaTime(), 0, 0.1)` → `Look.Yaw += MouseDelta.X * MouseLookDegPerUnit + PadStick.X * PadLookDegPerSec * LocalDt`, `Look.Pitch = clamp(Look.Pitch − MouseDelta.Y * … − PadStick.Y * …, −89, 89)`, `MouseDelta = 0` → `ApplyLook` → 목표 = 위치 + (전방(피치 포함)·MoveInput.Y + 우측(yaw만)·MoveInput.X + 월드 상·UpDownInput).GetClampedToMaxSize(1) × `MoveSpeedMps·100·(bFast ? 3 : 1)` × LocalDt → `MoveConstrained(목표)`. `MoveConstrained`: `Constrain(C, Desired, Out)` < 0이면 return(취소) → `SetActorLocation(Out, /*bSweep*/ true, &Hit)` → `Hit.bStartPenetrating`이면 `SetActorLocation(Location + (Anchor − Location).GetSafeNormal() * 10, true)`(후퇴). 슬라이드 없음.
+Tick(정지 중에도 실행, 입력 동결 중이면 카운터만 증가): `LocalDt = clamp(FApp::GetDeltaTime(), 0, 0.1)` → `Look.Yaw += MouseDelta.X * MouseLookDegPerUnit + PadStick.X * PadLookDegPerSec * LocalDt`, `Look.Pitch = clamp(Look.Pitch − MouseDelta.Y * … − PadStick.Y * …, −89, 89)`, `MouseDelta = 0` → `ApplyLook` → 목표 = 위치 + (전방(피치 포함)·MoveInput.Y + 우측(yaw만)·MoveInput.X + 월드 상·UpDownInput).GetClampedToMaxSize(1) × `MoveSpeedMps·100·(bFast ? 3 : 1)` × LocalDt → `MoveConstrained(목표)`. `MoveConstrained`: `Constrain(C, Desired, Out)` < 0이면 return(취소) → `SetActorLocation(Out, /*bSweep*/ true, &Hit)` → `Hit.bStartPenetrating`이면 `SetActorLocation(Location + (Anchor − Location).GetSafeNormal() * 10, true)`(후퇴). ~~슬라이드 없음.~~ (V-09 후속) 막히면 `Slide = VectorPlaneProject((Target − Start) * (1 − Hit.Time), Hit.Normal)`, 0.01 cm 이상이면 `Current = 현재 위치`로 `Constrain` → 두 번째 스윕(최대 2회).
 
 #### 3-4 `Debug/GolmokDebugSubsystem.h` 추가·변경
 ```cpp
@@ -572,18 +579,18 @@ private:
 
 #### 4-2 진입 시퀀스(`Enter`)
 1. 가드(위). `EnsureConfig()` 실패면 `photo.json: <error>`로 거부(첫 실패에 Error 로그 1회). 첫 성공 로드 때 `Values[] = default`, 토글 = JSON `toggles`.
-2. 저장: `SavedPawn = PC->GetPawn()`, `SavedViewTarget = PC->GetViewTarget()`, `SavedControlRotation = PC->GetControlRotation()`, `bWasPausedBefore = UGameplayStatics::IsGamePaused(World)`, `SavedTimeDilation = GetGlobalTimeDilation`(TimeDilation 모드), `bSavedFullTickWhenPaused = PC->bShouldPerformFullTickWhenPaused`(bool 복사), `bSavedHudVisible = Debug->IsHudVisible()`, `bSavedPawnHidden = SavedPawn->IsHidden()`, `bDebugKeysWereActive = !PC->IsDebugKeysSuspended()`, `WorldTimeAtEnter = World->GetTimeSeconds()`, `bSavedSuppressTransition = GameViewport->bSuppressTransitionMessage`(§10 #12).
+2. 저장: `SavedPawn = PC->GetPawn()`, `SavedViewTarget = PC->GetViewTarget()`, `SavedControlRotation = PC->GetControlRotation()`, `bWasPausedBefore = UGameplayStatics::IsGamePaused(World)`, `SavedTimeDilation = GetGlobalTimeDilation`(TimeDilation 모드), `bSavedFullTickWhenPaused = PC->bShouldPerformFullTickWhenPaused`(bool 복사), `bSavedHudVisible = Debug->IsHudVisible()`, `bSavedPawnHidden = SavedPawn->IsHidden()`, `bDebugKeysWereActive = !PC->IsDebugKeysSuspended()`, `WorldTimeAtEnter = World->GetTimeSeconds()`, `bSavedSuppressTransition = GameViewport->bSuppressTransitionMessage`(§10 #12), `bSavedCameraMoveableWhenPaused = World->bIsCameraMoveableWhenPaused`(V-09 #57, c026815).
 3. 카메라 자세: `Cam = PC->PlayerCameraManager`; `EnterLocation = Cam->GetCameraLocation()`, `EnterRotation = Cam->GetCameraRotation()`(roll 0으로 시작), `EnterFov = Cam->GetFOVAngle()`(§10 #18; 실패 시 80).
 4. 폰 스폰(`FActorSpawnParameters{ObjectFlags |= RF_Transient, SpawnCollisionHandlingOverride = AlwaysSpawn}`) at `EnterLocation/EnterRotation` → `Init(this, …, EnterFov, CollisionRadiusCm)` → 시작점 겹침 검사 `World->OverlapBlockingTestByChannel(…, ECC_WorldDynamic, MakeSphere(R))`(§10 #16): 겹치면 앵커 쪽으로 30 cm씩 최대 10회 후퇴.
 5. **빙의 없음.** `PC->SetViewTargetWithBlend(PhotoPawn, 0.f)`.
-6. `PC->bShouldPerformFullTickWhenPaused = true`; `ApplyPause(true)`: `GamePause`면 `!bWasPausedBefore`일 때 `SetGamePaused(World, true)`(false 반환 → 폰 파괴·뷰 타깃 복원·거부 `pause refused`); `TimeDilation`면 `SetGlobalTimeDilation(World, 0.0001f)` + `SavedPawn->CustomTimeDilation = 0`.
+6. `PC->bShouldPerformFullTickWhenPaused = true`; `ApplyPause(true)`: `GamePause`면 `!bWasPausedBefore`일 때 `SetGamePaused(World, true)`(false 반환 → 폰 파괴·뷰 타깃 복원·거부 `pause refused`); `TimeDilation`면 `SetGlobalTimeDilation(World, 0.0001f)` + `SavedPawn->CustomTimeDilation = 0`. 정지 거부 롤백을 지난 뒤 `World->bIsCameraMoveableWhenPaused = true`(V-09 #57: 정지 월드도 뷰 이력 갱신 → 잔상 제거; 롤백 경로에서는 아직 건드리지 않았으므로 복원 불필요).
 7. `GameViewport->SetSuppressTransitionMessage(true)`(§10 #12).
 8. `Debug->SetHudVisible(false)`; `PC->SetDebugKeysSuspended(true)`.
 9. `CacheFootprint()`(§6-2); `Values[Fov] = EnterFov`(나머지는 세션 값 유지); `ApplyToPawn()`(캐릭터 숨김 토글이 켜져 있었으면 즉시 숨김).
 10. `AddPhotoContext(true)`; `State = Active`; 로그 `photo mode on (fov 80.0, zone z_synthetic_001 v1, paused)`.
 
 #### 4-3 복원 시퀀스(`Exit` → `RestoreAll`, 살아 있는 월드; 각 단계 널 안전·독립)
-`AddPhotoContext(false)` → 폰 입력 0 → `PC->SetViewTargetWithBlend(SavedViewTarget ?: PC->GetPawn(), 0.f)` → `PC->SetControlRotation(SavedControlRotation)` → `SavedPawn->SetActorHiddenInGame(bSavedPawnHidden)` → `Debug->SetHudVisible(bSavedHudVisible)` → `PC->SetDebugKeysSuspended(false)`(재추가는 `bDebugKeysEnabled && bDebugKeysWereActive`일 때만) → `PC->bShouldPerformFullTickWhenPaused = bSavedFullTickWhenPaused` → `GameViewport->SetSuppressTransitionMessage(bSavedSuppressTransition)` → `ApplyPause(false)`: `GamePause`면 `!bWasPausedBefore`일 때만 `SetGamePaused(World, false)`(**진입 전 정지였으면 유지**); `TimeDilation`면 `SetGlobalTimeDilation(SavedTimeDilation)`·`CustomTimeDilation` 복원 → 시간대: `Δ = World->GetTimeSeconds() − WorldTimeAtEnter; if (Tod && Tod->IsTransitioning() && Δ > 0) Tod->ShiftTransitionStart(Δ)` → `PhotoPawn->Destroy()`(EndPlay 재진입은 `State == Exiting`으로 무시) → `OnEndFrame` 해제, footprint 비움 → `State = Inactive` → 로그 `photo mode off (restored, unpaused, tod shift 0.000 s)`.
+`AddPhotoContext(false)` → 폰 입력 0 → `PC->SetViewTargetWithBlend(SavedViewTarget ?: PC->GetPawn(), 0.f)` → `PC->PlayerCameraManager->SetGameCameraCutThisFrame()`(PR #27 리뷰 A2: 포토 카메라의 눈 적응·TSR 이력이 플레이어 뷰로 이어지지 않게; 진입은 같은 POV라 불필요) → `PC->SetControlRotation(SavedControlRotation)` → `SavedPawn->SetActorHiddenInGame(bSavedPawnHidden)` → `Debug->SetHudVisible(bSavedHudVisible)` → `PC->SetDebugKeysSuspended(false)`(재추가는 `bDebugKeysEnabled && bDebugKeysWereActive`일 때만) → `PC->bShouldPerformFullTickWhenPaused = bSavedFullTickWhenPaused` → `GameViewport->SetSuppressTransitionMessage(bSavedSuppressTransition)` → `ApplyPause(false)`: `GamePause`면 `!bWasPausedBefore`일 때만 `SetGamePaused(World, false)`(**진입 전 정지였으면 유지**); `TimeDilation`면 `SetGlobalTimeDilation(SavedTimeDilation)`·`CustomTimeDilation` 복원 → `World->bIsCameraMoveableWhenPaused = bSavedCameraMoveableWhenPaused`(V-09 #57) → 시간대: `Δ = World->GetTimeSeconds() − WorldTimeAtEnter; if (Tod && Tod->IsTransitioning() && Δ > 0) Tod->ShiftTransitionStart(Δ)` → `PhotoPawn->Destroy()`(EndPlay 재진입은 `State == Exiting`으로 무시) → `OnEndFrame` 해제, footprint 비움 → `State = Inactive` → 로그 `photo mode off (restored, unpaused, tod shift 0.000 s)`.
 PostProcess 오버라이드는 폰 카메라 컴포넌트에만 있으므로 폰 파괴 = 복원(PPV·캐릭터 `FollowCamera` 무변경). 포털·zone 타이머는 건드리지 않는다: 빙의를 바꾸지 않고 캐릭터가 제자리이므로 오버랩 변화 자체가 없다(정지 중 타이머 진행 여부 §10 #11은 관찰 항목).
 
 #### 4-4 촬영 프레임의 가시성 보장
@@ -650,10 +657,10 @@ saved 20260925_101112.png (2x)                                        (초록, 2
 #### 6-2 footprint 다각형
 - 대상 = `Zones->FindLoadedZoneAt(앵커 XY)`: 앵커를 **포함**하는 **Loaded** zone 중 `ZoneWins` 첫 번째 → 실내(priority 20) > 실외(10)이므로 방 안에서는 방 footprint(합성 실내 8×6 m)로 클램프되어 카메라가 벽 너머(충돌 메시 없는 뒷면)로 못 나간다. 문턱(둘 다 포함)도 실내 우선.
 - `Zone->GetFootprintUE()`(level UE cm, `TArray<FVector2D>` [확인 `GolmokZone.h:165`])를 **진입 시 1회** `FootprintXs/Ys`로 복사(캐릭터가 정지 중 움직이지 않음), `Shoot` 시 재조회해 메타 `zone_id`를 정확히. `N < 3`이면 클램프 없음. Loading/Unloaded zone은 대상이 아니다.
-- 알고리즘(`GolmokPhotoMath::Constrain`, 폰 Tick마다 1회): ① `ClampToSphere` ② `ClampToPolygonXY`: 밖이면 경계 최근접점 Q → 앵커 방향으로 `FootprintMarginM`(0.2 m) 안쪽(앵커까지 거리 상한) → `PointInPolygon` 재검사(오목 다각형에서 inset 점이 밖일 수 있음) ③ 결과가 구 안이고 다각형 안(또는 N = 0)이면 채택, 아니면 **이동 취소**(직전 위치 유지 — 앵커가 둘 다의 안이고 직전 위치도 둘 다를 만족하므로 항상 안전; 작은 zone에서 구가 footprint 밖으로 삐져나오는 경우 다각형이 이김).
+- 알고리즘(`GolmokPhotoMath::Constrain`, 폰 스윕마다 1회): ① `ClampToSphere` ② `ClampToPolygonXY` — **(V-09 후속 2026-09-27, #58)** 원래 규칙("안이면 통과, 밖이면 Q에서 앵커 방향으로 inset")은 경계로 밀 때 0~20 cm 띠 안에서 톱니 왕복했고(안쪽 점이 통과 → 밖으로 나가면 20 cm 뒤로), 앵커가 법선 위에 없으면 튈 때마다 옆으로 끌렸다. 지금은 침식 영역 S = {다각형 안 ∧ 경계 거리 ≥ inset}으로의 투영: S 안이면 그대로(0), 아니면 경계 최근접점 Q와 내향 단위 법선 n(안쪽 (P−Q)/D, 밖 (Q−P)/D, 경계 위는 링 부호 면적으로 정한 변 법선, 최후 앵커 방향)으로 P = Q + n·inset을 S에 들 때까지 반복(최대 8회, 볼록 모서리는 인접 두 변 offset 선의 교점 = 침식 다각형의 꼭짓점; 반사 꼭짓점 근처는 반경 inset의 호). 못 찾으면 2(이동 취소). 그래서 밀면 정확히 20 cm 안쪽에서 멈추고 접선 성분은 남아 경계를 따라 미끄러진다. inset = `FootprintMarginM`(0.2 m)을 앵커의 경계 거리로 상한(좁은 다각형에서도 앵커는 S 안), 폰의 **현재 위치**가 이미 띠 안이면(스프링암 시작점) 그 거리로 낮춤(진입 직후 튐 없음, 안쪽으로 가면 20 cm로 복귀; 현재 위치가 밖이면 첫 이동에서 S로 들어감 — 전과 같음). 구·다각형은 최대 4라운드 교대 ③ 결과가 구 안이고 다각형 안(또는 N = 0)이면 채택, 아니면 **이동 취소**(직전 위치 유지 — 앵커가 둘 다의 안이고 직전 위치도 둘 다를 만족하므로 항상 안전; 작은 zone에서 구가 footprint 밖으로 삐져나오는 경우 다각형이 이김).
 - 앵커가 어느 로드된 zone에도 없으면(zone 사이 도로) 다각형 없음, 구·충돌만; 오버레이 1줄 `no zone`(노랑)으로 "재구성 밖일 수 있음"을 알린다.
 #### 6-3 충돌 스윕(15 cm)
-`SetActorLocation(P, /*bSweep*/ true, &Hit)` — 루트 `USphereComponent` 반경 `CollisionRadiusCm`, QueryOnly, ObjectType `ECC_WorldDynamic`, WorldStatic·WorldDynamic Block, Pawn·Camera·Visibility Ignore, 오버랩 이벤트 off. zone 충돌 메시·blocker 박스는 BlockAll [확인 `GolmokZone.cpp`], 포털 트리거는 `OverlapOnlyPawn`(Pawn만 Overlap) [확인] → 트리거·캐릭터 캡슐·재생 폰과 상호작용 0. 첫 블로킹 히트에서 정지(슬라이드 없음, 최소판). 지름 30 cm 미만의 구멍(메시 이음새)은 통과 불가; 큰 구멍(미촬영 벽)은 충돌이 없으므로 footprint·반경이 막는다. 뒷면 스윕 여부(§10 #16)에 의존하지 않는다: 시작점(스프링암 카메라, `ProbeSize 14` ECC_Camera 검사 통과 [확인 코드])에서 이전 위치→목표 스윕만 하고, `bStartPenetrating`이면 앵커 쪽 10 cm 후퇴, 진입 시 겹침 검사(§4-2 4)로 벽 안 시작을 배제. 틱당 스윕 1회.
+`SetActorLocation(P, /*bSweep*/ true, &Hit)` — 루트 `USphereComponent` 반경 `CollisionRadiusCm`, QueryOnly, ObjectType `ECC_WorldDynamic`, WorldStatic·WorldDynamic Block, Pawn·Camera·Visibility Ignore, 오버랩 이벤트 off. zone 충돌 메시·blocker 박스는 BlockAll [확인 `GolmokZone.cpp`], 포털 트리거는 `OverlapOnlyPawn`(Pawn만 Overlap) [확인] → 트리거·캐릭터 캡슐·재생 폰과 상호작용 0. 첫 블로킹 히트에서 정지 — **(V-09 후속, #60)** 대각선으로 밀면 벽에 붙던 것을 고쳐, 막히면 남은 이동 `(Target − Start)·(1 − Hit.Time)`을 `Hit.Normal` 평면에 투영(`FVector::VectorPlaneProject`, `UMovementComponent::SlideAlongSurface`와 같은 식)해 현재 위치에서 다시 `Constrain` → 한 번 더 스윕(최대 2회, 0.01 cm 미만 슬라이드는 버림). 결과는 구·다각형 안. 지름 30 cm 미만의 구멍(메시 이음새)은 통과 불가; 큰 구멍(미촬영 벽)은 충돌이 없으므로 footprint·반경이 막는다. 뒷면 스윕 여부(§10 #16)에 의존하지 않는다: 시작점(스프링암 카메라, `ProbeSize 14` ECC_Camera 검사 통과 [확인 코드])에서 이전 위치→목표 스윕만 하고, `bStartPenetrating`이면 앵커 쪽 10 cm 후퇴, 진입 시 겹침 검사(§4-2 4)로 벽 안 시작을 배제. 틱당 스윕 최대 2회(V-09 후속).
 #### 6-4 광학 매핑(`ApplyOptics`; PostProcess 오버라이드는 폰 카메라 컴포넌트에만, `PostProcessBlendWeight = 1`)
 - FOV: `Camera->SetFieldOfView(Fov)` [확인 V-03 PathPawn].
 - 노출: `bOverride_AutoExposureBias = true; AutoExposureBias = float(Base + Ev)`(Base = `Tod->CaptureState(S)` 성공 시 `S.ExposureBias`, 아니면 `AGolmokTimeOfDay::DefaultAutoExposureBias()`) — 카메라 오버라이드는 볼륨 값을 **대체**하므로 base를 다시 더한다 [2차 §10 #9]. 메타에는 상대 EV만.
@@ -666,7 +673,7 @@ saved 20260925_101112.png (2x)                                        (초록, 2
 | 배율 | 해상도 | 픽셀 | 추정 추가 VRAM | 판정 |
 |---|---|---|---|---|
 | 2 | 5120×2880 | 14.7 MP | +1.2~1.8 GB | **기본** |
-| 3 | 7680×4320 | 33.2 MP | +2.7~4 GB | **상한** `MaxMultiplier=3`; 실패·스톨이면 2로 커밋 |
+| 3 | 7680×4320 | 33.2 MP | +2.7~4 GB | **상한** `MaxMultiplier=3`; 실패·스톨이면 2로 커밋 — V-09 결과로 2(4834941, 3x 촬영마다 3~6 s 정지) |
 `SetResolution`은 최대 텍스처 크기만 검사하고 VRAM은 검사하지 않는다(V-03 코드) → 상한은 ini가, 실패는 `TakeHighResScreenShot()` false 반환([확인 문서]) → 1x 재시도·메타 실효값이 담당.
 
 ### 7. ini (`Config/DefaultGame.ini` 추가분; 다른 섹션 무변경 — WP-05 `EXPECTED_KEYS`·WP-09 `test_ini_keys_and_values` 그대로)
@@ -702,7 +709,7 @@ PauseMode=GamePause
 | 이름 | 단계 · 단언 |
 |---|---|
 | `Golmok.Photo.EnterExit` | ① 폰 대기 0.5 s → `AGolmokCharacter` 빙의 확인, `Debug->SetHudVisible(true)`, `Cam` 위치 기록 ② `Enter` true → `IsActive`·`State == Active`·`IsGamePaused(World) == true`·`PC->GetViewTarget()`이 `AGolmokPhotoCameraPawn`·**`PC->GetPawn()`은 여전히 `AGolmokCharacter`**·폰 위치 == 기록한 카메라 위치(1 cm)·`GetParam(Fov) == 진입 FOV(80)`·`Debug->IsHudVisible() == false`·`PC->IsDebugKeysSuspended()`·`Enter` 재호출 false(`already active`) ③ 실시간 0.5 s 뒤 캐릭터 위치 == ①(정지), `GetPawnTickCount() > 0`(정지 중 틱 증명) ④ `SetCharacterHidden(true)` → 캐릭터 `IsHidden()`; `Debug->StartPlayback(...)` false + 메시지 `photo mode is on` ⑤ **드리프트**: `Tod->TransitionSeconds = 0.5; Tod->ApplyPreset("clear_noon")`(프리셋 파일 없으면 이 블록 skip Info) → 실시간 1.0 s 대기 → `Exit("test")` → `Tod->IsTransitioning() == true && GetTransitionAlpha() < 0.3`(월드 시계 동작과 무관) ⑥ 종료 단언: `!IsGamePaused`·뷰 타깃 == 캐릭터·`GetControlRotation` == 진입 전·캐릭터 visible·HUD true 복원·`!PC->IsDebugKeysSuspended()`·`PC->bShouldPerformFullTickWhenPaused == false`·폰 `IsValid` false·`State == Inactive` ⑦ **사전 정지**: `SetGamePaused(true)` → `Enter` → `Exit` → `IsGamePaused() == true` → `SetGamePaused(false)` ⑧ **거부**: `StartRecording("_automation_photo")` → `Enter` false(`while recording`) → `StopRecording` → 파일 삭제; 2샘플 경로를 `SavePathFile`로 만들고 `StartPlayback` → `Enter` false(`path is playing`) → `StopPlayback` ⑨ 콘솔 왕복 `ProcessUserConsoleInput("golmok.photo 1")`·`("golmok.photo 0")` |
-| `Golmok.Photo.Clamp` | (a) 순수(월드 불필요): `ClampToSphere` 안/밖/경계/중심 일치/r = 0; `ClampToPolygonXY` 사각형 밖→안(inset 20 cm)·오목 L자 오목 코너(재검사 실패 → 2)·경계 위 점; `Constrain` 구·다각형 동시 위반 → −1(취소), 다각형 우선 케이스 값; `Quantize` 1/3 EV 18스텝 왕복 == 0.0; `StepGeometric` 0.3→50 왕복 3자리; `StepTable` f/2.8 → 4 → … → 16 상한 불변, 1.4 하한 불변; `WrapDeg180`; `FovToFocalMm(65) ≈ 28.2` (b) PIE: `Enter` → `SetFootprintForTest`(앵커 중심 4×4 m 사각형) → `Pawn->MoveConstrained(Anchor + (1000, 0, 0))` → 거리 ≤ `MaxDistanceM·100 + 1` **그리고** 사각형 안(마진 20 cm 이내) → `MoveConstrained(Anchor + (0, 0, −500))` → 바닥 스윕에 막혀 Z ≥ 바닥 − 반경 − 20 cm(바닥은 캐릭터 발 위치로 추정) (c) 스윕: 앵커 앞 1.0 m에 `UBoxComponent`(BlockAll, 50 cm) Transient 액터 스폰 → `MoveConstrained(앵커 + 전방 2 m)` → 카메라–박스 면 거리 ≥ `CollisionRadiusCm − 1`·박스를 넘지 않음; 박스 파괴 → 같은 이동이 통과 (d) `SetParam(Fov, 200)` → 110, `SetParam(Ev, 0.4)` → 0.3333, `SetParam(Fstop, 3.0)` → 2.8(최근접), `Reset` → default·`GetParam(Fov) == 65` → `Exit` |
+| `Golmok.Photo.Clamp` | (a) 순수(월드 불필요): `ClampToSphere` 안/밖/경계/중심 일치/r = 0; `ClampToPolygonXY` 사각형 밖→안(inset 20 cm)·띠 안 점 → inset 선·볼록 모서리 → inset 꼭짓점·오목 L자 홈 → 변 법선(V-09 후속, 전에는 2)·경계 위 점; `Constrain` 현재 위치가 띠 안이면 바깥 이동 거리 유지·안쪽 이동 통과; `Constrain` 구·다각형 동시 위반 → −1(취소), 다각형 우선 케이스 값; `Quantize` 1/3 EV 18스텝 왕복 == 0.0; `StepGeometric` 0.3→50 왕복 3자리; `StepTable` f/2.8 → 4 → … → 16 상한 불변, 1.4 하한 불변; `WrapDeg180`; `FovToFocalMm(65) ≈ 28.2` (b) PIE: `Enter` → `SetFootprintForTest`(앵커 중심 4×4 m 사각형) → `Pawn->MoveConstrained(Anchor + (1000, 0, 0))` → 거리 ≤ `MaxDistanceM·100 + 1` **그리고** 사각형 안(마진 20 cm 이내) → `MoveConstrained(Anchor + (0, 0, −500))` → 바닥 스윕에 막혀 Z ≥ 바닥 − 반경 − 20 cm(바닥은 캐릭터 발 위치로 추정) (c) 스윕: 앵커 앞 1.0 m에 `UBoxComponent`(BlockAll, 50 cm) Transient 액터 스폰 → `MoveConstrained(앵커 + 전방 2 m)` → 카메라–박스 면 거리 ≥ `CollisionRadiusCm − 1`·박스를 넘지 않음; 박스 파괴 → 같은 이동이 통과 (d) `SetParam(Fov, 200)` → 110, `SetParam(Ev, 0.4)` → 0.3333, `SetParam(Fstop, 3.0)` → 2.8(최근접), `Reset` → default·`GetParam(Fov) == 65` → `Exit` |
 | `Golmok.Photo.MetaJson` | (a) 순수: `FormatPhotoMetaJson`이 §2-2 예제와 **바이트 동일** + null 3조합(preset/zone/geo) + 문자열 이스케이프(`"`·`\`·한글 zone_id) → `FJsonSerializer::Deserialize`로 재파싱(`TryGetField`, 5.8 규칙) 값·형 확인; **파서 실패 케이스**(`GolmokPhotoJson::ParseConfigText`): `schema_version 2`, `params.fov` 누락, `default > max`, `step`과 `step_ratio` 동시, `values` 내림차순, 미지 최상위 키, `hints.keyboard` 5줄, 숫자 자리 bool → 각각 false + Error에 위치 이름; 정상 파일(`ResolveConfigPath()`) 성공 + 스펙 범위 상수 5개 (b) PIE: `Enter` → `BuildMeta(2)`: `bHasGeo == Geo->HasOrigin()`(원점 있으면 lat ≈ 37.56·lon ≈ 126.92, 없으면 셋 null — **L_Dev는 GeoOrigin이 없을 수 있음**), zone 없음 → `bHasZone == false`, `bHasPreset == !Tod->CurrentPreset.IsNone()`, `UeLocation` == 폰 위치, `bDofEnabled == false` → `Shoot()` → `State == Shooting` → 실시간 대기(최대 5 s, `OnEndFrame`은 nullrhi에서도 발화 V-03) → `State == Active`(nullrhi: PNG 없음 → 3 s 타임아웃 경로) → `GetLastShotPathNoExt() + ".json"` 존재 → 파싱: 키 15개·순서·`version == 1`·`multiplier == min(ScreenshotMultiplier, MaxMultiplier)`(폴백 경로 요청값)·null 규칙 → 같은 초 두 번째 `Shoot` → `_2` 접미 → 파일 삭제; `Shooting` 중 `Exit` → `bExitPending` → 완료 뒤 `Inactive`; `golmok.photo.set fov 40` → `GetParam(Fov) == 40` |
 
 `test_ue_wp12_fixture.py`가 세 이름 + 가드를 요구한다(WP-05 `AUTOMATION_TESTS`는 불변, 별도 상수).
@@ -786,6 +793,8 @@ PauseMode=GamePause
 | 34 | `FActorSpawnParameters{ObjectFlags \| RF_Transient, SpawnCollisionHandlingOverride = AlwaysSpawn}` [확인 V-03 포털·재생 폰] | — | — | — |
 | 35+ | (PC 세션 추가) | | | |
 
+메모(PR #27 리뷰 A7, 2026-09-27): 지금은 동적 해상도를 쓰지 않는다. 켤 때는 포토 모드 진입·종료를 `GEngine->PauseDynamicResolution()` / `ResumeDynamicResolution()`으로 감싼다(정지 중 해상도 배율이 흔들리면 사진·HighResShot 품질이 틱마다 달라짐).
+
 ### 11. 위험·트레이드오프
 1. **정지 스택이 [미확인]**(#2·#3·#4·#13): 가장 가능성 큰 PC 수정. 설계는 ini `PauseMode=TimeDilation` 한 스위치로 코드 손질 없이 우회한다(0.0001배속: 캐릭터가 1프레임당 0.0001 s만 움직여 실질 정지, 시간대 드리프트는 `ShiftTransitionStart`가 상쇄, 포털은 빙의 없음이 보호). 자동화는 `IsGamePaused`·뷰 타깃·틱 카운터만 단언하므로 렌더 동작은 런북 §3~§6만이 증거.
 2. **정지 중 화질**(#8·#10): TSR·Lumen·눈 적응이 멈추면 이동 중 고스팅·EV 미반영. 품질 우선 원칙상 런북 필수 판정 항목; 폴백 순서(적응 속도↑ → Manual → TimeDilation)를 런북이 결정하고 화면을 첨부.
@@ -793,7 +802,7 @@ PauseMode=GamePause
 4. **HUD 포함 사진의 잔여 위험**(#13): `Shoot()` 플래그가 같은 프레임 `Draw` 전에 서는 것에 의존하지 않도록 `PreCaptureFrames` 기본 2. 자동화(nullrhi)로는 못 잡고 런북 §5만이 확인.
 5. **배율 3 VRAM**: 추정치. OOM이면 엔진이 크래시할 수도 있다(런북 경고 후 실행). 기본 2는 여유가 크다. `TakeHighResScreenShot` false는 1x로 떨어져 메타가 실제값을 갖는다.
 6. **뒷면·구멍**: 충돌 메시가 없는 큰 구멍은 footprint·반경만 막고, zone 밖 도로에서는 아무것도 막지 않는다 → 오버레이 `no zone`으로 정직하게 알린다(클램프 규칙 추가보다 "재구성 안에서 찍게 유도"가 우선).
-7. **오목 footprint**: inset 점이 밖이면 이동 취소(2)라 오목 코너 근처에서 카메라가 "걸리는" 느낌 가능. 다각형 오프셋(침식)은 Phase 2.
+7. **오목 footprint**: ~~inset 점이 밖이면 이동 취소(2)라 오목 코너 근처에서 카메라가 "걸리는" 느낌 가능. 다각형 오프셋(침식)은 Phase 2.~~ V-09 후속(2026-09-27)에서 침식 영역 투영으로 바꿔 오목 코너는 반경 inset의 호를 따라 미끄러진다. 남은 한계: 예각 꼭짓점·inset의 두 배보다 좁은 목에서는 8회 안에 S를 못 찾으면 이동 취소(그 자리 정지, 진동 없음); 스윕 경로 자체는 다각형을 검사하지 않아 오목 코너를 한 틱(≤ 45 cm)에 가로지를 수 있음(끝점만 S 안).
 8. **JSON 실패 = 기능 거부**: 플레이어에게는 "P가 안 눌림"으로 보임 → `golmok.photo` 메시지·Error 1회. 패키징에서 `../Config/Golmok` UFS 스테이징이 빠지면 같은 증상(런북 §10).
 9. **메타 먼저, PNG는 다음 프레임**: PNG가 끝내 안 써지면 고아 JSON(nullrhi에서는 의도). 사진첩(D-017)은 PNG 존재로 필터.
 10. **세션 값 지속**: "저번에 EV +2로 찍었더니 지금 화면이 밝다" 혼란 → 오버레이 값 줄 상시 표시 + R 리셋. 월드 간 저장은 Phase 2(D-017).
