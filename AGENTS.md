@@ -42,8 +42,8 @@ CLAUDE.md에서 너에게 그대로 적용되지 않는 부분이 있다. "Work-
   - 결제, 계정 가입, 약관 동의, 메시지 발송
   - 작가, 업체, 판매자에게 문의하거나 견적을 요청하는 일
   문의가 필요하면 `docs/outreach/` 형식의 초안만 쓴다. 발송은 소유자가 한다.
-- 게임 품질에 영향을 주는 네 권장안은 "가설"로 표시한다. 채택은 Fable 적대적 리뷰와 소유자 결정으로 정한다.
-- 네 PR은 병합 전에 Fable ultracode 적대적 리뷰를 받는다(§7.4). 리뷰에서 확정된 결함은 네 브랜치에서 고친다. PC 런북 검증은 병합 뒤 `🟡 코드 완료·PC 검증 대기` 상태에서 PC 세션이 한다.
+- 게임 품질에 영향을 주는 네 권장안은 "가설"로 표시한다. 채택은 Claude 리뷰(코드는 Opus ultracode, 설계·품질 가설은 Fable)와 소유자 결정으로 정한다.
+- 네 PR은 병합 전에 Opus ultracode 적대적 코드 리뷰를 받고, 게임 설계·품질 가설을 바꾸면 Fable 설계 리뷰를 더 받는다(§7.4, 2026-09-27 모델 정책). 리뷰에서 확정된 결함은 네 브랜치에서 고친다. PC 런북 검증은 병합 뒤 `🟡 코드 완료·PC 검증 대기` 상태에서 PC 세션이 한다.
 
 ## 4. 레인, 핫스팟, 훅 (원문: DEVELOPMENT-PLAN §7.6)
 - **레인**: 파일 소유 구역이다. 네 레인 안의 파일만 자유롭게 만들고 고친다. 지금 네 레인은 **캐릭터(WP-18)**와 **오디오(WP-13·WP-17, 2026-09-27 배정)**다. 과제는 `docs/plan/astra-tasks.md`에 있다.
@@ -64,7 +64,7 @@ CLAUDE.md에서 너에게 그대로 적용되지 않는 부분이 있다. "Work-
     - `docs/images/characters/`
   - 오디오 레인(WP-13·WP-17): `unreal/Golmok/Source/Golmok/Audio/`, `Source/Golmok/Tests/GolmokAudio*.cpp`, `unreal/Golmok/Config/Golmok/audio.json`, `unreal/Golmok/Content/Golmok/Audio/`, `unreal/Golmok/Content/Python/golmok/audio_import.py`(+ `audio_pure.py`), `tools/scripts/make_placeholder_audio.py`, `tools/tests/test_ue_audio*.py`, `tools/tests/test_ue_config_audio.py`, `tools/tests/test_ue_python_audio_import.py`, `tools/tests/test_make_placeholder_audio.py`, `tools/tests/fixtures/ue/audiomath*`, `docs/research/10-*`, `docs/plan/WP-13*`, `docs/plan/WP-17*`, `docs/runbooks/pc-verify-wp13*`, `docs/capture/03-*`.
   - 새 레인은 소유자가 과제로 배정한다.
-- **Claude(Fable) 레인**: `Source/Golmok/{Geo,Zones,Portals,Lighting,Debug,Photo}/`, 그 밖의 `Tests/*`, 다른 `Config/Golmok/*.json`, `Content/Python/golmok/`, 기존 `tools/tests/*`(아래 핫스팟 제외). 이 파일들은 고치지 않는다. 필요하면 PR 설명이나 소유자를 통해 요청한다. `Player/`의 파일은 모두 핫스팟이라 훅으로만 고친다.
+- **Claude 레인**(코딩 Opus ultracode·설계 Fable): `Source/Golmok/{Geo,Zones,Portals,Lighting,Debug,Photo}/`, 그 밖의 `Tests/*`, 다른 `Config/Golmok/*.json`, `Content/Python/golmok/`, 기존 `tools/tests/*`(아래 핫스팟 제외). 이 파일들은 고치지 않는다. 필요하면 PR 설명이나 소유자를 통해 요청한다. `Player/`의 파일은 모두 핫스팟이라 훅으로만 고친다.
 - **공유 핫스팟**
   - 코드·설정: `Player/GolmokCharacter.{h,cpp}`, `Player/GolmokPlayerController.{h,cpp}`, `GolmokGameMode.{h,cpp}`, `Golmok.Build.cs`, `Config/Default*.ini`, `tools/pyproject.toml`, `.github/workflows/ci.yml`, `tools/scripts/check_repo.py`, `.gitattributes`, `.gitignore`
   - 등록 목록 테스트: 모듈 전체를 고정 목록과 정확히 비교한다. 새 콘솔 명령, 새 모듈 의존, 새 소스 폴더를 더하면 여기에 한 줄을 더해야 pytest가 통과한다.
@@ -109,7 +109,7 @@ CLAUDE.md에서 너에게 그대로 적용되지 않는 부분이 있다. "Work-
   - 착수할 때와 PR을 올리기 전에 `git fetch origin`을 하고, 열린 브랜치가 같은 파일을 건드리는지 본다: `git diff --stat origin/main...origin/<브랜치>`. 겹치면 PR 설명에 적는다.
   - main을 따라갈 때는 `git merge origin/main`을 한다. push한 브랜치는 rebase나 force-push를 하지 않는다.
   - 리뷰를 요청하기 전에 main(스택이면 base 브랜치)과 충돌이 없게 만든다.
-- **병합 직전**: 소유자가 승인하면 push를 멈춘다. 병합하는 Fable 세션이 네 브랜치에 마지막 커밋 `WP-NN: 병합 시 반영 (Fable)`을 더한 뒤 병합한다. 그 뒤에 더 고칠 것이 있으면 먼저 `git pull --ff-only`를 한다.
+- **병합 직전**: 소유자가 승인하면 push를 멈춘다. 병합하는 Claude 세션이 네 브랜치에 마지막 커밋 `WP-NN: 병합 시 반영 (Fable)`(제목은 관례)을 더한 뒤 병합한다. 그 뒤에 더 고칠 것이 있으면 먼저 `git pull --ff-only`를 한다.
 - **충돌 해결**: 나중에 병합하는 쪽이 자기 브랜치에서 푼다.
 
   | 파일 | 해결 |
