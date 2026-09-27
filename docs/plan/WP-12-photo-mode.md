@@ -1,6 +1,6 @@
 # WP-12 — 포토 모드 최소판 (D-013)
 
-상태: 🔵 진행 중 (등록 2026-09-25, 시작 2026-09-25, session_01R7589q1vh4DRPq4NeCsZ4Q) · 담당: 클라우드 Claude 세션(**Fable 5.1 ultracode**, 검증 Opus 5.5 — 모델 정책 DEVELOPMENT-PLAN §7.4) · 의존: WP-05(디버그 스크린샷·HUD·시간대 프리셋), WP-04(Geo·Zone), WP-09(zone 발견) · 검증: G2(`runbooks/pc-verify-wp12.md`, V-09, PC 세션)
+상태: 🟡 코드 완료·PC 검증 대기 (등록 2026-09-25, 시작 2026-09-25, 코드 완료 2026-09-27, session_01R7589q1vh4DRPq4NeCsZ4Q) · 담당: 클라우드 Claude 세션(**Fable 5.1 ultracode**, 검증 Opus 5.5 — 모델 정책 DEVELOPMENT-PLAN §7.4) · 의존: WP-05(디버그 스크린샷·HUD·시간대 프리셋), WP-04(Geo·Zone), WP-09(zone 발견) · 검증: G2(`runbooks/pc-verify-wp12.md`, V-09, PC 세션)
 
 ## 목표
 플레이어가 키 하나로 **포토 모드**에 들어가 게임을 멈추고, 캐릭터 주변에서 자유 카메라로 구도를 잡아 고해상도 사진을 찍는다(D-013 최소판, 사용자 승인 2026-09-25). 실사 재구성 골목을 "내가 찍은 사진"으로 남기는 공유 동력이자, 스파이크·회귀 비교 캡처 도구와 겹친다. 범위·근거: [`design/game-features-proposal.md`](../design/game-features-proposal.md) D-013.
@@ -849,3 +849,31 @@ PauseMode=GamePause
 
 ### 설계 대비 변경
 - **포토 액션 17 → 21개(`IA_GolmokPhotoLookPad` 추가)**: 설계 §5는 시선을 `Look` 한 액션(Axis2D)에 `Mouse2D`와 `Gamepad_Right2D`를 함께 매핑하고 핸들러에서 "마우스면 델타, 패드면 값"으로 나누도록 적었으나, 한 Axis2D 액션의 `FInputActionValue`에는 어느 장치에서 왔는지가 없어 핸들러가 둘을 구분할 수 없다(마우스 델타는 프레임마다 누적, 스틱 값은 유지·Completed에서 0이어야 함). 그래서 `Look`(Mouse2D, Triggered → `AddLookMouse`)과 `LookPad`(Gamepad_Right2D, Triggered/Completed → `SetLookPad`)로 나눴다. §0 #5·§3-2·§5·§10 #7/#22의 개수를 21로 고쳤고, `tools/tests/test_ue_wp12_fixture.py`의 `PHOTO_ACTIONS`(21개)가 코드의 `IA_GolmokPhoto*` 집합과 **같음(==)**을 고정한다(이전 `>=`는 액션 추가를 잡지 못했다).
+
+## 결과
+세션: session_01R7589q1vh4DRPq4NeCsZ4Q (Fable 5.1 ultracode; 심판·회의론자·수정 에이전트는 모델 정책대로 Opus 5.5) · 2026-09-25 → 2026-09-27 · 상태 **🟡 코드 완료·PC 검증 대기** (G2 `runbooks/pc-verify-wp12.md`, V-09). PR #19(draft, 병합은 오케스트레이터).
+
+**진행 방식(ultracode, Workflow 3회, 동시성 2)** — ① 설계 패널: ① UE 5.8 API 현실성 / ② 플레이어 경험·품질 / ③ 데이터·테스트 3안(Fable) → Opus 심판 2명(엔진 사실 27·27·27 / 제품·검증 27·27·29) → 종합 "설계 (확정)" §0~§12(심판 지적 40건 반영, 어느 안도 그대로 채택하지 않음). ② 구현: A(순수 헤더+g++ 교차검증 ∥ 기존 코드 추가분·photo.json·법 문서) → B(서브시스템 ∥ 폰·HUD·컨트롤러) → C(정적 통합 검토·UE 자동화 3개·픽스처 pytest·전체 게이트). ③ 적대적 검증 **1라운드**(상한): 런북 작성 ∥ 리뷰어 4관점(① API·컴파일 3 / ② 리플렉션·Config·빌드 7 / ③ 상태 복원·상호작용 9 / ④ 스펙·테스트·런북 5 = 24건) → Opus 회의론자 4명 재현·반박 → **확정 9**(major 3: 진입 포즈가 3 m 구 밖(스프링암 320 cm+오프셋) / 런북 자동화 개수 / 런북에 C2248 수정분 누락; minor 6: 상수 이중 정의, 액션 수 21 vs 주석 20·픽스처 `>=`, f 접미 리터럴 검사 누락, Reset이 배율 초기화, 해체 시 전환 메시지 억제 잔류, 런북 줄 번호) · **반박 14** · **미검증 1**(정지 중 `TickPlayerInput` 경로 → 런북 #56) → Opus 수정 3그룹(각 결함에 pytest 회귀 검사 먼저 추가) → 게이트. 원시 소견 24 → 확정 9는 전부 반영했다.
+
+**PC 빌드 보고 반영(V-09 선행, 2026-09-27)** — ChatGPT Astra가 소유자 PC에서 이 브랜치(0806da8)를 main과 합쳐 빌드하니 **C2248 7곳**(`Photo/GolmokPhotoModeSubsystem.cpp` 912·920·970·975·1161, `Tests/GolmokPhotoTest.cpp` 276·367): `APlayerController::bShouldPerformFullTickWhenPaused`(`PlayerController.h:1730`)와 `UGameViewportClient::bSuppressTransitionMessage`(`GameViewportClient.h:118`)가 5.8.3에서 **protected**(설계 §10 #3·#12의 [2차] 가정이 틀림). 수정(`f5c8861`·`915692f`): (a) `Player/GolmokPlayerController`에 `[WP-12 hook]` 블록으로 `GetFullTickWhenPausedFlag()/SetFullTickWhenPausedFlag(bool)`(파생 클래스는 protected 접근 가능; 엔진 공개 `ShouldPerformFullTickWhenPaused()`는 XR 조건을 OR해 raw bit 스냅샷이 아님) — 서브시스템·테스트는 이 접근자만 사용, `GetPC()`의 캐스트 실패는 진입 거부. (b) 뷰포트 플래그는 raw getter가 없어 **`Player/GolmokGameViewportClient`(신규, `IsTransitionMessageSuppressed()`)** + `DefaultEngine.ini` `[/Script/Engine.Engine] GameViewportClientClassName=/Script/Golmok.GolmokGameViewportClient`로 정확히 저장·복원한다. **한계**: 그 ini 줄이 없으면(또는 다른 뷰포트 클래스면) 원값을 읽지 못해 종료 시 `false`(엔진 기본)로 복원하고 Warning 1회 — 다른 시스템이 켜 둔 억제 상태를 잃을 수 있다(런북 §12 #12 행에 명시). 오케스트레이터가 핫스팟 ini 변경을 원치 않으면 그 줄만 빼도 코드는 컴파일·동작한다(폴백 경로). (c) `UGolmokPhotoModeSubsystem::GetRestoreState()`(`FGolmokPhotoRestoreState`: 정지·풀틱·HUD·폰 숨김·전환 메시지·디버그 키·시간 배율·뷰 타깃·컨트롤 회전) 공개 조회 계약 — `Exit()`가 복원. (d) `test_ue_wp12_fixture.py`에 두 엔진 protected 멤버 이름을 서브클래스 파일 밖에서 쓰지 않는다는 검사 + ini·계약 검사 3개.
+
+**한 것** (`unreal/Golmok/` 기준; 파일 목록은 설계 §1)
+- `Photo/GolmokPhotoMath.h`(순수 헤더: 스텝·양자화·f-stop 표·구/다각형 클램프·`Constrain`·메타 JSON 포매터, include는 `Geo/GolmokGeoMath.h`·`Debug/GolmokStatsMath.h`뿐) · `Photo/GolmokPhotoModeSubsystem`(photo.json 파서 `GolmokPhotoJson`, 상태기계 Inactive→Active→Shooting→Captured, 진입/복원 시퀀스, 빙의 없음·뷰 타깃만, `SetGamePaused`/`TimeDilation` 폴백, 포토 액션 21개·`IMC_GolmokPhoto` 우선순위 3, `OnEndFrame` 캡처 창(메타 먼저·PNG 폴링·3 s 타임아웃), 오버레이 줄, 콘솔 `golmok.photo [0|1]`·`.shoot`·`.reset`·`.set`) · `Photo/GolmokPhotoCameraPawn`(15 cm 구·카메라, 정지 중 Tick, 구→다각형→스윕, `ApplyOptics` PP 오버라이드) · `Debug/GolmokDebugSubsystem::RequestHighResScreenshot` public 분리(`TakeHighResScreenShot()` false면 1x 재시도)·경로 재생/녹화의 포토 거부 · `Debug/GolmokHUD` 캡처 가드 + 왼쪽 아래 오버레이 · `Player/GolmokPlayerController` P/`Gamepad_Special_Left` 토글(`IMC_GolmokPhotoToggle` 2)·`SetDebugKeysSuspended`·풀틱 접근자 · `Player/GolmokGameViewportClient`(신규) · `Zones/GolmokZoneSubsystem::FindLoadedZoneAt` · `Lighting/GolmokTimeOfDay::ShiftTransitionStart` · `Config/Golmok/photo.json`(단일 소스) · `DefaultGame.ini` `[/Script/Golmok.GolmokPhotoModeSubsystem]` 11키 · `DefaultEngine.ini` 뷰포트 클래스 1줄.
+- 테스트: UE 자동화 **3개** `Golmok.Photo.EnterExit / Clamp / MetaJson`(`-nullrhi`; 전체 22개) · pytest 포토 3파일 **90개**(`test_ue_photo_math.py` g++ 드라이버 vs numpy·shapely, `test_ue_config_photo.py` 스키마·힌트↔`EKeys` 대조, `test_ue_wp12_fixture.py` ini·Build.cs·로그·콘솔·입력 이름·빙의/RegisterZone 부재·유니티 이름·C4458·protected 멤버·런북 대조) + 기존 파일 추가(`CONVENTION_FOLDERS` Photo, `RUNBOOKS`, `CONSOLE_COMMANDS`). 문서: 런북(419줄, 체크 67, 불확실 API 56행 + PC 행), `research/05` 자문 항목 7, 설계 §6-1 유효 반경 메모.
+
+**테스트 로그(클라우드)**: `ruff check .` All checks passed · `ruff format --check .` 96 files already formatted · `python -m pytest -q` **744 passed, 3 skipped, 208 warnings in 36.62s**(main 병합 뒤; WP-12 이전 기준 626) · `check_repo.py` OK. CI는 PR #19 체크 참조.
+
+**불확실 API**: 런북 §12 표 **56행**(설계 §10 #1~#34 + 구현 #36~#55 + 회의론자 #56; `35+`·`57+`는 PC 추가 행). PC에서 먼저 볼 것: 정지 중 Enhanced Input·카메라 매니저 갱신(#2~#5, 안 되면 ini `PauseMode=TimeDilation`), 정지 중 `TakeHighResScreenShot` 기록(#13·#14), PP 오버라이드 멤버 이름(#9), `GameViewportClientClassName` 적용 여부(#12), 진입 시 `OverlapBlockingTestByChannel`(#16). 공식 문서로 확인된 것: `bTriggerWhenPaused`·`bConsumeInput`·컨텍스트 우선순위·`bTickEvenWhenPaused` 예시·`HighResShot` 문법·Cinematic DOF 단위·`TakeHighResScreenShot` bool 반환.
+
+**판단한 것(설계·스펙과 다른 점, 코드 기준)**
+- 진입 카메라가 캐릭터 스프링암(320 cm+오프셋)보다 멀어 3 m 구 밖 → **유효 반경** `GetEffectiveRadiusCm() = max(MaxDistanceM·100, 진입 거리+1)`(오버레이 `3.3 / 3.3 m`). `Reset()`은 세션 배율을 지우지 않음. 포토 액션은 21개(`IA_GolmokPhotoLookPad` 분리: 마우스 델타와 스틱 값은 한 핸들러로 구분 불가). 진입/종료 로그는 `photo: …` + 호출자(`P:`/`golmok.photo:`) 2줄, 종료 호출자 메시지는 `photo mode off`. photo.json 실패 메시지는 `cannot enter: photo.json: <where>: <why>`. 포토 중 F9/F10은 컨텍스트가 제거돼 눌리지 않음(거부 문구는 콘솔 `golmok.path`가 담당). DOF 기본 off(§0 #11), `dof.enabled` 키 추가.
+
+**Astra(WP-18) 통합 요청 사항** — PR #24 `Tests/GolmokCharacterRosterPhotoTest.cpp`(`Golmok.Character.PhotoIntegration`, proxy135/proxy110/Quinn × GamePause/TimeDilation 6조합)가 쓰는 공개 API(`Enter/Exit/PauseMode/GetParam/GetAnchor/GetPhotoPawn/GetPawnTickCount/SetCharacterHidden/IsCharacterHidden/IsActive`)는 이 브랜치에 전부 있고 시그니처가 같다; `GetRestoreState()`는 추가 계약. 6조합 재실행과 캐릭터 교체 뒤 앵커 검증은 **PR #24 쪽**(V-09 §1 뒤 `test.ps1 -Filter Golmok.`). 캐릭터 폰이 교체돼도 포토 앵커는 `SavedPawn`(진입 시 빙의 폰)이라 포토 중 교체는 지원하지 않는다(진입 거부·`Exit` 뒤 교체).
+
+**남은 것**
+- PC 검증 V-09(런북 §1~§13). 컴파일 에러는 §12 표로 고치고 `WP-12: PC fix` 커밋; 배율 3의 VRAM 실측으로 `MaxMultiplier` 확정.
+- 반복 입력(길게 누름)·장치별 힌트·사진첩·시간대 슬라이더는 Phase 2(D-013 확장).
+- 세션 비용: 오케스트레이터 집계 2026-09-27 08:50Z 기준 $124 + 검증·마무리분(STATUS 세션 로그).
+
+**다음 세션 인계** — 한 것: 포토 모드 최소판 코드·테스트·런북, C2248 7곳 수정, main(WP-18) 병합. 남은 것: V-09 PC 검증, PR #24와 함께 `Golmok.` 전체 자동화. 주의: `GameViewportClientClassName`(DefaultEngine.ini 핫스팟)은 뷰포트 억제 플래그 복원용 — 빼면 false 복원 폴백; 정지 중 입력이 안 먹으면 `PauseMode=TimeDilation`.
+
