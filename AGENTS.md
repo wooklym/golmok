@@ -46,7 +46,7 @@ CLAUDE.md에서 너에게 그대로 적용되지 않는 부분이 있다. "Work-
 - 네 PR은 병합 전에 Fable ultracode 적대적 리뷰를 받는다(§7.4). 리뷰에서 확정된 결함은 네 브랜치에서 고친다. PC 런북 검증은 병합 뒤 `🟡 코드 완료·PC 검증 대기` 상태에서 PC 세션이 한다.
 
 ## 4. 레인, 핫스팟, 훅 (원문: DEVELOPMENT-PLAN §7.6)
-- **레인**: 파일 소유 구역이다. 네 레인 안의 파일만 자유롭게 만들고 고친다. 지금 네 레인은 **캐릭터(WP-18)**다.
+- **레인**: 파일 소유 구역이다. 네 레인 안의 파일만 자유롭게 만들고 고친다. 지금 네 레인은 **캐릭터(WP-18)**와 **오디오(WP-13·WP-17, 2026-09-27 배정)**다. 과제는 `docs/plan/astra-tasks.md`에 있다.
   - 코드·설정
     - `unreal/Golmok/Source/Golmok/Characters/`
     - `Source/Golmok/Tests/GolmokCharacterRoster*.cpp`
@@ -62,8 +62,9 @@ CLAUDE.md에서 너에게 그대로 적용되지 않는 부분이 있다. "Work-
     - `docs/runbooks/pc-verify-wp18*`
     - `docs/outreach/character-*`
     - `docs/images/characters/`
+  - 오디오 레인(WP-13·WP-17): `unreal/Golmok/Source/Golmok/Audio/`, `Source/Golmok/Tests/GolmokAudio*.cpp`, `unreal/Golmok/Config/Golmok/audio.json`, `unreal/Golmok/Content/Golmok/Audio/`, `unreal/Golmok/Content/Python/golmok/audio_import.py`(+ `audio_pure.py`), `tools/scripts/make_placeholder_audio.py`, `tools/tests/test_ue_audio*.py`, `tools/tests/test_ue_config_audio.py`, `tools/tests/test_ue_python_audio_import.py`, `tools/tests/test_make_placeholder_audio.py`, `tools/tests/fixtures/ue/audiomath*`, `docs/research/10-*`, `docs/plan/WP-13*`, `docs/plan/WP-17*`, `docs/runbooks/pc-verify-wp13*`, `docs/capture/03-*`.
   - 새 레인은 소유자가 과제로 배정한다.
-- **Claude(Fable) 레인**: `Source/Golmok/{Geo,Zones,Portals,Lighting,Debug,Photo,Audio}/`, 그 밖의 `Tests/*`, 다른 `Config/Golmok/*.json`, `Content/Python/golmok/`, 기존 `tools/tests/*`(아래 핫스팟 제외). 이 파일들은 고치지 않는다. 필요하면 PR 설명이나 소유자를 통해 요청한다. `Player/`의 파일은 모두 핫스팟이라 훅으로만 고친다.
+- **Claude(Fable) 레인**: `Source/Golmok/{Geo,Zones,Portals,Lighting,Debug,Photo}/`, 그 밖의 `Tests/*`, 다른 `Config/Golmok/*.json`, `Content/Python/golmok/`, 기존 `tools/tests/*`(아래 핫스팟 제외). 이 파일들은 고치지 않는다. 필요하면 PR 설명이나 소유자를 통해 요청한다. `Player/`의 파일은 모두 핫스팟이라 훅으로만 고친다.
 - **공유 핫스팟**
   - 코드·설정: `Player/GolmokCharacter.{h,cpp}`, `Player/GolmokPlayerController.{h,cpp}`, `GolmokGameMode.{h,cpp}`, `Golmok.Build.cs`, `Config/Default*.ini`, `tools/pyproject.toml`, `.github/workflows/ci.yml`, `tools/scripts/check_repo.py`, `.gitattributes`, `.gitignore`
   - 등록 목록 테스트: 모듈 전체를 고정 목록과 정확히 비교한다. 새 콘솔 명령, 새 모듈 의존, 새 소스 폴더를 더하면 여기에 한 줄을 더해야 pytest가 통과한다.
@@ -80,7 +81,7 @@ CLAUDE.md에서 너에게 그대로 적용되지 않는 부분이 있다. "Work-
      - 훅은 **별도 커밋**(`WP-18: hook <파일>`)으로 만든다.
   3. **공유 문서(STATUS, DECISIONS, ROADMAP, DEVELOPMENT-PLAN, CLAUDE.md, AGENTS.md)는 고치지 않는다.** 바꿀 내용은 네 WP 문서 끝의 **"병합 시 반영"** 절에 문안으로 둔다. 병합하는 Fable 세션이 옮긴다.
   4. **유니티 빌드 이름**: 모듈은 유니티 빌드라 .cpp가 이어 붙는다. 파일 범위 도우미는 익명 namespace 대신 네 이름의 namespace(예: `GolmokCharacters`)에 둔다. 콘솔 객체 이름에는 `Character`를 넣는다(예: `GCmdCharacter`). 기존 이름(`GolmokLightingJson`, `Fail`, `ReadNumber` 등)을 다시 쓰면 병합 뒤 재정의 오류가 난다. 멤버와 같은 이름의 매개변수는 쓰지 않는다(MSVC C4458이 이 프로젝트에서 오류다).
-  5. **번호**(WP, V, D, research 번호)는 STATUS에 예약된 것만 쓴다. 지금 네 예약: WP-18(18a·18b), V-11, V-12, D-018, research/11. 더 필요하면 "병합 시 반영"에 예약 요청으로 적는다.
+  5. **번호**(WP, V, D, research 번호)는 STATUS에 예약된 것만 쓴다. 지금 네 예약: WP-18(18a·18b), V-11, V-12, D-018, research/11, **WP-13, WP-17, V-10, research/10**(2026-09-27). V-04는 실행·보고만 맡는다(번호는 Claude PC 검증 항목). 더 필요하면 "병합 시 반영"에 예약 요청으로 적는다.
 
 ## 5. 브랜치, 커밋, PR, 동기화, 충돌 해결
 - **작업 폴더**: `C:\Users\user\golmok` 체크아웃과 `.claude\worktrees\` 아래 폴더는 Claude 세션이 쓰는 중이다. 그 폴더의 브랜치를 바꾸거나 파일을 고치지 않는다. git에 없는 UE 자료(마네킹, 테스트 레벨, 합성 zone 에셋)는 그 폴더에서 **읽거나 복사해 오는 것만** 괜찮다.
