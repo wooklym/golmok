@@ -137,6 +137,11 @@ void AGolmokPhotoCameraPawn::ApplyOptics(float InFov, double InExposureBias, boo
 	FPostProcessSettings& Settings = Camera->PostProcessSettings;
 	Settings.bOverride_AutoExposureBias = true;
 	Settings.AutoExposureBias = static_cast<float>(InExposureBias);
+	// V-09 PC fix (section 10 #10 alternative 1): the bias goes through eye adaptation, which eases at 3 / 1 EV/s by default.
+	Settings.bOverride_AutoExposureSpeedUp = true;
+	Settings.AutoExposureSpeedUp = UGolmokPhotoModeSubsystem::ExposureSpeedEvPerSec;
+	Settings.bOverride_AutoExposureSpeedDown = true;
+	Settings.AutoExposureSpeedDown = UGolmokPhotoModeSubsystem::ExposureSpeedEvPerSec;
 	Settings.bOverride_DepthOfFieldFocalDistance = true;
 	Settings.DepthOfFieldFocalDistance = bInDof ? static_cast<float>(InFocusM * 100.0) : 0.f;
 	Settings.bOverride_DepthOfFieldFstop = true;

@@ -254,6 +254,9 @@ public:
 	static constexpr float FastMultiplier = 3.f;
 	static constexpr float MouseLookDegPerUnit = 0.5f;
 	static constexpr float PadLookDegPerSec = 120.f;
+	/** V-09 PC fix (runbook section 12 #10): eye adaptation speed (EV/s) of the photo camera, so an EV step settles in ~0.3 s
+	 *  instead of the default 2-4 s ease (a shot right after an EV change would otherwise catch a half-adapted exposure). */
+	static constexpr float ExposureSpeedEvPerSec = 20.f;
 
 	/** Character capsule center (SavedPawn actor location); entry camera location without a pawn. */
 	FVector GetAnchor() const;
@@ -366,6 +369,7 @@ private:
 	bool bSavedHudVisible = false;
 	bool bSavedPawnHidden = false;
 	bool bSavedSuppressTransition = false;
+	bool bSavedCameraMoveableWhenPaused = false; // V-09 PC fix (runbook section 12 #57): UWorld::bIsCameraMoveableWhenPaused
 	bool bDebugKeysWereActive = false;
 	bool bWarnedViewportClass = false;
 	float SavedTimeDilation = 1.f;

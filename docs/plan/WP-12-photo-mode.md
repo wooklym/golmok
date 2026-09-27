@@ -1,6 +1,6 @@
 # WP-12 — 포토 모드 최소판 (D-013)
 
-상태: 🟡 코드 완료·PC 검증 대기 (등록 2026-09-25, 시작 2026-09-25, 코드 완료 2026-09-27, session_01R7589q1vh4DRPq4NeCsZ4Q) · 담당: 클라우드 Claude 세션(**Fable 5.1 ultracode**, 검증 Opus 5.5 — 모델 정책 DEVELOPMENT-PLAN §7.4) · 의존: WP-05(디버그 스크린샷·HUD·시간대 프리셋), WP-04(Geo·Zone), WP-09(zone 발견) · 검증: G2(`runbooks/pc-verify-wp12.md`, V-09, PC 세션)
+상태: 🔴 PC 검증 완료(V-09, 2026-09-28)·§7 footprint 후속 수정 대기 — 이전: 🟡 코드 완료·PC 검증 대기 (등록 2026-09-25, 시작 2026-09-25, 코드 완료 2026-09-27, session_01R7589q1vh4DRPq4NeCsZ4Q) · 담당: 클라우드 Claude 세션(**Fable 5.1 ultracode**, 검증 Opus 5.5 — 모델 정책 DEVELOPMENT-PLAN §7.4) · 의존: WP-05(디버그 스크린샷·HUD·시간대 프리셋), WP-04(Geo·Zone), WP-09(zone 발견) · 검증: G2(`runbooks/pc-verify-wp12.md`, V-09, PC 세션)
 
 ## 목표
 플레이어가 키 하나로 **포토 모드**에 들어가 게임을 멈추고, 캐릭터 주변에서 자유 카메라로 구도를 잡아 고해상도 사진을 찍는다(D-013 최소판, 사용자 승인 2026-09-25). 실사 재구성 골목을 "내가 찍은 사진"으로 남기는 공유 동력이자, 스파이크·회귀 비교 캡처 도구와 겹친다. 범위·근거: [`design/game-features-proposal.md`](../design/game-features-proposal.md) D-013.
@@ -876,6 +876,8 @@ PauseMode=GamePause
 - PC 검증 V-09(런북 §1~§13). 컴파일 에러는 §12 표로 고치고 `WP-12: PC fix` 커밋; 배율 3의 VRAM 실측으로 `MaxMultiplier` 확정.
 - 반복 입력(길게 누름)·장치별 힌트·사진첩·시간대 슬라이더는 Phase 2(D-013 확장).
 - 세션 비용: 오케스트레이터 집계 2026-09-27 08:50Z 기준 $124 + 검증·마무리분(STATUS 세션 로그).
+
+**PC 검증 V-09 (2026-09-28, 런북 §13)** — 빌드 무수정, 자동화 26/26(PhotoIntegration 6조합 포함), §2~§6·§8·§9·§11 통과, §10은 L_Dev로 통과, **§7 footprint 실패**. 설계 변경 2건(c026815): ① GamePause에서도 `UWorld::bIsCameraMoveableWhenPaused`를 켜 뷰 이력을 갱신(정지 월드의 TSR/Lumen 이력 고정 → 카메라 이동 뒤 캐릭터 잔상이 화면·PNG에 남던 것 제거, 런북 §12 #57). ② 포토 카메라 눈 적응 속도 20 EV/s(EV가 2~4 s에 걸쳐 수렴하던 것 → 0.3 s, #10). 확정값: `PauseMode=GamePause`, `MaxMultiplier=2`(4834941, 3x는 촬영마다 3~6 s 정지), `PreCaptureFrames=2`(0에서도 HUD 없음). 후속(클라우드): #58 `ClampToPolygonXY`가 경계 20 cm 띠 안의 점을 받아 경계로 밀면 0~20 cm 톱니, #60 벽에 대각선으로 밀면 붙음(면 따라 미끄러짐 없음). 관찰: 촬영 저장이 게임 스레드를 멈춤(2x 1.2 s, #59), 사전 정지 종료 뒤 화면이 정지 해제까지 옛 구도, TimeDilation은 EV 무반응(#61). c026815는 Unreal 코드라 병합 전 Opus 5.5 ultracode 적대 검증 필요(모델 정책 2026-09-27), 결정 항목의 화질 판단은 Fable.
 
 **다음 세션 인계** — 한 것: 포토 모드 최소판 코드·테스트·런북, C2248 7곳 수정, main(WP-18) 병합. 남은 것: V-09 PC 검증, PR #24와 함께 `Golmok.` 전체 자동화. 주의: `GameViewportClientClassName`(DefaultEngine.ini 핫스팟)은 뷰포트 억제 플래그 복원용 — 빼면 false 복원 폴백; 정지 중 입력이 안 먹으면 `PauseMode=TimeDilation`.
 
