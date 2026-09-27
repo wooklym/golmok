@@ -814,11 +814,96 @@ def test_walk_starts_on_the_boundary_in_the_band_and_in_acute_corners(driver):
     assert all(b >= a - 1e-9 for a, b in zip(xs, xs[1:], strict=False)), "backs off in the apex"
     tail = [p for _c, p in path[-100:]]
     assert max(float(np.linalg.norm(t - tail[-1])) for t in tail) <= 1e-9  # settled, amplitude 0
-    # sphere and polygon both active: settles on their common limit without bouncing
-    path = walk(driver, (0.0, 0.0, 0.0), 90.0, 20.0, SQUARE, (0.0, 0.0, 0.0), (1.25, 1.25, 0.0), 200)
+    # sphere and polygon both active: reaches the inset edge x = 80, slides along it into the sphere, stops
+    # there (within 1 cm of the exact junction (80, 41.23): the sphere clamp pulls toward the anchor) without
+    # bouncing
+    path = walk(driver, (0.0, 0.0, 0.0), 90.0, 20.0, SQUARE, (0.0, 0.0, 0.0), (1.25, 0.5, 0.0), 300)
+    codes = {c for c, _p in path}
+    assert -1 not in codes and 2 in codes and 3 in codes, codes
+    ys = [float(p[1]) for _c, p in path]
+    assert all(b >= a - 1e-9 for a, b in zip(ys, ys[1:], strict=False))
     tail = [p for _c, p in path[-50:]]
     assert max(float(np.linalg.norm(t - tail[-1])) for t in tail) <= 1e-9
-    assert float(np.linalg.norm(tail[-1])) <= 90.0 + 1e-9 and abs(tail[-1][0]) <= 80.0 + 1e-9
+    assert float(np.linalg.norm(tail[-1])) <= 90.0 + 1e-9 and tail[-1][0] == pytest.approx(80.0, abs=1e-9)
+    assert math.sqrt(90.0**2 - 80.0**2) - 1.0 < tail[-1][1] <= math.sqrt(90.0**2 - 80.0**2) + 1e-9
+
+
+# Rings from the adversarial review of the first #58 fix (alternating projections): a 6.2 cm edge at a convex
+# corner cycled with period 6, a collinear / duplicate vertex next to a corner froze the walk (-1), a sphere /
+# reflex edge junction froze 7.5 cm short, and a reflex-arc / edge cusp gave up (2).
+SHORT_EDGE = [
+    (-260.610885, -447.634518),
+    (-146.920527, -496.698152),
+    (-140.970437, -498.419533),
+    (393.117038, -337.273909),
+    (393.117038, 300.0),
+    (-260.610885, 300.0),
+]
+TIP_STAR = [
+    (275.87355292764096, 71.26645251326161),
+    (25.50032556272835, 82.72562084844441),
+    (-388.8631285796658, -107.06595442163626),
+    (-90.03510598033398, -278.13731132436607),
+    (-104.01755864814602, -524.3074461000372),
+    (245.09526102851132, -320.4314037160839),
+    (154.05525504720944, -69.99143874584337),
+    (393.74216917483955, -85.42191413905668),
+    (123.15532412683388, -32.818173571645275),
+]
+L_BIG = [(0.0, 0.0), (1000.0, 0.0), (1000.0, 400.0), (400.0, 400.0), (400.0, 1000.0), (0.0, 1000.0)]
+
+
+def test_walk_short_duplicate_collinear_edges_and_junctions(driver):
+    pytest.importorskip("shapely")
+    from shapely.geometry import Point, Polygon
+
+    far = 1.0e6
+
+    def settled(path, n=30):
+        tail = [p for _c, p in path[-n:]]
+        return max(float(np.linalg.norm(t - tail[-1])) for t in tail)
+
+    # short edge at a convex corner: a fixed point (the old iteration cycled 1.07 cm every 6 ticks)
+    shape = Polygon(SHORT_EDGE)
+    for speed in (2.5, 7.5, 15.0):
+        for deg in range(0, 360, 15):
+            step = (speed * math.cos(math.radians(deg)), speed * math.sin(math.radians(deg)), 0.0)
+            path = walk(driver, (-26.9, -346.4, 0.0), far, 20.0, SHORT_EDGE, (-141.0, -470.0, 0.0), step, 300)
+            assert all(c >= 0 for c, _p in path), (speed, deg)
+            end = path[-1][1]
+            assert in_eroded(shape, end[:2], 20.0), (speed, deg)
+            # still in a corner, or sliding along an edge at no more than the input speed
+            assert settled(path) <= 1e-9 or settled(path) <= 30 * speed + 1e-6, (speed, deg)
+    path = walk(
+        driver, (-26.9, -346.4, 0.0), far, 20.0, SHORT_EDGE, (-141.0, -470.0, 0.0), (-0.647, -2.415, 0.0), 300
+    )
+    assert settled(path) <= 1e-9
+    # collinear / duplicate vertex 10 cm from a 53 degree apex: reaches the inset apex like the plain triangle
+    apex = (1000.0 - 20.0 * math.sqrt(5.0), 0.0)
+    for ring in (
+        [(-1000.0, -1000.0), (1000.0, 0.0), (-1000.0, 1000.0)],
+        [(-1000.0, -1000.0), (1000.0, 0.0), (990.0, 5.0), (-1000.0, 1000.0)],
+        [(-1000.0, -1000.0), (1000.0, 0.0), (1000.0, 0.0), (-1000.0, 1000.0)],
+    ):
+        for speed in (7.5, 20.0):
+            path = walk(driver, (0.0, 0.0, 0.0), far, 20.0, ring, (0.0, 0.0, 0.0), (speed, 0.0, 0.0), 200)
+            assert all(c >= 0 for c, _p in path), (ring, speed)
+            assert path[-1][1][:2] == pytest.approx(apex, abs=1e-6), (ring, speed)
+    # sphere (R 300) against the reflex edge of an L: slides into their junction (380, 574.95) instead of
+    # freezing
+    path = walk(driver, (500.0, 300.0, 0.0), 300.0, 20.0, L_BIG, (300.0, 450.0, 0.0), (0.0, 20.0, 0.0), 60)
+    junction = (380.0, 300.0 + math.sqrt(300.0**2 - 120.0**2))
+    assert math.dist(path[-1][1][:2], junction) < 0.01, path[-1]
+    assert settled(path, 10) <= 1e-9
+    # reflex-arc / edge cusp at a narrow tip: the exact nearest point of the eroded ring (shapely, 0.05 cm)
+    star = Polygon(TIP_STAR)
+    (code, x, y) = poly(driver, TIP_STAR, (0.0, 0.0), 20.0, [(141.55909975125141, -58.22838805036114)])[0]
+    assert code == 1 and (x, y) == pytest.approx((139.4245, -56.3554), abs=0.05)
+    step = (3.0 * math.cos(5.885), 3.0 * math.sin(5.885), 0.0)
+    path = walk(driver, (0.0, 0.0, 0.0), 1.0e4, 20.0, TIP_STAR, (0.0, 0.0, 0.0), step, 600)
+    assert all(c >= 0 for c, _p in path[:50])
+    assert settled(path) <= 1e-9 and in_eroded(star, path[-1][1][:2], 20.0)
+    assert star.buffer(-20.0, quad_segs=64).distance(Point(path[-1][1][:2])) < 0.05
 
 
 def constrain(driver: Path, anchor, r, inset, ring, points) -> list[tuple[int, np.ndarray]]:
@@ -853,6 +938,13 @@ def test_constrain_combines_sphere_and_polygon(driver):
     assert np.allclose(got[3][1], [80.0, 0.0, 90.0])
     assert np.allclose(got[4][1], [-80.0, 80.0, 90.0])
     assert np.allclose(got[5][1], [80.0, 0.0, 90.0])
+    # needs a second sphere / polygon round (the first polygon clamp leaves the sphere)
+    got = constrain(
+        driver, (50.0, 350.0, 0.0), 250.0, inset, L_SHAPE, [(200.01698748, -160.38728156, -22.86591933)]
+    )
+    assert got[0][0] == 3 and np.allclose(got[0][1], [80.0, 105.4795901, -7.8438125], atol=1e-6)
+    got = constrain(driver, (0.0, 0.0, 0.0), 50.0, inset, NOTCHED, [(327.999, -311.377, 25.345)])
+    assert got[0][0] == 3 and np.allclose(got[0][1], [0.0, -44.3833076, 1.7738422], atol=1e-6)
     # no polygon (N = 0): sphere only
     got = constrain(driver, anchor, r, inset, [], [(500.0, 0.0, 90.0), (10.0, 10.0, 90.0)])
     assert got[0][0] == 1 and np.allclose(got[0][1], [300.0, 0.0, 90.0])

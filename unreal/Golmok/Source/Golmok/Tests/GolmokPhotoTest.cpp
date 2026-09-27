@@ -602,6 +602,24 @@ namespace GolmokPhotoTest
 				Test->TestTrue(TEXT("pawn keeps the sweep radius from the box faces"), FaceDistance >= Sweep - 1.0);
 				Test->TestTrue(TEXT("pawn did not pass the box"), Along < 100.0);
 
+				// (c2) V-09 #60: an oblique push into the box face slides along it instead of sticking. Put the pawn 20 cm in
+				// front of the anchor (the box face is at 50 cm), then aim 120 cm ahead and 40 cm to the right: the sweep hits
+				// the face after ~15 cm and the rest of the move is projected onto it (lateral gain, same face distance).
+				const FVector Right = FRotator(0.f, Character->GetActorRotation().Yaw + 90.f, 0.f).Vector();
+				Pawn->MoveConstrained(Anchor + Forward * 20.0);
+				const FVector SlideStart = Pawn->GetActorLocation();
+				Pawn->MoveConstrained(Anchor + Forward * 120.0 + Right * 40.0);
+				Location = Pawn->GetActorLocation();
+				const FVector SlideLocal = BoxRotation.UnrotateVector(Location - BoxCenter);
+				const double SlideFace = FMath::Max3(FMath::Abs(SlideLocal.X) - 50.0, FMath::Abs(SlideLocal.Y) - 50.0, FMath::Abs(SlideLocal.Z) - 50.0);
+				const double Lateral = FVector::DotProduct(Location - SlideStart, Right);
+				const double SlideAlong = FVector::DotProduct(Location - Anchor, Forward);
+				Test->AddInfo(FString::Printf(TEXT("slide: from %s to %s, lateral %.1f, face distance %.1f, along %.1f"), *SlideStart.ToString(), *Location.ToString(), Lateral, SlideFace, SlideAlong));
+				Test->TestTrue(TEXT("oblique push slides along the box face (lateral > 20 cm)"), Lateral > 20.0);
+				Test->TestTrue(TEXT("slide keeps the sweep radius from the box faces"), SlideFace >= Sweep - 1.0);
+				Test->TestTrue(TEXT("slide did not pass the box face"), SlideAlong < 50.0);
+				Test->TestTrue(TEXT("slide stays inside the sphere"), FVector::Dist(Location, Anchor) <= Photo->GetEffectiveRadiusCm() + 1.0);
+
 				BoxActor->Destroy();
 				Pawn->MoveConstrained(Target);
 				Location = Pawn->GetActorLocation();

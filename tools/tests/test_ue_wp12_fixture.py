@@ -828,10 +828,11 @@ def test_move_constrained_slides_once_and_constrains_every_leg():
 
 
 def test_polygon_clamp_projects_along_the_edge_normal():
-    """#58: the header projects onto the eroded ring (edge normals from the ring orientation), not toward the
-    anchor for outside points only."""
-    header = _read(PHOTO / "GolmokPhotoMath.h")
-    body = _function_body(_strip_comments(header), "ClampToPolygonXY")
-    assert "EffectiveInsetCm(" in body and "EdgeInwardNormal(" in body
-    assert "D >= Inset - FootprintTolCm" in body
-    assert "MoveInsetCm(C)" in _function_body(_strip_comments(header), "Constrain")
+    """#58: the header clamps to the nearest point of the eroded ring (offset edges, vertex arcs and their
+    intersections), not toward the anchor for outside points only; Constrain falls back to a bisection."""
+    header = _strip_comments(_read(PHOTO / "GolmokPhotoMath.h"))
+    body = _function_body(header, "ClampToPolygonXY")
+    assert "EffectiveInsetCm(" in body and "InErodedRing(" in body and "RingArea2(" in body
+    assert "Try(AnchorX, AnchorY)" in body
+    constrain = _function_body(header, "Constrain")
+    assert "MoveInsetCm(C)" in constrain and "ConstrainBisections" in constrain
