@@ -18,7 +18,8 @@ class USphereComponent;
  * The root is a small sweep sphere (CollisionRadiusCm): it blocks against WorldStatic / WorldDynamic geometry and
  * ignores pawns, camera probes and visibility traces, so the character capsule, the spring-arm probe and the portal
  * triggers (OverlapOnlyPawn) never interact with it. Every move goes through GolmokPhotoMath::Constrain (sphere around
- * the character, then the loaded zone footprint) and one blocking sweep (no slide, design section 6-3).
+ * the character, then the loaded zone footprint shrunk by the margin) and a blocking sweep; a blocked sweep slides the
+ * rest of the move along the hit plane with one more constrained sweep (V-09 #60, design section 6-3).
  *
  * Optics (FOV, exposure bias, DOF, motion blur, roll) live on the camera component only: destroying the pawn restores
  * everything (no post-process volume is touched).
@@ -53,7 +54,7 @@ public:
 	FRotator GetLook() const { return Look; }
 	void SetRoll(float InRollDeg);
 
-	/** One constraint + sweep step toward InDesired (public test hook; Tick calls it with Location + Velocity * dt). */
+	/** Constrain + sweep toward InDesired, then at most one constrained slide sweep along the hit plane (public test hook; Tick calls it with Location + Velocity * dt). */
 	void MoveConstrained(const FVector& InDesired);
 	int32 GetTickCount() const { return TickCount; }
 	/** dt = clamp(FApp::GetDeltaTime(), 0, 0.1) (design section 10 #2): DeltaSeconds may be 0 while paused. */
