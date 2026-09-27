@@ -1,6 +1,8 @@
 # WP-18 후속 — 이동·실제 경로·포토 통합·렌더 증거
 
-2026-09-27 · ChatGPT Astra · 기준 main `3c8f1b0` · 브랜치 `astra/wp-18-followup`
+2026-09-27 · ChatGPT Astra · 최초 기준 main `3c8f1b0` · 최초 브랜치 `astra/wp-18-followup`(PR #24 병합·닫힘)
+
+**2026-09-28 T1 현재 상태**: main `045cbe3` 기준 새 `astra/wp-18-review-fixes`. WP-12는 main `939207e`에 병합됐고 당시 컴파일 차단은 해소됐다. 아래 2026-09-27 실행 기록은 그때의 결과로 보존한다. `PauseMode`는 `Enter()`에서 래치되며 `GetRestoreState().PauseMode`로 확인 가능하다. 현재 V-09 런북 자동화 총계는 26개다. [PR #27](https://github.com/wooklym/golmok/pull/27)은 26/26과 PhotoIntegration 6조합 실행을 보고한다 [2차: PC 세션 보고, Astra T2 직접 실행 결과 아님]. T1 처리·게이트는 문서 끝에 기록한다.
 
 사용자의 후속 작업 지시에 따라 [V-11 런북](../runbooks/pc-verify-wp18a.md)의 미검증 항목을 진행한다. 이번 변경은 캐릭터 레인의 검증 코드와 문서다. 게임 런타임·공유 설정·최종 룩·발주② 결정은 바꾸지 않는다.
 
@@ -9,7 +11,7 @@
 | 항목 | 검증 방법 | 결과 |
 |---|---|---|
 | 실제 경로 재생과 선택 유지 | `Golmok.Character.PathRoundTrip`: proxy135 선택 → 실제 `StartPlayback` → 경로 폰 빙의 중 교체 거절 → 2초 경로의 자연 종료 → 같은 원래 폰·선택·메시/캡슐·FOV·속도 복원 → Quinn 교체 | **실행 통과**. 임시 경로는 GUID 이름으로 Saved 아래 만들고 정리한다. 보행·영상 검수와는 구별 |
-| 실제 WP-12와 로스터 | `Golmok.Character.PhotoIntegration`: proxy135/proxy110/Quinn × GamePause/TimeDilation, 총6조합. 카메라 갱신 후 FOV/캡슐 앵커 상속, 실제 여러 틱에 걸친 교체 거절·숨김/위치/메시/시간 배율 보존, 종료 복원과 교체 재개 | **테스트 구현·통합 브랜치에서 해당 파일 컴파일 완료, 실행 차단**. WP-12 자체의 UE5.8 접근 오류는 아래 기록. main에는 Photo가 없어 `NOT EXECUTED` 경고 |
+| 실제 WP-12와 로스터 | `Golmok.Character.PhotoIntegration`: proxy135/proxy110/Quinn × GamePause/TimeDilation, 총6조합. 카메라 갱신 후 FOV/캡슐 앵커 상속, 실제 여러 틱에 걸친 교체 거절·숨김/위치/메시/시간 배율 보존, 종료 복원과 교체 재개 | **당시 해당 파일 오류 없음, 실행 전**. 전체 빌드는 WP-12 자체의 UE5.8 접근 오류로 실패(아래 기록). 당시 main에는 Photo가 없어 `NOT EXECUTED` 경고 |
 | 렌더 증거 | `Golmok.Character.RenderEvidence`: 명시적 실행 옵션으로만 두 프록시 × 조명4종, Quinn/Manny 정오 대조, 프록시 붐1.5배 진단 구도. 기존 템플릿 PBR·L_Dev·정면·원래 조명값. 게임 뷰포트만 저장 | **D3D12 실제 렌더12장 저장·디코딩 확인**, 대표 구도 육안 검토. 야간 미가시성 재현. 본 V-12의 실 배경·재질3안·얼굴/DOF·소유자 채점과 구별 |
 | GUI 조작 | `computer-use`로 L_Dev standalone 게임에서 콘솔·Space·F1 입력 | 사용자 보안 창 처리 후 **4종 교체·점프/착지·잘못된 ID 거절 확인**. 기본 카메라 구도와 HUD 좌표를 관찰하고 엔진 캡처4장 저장. 지속 보행·달리기·계단·포털 영상은 미완 |
 | 지속 입력·지형 통과 | `Golmok.Character.Locomotion`: 실제 InputKey/Enhanced Input으로4종의 달리기 중 교체·걷기 복귀, 점프,25cm 턱/40cm 장애물,80cm 통로, 계단 왕복, 카메라 충돌 | **실행 통과**, 필터1 Success/경고0/실패0,83.82s. 위치 배치는 코스 출발점에만 사용. nullrhi 물리 검사이며 GUI 보행 영상/애니메이션 품질 판정은 별도 |
@@ -21,7 +23,7 @@
 - 읽은 원격 [초안 PR #19](https://github.com/wooklym/golmok/pull/19): `0806da880d2fc7855b3ca6fd52be6a7143900411`, open/draft, 미병합.
 - 로컬 `astra/wp-18-photo-integration`의 `1d321fb`는 캐릭터 테스트 `ad57159`와 WP-12를 결합한 **검증용 병합**이다. 공개 main/상대 브랜치를 변경하지 않았다.
 - 충돌은 `docs/plan/STATUS.md` 한 곳이며 main 문안을 유지했다. 콘솔 목록의 photo·character 등록은 모두 보존했다.
-- UE5.8.3 `Build.bat ... -gather`: 새 `GolmokCharacterRosterPhotoTest.cpp` 컴파일 성공. WP-12 아래 7곳의 C2248 때문에 전체 빌드 실패. 런타임 검사는 시작하지 않았다.
+- UE5.8.3 `Build.bat ... -gather`: 새 `GolmokCharacterRosterPhotoTest.cpp`는 해당 파일 오류 없음, 실행 전. WP-12 아래 7곳의 C2248 때문에 전체 빌드 실패. 런타임 검사는 시작하지 않았다.
 
 | 원격 WP-12 소스 위치 | 원인 | 소유 레인 수정 시 필요한 조건 |
 |---|---|---|
