@@ -224,6 +224,9 @@ public:
 	AGolmokZone* FindZone(const FString& ZoneId) const;
 	int32 NumZones() const { return Zones.Num(); }
 
+	/** Loaded zone whose footprint contains the level XY point; several -> ZoneWins order (interior 20 before its parent 10). Null when none. Read-only. */
+	AGolmokZone* FindLoadedZoneAt(const FVector2D& LevelUEPointCm) const;
+
 private:
 	/** Timer callback: DiscoverZones() when due, then Evaluate(). The only place both run in one stack, discovery first. */
 	void OnEvaluateTimer();

@@ -869,6 +869,17 @@ float AGolmokTimeOfDay::GetTransitionAlpha() const
 	return FMath::Clamp(static_cast<float>(Elapsed / TransitionSeconds), 0.f, 1.f);
 }
 
+void AGolmokTimeOfDay::ShiftTransitionStart(double DeltaSeconds)
+{
+	// GetTransitionAlpha() = (World->GetTimeSeconds() - TransitionStart) / TransitionSeconds: moving the start forward
+	// by the world time that passed while photo mode held the game keeps the alpha where it was (WP-12 design 0 #4).
+	if (!bTransitioning)
+	{
+		return;
+	}
+	TransitionStart += DeltaSeconds;
+}
+
 void AGolmokTimeOfDay::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
