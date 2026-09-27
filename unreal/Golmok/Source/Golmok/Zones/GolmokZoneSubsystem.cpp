@@ -826,6 +826,31 @@ bool UGolmokZoneSubsystem::ZoneWins(const AGolmokZone& A, const AGolmokZone& B)
 	return A.ZoneId < B.ZoneId;
 }
 
+AGolmokZone* UGolmokZoneSubsystem::FindLoadedZoneAt(const FVector2D& LevelUEPointCm) const
+{
+	// WP-12 photo mode: which loaded footprint the character stands in. Reads the records only (no RegisterZone /
+	// RequestLoad, so the Evaluate() pointer-hold rules do not apply). FootprintContains is non-const (it caches the
+	// footprint), hence the non-const actor pointer out of the weak pointer.
+	AGolmokZone* Best = nullptr;
+	for (const FGolmokZoneRecord& R : Zones)
+	{
+		AGolmokZone* Zone = R.Zone.Get();
+		if (!IsValid(Zone) || !Zone->IsLoaded())
+		{
+			continue;
+		}
+		if (!Zone->FootprintContains(LevelUEPointCm))
+		{
+			continue;
+		}
+		if (!Best || ZoneWins(*Zone, *Best))
+		{
+			Best = Zone;
+		}
+	}
+	return Best;
+}
+
 void UGolmokZoneSubsystem::ResolveOverlaps()
 {
 	TArray<FGolmokZoneRecord*> Loaded;

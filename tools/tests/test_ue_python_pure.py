@@ -39,6 +39,7 @@ RUNBOOKS = (
     REPO / "docs" / "runbooks" / "pc-verify-wp06.md",
     REPO / "docs" / "runbooks" / "pc-spike.md",
     REPO / "docs" / "runbooks" / "pc-verify-wp09.md",
+    REPO / "docs" / "runbooks" / "pc-verify-wp12.md",
 )
 
 ROOT = "/synthetic"
