@@ -669,7 +669,8 @@ def test_clamp_to_polygon_square_edges_normals_and_corners(driver):
         (-100.0, -100.0, 0),
     ]
     assert all(abs(d - math.hypot(50.0, 50.0)) < 1e-9 for d, *_ in ties)
-    # non-finite point (PR #29 review A5): 2, untouched (the pawn path never gets here: ClampToSphere sends it to the anchor)
+    # non-finite point (PR #29 review A5): 2, untouched (the pawn path never gets here: ClampToSphere sends
+    # it to the anchor)
     (code, x, y) = poly(driver, SQUARE, (0.0, 0.0), 20.0, [(float("nan"), 40.0)])[0]
     assert code == 2 and math.isnan(x) and y == 40.0
     (code, x, y) = poly(driver, SQUARE, (0.0, 0.0), 20.0, [(150.0, float("inf"))])[0]
@@ -1212,11 +1213,12 @@ def test_meta_round_trips_random_values(driver):
 
 
 def test_walk_anchor_inside_the_inset_band_at_a_sphere_junction_settles(driver):
-    """PR #29 review A1: with the anchor closer to the boundary than InsetCm the effective inset is the anchor's
-    distance; MoveInsetCm must compare against that capped value, or every tick lowers the inset to the current
-    distance and the 1e-6 cm ring tolerance ratchets the margin away at the sphere/polygon junction (the pawn never
-    stops). Star ring, anchor 11 cm from an edge, inset 60, sphere 100, constant 3D push from the anchor: the margin
-    never drops below the effective inset minus the tolerance and the pawn is exactly still over the last 1500 ticks."""
+    """PR #29 review A1: with the anchor closer to the boundary than InsetCm the effective inset is the
+    anchor's distance; MoveInsetCm must compare against that capped value, or every tick lowers the inset
+    to the current distance and the 1e-6 cm ring tolerance ratchets the margin away at the sphere/polygon
+    junction (the pawn never stops). Star ring, anchor 11 cm from an edge, inset 60, sphere 100, constant 3D
+    push from the anchor: the margin never drops below the effective inset minus the tolerance and the pawn
+    is exactly still over the last 1500 ticks."""
     pytest.importorskip("shapely")
     from shapely.geometry import Point, Polygon
 
