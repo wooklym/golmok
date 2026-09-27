@@ -3,7 +3,7 @@
 갱신 규칙: 각 세션이 시작·종료 시 자기 행을 고친다. 상태 기호:
 ⚪ 대기 · 🔵 진행 중 · 🟡 코드 완료·PC 검증 대기 · 🟢 완료 · 🔴 막힘 · ⏸ 보류
 
-마지막 갱신: 2026-09-27 (WP-12 🟡 코드 완료·PC 검증 대기(V-09), C2248 수정 반영; WP-18 설계·18a 병합 기록, D-018 ① 승인, V-11 GUI·V-12 대기)
+마지막 갱신: 2026-09-27 (WP-12 🟡 main 병합·V-09 PC 카드 발행; WP-18 후속 PR #24 병합(V-11 물리/입력 자동화 통과·GUI 영상 대기), D-018 ① 승인, V-12 대기)
 
 ## 마일스톤
 
@@ -43,9 +43,9 @@ Astra는 이 표를 고치지 않는다. 병합하는 Fable 세션이 Astra WP �
 
 | 항목 | 내용 | 상태 | 담당 | 메모 |
 |---|---|---|---|---|
-| WP-18 | 플레이어 캐릭터 | 🟡 설계·코드 완료·PC GUI 검증 대기 | **ChatGPT Astra**, 이번 자체 리뷰·병합 사용자 승인 | [설계 #22](https://github.com/wooklym/golmok/pull/22) → [구현 #23](https://github.com/wooklym/golmok/pull/23). A~D/이미지7장/의뢰서 초안/자체 리뷰·D-018 ① 승인. 로스터4종·같은 폰 교체·훅2건·UE19 Success, [결과](WP-18-characters.md)·[런북](../runbooks/pc-verify-wp18a.md). 18b는V-08/V-12/② 이후 |
-| V-11 | WP-18a 캐릭터 목록·교체 검증 | 🟡 헤드리스 통과·GUI 대기 | Astra 헤드리스 / Fable PC 후속 | 빌드·Character3/전체UE19 Success, 실제 포털3회 왕복+실내 교체/확대 거절 통과. GUI 보행·계단·실제 경로 재생·WP-12 포토·hitch/VRAM은 미실행. [런북](../runbooks/pc-verify-wp18a.md) |
-| V-12 | 캐릭터 룩 검증(프록시) | ⚪ 대기 | Fable 실행·소유자 채점 | [WP-18](WP-18-characters.md) 절차: 프록시2×재질3×조명4 예비 비교, 채택 구성의 배경4곳 재검증. Toon 사본의 PBR 대조군, 야간 환경 실패의 부분 완료 구분. 실제4.5등신 V-08 시험과 최종 에셋 검수 별도 |
+| WP-18 | 플레이어 캐릭터 | 🟡 설계·코드·후속 자동화 완료·PC GUI 영상 대기 | **ChatGPT Astra**; #22/#23 자체 리뷰(사용자 지시), 후속 #24는 Fable/Opus 리뷰·병합 | [설계 #22](https://github.com/wooklym/golmok/pull/22) → [구현 #23](https://github.com/wooklym/golmok/pull/23) → [후속 #24](https://github.com/wooklym/golmok/pull/24)(2026-09-27 병합: 이동·실제 경로·포토 통합·렌더 증거 테스트 4파일 + 문서, [후속 문서](WP-18-followup.md)). A~D/이미지7장/의뢰서 초안·D-018 ① 승인. 로스터4종·같은 폰 교체·훅2건. 전체 UE 실행 23(실행 21 Success + 설계상 NOT EXECUTED 2: `PhotoIntegration`·`RenderEvidence`). 병합 전 Fable/Opus 리뷰: 확정 결함 없음, 비블로킹 B1~B8은 Astra T1(`astra-tasks.md`). [결과·리뷰](WP-18-characters.md)·[런북](../runbooks/pc-verify-wp18a.md). 18b는V-08/V-12/② 이후 |
+| V-11 | WP-18a 캐릭터 목록·교체 검증 | 🟡 헤드리스·물리/입력 자동화 통과·GUI 영상 대기 | Astra 헤드리스·standalone GUI / Fable PC 후속 | 통과: 빌드·Character3/전체UE19 Success, 실제 포털3회 왕복+실내 교체/확대 거절; [#24](https://github.com/wooklym/golmok/pull/24) 추가 — `Golmok.Character.PathRoundTrip`(실제 경로 폰 왕복·선택 복원), `Golmok.Character.Locomotion`(4종 지속 입력·달리기 중 교체·걷기 복귀·점프·25 cm 턱/40 cm 장애물/80 cm 통로·17 cm×10 계단 왕복·벽 앞 붐 수축, nullrhi 물리), standalone GUI 4종 교체·점프/착지·잘못된 ID 거절. 대기: GUI 보행·계단·포털 영상, PIE 재시작, 포토 통합(`PhotoIntegration` 6조합 — WP-12 병합됐으므로 V-09 전체 실행에서 함께), hitch/VRAM. 물리 자동화 통과는 애니메이션·리타깃 품질 합격이 아님. [런북](../runbooks/pc-verify-wp18a.md) |
+| V-12 | 캐릭터 룩 검증(프록시) | ⚪ 대기 | Fable 실행·소유자 채점 | [WP-18](WP-18-characters.md) 절차: 프록시2×재질3×조명4 예비 비교, 채택 구성의 배경4곳 재검증. Toon 사본의 PBR 대조군, 야간 환경 실패의 부분 완료 구분. 실제4.5등신 V-08 시험과 최종 에셋 검수 별도. [#24](https://github.com/wooklym/golmok/pull/24) `RenderEvidence`(D3D12 12장, 프록시2×조명4+Quinn/Manny+붐1.5배 진단)는 **캡처 준비 검증이지 채점이 아님**: 야간 판독 불가(D-010·night look-dev 연계), 기본 피치 0 구도의 발끝 잘림, 첫 Quinn 교체 동기 88~104 ms(히치/VRAM 측정 아님) |
 | WP-13 | 환경음 기본(D-016 (a)) — Astra 오디오 레인 | ⚪ 배정(2026-09-27) | **ChatGPT Astra**(T3), 리뷰·병합 Fable | 스펙 `WP-13-ambience-audio.md`. 13a 사운드 출처(라이선스 원문) → 13b `Audio/`·`audio.json`·`audio_import.py`·WAV(LFS ≤ 40 MB)/플레이스홀더·런북 V-10. 볼륨 밸런스는 소유자 청취 |
 | WP-17 | 현장 녹음 절차·Zone별 소리(D-016 (b), 문서) | ⚪ 배정(2026-09-27) | **ChatGPT Astra**(T4) | `docs/capture/03-field-recording.md`, manifest `sounds[]` 스키마 변경 제안(스펙 수정은 Fable) |
 | V-04 실행 | WP-06 에디터 Python 검증 런북 실행·보고 | ⚪ 배정(2026-09-27) | **ChatGPT Astra**(T5), 코드 수정 없음 | 결과·불확실 API 표만 기록, 수정 요청은 PR 설명에. 본 V-04 행은 트랙 1B |
@@ -62,7 +62,7 @@ Astra는 이 표를 고치지 않는다. 병합하는 Fable 세션이 Astra WP �
 | V-06 | Zone 통합·튜닝·패키징 | ⚪ 대기 | D-010 이후 |
 | V-07 | WP-09 Zone Index·비동기 로드 검증 | 🟢 완료 | 2026-09-26 PC 세션(Claude Desktop 워크트리 `cool-sinoussi-82af80`, Fable 5.1), 브랜치 `pc/v07-verify-wp09`(PR → main). V-04를 건너뛰고 V-03 산출물(`L_ZoneTest`·합성 실내, 다른 워크트리에서 복사)로 실행. 빌드 통과(C++ 무수정), 자동화 **16/16 Success**, 런북 §1~§8·§10 ✅(§9 선택 미실행), 결과 표·스크린샷은 런북 §12·`docs/images/pc-verify-wp09-*.jpg`. **PC 발견**: ① 런북 §4 맵 사본(`duplicate_asset`→`load_level`)이 헤드리스에서 GC Fatal → Save-As 코드로 교체(§11 #35). ② HUD `render` 0.00 = 엔진 `GRenderThreadTime` 자체가 0(`stat unit` Draw·CSV `RenderThreadTime` 열도 같은 세션에서 0; 세션에 따라 0 또는 4.7 ms) → 소스 0/1/2 동일, 기본 1 유지. ③ §6 히치: 같은 경로 재생 async/sync 표(런북 §12), async가 나쁘지 않음. ④ pytest는 `PYTHONUTF8=1`로(CI 동일). 무인 드라이버는 V-03 스크래치 것을 재사용(세션 스크래치에만) |
 | V-08 | 애니메이션 3안 PC 평가 | ⚪ 대기 | 런북 `runbooks/pc-verify-animation.md`(V-01 뒤, 독립): **§0 사용자가 GASP 라이선스 원문 확인**(Fab 리스팅·Fab EULA·UE EULA) → §1 GASP Create Project(저장소 밖)·플러그인·스켈레톤 기록 → §2 ① 기준선 녹화 S1~S8 + `csvprofile` → §3 ② GASP 로코모션 Migrate(`Content/Golmok_AnimEval/`, 브랜치 `pc/v08-animation`, 에셋 커밋 금지) → §4 ③(막힐 때만) → §5 사용자 채점 → §8 결과 |
-| V-09 | WP-12 포토 모드 검증 | ⚪ 대기 | 런북 `runbooks/pc-verify-wp12.md`(V-07 뒤; `L_Dev`·`L_ZoneTest`+합성 실내 전제): §1 빌드(C2248 수정 반영됨) → `test.ps1 -Filter Golmok.Photo` 3개 → `-Filter Golmok.` 전체(PR #24 `Golmok.Character.PhotoIntegration` 6조합 포함) → §2 진입/복원(사전 정지·전환 중 진입) → §3 정지 중 입력·틱·카메라(안 되면 ini `PauseMode=TimeDilation`) → §4 조절·화질 → §5 촬영(PNG에 HUD·오버레이·PAUSED 없음, 메타 15키) → §6 배율 2·3 VRAM 표 → §7 벽·구·footprint·zone 밖·포털 타이머 → §8 실내 → §9 경로 재생 배제 → §11 PIE 종료. 실패는 §12 표 번호로 수정·`WP-12: PC fix` 커밋, 스크린샷 4장 JPG |
+| V-09 | WP-12 포토 모드 검증 | ⚪ 대기 → PC 카드 발행(2026-09-27) | 런북 `runbooks/pc-verify-wp12.md`(V-07 뒤; `L_Dev`·`L_ZoneTest`+합성 실내 전제): §1 빌드(C2248 수정 반영됨) → `test.ps1 -Filter Golmok.Photo` 3개 → `-Filter Golmok.` 전체(PR #24 병합됨: `Golmok.Character.PhotoIntegration` 6조합 포함) → §2 진입/복원(사전 정지·전환 중 진입) → §3 정지 중 입력·틱·카메라(안 되면 ini `PauseMode=TimeDilation`) → §4 조절·화질 → §5 촬영(PNG에 HUD·오버레이·PAUSED 없음, 메타 15키) → §6 배율 2·3 VRAM 표 → §7 벽·구·footprint·zone 밖·포털 타이머 → §8 실내 → §9 경로 재생 배제 → §11 PIE 종료. 실패는 §12 표 번호로 수정·`WP-12: PC fix` 커밋, 스크린샷 4장 JPG |
 | V-10 | WP-13 환경음 검증 | ⚪ 대기 | 런북 `runbooks/pc-verify-wp13.md`(WP-13 뒤): `audio_import` → 낮/밤·실내 크로스페이드·발소리 재질·착지, 볼륨 밸런스, 플레이스홀더면 실제 파일 교체 |
 
 ## 트랙 1C — 사용자

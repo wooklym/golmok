@@ -67,7 +67,7 @@ git pull
                            [Info] the clock rolled over between the marker and the second shot; _2 suffix not asserted   (초 경계에 걸리면 1회 — 무해)
   ```
   MetaJson의 로그에는 `photo: screenshot requested via HighResShot -> <Saved>/Screenshots/Golmok/photo/<stamp>00000.png (no viewport size; written on the next frame)`와 `photo: capture window closed (<stamp>.png timeout 3.0 s, png absent)`가 찍힌다(nullrhi 폴백 — 정상). 테스트가 만든 `<stamp>.json`·`_2.json`은 소멸자가 지운다(남아 있으면 §13에).
-- [ ] 두 번째 명령: **22개** 전부 `Success` = WP-09까지 16개(`Golmok.Player.Movement`, `Lighting.PresetsFile/PresetApply`, `Debug.StatsMath/PathFormat/PathRoundTrip/HudStats`, `Portal.SpawnFromManifest/RoundTrip/PawnSwap/SharedInterior`, `Zone.IndexParse/IndexDiscover/AsyncLoad/AsyncCancel/InteriorNotBlocked`) + WP-18 병합분 3개(`Golmok.Character.Config/Runtime/PortalRoundTrip` — `Tests/GolmokCharacterRosterTest.cpp`·`GolmokCharacterRosterPortalTest.cpp`) + 위 3개. `test.ps1` 요약 줄 `Succeeded:`는 Warning이 있는 테스트를 따로 세므로(V-03) 상태 열이 전부 `Success`인지로 본다.
+- [ ] 두 번째 명령: **26개** 전부 `Success` = WP-09까지 16개(`Golmok.Player.Movement`, `Lighting.PresetsFile/PresetApply`, `Debug.StatsMath/PathFormat/PathRoundTrip/HudStats`, `Portal.SpawnFromManifest/RoundTrip/PawnSwap/SharedInterior`, `Zone.IndexParse/IndexDiscover/AsyncLoad/AsyncCancel/InteriorNotBlocked`) + WP-18 병합분 7개(`Golmok.Character.Config/Runtime/PortalRoundTrip` — `Tests/GolmokCharacterRosterTest.cpp`·`GolmokCharacterRosterPortalTest.cpp`; PR #24 `Character.PathRoundTrip/Locomotion/PhotoIntegration/RenderEvidence` — `GolmokCharacterRoster{Path,Movement,Photo,Render}Test.cpp`. `PhotoIntegration`은 Photo가 있는 이 빌드에서 실제 6조합(proxy135/proxy110/Quinn × GamePause/TimeDilation)을 돌리고, `RenderEvidence`는 명시적 실행 옵션 없이는 설계상 `NOT EXECUTED` Warning 1개로 끝난다 — 둘 다 상태 열은 `Success`) + 위 3개. `test.ps1` 요약 줄 `Succeeded:`는 Warning이 있는 테스트를 따로 세므로(V-03) 상태 열이 전부 `Success`인지로 본다.
 - [ ] `Golmok.log`에 `photo:` 접두 `[Error]` 0건(`photo: ERROR cannot write meta …`·`photo: ERROR screenshot request failed: …`·`photo: config not loaded from …`가 없어야 한다). 실패한 테스트는 `unreal\Golmok\Saved\Logs\Golmok.log`의 `[Error]` 줄을 §13에 옮겨 적는다.
 
 ## 2. 진입/복원(`L_ZoneTest`, zone 안)
@@ -390,7 +390,7 @@ V-09 PC 세션(… , 사용자 PC, 모델 …), 날짜 …. UE 5.8.3, VS …, GP
 | 항목 | 결과 | 메모·실측 |
 |---|---|---|
 | 빌드 | | 컴파일 오류·링크 오류 건수, §12 번호, 커밋 |
-| 헤드리스 자동화 22개(Photo 3 + 기존 19) | | `[Info]` 실측(EnterExit fov·틱 수, Clamp 좌표, MetaJson `capture window closed after`), skip Info 유무 |
+| 헤드리스 자동화 26개(Photo 3 + 기존 23) | | `[Info]` 실측(EnterExit fov·틱 수, Clamp 좌표, MetaJson `capture window closed after`), skip Info 유무 |
 | §2 진입/복원(로그 두 줄·오버레이·PAUSED 없음·사전 정지·전환 드리프트) | | `tod shift` 값(월드 시계 정지 여부), 사전 정지에서 P 동작 |
 | §3 정지 중 입력·틱·카메라(부드러움·휠·캐릭터 불변·F키 무반응·복귀) | | `PauseMode` 최종값(`GamePause`여야 함), 게임패드 표 |
 | §4 조절·화질(EV 즉시 반영·EV 0 밝기·DOF off·그림자·콘솔 set) | | TSR/Lumen 관찰, `IsNumeric` 부호·소수 |

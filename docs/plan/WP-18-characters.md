@@ -172,6 +172,15 @@ UE 실행에서 `FScopedMovementUpdate` include 경로와 부모 캡슐의 지�
 
 설계 수정/공유 문안 반영 뒤 로컬 게이트: ruff check·format93개·check_repo·diff check 성공, pytest **590 passed/39 skipped/208 warnings, 36.48s**. 최종 설계 head의 CI도 병합 전에 확인한다. 39 skip 중 로컬 g++ 부재를 CI 교차검증으로 보완한다.
 
+### 2026-09-27 병합 전 Fable/Opus 리뷰 — 후속 PR #24 (병합 세션 기록)
+
+대상: [PR #24](https://github.com/wooklym/golmok/pull/24) `astra/wp-18-followup` 566f86a(테스트 4파일 `Tests/GolmokCharacterRoster{Movement,Path,Photo,Render}Test.cpp` + `WP-18-followup.md`·이 문서·런북 §8/§9)와, 이 기회에 같이 본 main의 #22/#23 코드. 절차: DEVELOPMENT-PLAN §7.6 — Opus 5.5 읽기 전용 적대적 검증 → 결과를 PR 코멘트로 → 소유자 승인(2026-09-27) → 이 커밋(`WP-18: 병합 시 반영 (Fable)`) → merge commit. 전문은 PR #24 코멘트.
+
+- **(A) 확정 결함: 없음.** 레인·훅 규칙 준수(7 커밋 모두 레인 파일만), 유니티 빌드 이름 충돌·C4458 없음, 테스트 정리(키 해제·임시 액터·경로 파일) 확인, CI 초록. C2248 7곳은 전부 WP-12 쪽이었고 WP-12(#19, f5c8861)가 고쳐 main 939207e에 병합됐다. WP-12 병합 전 리뷰에서 `PhotoIntegration`이 쓰는 public API(`Enter/Exit`, `PauseMode`, `GetParam`, `GetAnchor`, `GetPhotoPawn`, `GetPawnTickCount`, `SetCharacterHidden/IsCharacterHidden/IsActive`, `GetRestoreState`)가 모두 있고 시그니처가 맞는 것을 확인했다. WP-12는 `PauseMode`를 `Enter()`에서 래치하므로(`FGolmokPhotoRestoreState::PauseMode`) Enter 전에 값을 쓰는 이 테스트는 그대로 동작한다.
+- **(B) 비블로킹, Astra T1(`plan/astra-tasks.md`)로 후속 PR**: B1 `PathTest` z=1000 이동 비활성 위치 보존 단언의 플레이크 가능성(바닥 배치 또는 XY만), B2 "컴파일 완료" 표현 완화("해당 파일 오류 없음, 실행 전"), B3 "병합 시 반영" 마지막 항목(후속 PR에 남긴다)은 §7.6과 어긋나 이 커밋에서는 무시함 — 앞으로는 붙여 넣을 완성 문안을, B4 `RenderEvidence`·`PhotoIntegration`의 상시 NOT EXECUTED와 `-Filter` 단독 실행 시 `Succeeded: 0` 예외, B5 Movement 테스트의 L_Dev 좌표가 Claude 레인 `setup_dev_level.py`에 의존(문서화), B6 런북 §8 제목·§6 불확실 API 표 보강, B7 main 사소(`CurrentId` 잔류 보고, 0.25 s 폴링, `Characters`를 `CONVENTION_FOLDERS`에 추가 검토), B8 공유 문서 편집 2건은 되돌리지 않음(앞으로 "병합 시 반영"으로).
+- **(C) 옮긴 것**: STATUS 병행 트랙 WP-18·V-11·V-12 행, V-09 행, ROADMAP 1.3 캐릭터 행, 이 절. DECISIONS 추가 없음.
+- 판정: **병합 가능(as-is)**. #22/#23의 자체 리뷰 예외를 확대해 표기하지 않는다. 이 리뷰는 코드·테스트·문서 검토이며 GUI 보행 영상·애니메이션/리타깃 품질·V-12 채점·D-018 ②의 합격이 아니다.
+
 ## 병합 시 반영
 
 최종 병합 준비 기록(2026-09-27): 설계 #22는 **497566f**로 main에 병합했다. #23 base를 main으로 바꾸고 `git merge origin/main`으로 동기화했다. 이미 받은 설계442d52f와 같아 추가 파일 충돌/코드 변경은 없었다. 앞선 설계 동기화의 유일한 충돌은 이 문서 상태 머리말이며 구현 결과와 새 승인/리뷰 기록을 모두 보존했다. 최종 로컬 재검증: UE 빌드 성공·**19 Success(14+경고5), failed0/notRun0, 63.89s**, Python **608 passed/42 skipped/208 warnings, 33.27s**, ruff/format95개/check_repo/diff check 통과. 구현 소스/테스트는 이 재검증 이후 불변이며 최종 head CI 확인 뒤 merge commit으로 병합한다.
