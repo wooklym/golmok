@@ -669,6 +669,11 @@ def test_clamp_to_polygon_square_edges_normals_and_corners(driver):
         (-100.0, -100.0, 0),
     ]
     assert all(abs(d - math.hypot(50.0, 50.0)) < 1e-9 for d, *_ in ties)
+    # non-finite point (PR #29 review A5): 2, untouched (the pawn path never gets here: ClampToSphere sends it to the anchor)
+    (code, x, y) = poly(driver, SQUARE, (0.0, 0.0), 20.0, [(float("nan"), 40.0)])[0]
+    assert code == 2 and math.isnan(x) and y == 40.0
+    (code, x, y) = poly(driver, SQUARE, (0.0, 0.0), 20.0, [(150.0, float("inf"))])[0]
+    assert code == 2 and x == 150.0 and math.isinf(y)
     # inset 0 / negative: floored at 0.001 cm, strictly inside
     for inset in (0.0, -5.0, float("nan")):
         (code, x, y) = poly(driver, SQUARE, (0.0, 0.0), inset, [(150.0, 40.0)])[0]
@@ -1204,3 +1209,39 @@ def test_meta_round_trips_random_values(driver):
     assert d["ue_location"] == [0.0, 0.01, -0.01] and d["fov"] == 65.0
     assert d["dof"] == {"enabled": True, "focal_m": 3.0, "fstop": 2.81}
     assert '"exposure_ev": 0.00,' in text and '"rotation": [0.000, 0.000, 0.000],' in text
+
+
+def test_walk_anchor_inside_the_inset_band_at_a_sphere_junction_settles(driver):
+    """PR #29 review A1: with the anchor closer to the boundary than InsetCm the effective inset is the anchor's
+    distance; MoveInsetCm must compare against that capped value, or every tick lowers the inset to the current
+    distance and the 1e-6 cm ring tolerance ratchets the margin away at the sphere/polygon junction (the pawn never
+    stops). Star ring, anchor 11 cm from an edge, inset 60, sphere 100, constant 3D push from the anchor: the margin
+    never drops below the effective inset minus the tolerance and the pawn is exactly still over the last 1500 ticks."""
+    pytest.importorskip("shapely")
+    from shapely.geometry import Point, Polygon
+
+    ring = [
+        (
+            (1.0 if k % 2 == 0 else 0.55) * 300.0 * math.cos(math.tau * k / 14),
+            (1.0 if k % 2 == 0 else 0.55) * 300.0 * math.sin(math.tau * k / 14),
+        )
+        for k in range(14)
+    ]
+    shape = Polygon(ring)
+    anchor = (0.0, 0.0, 0.0)
+    # an anchor 11 cm inside the concave notch at angle pi/7 (the ring's first inner vertex is 165 cm out)
+    ax, ay = 154.0 * math.cos(math.pi / 7), 154.0 * math.sin(math.pi / 7)
+    anchor = (ax, ay, 0.0)
+    eff = shape.exterior.distance(Point(ax, ay))
+    assert 5.0 < eff < 60.0, eff
+    for step in ((13.05, 6.99, -2.42), (-9.0, 11.0, 3.0), (12.0, -1.0, -4.0)):
+        # start at the anchor (boundary distance = effective inset, so nothing legitimately lowers the inset)
+        path = walk(driver, anchor, 100.0, 60.0, ring, anchor, step, 3000)
+        pts = [p for _c, p in path]
+        margins = [shape.exterior.distance(Point(float(p[0]), float(p[1]))) for p in pts]
+        assert min(margins) >= eff - 1e-6, (step, min(margins), eff)
+        tail = np.array(pts[-1500:])
+        assert float(np.max(tail, axis=0).max() - np.min(tail, axis=0).min()) <= 1e-9 or all(
+            np.array_equal(tail[0], t) for t in tail
+        ), (step, tail[0], tail[-1])
+        assert all(shape.contains(Point(float(p[0]), float(p[1]))) for p in pts)

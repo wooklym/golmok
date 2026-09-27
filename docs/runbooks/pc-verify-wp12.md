@@ -14,7 +14,7 @@
 ## 0. 대상 파일
 | 파일 (`unreal/Golmok/` 기준, 그 외 저장소 기준) | 내용 |
 |---|---|
-| `Source/Golmok/Photo/GolmokPhotoMath.h` | 순수 헤더(따옴표 include는 `Geo/GolmokGeoMath.h`·`Debug/GolmokStatsMath.h` 2개): `ClampParam/Quantize/StepLinear/StepGeometric/StepTable/NearestIndex/WrapDeg180/FovToFocalMm`, `ClampToSphere/ClampToPolygonXY/Constrain`(V-09 후속 a6c48a3: `ClampToPolygonXY`는 경계 거리 ≥ inset인 침식 영역으로 내향 법선 투영, `EffectiveInsetCm`·`MoveInsetCm`·`Constraint::Current`), `PhotoMeta`+`FormatPhotoMetaJson`(g++ 교차검증 `tools/tests/fixtures/ue/photomath_driver.cpp`) |
+| `Source/Golmok/Photo/GolmokPhotoMath.h` | 순수 헤더(따옴표 include는 `Geo/GolmokGeoMath.h`·`Debug/GolmokStatsMath.h` 2개): `ClampParam/Quantize/StepLinear/StepGeometric/StepTable/NearestIndex/WrapDeg180/FovToFocalMm`, `ClampToSphere/ClampToPolygonXY/Constrain`(V-09 후속 a6c48a3 → e03753e → 7f66810: `ClampToPolygonXY`는 경계 거리 ≥ inset인 침식 영역 S의 **정확한 최근접점**(inset만큼 옮긴 변·꼭짓점 호·쌍 교점·앵커 후보, 가까운 변 주변 11조각 먼저), `EffectiveInsetCm`·`MoveInsetCm`(앵커 상한, PR #29 리뷰 A1)·`Constraint::Current`, 재검사 실패면 Current→P 이분 탐색 폴백), `PhotoMeta`+`FormatPhotoMetaJson`(g++ 교차검증 `tools/tests/fixtures/ue/photomath_driver.cpp`) |
 | `Source/Golmok/Photo/GolmokPhotoModeSubsystem.{h,cpp}` | `UGolmokPhotoModeSubsystem`(월드 서브시스템, Game/PIE): `GolmokPhotoJson` 파서, 상태기계 `Inactive/Active/Shooting/Captured/Exiting`, `Enter/Exit/Toggle/Reset/Shoot`, `StepParam/SetParam/SetMultiplier`, `OnEndFrame` 캡처 창, `BuildMeta/WriteMeta`, 오버레이 줄, 입력 자산 `IA_GolmokPhoto*` 21개 + `IMC_GolmokPhoto`(우선순위 3), 콘솔 `golmok.photo`·`golmok.photo.shoot`·`golmok.photo.reset`·`golmok.photo.set`; 복원 스냅샷 공개 계약 `FGolmokPhotoRestoreState` + `GetRestoreState() const`(f5c8861, WP-18 로스터×포토 테스트용) |
 | `Source/Golmok/Photo/GolmokPhotoCameraPawn.{h,cpp}` | `AGolmokPhotoCameraPawn`: 구(`PhotoSphere`, QueryOnly, WorldDynamic)·카메라(`PhotoCamera`), `bTickEvenWhenPaused`, `MoveConstrained`(구 → 다각형 → 스윕, 막히면 남은 이동을 충돌면에 투영해 한 번 더 — V-09 후속 6c36fd3, `bStartPenetrating`이면 앵커 쪽 10 cm 후퇴), `ApplyOptics`(PP 오버라이드), `EndPlay → Owner->OnPhotoPawnEndPlay` |
 | `Source/Golmok/Debug/GolmokDebugSubsystem.{h,cpp}` | `RequestHighResScreenshot(AbsolutePathNoExt, Multiplier, OutMessage, OutEffectiveMultiplier)` public 분리(`TakeHighResScreenShot()` false면 1x 재시도), `TakeScreenshot`은 래퍼; `StartRecording/StartPlayback` 첫 검사 `photo mode is on (golmok.photo 0 first)` |
@@ -60,6 +60,7 @@ git pull
   Golmok.Photo.Clamp       [Info] after +1000 x: X=… Y=… Z=… (anchor X=… Y=… Z=…)     (구 300 cm 안·정사각형 ±200 cm 안)
                            [Info] after -500 z: X=… Y=… Z=… (floor z …)                (바닥 스윕 — §12 #49)
                            [Info] box at X=… Y=… Z=…: pawn X=…, face distance …, along …   (face distance ≥ 15 − 1, along < 100 — §12 #47)
+                           [Info] slide: from X=… to X=…, lateral …, face distance …, along …   ((c2) 비스듬한 밀기: lateral > 20, face distance ≥ 15 − 1, along < 50 — §12 #62)
                            [Info] box destroyed: pawn X=…, along …                    (along > 100)
   Golmok.Photo.MetaJson    [Info] Describe(): active fov 80.0 ev +0.00 focus 3.000 m f/2.80 dof off roll +0.0 (no zone)
                            [Info] shooting -> <Saved>/Screenshots/Golmok/photo/<stamp>.png (2x, meta <stamp>.json)
@@ -265,12 +266,12 @@ golmok.photo.set mult 0      → golmok.photo.set: ERROR multiplier must be 1..2
 - [ ] 스크린샷 ② = 2x PNG 축소본(오버레이 없음).
 
 ## 7. 제약(`L_ZoneTest`)
-**V-09 후속 재검증(2026-09-27 수정분 a6c48a3·6c36fd3)**: V-09에서 실패한 §7만 다시 한다(§1 빌드·`test.ps1 -Filter Golmok.Photo` 3/3 먼저). 드라이버는 V-09와 같이 폰 위치를 **틱마다** 샘플(`GetActorLocation`, 틱 번호·y·경계 거리)해 §13에 표로 남긴다. 판정 기대값:
+**V-09 후속 재검증(2026-09-27 수정분 a6c48a3 → e03753e → 7f66810(footprint 침식 영역 최근접점)·6c36fd3(슬라이드)·67f9d8c(종료 카메라 컷)·PR #29 리뷰 A1(MoveInsetCm 앵커 상한))**: V-09에서 실패한 §7과 이번 수정이 더한 항목만 다시 한다 — §1 빌드·`test.ps1 -Filter Golmok.Photo` 3/3(새 (c2) `slide:` Info 줄 포함) → §7 → §4 "종료 밝기" → (가능하면) §10 패키지 잔상. 드라이버는 V-09와 같이 폰 위치를 **틱마다** 샘플(`GetActorLocation`, 틱 번호·y·경계 거리)해 §13에 표로 남긴다. 판정 기대값:
 - footprint 남쪽 경계(V-09에서 y 980.0 ↔ 999.8 톱니): 경계 쪽으로 S(또는 해당 방향 키)를 누르고 있으면 샘플 y가 **단조 증가해 980.0(= 경계 − 20 cm)에서 멈추고 그 뒤 변동 0**(±0.01 cm 이내 — 틱 dt 반올림 외 없음). 999.x나 980 이하로 되돌아가는 샘플이 하나라도 있으면 ✗(§12 #58). 동쪽 경계도 같게.
 - 같은 경계에서 대각선(경계 쪽 + 옆): 법선 좌표는 980.0 고정, 접선 좌표는 1.5 m/s × 접선 성분으로 계속 변한다(미끄러짐). 앵커(캐릭터)가 법선 위에 없어도 옆으로 끌리지 않는다(접선 입력 0이면 접선 좌표 불변).
-- 볼록 모서리로 대각선: 두 경계 모두 20 cm 안쪽 꼭짓점에서 멈추고 변동 0. 오목 코너가 있으면 반경 20 cm 호를 따라 돈다(전의 "걸림" 없음). 구(3.3 m)와 경계가 만나는 곳으로 밀면 그 접합 약 1 cm 안에서 멈춘다(변동 0).
-- 진입 시 카메라가 이미 경계 20 cm 안(띠 안)이면: 첫 이동에서 튀지 않고(샘플 간 이동 ≤ 1.25 cm × Shift배), 바깥으로 밀면 그 자리 유지, 안쪽으로 움직이면 여유가 20 cm까지 다시 는다. 진입 카메라가 footprint 밖이면 첫 이동에서 안으로 들어간다(전과 같음, 튐 폭을 §13에).
-- 벽(#60): 파사드에 대고 **W+D·W+A 대각선** → 표면 15 cm 앞 유지하며 벽을 따라 이동(V-09: 1 s 0.3 cm → 기대: 1 s에 1.5 m/s × sin(입사각)만큼, 45°면 ≈ 1.06 m). 모서리(두 벽)에서는 멈춤, 진동·관통 없음. 슬라이드가 footprint 경계에 닿으면 경계 20 cm 안쪽에서 멈춤(벽 → 다각형 재클램프).
+- 볼록 모서리로 대각선: 두 경계 모두 20 cm 안쪽 꼭짓점에서 멈추고 변동 0. 오목 코너가 있으면 반경 20 cm 호를 따라 돈다(전의 "걸림" 없음). 구(3.3 m)와 경계가 만나는 곳으로 밀면 그 접합 앞 걷기 약 0.5~1.5 cm(Shift·저 FPS는 스텝에 비례해 수 cm~10 cm) 안에서 멈춘다(변동 0).
+- 진입 시 카메라가 이미 경계 20 cm 안(띠 안)이면: 첫 이동에서 튀지 않고(샘플 간 이동 ≤ 150 cm/s × 그 틱 dt(Shift면 ×3; 드라이버가 틱마다 dt도 기록), 반사(오목) 꼭짓점을 도는 틱만 최대 2배 허용(설계 §11-7)), 바깥으로 밀면 그 자리 유지, 안쪽으로 움직이면 여유가 20 cm까지 다시 는다. 진입 카메라가 footprint 밖이면 첫 이동에서 안으로 들어간다(전과 같음, 튐 폭을 §13에).
+- 벽(#60): 파사드에 대고 **W+D·W+A 대각선** → 표면 15 cm 앞 유지하며 벽을 따라 이동(V-09: 1 s 0.3 cm → 기대: 1 s에 1.5 m/s × sin(입사각)만큼, 45°면 ≈ 1.06 m). 모서리(두 벽)에서는 멈춤, 진동·관통 없음. 둔각(≈135°) 안쪽 꺾임에 W+D로 밀 때 두 번째 벽을 따라 이동하는지도 적는다(스윕 2회 제한이라 멈출 수 있음 — 멈추면 §13에 기록, 후속: 세 번째 스윕 또는 두 법선 각 < 90°면 재투영, PR #29 리뷰 B-1). 슬라이드가 footprint 경계에 닿으면 경계 20 cm 안쪽에서 멈춤(벽 → 다각형 재클램프).
 - [ ] **벽**: 파사드·blocker(`glass_1`) 앞으로 밀기 → 표면에서 `CollisionRadiusCm`(15 cm) 앞에 정지, 관통 0(§12 #16). 밀착 상태에서 다른 방향으로 이동이 계속 된다(`bStartPenetrating` 후퇴가 매 틱 반복되면 §12 #40). **대각선으로 밀면 벽을 따라 미끄러진다**(위 기대값, §12 #60·#62). 스크린샷 ③.
 - [ ] **구**: 캐릭터에서 3 m 밖으로 밀기 → 구 표면에서 정지, 오버레이 1행 거리 = 분모(`3.0 / 3.0 m`, 진입 카메라가 3 m 밖이었으면 그 거리로 넓어진 유효 반경, 예 `3.3 / 3.3 m` — `GetEffectiveRadiusCm()`). 첫 이동에서 카메라가 앵커 쪽으로 튀지 않는다. 위로도 같다(높이 상한 없음, 구만).
 - [ ] **바닥**: 아래로(Q) → 바닥 15 cm 위에서 정지(로우 앵글 허용; 뚫고 내려가면 §12 #49).
@@ -395,7 +396,7 @@ golmok.photo.set mult 0      → golmok.photo.set: ERROR multiplier must be 1..2
 | 60 | (V-09 PC) `AGolmokPhotoCameraPawn::MoveConstrained` — 스윕이 막히면 그 틱 이동을 멈춤(면 따라 미끄러짐 없음) | 벽에 대고 대각선으로 밀면 카메라가 붙어 움직이지 않음(W+D 1 s = 0.3 cm); 평행 입력만 이동 | 막힌 이동을 충돌면에 투영해 나머지 성분으로 한 번 더 스윕(`SlideAlongSurface`식) | §7 벽 | V-09: W+D 1 s = 0.3 cm. **수정(6c36fd3, 클라우드 — PC 재검증 대기)**: `(Target − Start)·(1 − Hit.Time)`을 `FVector::VectorPlaneProject(…, Hit.Normal)`로 투영, 현재 위치에서 `Constrain` 재클램프 후 두 번째 스윕(최대 2회), `bStartPenetrating` 후퇴 유지(§12 #62) |
 | 61 | (V-09 PC) `PauseMode=TimeDilation`(0.0001): 눈 적응이 팽창된 월드 시간으로 돈다 | TimeDilation에서는 잔상은 없지만 EV를 바꿔도 화면 밝기가 전혀 안 바뀜(+1·0 모두 153.2); 사전 정지 종료 로그가 `unpaused`(실제로는 정지 유지 — 코드상 TD면 항상 `unpaused`) | GamePause + #57이 기본. TimeDilation을 쓰려면 수동 노출 또는 폰 CustomTimeDilation 보정 필요 | §3 대안 경로 | 관찰(기본값 GamePause 유지). 원인: 눈 적응(`AutoExposureSpeedUp/Down`)이 팽창된 `DeltaWorldTime`(0.0001배)으로 적분돼 20 EV/s도 사실상 0 — 코드 변경 없음 |
 | 62 | (V-09 후속, 클라우드 6c36fd3) `FVector::VectorPlaneProject(V, PlaneNormal)`(static) · `SetActorLocation(…, bSweep true, &Hit)`의 `FHitResult::Time`(Start→Target 중 이동한 비율, 0..1) · `Hit.Normal`(`FVector_NetQuantizeNormal` → `FVector`) | 이름·정적 여부; 스윕 이동의 `Time`이 풀백(`MIN_TICK_TIME`식 소량 후퇴) 전 값인지 — 슬라이드 길이가 약간 길거나 짧아도 두 번째 스윕·재클램프가 막으므로 동작은 안전 | 컴파일 오류면 `V - (V | N) * N`(= `V - FVector::DotProduct(V, N) * N`); 슬라이드가 벽을 파고들면(`bStartPenetrating` 반복) `Hit.ImpactNormal`로 | §7 벽 대각선(1 s 이동 거리) | 미확인 |
-| 63 | (PR #27 리뷰 A2, 67f9d8c) `APlayerCameraManager::SetGameCameraCutThisFrame()`(public) — 복원 프레임에 카메라 컷 → 눈 적응·TSR·모션 블러 이력 리셋 | 이름·접근성; 뷰 타깃 변경과 같은 프레임에서 효과 | 없으면 `PC->PlayerCameraManager->bGameCameraCutThisFrame = true`; 그래도 밝기가 이어지면 종료 프레임에 눈 적응 리셋 관찰만 기록 | §4 종료 밝기(EV ±3) | 미확인 |
+| 63 | (PR #27 리뷰 A2, 67f9d8c) `APlayerCameraManager::SetGameCameraCutThisFrame()`(public) — 복원 프레임에 카메라 컷 → 눈 적응·TSR·모션 블러 이력 리셋 | 이름·접근성; 뷰 타깃 변경과 같은 프레임에서 효과 | 없으면 `PC->PlayerCameraManager->bGameCameraCutThisFrame = true`; 그래도 밝기가 이어지면 종료 프레임에 눈 적응 리셋 관찰만 기록 | §4 종료 밝기(EV ±3) | 미확인 추가 확인(PR #29 리뷰 B-2): (a) 촬영 중 P로 지연 종료했을 때 종료 밝기·첫 프레임 (b) 사전 정지 상태에서 들어갔다 나왔을 때 정지 유지 중 노이즈·깜빡임(매 프레임 컷 여부) |
 | 64+ | (PC 세션 추가) | | | | |
 
 ## 13. 결과 기록

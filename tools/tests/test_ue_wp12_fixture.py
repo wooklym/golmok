@@ -836,3 +836,19 @@ def test_polygon_clamp_projects_along_the_edge_normal():
     assert "Try(AnchorX, AnchorY)" in body
     constrain = _function_body(header, "Constrain")
     assert "MoveInsetCm(C)" in constrain and "ConstrainBisections" in constrain
+
+
+def test_runbook_multiplier_bound_and_slide_rows_match_the_code():
+    # PR #29 review C6 / B-4: the runbook's expected error line, the header default and the ini value agree, and the
+    # uncertain-API rows / the (c2) slide Info line of Golmok.Photo.Clamp are in the runbook.
+    text = _runbook_text()
+    cp = parse_ue_ini(INI.read_text(encoding="utf-8-sig"))
+    ini_max = int(cp["/Script/Golmok.GolmokPhotoModeSubsystem"]["MaxMultiplier"])
+    header = (PHOTO / "GolmokPhotoModeSubsystem.h").read_text(encoding="utf-8")
+    m = re.search(r"\bMaxMultiplier\s*=\s*(\d+)\s*;", header)
+    assert m and int(m.group(1)) == ini_max, (m and m.group(0), ini_max)
+    assert f"ERROR multiplier must be 1..{ini_max} (MaxMultiplier)" in text
+    for mention in ("VectorPlaneProject", "SetGameCameraCutThisFrame", "slide: from"):
+        assert mention in text, mention
+    test_cpp = (SOURCE / "Tests" / "GolmokPhotoTest.cpp").read_text(encoding="utf-8")
+    assert 'TEXT("slide: from %s to %s' in test_cpp

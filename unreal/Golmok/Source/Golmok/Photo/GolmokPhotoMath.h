@@ -425,13 +425,17 @@ namespace GolmokPhotoMath
 	 * pairs only among pieces closer than it. Pushing into an edge stops exactly Inset inside and keeps the tangential part
 	 * (slides); corners, short / duplicate / collinear edges and reflex arcs have fixed points. Returns 1 with the projected
 	 * point, or 2 when no candidate is in S (degenerate ring; X, Y unchanged, the caller keeps its previous position).
-	 * N < 3 -> 0, unchanged.
+	 * N < 3 -> 0, unchanged. A non-finite X or Y -> 2, unchanged (PR #29 review A5).
 	 */
 	inline int ClampToPolygonXY(const double* Xs, const double* Ys, std::size_t N, double AnchorX, double AnchorY, double InsetCm, double& X, double& Y)
 	{
 		if (N < 3 || Xs == nullptr || Ys == nullptr)
 		{
 			return 0;
+		}
+		if (!std::isfinite(X) || !std::isfinite(Y))
+		{
+			return 2;
 		}
 		const double Inset = EffectiveInsetCm(Xs, Ys, N, AnchorX, AnchorY, InsetCm);
 		const double Px = X;
@@ -482,7 +486,7 @@ namespace GolmokPhotoMath
 			double Qy = Py;
 			std::size_t Edge = 0;
 			NearestBoundaryPoint(Xs, Ys, N, Px, Py, Qx, Qy, Edge);
-			constexpr std::size_t LocalCount = 11; // pieces 2(e-2) .. 2(e+2)+2: 5 edges, 6 vertices
+			constexpr std::size_t LocalCount = 11; // pieces 2(e-2) .. 2(e+2)+2: 6 edges (e-2..e+3), 5 vertex arcs (e-2..e+2)
 			FootprintPiece Local[LocalCount];
 			bool bLocal[LocalCount] = {};
 			const std::size_t First = (2 * Edge + NumPieces * 2 - 4) % NumPieces;
@@ -568,7 +572,7 @@ namespace GolmokPhotoMath
 	};
 
 	/**
-	 * Inset for this move: C.InsetCm, lowered to the current position's boundary distance when the pawn already stands
+	 * Inset for this move: C.InsetCm capped at the anchor's boundary distance (EffectiveInsetCm), lowered to the current position's boundary distance when the pawn already stands
 	 * inside the ring closer than that (it can start there: the spring-arm camera). Such a pawn is never pushed inward by a
 	 * move (no jump); it can only move to points at least as far from the boundary, so the margin ratchets back up to
 	 * C.InsetCm as it moves inward. A current position outside the ring does not lower it (the first move snaps inside).
@@ -578,6 +582,9 @@ namespace GolmokPhotoMath
 		double Inset = C.InsetCm;
 		if (C.bHasCurrent && C.N >= 3 && C.Xs != nullptr && C.Ys != nullptr)
 		{
+			// PR #29 review A1: compare against the anchor-capped inset, or an anchor closer to the boundary than InsetCm
+			// lowers Inset to CurrentD on every tick and the 1e-6 cm ring tolerance ratchets the margin away at the junction.
+			Inset = EffectiveInsetCm(C.Xs, C.Ys, C.N, C.Anchor[0], C.Anchor[1], Inset);
 			const double CurrentD = SignedBoundaryDistance(C.Xs, C.Ys, C.N, C.Current[0], C.Current[1]);
 			if (CurrentD > 0.0 && CurrentD < Inset - FootprintTolCm)
 			{
@@ -608,7 +615,8 @@ namespace GolmokPhotoMath
 	 * Sphere -> polygon, repeated up to ConstrainMaxRounds times while the polygon clamp leaves the sphere, then re-checked:
 	 * the result must be inside the sphere AND (N == 0 or in the eroded ring of ClampToPolygonXY with MoveInsetCm(C)).
 	 * Where the two limits meet at a shallow angle the rounds creep instead of converging: then, when C.Current is set and
-	 * valid, the farthest valid point of the segment Current -> last round's point (bisection) is taken, so the pawn keeps
+	 * valid, a valid point of the segment Current -> last round's point found by bisection (the valid prefix is assumed
+	 * contiguous; on a non-convex S it need not be the farthest) is taken, so the pawn keeps
 	 * sliding into the junction instead of freezing. Returns 0 = accepted unchanged (Out written), 1 = accepted after a
 	 * sphere clamp, 2 = after a polygon clamp, 3 = both, -1 = rejected (Out untouched; the pawn keeps its previous
 	 * position). The pawn calls this before each of its (at most two) sweeps.
