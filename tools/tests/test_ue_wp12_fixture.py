@@ -777,3 +777,78 @@ def test_dead_world_teardown_restores_the_viewport_transition_flag():
     body = _function_body(code, "UGolmokPhotoModeSubsystem::TeardownForDeadWorld")
     assert "SetSuppressTransitionMessage(bSavedSuppressTransition)" in body
     assert "GetGameViewport()" in body
+
+
+# ---- V-09 follow-up (PR #27 review A2 / A3, #58 / #60) ------------------------------------------------
+
+
+def test_camera_moveable_when_paused_is_saved_set_and_restored():
+    """A3: Enter saves UWorld::bIsCameraMoveableWhenPaused before touching it and sets it only after the pause
+    succeeded (the refusal rollback returns before it); RestoreAll puts it back after ApplyPause(false); the
+    restore-state contract carries it."""
+    header = _strip_comments(_read(SUBSYSTEM_H))
+    code = _strip_comments(_read(SUBSYSTEM_CPP))
+    enter = _function_body(code, "UGolmokPhotoModeSubsystem::Enter")
+    save = enter.index("bSavedCameraMoveableWhenPaused = World->bIsCameraMoveableWhenPaused")
+    pause = enter.index("ApplyPause(true)")
+    refused = enter.index('TEXT("cannot enter: pause refused")', pause)
+    set_true = enter.index("World->bIsCameraMoveableWhenPaused = true;")
+    assert save < pause < refused < set_true
+    restore = _function_body(code, "UGolmokPhotoModeSubsystem::RestoreAll")
+    unpause = restore.index("ApplyPause(false)")
+    assert restore.index("World->bIsCameraMoveableWhenPaused = bSavedCameraMoveableWhenPaused;") > unpause
+    assert re.search(r"\bbool\s+bCameraMoveableWhenPaused\s*=\s*false;", header)
+    state = _function_body(code, "UGolmokPhotoModeSubsystem::GetRestoreState")
+    assert "Out.bCameraMoveableWhenPaused = bSavedCameraMoveableWhenPaused;" in state
+
+
+def test_restore_cuts_the_camera_after_the_view_target():
+    """A2: the photo camera's eye adaptation / TSR history does not carry into the player view on exit."""
+    code = _strip_comments(_read(SUBSYSTEM_CPP))
+    restore = _function_body(code, "UGolmokPhotoModeSubsystem::RestoreAll")
+    view = restore.index("PC->SetViewTargetWithBlend(Target, 0.f);")
+    cut = restore.index("PC->PlayerCameraManager->SetGameCameraCutThisFrame();")
+    assert view < cut
+
+
+def test_move_constrained_slides_once_and_constrains_every_leg():
+    """#60: at most two sweeps; the slide is the rest of the blocked move projected on the hit plane; every
+    leg goes through Constrain from the current position (#58 band start); a start-penetrating sweep still
+    retreats."""
+    pawn = _strip_comments(_read(PAWN_CPP))
+    assert re.search(r"constexpr\s+int32\s+PhotoMaxSweeps\s*=\s*2;", pawn)
+    move = _function_body(pawn, "AGolmokPhotoCameraPawn::MoveConstrained")
+    loop = move.index("for (int32 Leg = 0; Leg < PhotoMaxSweeps; ++Leg)")
+    assert move.index("LocalConstraint.Current =", loop) < move.index("GolmokPhotoMath::Constrain(", loop)
+    assert "LocalConstraint.bHasCurrent = true;" in move
+    slide = "VectorPlaneProject((Target - Start) * (1.0 - static_cast<double>(Hit.Time)), Hit.Normal)"
+    assert slide in move
+    assert "Hit.bStartPenetrating" in move and "PhotoPenetrationRetreatCm" in move
+    assert move.index("Hit.bStartPenetrating") < move.index("VectorPlaneProject")
+
+
+def test_polygon_clamp_projects_along_the_edge_normal():
+    """#58: the header clamps to the nearest point of the eroded ring (offset edges, vertex arcs and their
+    intersections), not toward the anchor for outside points only; Constrain falls back to a bisection."""
+    header = _strip_comments(_read(PHOTO / "GolmokPhotoMath.h"))
+    body = _function_body(header, "ClampToPolygonXY")
+    assert "EffectiveInsetCm(" in body and "InErodedRing(" in body and "RingArea2(" in body
+    assert "Try(AnchorX, AnchorY)" in body
+    constrain = _function_body(header, "Constrain")
+    assert "MoveInsetCm(C)" in constrain and "ConstrainBisections" in constrain
+
+
+def test_runbook_multiplier_bound_and_slide_rows_match_the_code():
+    # PR #29 review C6 / B-4: the runbook's expected error line, the header default and the ini value agree,
+    # and the uncertain-API rows / the (c2) slide Info line of Golmok.Photo.Clamp are in the runbook.
+    text = _runbook_text()
+    cp = parse_ue_ini(INI.read_text(encoding="utf-8-sig"))
+    ini_max = int(cp["/Script/Golmok.GolmokPhotoModeSubsystem"]["MaxMultiplier"])
+    header = (PHOTO / "GolmokPhotoModeSubsystem.h").read_text(encoding="utf-8")
+    m = re.search(r"\bMaxMultiplier\s*=\s*(\d+)\s*;", header)
+    assert m and int(m.group(1)) == ini_max, (m and m.group(0), ini_max)
+    assert f"ERROR multiplier must be 1..{ini_max} (MaxMultiplier)" in text
+    for mention in ("VectorPlaneProject", "SetGameCameraCutThisFrame", "slide: from"):
+        assert mention in text, mention
+    test_cpp = (SOURCE / "Tests" / "GolmokPhotoTest.cpp").read_text(encoding="utf-8")
+    assert 'TEXT("slide: from %s to %s' in test_cpp

@@ -227,11 +227,205 @@ namespace GolmokPhotoMath
 		return Best;
 	}
 
+	/** Tolerances of the footprint clamp (cm): accepted distance slack, smallest inset, near-zero lengths. */
+	constexpr double FootprintTolCm = 1e-6;
+	constexpr double FootprintMinInsetCm = 1e-3;
+	/** Sphere / polygon rounds of Constrain (the sphere clamp can undo part of the polygon one near both limits). */
+	constexpr int ConstrainMaxRounds = 16;
+	/** Bisection steps of the Constrain fallback along Current -> P (2^-20 of a tick's move). */
+	constexpr int ConstrainBisections = 20;
+
+	/** Twice the signed area of the ring (> 0 counter-clockwise in X-right / Y-up axes). */
+	inline double RingArea2(const double* Xs, const double* Ys, std::size_t N)
+	{
+		double A = 0.0;
+		for (std::size_t j = 0; j < N; ++j)
+		{
+			const std::size_t k = (j + 1 < N) ? j + 1 : 0;
+			A += Xs[j] * Ys[k] - Xs[k] * Ys[j];
+		}
+		return A;
+	}
+
+	/** Distance from (X, Y) to the ring boundary, positive inside (PointInPolygon) and negative outside. N < 3 -> 0. */
+	inline double SignedBoundaryDistance(const double* Xs, const double* Ys, std::size_t N, double X, double Y)
+	{
+		if (N < 3 || Xs == nullptr || Ys == nullptr)
+		{
+			return 0.0;
+		}
+		double Qx = X;
+		double Qy = Y;
+		std::size_t Edge = 0;
+		const double D = NearestBoundaryPoint(Xs, Ys, N, X, Y, Qx, Qy, Edge);
+		return GolmokGeoMath::PointInPolygon(Xs, Ys, N, X, Y) ? D : -D;
+	}
+
 	/**
-	 * XY clamp into the ring: inside (GolmokGeoMath::PointInPolygon) -> 0, unchanged. Outside -> nearest boundary point Q,
-	 * then InsetCm toward (AnchorX, AnchorY) (the character, always inside), at most the distance to the anchor;
-	 * returns 1 when the nudged point passes PointInPolygon, 2 when it does not (Out = Q on the boundary; the caller keeps
-	 * its previous position). N < 3 -> 0, unchanged.
+	 * The inset ClampToPolygonXY really uses: max(InsetCm, FootprintMinInsetCm), capped at the anchor's own distance to the
+	 * boundary when the anchor is inside (a ring narrower than twice the margin keeps the anchor reachable; the floor keeps
+	 * the result strictly inside for the even-odd test). N < 3 -> the floored InsetCm.
+	 */
+	inline double EffectiveInsetCm(const double* Xs, const double* Ys, std::size_t N, double AnchorX, double AnchorY, double InsetCm)
+	{
+		double Inset = (InsetCm > FootprintMinInsetCm) ? InsetCm : FootprintMinInsetCm; // also NaN -> the floor
+		const double AnchorD = SignedBoundaryDistance(Xs, Ys, N, AnchorX, AnchorY);
+		if (AnchorD > 0.0 && AnchorD < Inset)
+		{
+			Inset = PhotoMax(AnchorD, FootprintMinInsetCm);
+		}
+		return Inset;
+	}
+
+	/** True when (X, Y) is in the eroded ring: inside (PointInPolygon) and at least Inset - FootprintTolCm from the boundary. */
+	inline bool InErodedRing(const double* Xs, const double* Ys, std::size_t N, double Inset, double X, double Y)
+	{
+		if (!std::isfinite(X) || !std::isfinite(Y) || !GolmokGeoMath::PointInPolygon(Xs, Ys, N, X, Y))
+		{
+			return false;
+		}
+		double Qx = X;
+		double Qy = Y;
+		std::size_t Edge = 0;
+		return NearestBoundaryPoint(Xs, Ys, N, X, Y, Qx, Qy, Edge) >= Inset - FootprintTolCm;
+	}
+
+	/** One piece of the eroded ring's boundary: edge j shifted Inset inward (bLine) or the arc of radius Inset around vertex j. */
+	struct FootprintPiece
+	{
+		bool bLine = false;
+		double Ax = 0.0;  // line: start of the shifted edge; arc: the vertex
+		double Ay = 0.0;
+		double Ux = 0.0;  // line: unit direction
+		double Uy = 0.0;
+		double Nx = 0.0;  // line: unit inward normal
+		double Ny = 0.0;
+		double Len = 0.0; // line: edge length
+	};
+
+	/** Piece Index (2 j = shifted edge j, 2 j + 1 = arc of vertex j); false for a zero-length edge. Orient = sign of RingArea2. */
+	inline bool MakeFootprintPiece(const double* Xs, const double* Ys, std::size_t N, double Orient, double Inset, std::size_t Index, FootprintPiece& Out)
+	{
+		const std::size_t j = (Index / 2) % N;
+		Out = FootprintPiece();
+		if (Index % 2 == 1)
+		{
+			Out.Ax = Xs[j];
+			Out.Ay = Ys[j];
+			return true;
+		}
+		const std::size_t k = (j + 1 < N) ? j + 1 : 0;
+		const double Ex = Xs[k] - Xs[j];
+		const double Ey = Ys[k] - Ys[j];
+		const double Len = std::sqrt(Ex * Ex + Ey * Ey);
+		if (!(Len > FootprintTolCm))
+		{
+			return false;
+		}
+		Out.bLine = true;
+		Out.Ux = Ex / Len;
+		Out.Uy = Ey / Len;
+		Out.Nx = -Out.Uy * Orient;
+		Out.Ny = Out.Ux * Orient;
+		Out.Ax = Xs[j] + Out.Nx * Inset;
+		Out.Ay = Ys[j] + Out.Ny * Inset;
+		Out.Len = Len;
+		return true;
+	}
+
+	/** Nearest point of the piece to (Px, Py) (arcs: the full circle; a point on the vertex itself has none) and its distance. */
+	inline bool NearestOnPiece(const FootprintPiece& Piece, double Inset, double Px, double Py, double& OutX, double& OutY, double& OutDist)
+	{
+		if (Piece.bLine)
+		{
+			double T = (Px - Piece.Ax) * Piece.Ux + (Py - Piece.Ay) * Piece.Uy;
+			T = (T < 0.0) ? 0.0 : ((T > Piece.Len) ? Piece.Len : T);
+			OutX = Piece.Ax + Piece.Ux * T;
+			OutY = Piece.Ay + Piece.Uy * T;
+			OutDist = std::sqrt((Px - OutX) * (Px - OutX) + (Py - OutY) * (Py - OutY));
+			return true;
+		}
+		const double Vx = Px - Piece.Ax;
+		const double Vy = Py - Piece.Ay;
+		const double Vl = std::sqrt(Vx * Vx + Vy * Vy);
+		OutDist = std::fabs(Vl - Inset);
+		if (!(Vl > FootprintTolCm))
+		{
+			return false;
+		}
+		OutX = Piece.Ax + Vx / Vl * Inset;
+		OutY = Piece.Ay + Vy / Vl * Inset;
+		return true;
+	}
+
+	/** Up to two intersection points of two pieces (lines as infinite lines, arcs as full circles); returns the count. */
+	inline int IntersectPieces(const FootprintPiece& A, const FootprintPiece& B, double Inset, double OutX[2], double OutY[2])
+	{
+		if (A.bLine && B.bLine)
+		{
+			// nA . X = nA . A0, nB . X = nB . B0
+			const double Ca = A.Nx * A.Ax + A.Ny * A.Ay;
+			const double Cb = B.Nx * B.Ax + B.Ny * B.Ay;
+			const double Det = A.Nx * B.Ny - A.Ny * B.Nx;
+			if (!(std::fabs(Det) > 1e-12))
+			{
+				return 0;
+			}
+			OutX[0] = (Ca * B.Ny - Cb * A.Ny) / Det;
+			OutY[0] = (A.Nx * Cb - B.Nx * Ca) / Det;
+			return 1;
+		}
+		if (A.bLine != B.bLine)
+		{
+			const FootprintPiece& L = A.bLine ? A : B;
+			const FootprintPiece& C = A.bLine ? B : A;
+			// |L0 + t U - V|^2 = Inset^2
+			const double Wx = L.Ax - C.Ax;
+			const double Wy = L.Ay - C.Ay;
+			const double Bh = Wx * L.Ux + Wy * L.Uy;
+			const double Disc = Bh * Bh - (Wx * Wx + Wy * Wy - Inset * Inset);
+			if (Disc < 0.0)
+			{
+				return 0;
+			}
+			const double Root = std::sqrt(Disc);
+			OutX[0] = L.Ax + L.Ux * (-Bh - Root);
+			OutY[0] = L.Ay + L.Uy * (-Bh - Root);
+			OutX[1] = L.Ax + L.Ux * (-Bh + Root);
+			OutY[1] = L.Ay + L.Uy * (-Bh + Root);
+			return 2;
+		}
+		// two circles of radius Inset: on the perpendicular bisector, half-chord sqrt(Inset^2 - (d / 2)^2)
+		const double Cx = B.Ax - A.Ax;
+		const double Cy = B.Ay - A.Ay;
+		const double Cd = std::sqrt(Cx * Cx + Cy * Cy);
+		if (!(Cd > FootprintTolCm) || Cd > 2.0 * Inset)
+		{
+			return 0;
+		}
+		const double H = std::sqrt(PhotoMax(Inset * Inset - 0.25 * Cd * Cd, 0.0));
+		const double Mx = A.Ax + 0.5 * Cx;
+		const double My = A.Ay + 0.5 * Cy;
+		OutX[0] = Mx - Cy / Cd * H;
+		OutY[0] = My + Cx / Cd * H;
+		OutX[1] = Mx + Cy / Cd * H;
+		OutY[1] = My - Cx / Cd * H;
+		return 2;
+	}
+
+	/**
+	 * XY clamp into the eroded ring S = {inside (GolmokGeoMath::PointInPolygon) and boundary distance >= Inset}, Inset =
+	 * EffectiveInsetCm(...) (V-09 #58: the old rule let every inside point through, so pushing at the edge saw-toothed
+	 * inside the 0..Inset band, and nudged toward the anchor, so it also dragged sideways). A point already in S -> 0,
+	 * unchanged. Otherwise the NEAREST point of S (exact, not iterated): the boundary of S is made of the edges shifted Inset
+	 * inward (inward from the ring orientation) and arcs of radius Inset around the vertices, so the candidates are the
+	 * nearest point on each piece and the pairwise intersections of pieces (the corners of S), plus the anchor (in S by
+	 * EffectiveInsetCm); the nearest candidate that is in S wins. Cost: the pieces around the nearest boundary edge are tried
+	 * first (pairwise too), which normally gives the answer; the other pieces are only tested against that distance, and
+	 * pairs only among pieces closer than it. Pushing into an edge stops exactly Inset inside and keeps the tangential part
+	 * (slides); corners, short / duplicate / collinear edges and reflex arcs have fixed points. Returns 1 with the projected
+	 * point, or 2 when no candidate is in S (degenerate ring; X, Y unchanged, the caller keeps its previous position).
+	 * N < 3 -> 0, unchanged. A non-finite X or Y -> 2, unchanged (PR #29 review A5).
 	 */
 	inline int ClampToPolygonXY(const double* Xs, const double* Ys, std::size_t N, double AnchorX, double AnchorY, double InsetCm, double& X, double& Y)
 	{
@@ -239,34 +433,130 @@ namespace GolmokPhotoMath
 		{
 			return 0;
 		}
-		if (GolmokGeoMath::PointInPolygon(Xs, Ys, N, X, Y))
+		if (!std::isfinite(X) || !std::isfinite(Y))
+		{
+			return 2;
+		}
+		const double Inset = EffectiveInsetCm(Xs, Ys, N, AnchorX, AnchorY, InsetCm);
+		const double Px = X;
+		const double Py = Y;
+		if (InErodedRing(Xs, Ys, N, Inset, Px, Py))
 		{
 			return 0;
 		}
-		double Qx = X;
-		double Qy = Y;
-		std::size_t Edge = 0;
-		NearestBoundaryPoint(Xs, Ys, N, X, Y, Qx, Qy, Edge);
-		const double ToAnchorX = AnchorX - Qx;
-		const double ToAnchorY = AnchorY - Qy;
-		const double ToAnchor = std::sqrt(ToAnchorX * ToAnchorX + ToAnchorY * ToAnchorY);
-		const double Inset = PhotoMin((InsetCm > 0.0) ? InsetCm : 0.0, ToAnchor);
-		double Nx = Qx;
-		double Ny = Qy;
-		if (ToAnchor > 0.0 && Inset > 0.0)
+		const double Area2 = RingArea2(Xs, Ys, N);
+		if (Area2 == 0.0 || !std::isfinite(Area2))
 		{
-			Nx = Qx + ToAnchorX * (Inset / ToAnchor);
-			Ny = Qy + ToAnchorY * (Inset / ToAnchor);
+			return 2;
 		}
-		if (GolmokGeoMath::PointInPolygon(Xs, Ys, N, Nx, Ny))
+		const double Orient = (Area2 < 0.0) ? -1.0 : 1.0;
+		const std::size_t NumPieces = 2 * N;
+
+		bool bFound = false;
+		double BestX = Px;
+		double BestY = Py;
+		double BestD2 = 0.0;
+		auto Try = [&](double Cx, double Cy)
 		{
-			X = Nx;
-			Y = Ny;
-			return 1;
+			const double Ox = Cx - Px;
+			const double Oy = Cy - Py;
+			const double D2 = Ox * Ox + Oy * Oy;
+			if ((!bFound || D2 < BestD2) && InErodedRing(Xs, Ys, N, Inset, Cx, Cy))
+			{
+				bFound = true;
+				BestX = Cx;
+				BestY = Cy;
+				BestD2 = D2;
+			}
+		};
+		auto TryPair = [&](const FootprintPiece& A, const FootprintPiece& B)
+		{
+			double Ix[2] = {0.0, 0.0};
+			double Iy[2] = {0.0, 0.0};
+			const int Count = IntersectPieces(A, B, Inset, Ix, Iy);
+			for (int c = 0; c < Count; ++c)
+			{
+				Try(Ix[c], Iy[c]);
+			}
+		};
+
+		// 1. local seed: the pieces of the nearest boundary edge and its neighbours (edges e-2..e+2, their vertices), pairwise.
+		{
+			double Qx = Px;
+			double Qy = Py;
+			std::size_t Edge = 0;
+			NearestBoundaryPoint(Xs, Ys, N, Px, Py, Qx, Qy, Edge);
+			constexpr std::size_t LocalCount = 11; // pieces 2(e-2) .. 2(e+2)+2: 6 edges (e-2..e+3), 5 vertex arcs (e-2..e+2)
+			FootprintPiece Local[LocalCount];
+			bool bLocal[LocalCount] = {};
+			const std::size_t First = (2 * Edge + NumPieces * 2 - 4) % NumPieces;
+			for (std::size_t i = 0; i < LocalCount && i < NumPieces; ++i)
+			{
+				bLocal[i] = MakeFootprintPiece(Xs, Ys, N, Orient, Inset, (First + i) % NumPieces, Local[i]);
+				double Cx = 0.0;
+				double Cy = 0.0;
+				double Dist = 0.0;
+				if (bLocal[i] && NearestOnPiece(Local[i], Inset, Px, Py, Cx, Cy, Dist))
+				{
+					Try(Cx, Cy);
+				}
+			}
+			for (std::size_t a = 0; a < LocalCount && a < NumPieces; ++a)
+			{
+				for (std::size_t b = a + 1; b < LocalCount && b < NumPieces; ++b)
+				{
+					if (bLocal[a] && bLocal[b])
+					{
+						TryPair(Local[a], Local[b]);
+					}
+				}
+			}
 		}
-		X = Qx;
-		Y = Qy;
-		return 2;
+		// 2. every piece's own nearest point, and the anchor (both only tested when nearer than the best so far).
+		for (std::size_t i = 0; i < NumPieces; ++i)
+		{
+			FootprintPiece Piece;
+			double Cx = 0.0;
+			double Cy = 0.0;
+			double Dist = 0.0;
+			if (MakeFootprintPiece(Xs, Ys, N, Orient, Inset, i, Piece) && NearestOnPiece(Piece, Inset, Px, Py, Cx, Cy, Dist))
+			{
+				Try(Cx, Cy);
+			}
+		}
+		Try(AnchorX, AnchorY);
+		if (!bFound)
+		{
+			return 2;
+		}
+		// 3. corners of S among the pieces closer than the best candidate (a nearer point of S lies on such pieces only).
+		std::vector<FootprintPiece> Near;
+		const double Bound = std::sqrt(BestD2) + FootprintTolCm;
+		for (std::size_t i = 0; i < NumPieces; ++i)
+		{
+			FootprintPiece Piece;
+			double Cx = 0.0;
+			double Cy = 0.0;
+			double Dist = 0.0;
+			if (MakeFootprintPiece(Xs, Ys, N, Orient, Inset, i, Piece))
+			{
+				NearestOnPiece(Piece, Inset, Px, Py, Cx, Cy, Dist);
+				if (Dist <= Bound)
+				{
+					Near.push_back(Piece);
+				}
+			}
+		}
+		for (std::size_t a = 0; a < Near.size(); ++a)
+		{
+			for (std::size_t b = a + 1; b < Near.size(); ++b)
+			{
+				TryPair(Near[a], Near[b]);
+			}
+		}
+		X = BestX;
+		Y = BestY;
+		return 1;
 	}
 
 	struct Constraint
@@ -277,47 +567,120 @@ namespace GolmokPhotoMath
 		const double* Xs = nullptr;        // footprint ring (level UE cm), N = 0 -> no polygon
 		const double* Ys = nullptr;
 		std::size_t N = 0;
+		bool bHasCurrent = false;          // Current = the pawn's position before this move (MoveConstrained sets it)
+		Vec3 Current{};
 	};
 
 	/**
-	 * Sphere -> polygon, then re-checked: result must be inside the sphere AND (N == 0 or PointInPolygon). Returns 0 = accepted
-	 * (Out written), 1 = accepted after a sphere clamp, 2 = accepted after a polygon clamp, 3 = both, -1 = rejected (Out untouched;
-	 * the pawn keeps its previous position). The pawn calls this once per tick before the sweep.
+	 * Inset for this move: C.InsetCm capped at the anchor's boundary distance (EffectiveInsetCm), lowered to the current position's boundary distance when the pawn already stands
+	 * inside the ring closer than that (it can start there: the spring-arm camera). Such a pawn is never pushed inward by a
+	 * move (no jump); it can only move to points at least as far from the boundary, so the margin ratchets back up to
+	 * C.InsetCm as it moves inward. A current position outside the ring does not lower it (the first move snaps inside).
+	 */
+	inline double MoveInsetCm(const Constraint& C)
+	{
+		double Inset = C.InsetCm;
+		if (C.bHasCurrent && C.N >= 3 && C.Xs != nullptr && C.Ys != nullptr)
+		{
+			// PR #29 review A1: compare against the anchor-capped inset, or an anchor closer to the boundary than InsetCm
+			// lowers Inset to CurrentD on every tick and the 1e-6 cm ring tolerance ratchets the margin away at the junction.
+			Inset = EffectiveInsetCm(C.Xs, C.Ys, C.N, C.Anchor[0], C.Anchor[1], Inset);
+			const double CurrentD = SignedBoundaryDistance(C.Xs, C.Ys, C.N, C.Current[0], C.Current[1]);
+			if (CurrentD > 0.0 && CurrentD < Inset - FootprintTolCm)
+			{
+				Inset = CurrentD;
+			}
+		}
+		return Inset;
+	}
+
+	/** Inside the sphere (1e-12 relative + 1e-9 cm slack) and, with a polygon, a fixed point of ClampToPolygonXY at Inset. */
+	inline bool MeetsConstraint(const Constraint& C, double Inset, const Vec3& P)
+	{
+		const double Radius = (C.RadiusCm > 0.0) ? C.RadiusCm : 0.0;
+		if (!(Distance3(P, C.Anchor) <= Radius * (1.0 + 1e-12) + 1e-9))
+		{
+			return false;
+		}
+		if (C.N >= 3 && C.Xs != nullptr && C.Ys != nullptr)
+		{
+			double Cx = P[0];
+			double Cy = P[1];
+			return ClampToPolygonXY(C.Xs, C.Ys, C.N, C.Anchor[0], C.Anchor[1], Inset, Cx, Cy) == 0;
+		}
+		return true;
+	}
+
+	/**
+	 * Sphere -> polygon, repeated up to ConstrainMaxRounds times while the polygon clamp leaves the sphere, then re-checked:
+	 * the result must be inside the sphere AND (N == 0 or in the eroded ring of ClampToPolygonXY with MoveInsetCm(C)).
+	 * Where the two limits meet at a shallow angle the rounds creep instead of converging: then, when C.Current is set and
+	 * valid, a valid point of the segment Current -> last round's point found by bisection (the valid prefix is assumed
+	 * contiguous; on a non-convex S it need not be the farthest) is taken, so the pawn keeps
+	 * sliding into the junction instead of freezing. Returns 0 = accepted unchanged (Out written), 1 = accepted after a
+	 * sphere clamp, 2 = after a polygon clamp, 3 = both, -1 = rejected (Out untouched; the pawn keeps its previous
+	 * position). The pawn calls this before each of its (at most two) sweeps.
 	 */
 	inline int Constrain(const Constraint& C, const Vec3& Desired, Vec3& Out)
 	{
 		Vec3 P = Desired;
 		int Code = 0;
-		if (ClampToSphere(C.Anchor, C.RadiusCm, P))
-		{
-			Code |= 1;
-		}
 		const bool bPolygon = (C.N >= 3) && C.Xs != nullptr && C.Ys != nullptr;
-		if (bPolygon)
-		{
-			const int PolyCode = ClampToPolygonXY(C.Xs, C.Ys, C.N, C.Anchor[0], C.Anchor[1], C.InsetCm, P[0], P[1]);
-			if (PolyCode == 2)
-			{
-				return -1;
-			}
-			if (PolyCode == 1)
-			{
-				Code |= 2;
-			}
-		}
-		// Re-check both (design §6-2 ③): the polygon nudge can leave the sphere, and the accepted point must pass
-		// PointInPolygon again (concave rings) before the pawn moves.
+		const double Inset = MoveInsetCm(C);
 		const double Radius = (C.RadiusCm > 0.0) ? C.RadiusCm : 0.0;
-		const double Dist = Distance3(P, C.Anchor);
-		if (!(Dist <= Radius * (1.0 + 1e-12) + 1e-9))
+		for (int Round = 0; Round < ConstrainMaxRounds; ++Round)
+		{
+			if (ClampToSphere(C.Anchor, C.RadiusCm, P))
+			{
+				Code |= 1;
+			}
+			if (bPolygon)
+			{
+				const int PolyCode = ClampToPolygonXY(C.Xs, C.Ys, C.N, C.Anchor[0], C.Anchor[1], Inset, P[0], P[1]);
+				if (PolyCode == 2)
+				{
+					return -1;
+				}
+				if (PolyCode == 1)
+				{
+					Code |= 2;
+				}
+			}
+			if (Distance3(P, C.Anchor) <= Radius * (1.0 + 1e-12) + 1e-9)
+			{
+				break;
+			}
+		}
+		// Re-check both (design §6-2 ③).
+		if (MeetsConstraint(C, Inset, P))
+		{
+			Out = P;
+			return Code;
+		}
+		if (!C.bHasCurrent || !MeetsConstraint(C, Inset, C.Current))
 		{
 			return -1;
 		}
-		if (bPolygon && !GolmokGeoMath::PointInPolygon(C.Xs, C.Ys, C.N, P[0], P[1]))
+		double Lo = 0.0; // Current: valid
+		double Hi = 1.0; // P: not valid
+		for (int i = 0; i < ConstrainBisections; ++i)
+		{
+			const double Mid = 0.5 * (Lo + Hi);
+			const Vec3 M{C.Current[0] + (P[0] - C.Current[0]) * Mid, C.Current[1] + (P[1] - C.Current[1]) * Mid, C.Current[2] + (P[2] - C.Current[2]) * Mid};
+			if (MeetsConstraint(C, Inset, M))
+			{
+				Lo = Mid;
+			}
+			else
+			{
+				Hi = Mid;
+			}
+		}
+		if (!(Lo > 0.0))
 		{
 			return -1;
 		}
-		Out = P;
+		Out = {C.Current[0] + (P[0] - C.Current[0]) * Lo, C.Current[1] + (P[1] - C.Current[1]) * Lo, C.Current[2] + (P[2] - C.Current[2]) * Lo};
 		return Code;
 	}
 
