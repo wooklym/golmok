@@ -214,11 +214,46 @@ def test_cpp_parser_uses_the_same_keys():
     assert "ParseConfigText" in text and "LoadConfigFile" in text and "FFileHelper::LoadFileToString" in text
 
 
+# numeric literals incl. the f-suffixed floats UE code writes (110.f, 1.4f, .5f); group 1 is the number
+_NUMBER_TOKEN = re.compile(r"(?<![\w.])(\d+\.?\d*|\.\d+)([fF]?)(?![\w.])")
+
+
+def _range_literal_hits(code: str) -> list[str]:
+    """photo.json range values that appear in C++ as a literal (section 0 #9: no range copy in C++).
+
+    Float-looking tokens (a '.' or an f suffix) are compared numerically with every range value; plain
+    integer tokens only with the integer-valued literal "110", so ints such as `MaxCollisionRadiusCm = 50`
+    (an ini clamp, not a photo.json range) do not count.
+    """
+    values = {float(v): v for v in RANGE_LITERALS}
+    hits = set()
+    for number, suffix in _NUMBER_TOKEN.findall(code):
+        if "." in number or suffix:
+            if float(number) in values:
+                hits.add(values[float(number)])
+        elif number in RANGE_LITERALS:
+            hits.add(number)
+    return sorted(hits)
+
+
+@pytest.mark.parametrize(
+    ("code", "expected"),
+    [
+        ("FMath::Clamp(Fov, 20.f, 110.f);", ["110"]),
+        ("FMath::Clamp(Fov, 20, 110);", ["110"]),
+        ("Focus = FMath::Max(0.3f, Focus); Fstop = 1.4F; Hi = 16.0;", ["0.3", "1.4", "16.0"]),
+        ("Roll = FMath::Clamp(Roll, -15.f, 15.f); Far = 50.0f;", ["15.0", "50.0"]),
+        ("constexpr int32 MaxCollisionRadiusCm = 50; X = 1.25f; Y = 0.5f; Z = 110.5f; V2 = 10.3f;", []),
+    ],
+)
+def test_range_literal_tokenizer(code: str, expected: list[str]):
+    assert _range_literal_hits(code) == expected
+
+
 @pytest.mark.parametrize("source", sorted(PHOTO.glob("*.cpp")), ids=lambda p: p.name)
 def test_no_range_literals_in_cpp(source: Path):
     code = _strip_code(source.read_text(encoding="utf-8"))
-    tokens = set(re.findall(r"(?<![\w.])\d+(?:\.\d+)?(?![\w.])", code))
-    hits = sorted(t for t in RANGE_LITERALS if t in tokens)
+    hits = _range_literal_hits(code)
     assert not hits, f"{source.name}: photo.json range literal(s) {hits} duplicated in C++"
 
 

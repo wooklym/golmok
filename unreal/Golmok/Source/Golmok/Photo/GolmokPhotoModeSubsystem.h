@@ -248,8 +248,15 @@ public:
 
 	// ---- constraint inputs / meta (public for the tests) --------------------------------------------------------
 
+	/** Section 5-2 input constants (single home; AGolmokPhotoCameraPawn reads them). */
+	static constexpr float FastMultiplier = 3.f;
+	static constexpr float MouseLookDegPerUnit = 0.5f;
+	static constexpr float PadLookDegPerSec = 120.f;
+
 	/** Character capsule center (SavedPawn actor location); entry camera location without a pawn. */
 	FVector GetAnchor() const;
+	/** Sphere radius around GetAnchor() (cm): MaxDistanceM * 100, widened at Enter to cover the entry camera (spring arm 320 cm + socket offset > 3 m) so the first move / Reset never jumps. */
+	double GetEffectiveRadiusCm() const;
 	const TArray<double>& GetFootprintXs() const { return FootprintXs; }
 	const TArray<double>& GetFootprintYs() const { return FootprintYs; }
 	/** Overrides the cached polygon while Active. */
@@ -324,9 +331,6 @@ private:
 	/** Above IMC_GolmokPhotoToggle (2) and IMC_GolmokDebug (1). */
 	static constexpr int32 PhotoMappingPriority = 3;
 	static constexpr double CaptureTimeoutSeconds = 3.0;
-	static constexpr float FastMultiplier = 3.f;
-	static constexpr float MouseLookDegPerUnit = 0.5f;
-	static constexpr float PadLookDegPerSec = 120.f;
 
 	/** IMC_GolmokPhoto */
 	UPROPERTY(Transient)
@@ -365,6 +369,8 @@ private:
 	float SavedPawnTimeDilation = 1.f;
 	double WorldTimeAtEnter = 0.0;
 	FVector EnterLocation = FVector::ZeroVector;
+	/** Set at Enter (see GetEffectiveRadiusCm); 0 = MaxDistanceM * 100. */
+	double EffectiveRadiusCm = 0.0;
 	FRotator EnterRotation = FRotator::ZeroRotator;
 	float EnterFov = 80.f;
 	TArray<double> FootprintXs;

@@ -12,10 +12,7 @@
 
 namespace
 {
-	// Design section 5-2 (the subsystem keeps the same numbers as private constants; the pawn cannot read those).
-	constexpr float PhotoMouseLookDegPerUnit = 0.5f;
-	constexpr float PhotoPadLookDegPerSec = 120.f;
-	constexpr float PhotoFastMultiplier = 3.f;
+	// Design section 5-2 input constants: UGolmokPhotoModeSubsystem::FastMultiplier / MouseLookDegPerUnit / PadLookDegPerSec.
 	constexpr float PhotoPitchLimitDeg = 89.f;
 	/** Upper bound of the per-tick dt: FApp::GetDeltaTime() spikes after a hitch (design section 10 #2). */
 	constexpr float PhotoMaxTickDt = 0.1f;
@@ -171,7 +168,7 @@ void AGolmokPhotoCameraPawn::MoveConstrained(const FVector& InDesired)
 
 	GolmokPhotoMath::Constraint LocalConstraint;
 	LocalConstraint.Anchor = {Anchor.X, Anchor.Y, Anchor.Z};
-	LocalConstraint.RadiusCm = static_cast<double>(LocalOwner->MaxDistanceM) * 100.0;
+	LocalConstraint.RadiusCm = LocalOwner->GetEffectiveRadiusCm();
 	LocalConstraint.InsetCm = static_cast<double>(LocalOwner->FootprintMarginM) * 100.0;
 	if (Xs.Num() >= 3 && Xs.Num() == Ys.Num())
 	{
@@ -219,9 +216,9 @@ void AGolmokPhotoCameraPawn::Tick(float DeltaSeconds)
 
 	// Look: mouse per unit, pad per second.
 	FRotator NewLook = Look;
-	NewLook.Yaw += MouseDelta.X * PhotoMouseLookDegPerUnit + PadStick.X * PhotoPadLookDegPerSec * LocalDt;
+	NewLook.Yaw += MouseDelta.X * UGolmokPhotoModeSubsystem::MouseLookDegPerUnit + PadStick.X * UGolmokPhotoModeSubsystem::PadLookDegPerSec * LocalDt;
 	NewLook.Pitch = FMath::Clamp(
-		NewLook.Pitch - MouseDelta.Y * PhotoMouseLookDegPerUnit - PadStick.Y * PhotoPadLookDegPerSec * LocalDt,
+		NewLook.Pitch - MouseDelta.Y * UGolmokPhotoModeSubsystem::MouseLookDegPerUnit - PadStick.Y * UGolmokPhotoModeSubsystem::PadLookDegPerSec * LocalDt,
 		-PhotoPitchLimitDeg, PhotoPitchLimitDeg);
 	MouseDelta = FVector2D::ZeroVector;
 	ApplyLook(NewLook);
@@ -236,7 +233,7 @@ void AGolmokPhotoCameraPawn::Tick(float DeltaSeconds)
 		// No input: nothing to constrain or sweep this tick.
 		return;
 	}
-	const float SpeedCmPerSec = LocalOwner->MoveSpeedMps * 100.f * (bFast ? PhotoFastMultiplier : 1.f);
+	const float SpeedCmPerSec = LocalOwner->MoveSpeedMps * 100.f * (bFast ? UGolmokPhotoModeSubsystem::FastMultiplier : 1.f);
 	MoveConstrained(GetActorLocation() + Direction * (SpeedCmPerSec * LocalDt));
 }
 

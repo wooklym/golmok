@@ -825,6 +825,11 @@ FVector UGolmokPhotoModeSubsystem::GetAnchor() const
 	return EnterLocation;
 }
 
+double UGolmokPhotoModeSubsystem::GetEffectiveRadiusCm() const
+{
+	return FMath::Max(static_cast<double>(MaxDistanceM) * 100.0, EffectiveRadiusCm);
+}
+
 void UGolmokPhotoModeSubsystem::CacheFootprint()
 {
 	FootprintXs.Reset();
@@ -985,6 +990,9 @@ bool UGolmokPhotoModeSubsystem::Enter(FString& OutMessage)
 			Start += (Anchor - Start).GetSafeNormal() * PhotoEntryRetreatCm;
 		}
 		EnterLocation = Start;
+		// The spring-arm camera sits ~328 cm from the capsule center (arm 320 + socket offset), outside the 3 m
+		// sphere: widen the sphere for this session so the entry pose (and Reset) is valid and the first move does not jump.
+		EffectiveRadiusCm = FMath::Max(static_cast<double>(MaxDistanceM) * 100.0, FVector::Dist(EnterLocation, Anchor) + 1.0);
 	}
 	NewPawn->Init(this, EnterLocation, EnterRotation, EnterFov, CollisionRadiusCm);
 	PhotoPawn = NewPawn;
@@ -1235,6 +1243,15 @@ void UGolmokPhotoModeSubsystem::TeardownForDeadWorld()
 {
 	// EndPlayInEditor / Quit / LevelTransition / bIsTearingDown: the PC, the pause state, the view target and the
 	// time of day belong to a world that is ending; only our own references and the frame delegate are cleaned.
+	// The one exception: the game viewport client belongs to the GameInstance / WorldContext, not to the world, and
+	// survives an -game open / RestartLevel (LevelTransition), so its transition-message flag is restored here.
+	if (UWorld* World = GetWorld())
+	{
+		if (UGameViewportClient* Viewport = World->GetGameViewport())
+		{
+			Viewport->SetSuppressTransitionMessage(bSavedSuppressTransition);
+		}
+	}
 	if (EndFrameHandle.IsValid())
 	{
 		FCoreDelegates::OnEndFrame.Remove(EndFrameHandle);
@@ -1302,7 +1319,6 @@ void UGolmokPhotoModeSubsystem::Reset()
 	bDof = false;
 	bCharacterHidden = false;
 	bOverlayHidden = false;
-	SessionMultiplier = 0;
 	if (PhotoPawn.IsValid())
 	{
 		// Back to the entry pose (the entry point was overlap-checked, so no sweep is needed).
@@ -1600,7 +1616,8 @@ const TArray<FString>& UGolmokPhotoModeSubsystem::GetOverlayLines()
 	const FVector CameraLocation = PhotoPawn.IsValid() ? PhotoPawn->GetActorLocation() : EnterLocation;
 	const double DistanceM = FVector::Dist(CameraLocation, GetAnchor()) / 100.0;
 	const int32 Multiplier = FMath::Clamp(SessionMultiplier > 0 ? SessionMultiplier : ScreenshotMultiplier, 1, MaxMultiplier);
-	OverlayLines.Add(FString::Printf(TEXT("PHOTO  %s  %s  %.1f / %.1f m  %dx"), *ZoneText, *PresetText, DistanceM, MaxDistanceM, Multiplier));
+	const double RadiusM = GetEffectiveRadiusCm() / 100.0;
+	OverlayLines.Add(FString::Printf(TEXT("PHOTO  %s  %s  %.1f / %.1f m  %dx"), *ZoneText, *PresetText, DistanceM, RadiusM, Multiplier));
 
 	// Values line (cyan): the Describe() formatter plus the 35 mm equivalent of the FOV.
 	const double FovDeg = GetParam(EGolmokPhotoParam::Fov);

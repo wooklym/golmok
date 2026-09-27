@@ -90,7 +90,9 @@ PHOTO_KEYS = {
 WP09_ZONE_KEYS = ("bDiscoverFromIndex", "DiscoveryIntervalSeconds", "DespawnDistanceM", "DespawnGraceSeconds")
 PHOTO_AUTOMATION_TESTS = ("Golmok.Photo.EnterExit", "Golmok.Photo.Clamp", "Golmok.Photo.MetaJson")
 PHOTO_CONSOLE_COMMANDS = ("golmok.photo", "golmok.photo.shoot", "golmok.photo.reset", "golmok.photo.set")
-# design section 3-2: the photo actions the subsystem creates (plus the toggle owned by the controller)
+# design section 3-2: the 21 photo actions the subsystem creates (plus the toggle owned by the controller).
+# Look (Mouse2D delta) and LookPad (Gamepad_Right2D value) are separate actions: one Axis2D action
+# cannot tell the two devices apart.
 PHOTO_ACTIONS = (
     "IA_GolmokPhotoShoot",
     "IA_GolmokPhotoReset",
@@ -111,6 +113,7 @@ PHOTO_ACTIONS = (
     "IA_GolmokPhotoMove",
     "IA_GolmokPhotoUpDown",
     "IA_GolmokPhotoLook",
+    "IA_GolmokPhotoLookPad",
     "IA_GolmokPhotoFast",
 )
 # WP-05 / character input assets that must keep their names
@@ -479,7 +482,8 @@ def test_input_asset_names():
     for action in PHOTO_ACTIONS:
         assert f'TEXT("{action}")' in subsystem, action
     assert 'TEXT("IMC_GolmokPhoto")' in subsystem
-    assert set(re.findall(r'TEXT\("(IA_GolmokPhoto\w*)"\)', subsystem)) >= set(PHOTO_ACTIONS)
+    assert len(PHOTO_ACTIONS) == 21
+    assert set(re.findall(r'TEXT\("(IA_GolmokPhoto\w*)"\)', subsystem)) == set(PHOTO_ACTIONS)
     pc = _read(PC_CPP)
     assert 'TEXT("IA_GolmokPhotoToggle")' in pc and 'TEXT("IMC_GolmokPhotoToggle")' in pc
     assert "EKeys::P)" in pc and "EKeys::Gamepad_Special_Left)" in pc
@@ -597,6 +601,68 @@ def test_runbook_mentions_commands_files_tests_and_keys():
     assert not missing, missing
 
 
+def _runbook_text() -> str:
+    if not RUNBOOK.is_file():
+        pytest.skip(f"{RUNBOOK.name} is written by the runbook step of WP-12 (design section 9)")
+    return _read(RUNBOOK)
+
+
+def _all_automation_tests() -> list[str]:
+    names = []
+    for path in sorted((SOURCE / "Tests").rglob("*.cpp")):
+        names += re.findall(r'IMPLEMENT_SIMPLE_AUTOMATION_TEST\(\s*\w+\s*,\s*"(Golmok\.[\w.]+)"', _read(path))
+    return sorted(names)
+
+
+def test_runbook_automation_total_matches_the_code():
+    # every IMPLEMENT_SIMPLE_AUTOMATION_TEST in Tests/ (merged WPs add tests; the runbook copies the code)
+    text = _runbook_text()
+    names = _all_automation_tests()
+    others = [n for n in names if n not in PHOTO_AUTOMATION_TESTS]
+    assert len(names) == len(others) + len(PHOTO_AUTOMATION_TESTS)
+    assert f"**{len(names)}개**" in text, len(names)
+    assert f"헤드리스 자동화 {len(names)}개(Photo {len(PHOTO_AUTOMATION_TESTS)} + 기존 {len(others)})" in text
+    line = next(ln for ln in text.splitlines() if "두 번째 명령" in ln)
+    for name in others:
+        group, leaf = name.split(".")[1], name.split(".")[-1]
+        assert re.search(rf"\b{group}\.[\w/.]*\b{leaf}\b", line), name
+
+
+def test_runbook_covers_the_viewport_client_and_accessor_fix():
+    # f5c8861 (V-09 C2248): protected engine members replaced by project accessors; the runbook must list the
+    # new files / ini line, stop calling #3 and #12 build-failure candidates and carry the new Warning line.
+    text = _runbook_text()
+    for mention in (
+        "f5c8861",
+        "Player/GolmokGameViewportClient.{h,cpp}",
+        "IsTransitionMessageSuppressed",
+        "GameViewportClientClassName=/Script/Golmok.GolmokGameViewportClient",
+        "GetFullTickWhenPausedFlag",
+        "SetFullTickWhenPausedFlag",
+        "GetRestoreState",
+        "FGolmokPhotoRestoreState",
+    ):
+        assert mention in text, mention
+    warning = re.search(
+        r'TEXT\("(photo: game viewport is %s, not UGolmokGameViewportClient[^"]*)"\)', _read(SUBSYSTEM_CPP)
+    )
+    assert warning, "viewport-class Warning format changed"
+    head, tail = warning.group(1).split("%s")
+    assert f"LogGolmok: Warning: {head}GameViewportClient{tail}" in text
+    build = next(ln for ln in text.splitlines() if "먼저 볼 곳" in ln)
+    build = build[build.index("먼저 볼 곳") : build.index("#54(")]  # the candidate list itself
+    assert "#3(" not in build and "#12(" not in build, "section 10 #3 / #12 were fixed by f5c8861"
+    rows = {ln.split("|")[1].strip(): ln for ln in text.splitlines() if re.match(r"\| \d+\+? \|", ln)}
+    for number in ("3", "12"):
+        assert rows[number].rstrip().split("|")[-2].strip(), f"section 12 #{number}: PC result column empty"
+
+
+def test_runbook_cites_photo_sources_by_symbol():
+    # Photo/*.cpp and *.h move with every fix; a line number in the runbook goes stale (review SPEC-3)
+    stale = re.findall(r"Photo/GolmokPhoto\w+\.(?:cpp|h):\d+", _runbook_text())
+    assert not stale, stale
+
+
 def test_convention_folders_include_photo():
     assert "Photo" in CONVENTION_FOLDERS
     for header in _photo_sources():
@@ -658,3 +724,56 @@ def test_restore_state_contract_is_public():
     )
     for field in fields:
         assert re.search(r"\b" + field + r"\b", header), field
+
+
+# ---- fixer regressions (subsystem group): BUILD-3, STATE-1, STATE-3, STATE-4 ------------------------------
+
+
+def _access_before(header: str, index: int) -> str:
+    """Last access specifier (public/protected/private) before `index` in a class body."""
+    hits = list(re.finditer(r"^\s*(public|protected|private)\s*:", header[:index], re.M))
+    assert hits, "no access specifier before the index"
+    return hits[-1].group(1)
+
+
+def test_section_5_2_constants_have_one_home():
+    """BUILD-3: the section 5-2 input constants live only in the subsystem (public); the pawn reads them."""
+    header = _strip_comments(_read(SUBSYSTEM_H))
+    pawn = _strip_comments(_read(PAWN_CPP))
+    for name in ("FastMultiplier", "MouseLookDegPerUnit", "PadLookDegPerSec"):
+        decl = re.search(r"static\s+constexpr\s+float\s+" + name + r"\s*=", header)
+        assert decl, name
+        assert _access_before(header, decl.start()) == "public", name
+        assert not re.search(r"constexpr\s+float\s+\w*" + name + r"\s*=", pawn), f"pawn redefines {name}"
+        assert "UGolmokPhotoModeSubsystem::" + name in pawn, f"pawn does not use the subsystem {name}"
+
+
+def test_effective_radius_covers_the_entry_pose():
+    """STATE-1: the sphere is widened to the entry camera distance; the pawn and the overlay use it."""
+    header = _strip_comments(_read(SUBSYSTEM_H))
+    code = _strip_comments(_read(SUBSYSTEM_CPP))
+    pawn = _strip_comments(_read(PAWN_CPP))
+    assert re.search(r"\bdouble\s+GetEffectiveRadiusCm\(\)\s*const", header)
+    enter = _function_body(code, "UGolmokPhotoModeSubsystem::Enter")
+    assert re.search(r"EffectiveRadiusCm\s*=", enter)
+    assert "FVector::Dist(EnterLocation" in enter
+    move = _function_body(pawn, "AGolmokPhotoCameraPawn::MoveConstrained")
+    assert "GetEffectiveRadiusCm()" in move
+    assert "MaxDistanceM" not in move
+    overlay = _function_body(code, "UGolmokPhotoModeSubsystem::GetOverlayLines")
+    assert "GetEffectiveRadiusCm()" in overlay
+
+
+def test_reset_keeps_the_session_multiplier():
+    """STATE-3: Reset() clears the section 0 #12 set only; the mult session override survives."""
+    code = _strip_comments(_read(SUBSYSTEM_CPP))
+    body = _function_body(code, "UGolmokPhotoModeSubsystem::Reset")
+    assert "SessionMultiplier" not in body
+
+
+def test_dead_world_teardown_restores_the_viewport_transition_flag():
+    """STATE-4: the viewport client outlives the world (-game open / RestartLevel): its flag is restored."""
+    code = _strip_comments(_read(SUBSYSTEM_CPP))
+    body = _function_body(code, "UGolmokPhotoModeSubsystem::TeardownForDeadWorld")
+    assert "SetSuppressTransitionMessage(bSavedSuppressTransition)" in body
+    assert "GetGameViewport()" in body

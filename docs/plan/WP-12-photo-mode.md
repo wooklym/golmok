@@ -43,7 +43,7 @@
 | 2 | 정지 | `UGameplayStatics::SetGamePaused(World, true)`(BP 문서로 존재·bool 반환 [확인]; C++ 시그니처 [2차] §10 #1). 진입 전 `IsGamePaused()`를 `bWasPausedBefore`에 저장, 나갈 때 **false였을 때만** 해제. `PauseMode` ini enum `GamePause`(기본)/`TimeDilation`(PC 폴백: `SetGlobalTimeDilation(0.0001)` + 캐릭터 `CustomTimeDilation = 0`, 저장·복원) — 재빌드 없이 전환 | J-engine-5·X10: 정지 중 렌더 시간 누적·입력이 5.8에서 어긋날 때의 한 스위치 |
 | 3 | 정지 중 살아 있는 것 | 폰 `PrimaryActorTick.bTickEvenWhenPaused = true`(생성자 [확인 가이드 예시]); 모든 포토 액션 `bTriggerWhenPaused = true`·`bConsumeInput = true` [확인 필드]; 진입 시 `PC->bShouldPerformFullTickWhenPaused = true`(**기본 경로**, `const bool bSaved = PC->…`로 값 복사 후 복원; 비트필드일 수 있어 참조·포인터 금지) | J-engine-3·J-product-2: 정지 중 `UpdateCameraManager`는 풀틱 PC에만 [2차 M1] → 폴백이 아니라 기본 |
 | 4 | 시간대 | `AGolmokTimeOfDay::ShiftTransitionStart(double DeltaSeconds)` public 추가(전환 중 아니면 no-op, `TransitionStart += Delta`). 진입 시 `WorldTimeAtEnter = World->GetTimeSeconds()`, 종료 시 `Δ > 0 && IsTransitioning()`이면 시프트. 월드 시계가 멈추든(Δ = 0) 안 멈추든 결과가 같다 | J-engine-2: ①의 "즉시 완료"는 스펙("어긋나지 않게 저장·복원") 위반이고 `TargetPreset == None`(실내 오버레이 전환)에서 `ApplyPreset`이 실패 [확인 `GolmokTimeOfDay.cpp` 857~890] |
-| 5 | 입력 위치 | 토글 액션·`IMC_GolmokPhotoToggle`은 **PC 소유**(우선순위 2, `bDebugKeysEnabled`와 무관하게 항상). 포토 액션 17개·`IMC_GolmokPhoto`(우선순위 3)는 **서브시스템 소유**(Transient); 바인딩은 `AGolmokPlayerController::SetupInputComponent`가 `Photo->BindInput(Input)` 한 줄로 위임(PC 입력 컴포넌트는 빙의와 무관하게 스택에 있음). 컨텍스트 추가/제거는 서브시스템 `Enter/Exit`가 직접 | 빙의 없음(#1)의 귀결. 서브시스템 메서드 `BindAction`은 [2차] → §10 #7(실패 시 핸들러를 PC로) |
+| 5 | 입력 위치 | 토글 액션·`IMC_GolmokPhotoToggle`은 **PC 소유**(우선순위 2, `bDebugKeysEnabled`와 무관하게 항상). 포토 액션 21개(시선은 마우스 `Look`·패드 `LookPad` 둘 — 결과 참고)·`IMC_GolmokPhoto`(우선순위 3)는 **서브시스템 소유**(Transient); 바인딩은 `AGolmokPlayerController::SetupInputComponent`가 `Photo->BindInput(Input)` 한 줄로 위임(PC 입력 컴포넌트는 빙의와 무관하게 스택에 있음). 컨텍스트 추가/제거는 서브시스템 `Enter/Exit`가 직접 | 빙의 없음(#1)의 귀결. 서브시스템 메서드 `BindAction`은 [2차] → §10 #7(실패 시 핸들러를 PC로) |
 | 6 | 조절 모델 | **한 조절 한 액션 쌍, `Started`만**(반복·가속·스무딩·선택 모델·장치별 힌트 전환 없음 — Phase 2). 예외: FOV는 마우스 휠(`MouseWheelAxis`)로도 조절. 스텝: FOV 5°, EV 1/3(정수 스텝 양자화 `Quantize`), focus ×1.25, f-stop 1스톱 표 `1.4 2 2.8 4 5.6 8 11 16`, roll 1° | J-engine-11·J-product-8(②의 과설계 제거), X8(스텝은 반복 없이 20회 이내로 범위를 돎) |
 | 7 | 키 | P / `Gamepad_Special_Left` 토글; Space·Enter / A 촬영; WASD·EQ / 왼스틱·LT/RT 이동; Mouse2D / 오른스틱 시선; `[ ]`·휠 / D-pad ←→ FOV; `- =` / D-pad ↓↑ EV; `, .` / LB RB focus; N M / X Y f-stop; Z C / (없음) roll; F / R3 DOF; H / B 캐릭터 숨김; O / (없음) 오버레이; R / `Gamepad_Special_Right` 리셋; LeftShift / L3 빠르게(§5) | ③의 대칭 배정 + J-product-15(f-stop X/Y·숨김 B·리셋 Menu·DOF R3·오버레이 패드 없음·패드 롤 없음). LMB 제외(X9: 시선 조작 중 오촬영) |
 | 8 | 디버그 키·HUD | 진입 시 `IMC_GolmokDebug` 제거(`AGolmokPlayerController::SetDebugKeysSuspended(true)`), 종료 시 `bDebugKeysEnabled`일 때만 재추가; `AddMappingContext()`는 suspended 동안 early-return(재빙의는 없지만 방어). 디버그 HUD는 진입 시 `SetHudVisible(false)` 저장·복원(개발자는 `golmok.hud 1`로 켤 수 있음; 캡처 프레임은 별도 플래그로 숨김) | X5·X6, F12(`OnPossess` 재추가 가드) |
@@ -58,7 +58,7 @@
 | 17 | 구·다각형 충돌 | 순서 구 → 다각형(inset은 앵커 방향, 결과를 `PointInPolygon`으로 재검사; 오목 대응) → 스윕. 다각형 클램프 결과가 구 밖이거나 재검사 실패면 **이동 취소**(앵커는 둘 다의 안, 직전 위치도 둘 다 만족하므로 항상 안전). 스윕은 첫 블로킹 히트에서 정지(슬라이드 없음 — 최소판), `bStartPenetrating`이면 앵커 쪽 10 cm 후퇴 | X14(③) |
 | 18 | 콘솔 | `golmok.photo [0\|1]`(인자 없음 = **토글**, `golmok.hud` 규약), `golmok.photo.shoot`, `golmok.photo.reset`, + `golmok.photo.set <fov\|ev\|focus\|fstop\|roll\|dof\|char\|overlay\|mult> <value>`(헤드리스 드라이버가 키 없이 값·배율 검증). 매 전이 때 상태 한 줄 로그 | X15 |
 | 19 | ini | `[/Script/Golmok.GolmokPhotoModeSubsystem]` 11키(§7): `ConfigFile PhotoFolder ScreenshotMultiplier MaxMultiplier MaxDistanceM CollisionRadiusCm FootprintMarginM MoveSpeedMps PreCaptureFrames PostCaptureFrames PauseMode`. 우선순위는 코드 상수, `bPhotoKeyEnabled` 없음. JSON = params·toggles 기본·hints만(`camera`·`keys` 블록 없음) | X16·J-product-11 |
-| 20 | 폰 EndPlay·월드 해체 | 폰 `EndPlay(Reason)`은 항상 `Owner->OnPhotoPawnEndPlay(this, Reason)`. 서브시스템: `State == Exiting`(자기 Destroy)이면 무시; `Reason == Destroyed && !World->bIsTearingDown`이면 정상 `Exit("pawn destroyed")`; 그 밖(`EndPlayInEditor`/`Quit`/`LevelTransition`/해체 중)이면 PC·정지·뷰 타깃을 건드리지 않고 내부 상태·`OnEndFrame`·IMC 참조만 정리. `Deinitialize`도 같은 "월드 죽음" 경로 | J-engine-10 |
+| 20 | 폰 EndPlay·월드 해체 | 폰 `EndPlay(Reason)`은 항상 `Owner->OnPhotoPawnEndPlay(this, Reason)`. 서브시스템: `State == Exiting`(자기 Destroy)이면 무시; `Reason == Destroyed && !World->bIsTearingDown`이면 정상 `Exit("pawn destroyed")`; 그 밖(`EndPlayInEditor`/`Quit`/`LevelTransition`/해체 중)이면 PC·정지·뷰 타깃을 건드리지 않고 내부 상태·`OnEndFrame`·IMC 참조만 정리. `Deinitialize`도 같은 "월드 죽음" 경로. **유일한 예외**(수정 STATE-4, 2026-09-27): 게임 뷰포트 클라이언트는 월드가 아니라 GameInstance/WorldContext 소유라 -game `open`/`RestartLevel` 뒤에도 살아남으므로 `TeardownForDeadWorld`도 `SetSuppressTransitionMessage(bSavedSuppressTransition)`을 복원한다 | J-engine-10 |
 | 21 | 화면 텍스트 | 진입 시 `GameViewport->SetSuppressTransitionMessage(true)`(원값은 `bSuppressTransitionMessage` 멤버 읽기 [미확인 §10 #12]), 종료 시 복원; 런북이 정지 화면·PNG 중앙 "PAUSED" 없음을 확인. 카메라 PP에 `bOverride_MotionBlurAmount = true, MotionBlurAmount = 0` [2차 §10 #9] | J-engine-6·J-product-3/5 |
 | 22 | 테스트 | UE 3개 이름 그대로(`Golmok.Photo.EnterExit / Clamp / MetaJson`, `-nullrhi`); 파서 실패 케이스는 `MetaJson`의 순수 부분에 합침. Geo 단언은 `Geo->HasOrigin()`으로 분기(L_Dev에 GeoOrigin 없음 [확인 F13]). pytest 3파일 + 기존 상수 확장(`CONVENTION_FOLDERS += "Photo"`, `RUNBOOKS`) | J-engine-7·J-product-22 |
 | 23 | enum | `PauseMode`만 `UENUM`(Config용); `EGolmokPhotoState`는 일반 `enum class`(리플렉션 불필요, `Count` 없음). 멤버 함수는 `GolmokPhotoMath::` 한정 호출(이름 충돌 회피), 로컬 변수는 `New*`/`Local*`(C4458은 로컬도 해당), 익명 namespace는 `Photo*` 접두 | J-engine-13/14 |
@@ -372,7 +372,7 @@ public:
 	FString Describe() const;                                    // "inactive" | "active fov 65.0 ev +0.33 focus 3.000 m f/2.80 dof off roll +0.0 (zone z_x v1)" | "shooting" | "captured"
 
 	// ---- input (called by AGolmokPlayerController::SetupInputComponent) ----
-	/** Creates the 17 actions + IMC_GolmokPhoto once (owned here, Transient) and binds the handlers on this object. */
+	/** Creates the 21 actions + IMC_GolmokPhoto once (owned here, Transient) and binds the handlers on this object. */
 	void BindInput(UEnhancedInputComponent* Input);
 
 	// ---- constraint inputs / meta (public for the tests) ----
@@ -396,7 +396,8 @@ private:
 	void OnRollUp();  void OnRollDown();
 	void OnMove(const FInputActionValue& Value);  void OnMoveEnd(const FInputActionValue& Value);      // Triggered / Completed
 	void OnUpDown(const FInputActionValue& Value);  void OnUpDownEnd(const FInputActionValue& Value);
-	void OnLook(const FInputActionValue& Value);
+	void OnLook(const FInputActionValue& Value);     // Mouse2D, Triggered: delta -> AddLookMouse
+	void OnLookPad(const FInputActionValue& Value);  // Gamepad_Right2D, Triggered/Completed: value -> SetLookPad
 	void OnFastStart();  void OnFastEnd();
 
 	void EnsureInputAssets(UObject* Outer);
@@ -420,8 +421,8 @@ private:
 	static constexpr float PadLookDegPerSec = 120.f;
 
 	UPROPERTY(Transient) TObjectPtr<UInputMappingContext> PhotoContext;   // IMC_GolmokPhoto
-	UPROPERTY(Transient) TArray<TObjectPtr<UInputAction>> Actions;        // keeps the 17 actions alive (named raw pointers below index it)
-	// (names: IA_GolmokPhotoShoot Reset Dof HideCharacter HideOverlay FovUp FovDown FovWheel EvUp EvDown FocusUp FocusDown FstopUp FstopDown RollUp RollDown Move UpDown Look Fast)
+	UPROPERTY(Transient) TArray<TObjectPtr<UInputAction>> Actions;        // keeps the 21 actions alive (named raw pointers below index it)
+	// (names: IA_GolmokPhotoShoot Reset Dof HideCharacter HideOverlay FovUp FovDown FovWheel EvUp EvDown FocusUp FocusDown FstopUp FstopDown RollUp RollDown Move UpDown Look LookPad Fast)
 
 	EGolmokPhotoState State = EGolmokPhotoState::Inactive;
 	FGolmokPhotoConfig Config;  bool bConfigLoaded = false, bConfigFailed = false;  FString LastError;
@@ -603,7 +604,8 @@ PostProcess 오버라이드는 폰 카메라 컴포넌트에만 있으므로 폰
 | 촬영 | SpaceBar, Enter | A(`Gamepad_FaceButton_Bottom`) | `Shoot` Bool, Started | `OnShoot` → `Shoot()` |
 | 이동 | W S A D(캐릭터와 같은 Swizzle/Negate) | `Gamepad_Left2D` | `Move` Axis2D, Triggered/Completed | `OnMove/OnMoveEnd` → 폰 `SetMoveInput` |
 | 상승/하강 | E / Q(Negate) | `Gamepad_RightTriggerAxis` / `Gamepad_LeftTriggerAxis`(Negate) | `UpDown` Axis1D, Triggered/Completed | `OnUpDown/OnUpDownEnd` |
-| 시선 | `Mouse2D`(Y Negate, `bInvertLookY` 규약 그대로) | `Gamepad_Right2D` | `Look` Axis2D, Triggered | `OnLook` → 마우스 `AddLookMouse`(델타), 패드 `SetLookPad`(값) |
+| 시선(마우스) | `Mouse2D`(Y Negate, `bInvertLookY` 규약 그대로) | — | `Look` Axis2D, Triggered | `OnLook` → 폰 `AddLookMouse`(델타) |
+| 시선(패드) | — | `Gamepad_Right2D`(Y Negate 같은 규약) | `LookPad` Axis2D, Triggered/Completed | `OnLookPad` → 폰 `SetLookPad`(값; Completed에서 0) |
 | 빠르게(×3) | LeftShift | L3(`Gamepad_LeftThumbstick`) | `Fast` Bool, Started/Completed | `OnFastStart/End` |
 | FOV −/+ | `[` / `]`(`LeftBracket/RightBracket`), 휠(`MouseWheelAxis`, 위 = 좁게) | D-pad ← / → | `FovDown/FovUp` Bool Started; `FovWheel` Axis1D Triggered | `StepParam(Fov, ∓1)`; 휠은 부호만 |
 | EV −/+ | `-` / `=`(`Hyphen/Equals`) | D-pad ↓ / ↑ | `EvDown/EvUp` | `StepParam(Ev, ±1)` |
@@ -642,6 +644,8 @@ saved 20260925_101112.png (2x)                                        (초록, 2
 
 ### 6. 카메라 제약
 #### 6-1 구(반경 `MaxDistanceM` 3 m, 앵커 = 캐릭터 캡슐 중심 = `SavedPawn->GetActorLocation()`)
+(수정 STATE-1, 2026-09-27) 스프링암 카메라는 캡슐 중심에서 ≈ 328 cm(암 320 + `SocketOffset(0,45,55)`)라 3 m 구 밖에서 시작한다. §4-2 3항 "카메라 자세 그대로 시작"을 지키려고 진입 시 세션 유효 반경 `EffectiveRadiusCm = max(MaxDistanceM·100, Dist(EnterLocation, 앵커) + 1)`을 저장하고, 폰 `MoveConstrained`와 오버레이 거리 분모는 `GetEffectiveRadiusCm()`을 쓴다(첫 이동·R에서 튐 없음).
+
 재구성 품질은 촬영 경로(보행자 시선) 근처에서 가장 좋고 멀어질수록 무너진다. 3 m는 골목 폭 2~4 m에서 벽 앞까지 닿고, 28 mm 환산(65°)에서 전신 인물 + 여유가 나오며, "다른 골목"까지는 못 가는 반경. 하한은 바닥 충돌(15 cm 구)이 정한다(로우 앵글 허용). 높이 상한은 두지 않는다(스펙 밖; ②의 `MaxHeightAboveAnchorM` 제거).
 #### 6-2 footprint 다각형
 - 대상 = `Zones->FindLoadedZoneAt(앵커 XY)`: 앵커를 **포함**하는 **Loaded** zone 중 `ZoneWins` 첫 번째 → 실내(priority 20) > 실외(10)이므로 방 안에서는 방 footprint(합성 실내 8×6 m)로 클램프되어 카메라가 벽 너머(충돌 메시 없는 뒷면)로 못 나간다. 문턱(둘 다 포함)도 실내 우선.
@@ -752,7 +756,7 @@ PauseMode=GamePause
 | 4 | 정지 중 Enhanced Input: `UInputAction::bTriggerWhenPaused = true` [확인 필드] + PC 틱(풀틱 또는 약식)이 `TickPlayerInput(…, bGamePaused = true)` 수행 [2차 M2] | 발화 여부; 사전 정지(풀틱 아직 꺼진 상태)에서 P가 먹는지 | `PauseMode=TimeDilation` | §2 사전 정지 + P; §3 정지 중 WASD |
 | 5 | 풀틱 정지에서 캐릭터 `IMC_Default` 액션(`bTriggerWhenPaused = false`)이 발화하지 않음 + 포토 IMC(우선순위 3)의 `bConsumeInput` [확인 필드]이 같은 키를 하위로 넘기지 않음 [2차] | 소비·정지 게이트 규칙 | 캐릭터가 튀면 `AGolmokCharacter`에 `RemoveMappingContextForPhoto()` public 추가(PC fix 허용 범위) | §3 포토 중 WASD·마우스·Space → 나간 뒤 캐릭터 위치·회전 불변 |
 | 6 | `UEnhancedInputLocalPlayerSubsystem::RemoveMappingContext(const UInputMappingContext*)`(디버그 컨텍스트 제거·포토 컨텍스트 제거; `AddMappingContext`는 V-03 확인) | 오버로드(`FModifyContextOptions` 기본 인자) [2차] | `RemoveMappingContext(Ctx, FModifyContextOptions())`; 없으면 `ClearAllMappings()` 뒤 필요한 것 재추가(캐릭터 IMC 포함) | §3 F키 무반응, 이탈 후 복귀 |
-| 7 | `UEnhancedInputComponent::BindAction(Action, ETriggerEvent, UObject*, MemberFn)`에 `UWorldSubsystem` 메서드 바인딩(UFUNCTION 불필요) — WP-05가 PC 메서드로 확인 [확인]; 서브시스템도 `UObject` [2차] | 템플릿 제약 | 핸들러 17개를 `AGolmokPlayerController`에 두고 서브시스템으로 위임(①안) | 빌드 |
+| 7 | `UEnhancedInputComponent::BindAction(Action, ETriggerEvent, UObject*, MemberFn)`에 `UWorldSubsystem` 메서드 바인딩(UFUNCTION 불필요) — WP-05가 PC 메서드로 확인 [확인]; 서브시스템도 `UObject` [2차] | 템플릿 제약 | 핸들러 21개를 `AGolmokPlayerController`에 두고 서브시스템으로 위임(①안) | 빌드 |
 | 8 | 정지 중 뷰 이력 읽기 전용(`bWorldIsPaused` → `bStatePrevViewInfoIsReadOnly`) [2차 M4] → 이동 중 TSR 고스팅·Lumen 노이즈 고정·눈 적응 정지; 고해상도 프레임은 히스토리 없이 그려짐; `r.HighResScreenshotDelay` cvar 존재 [미확인] | 화질 | `PauseMode=TimeDilation`; `PreCaptureFrames`↑; cvar 있으면 값 ↑ 실험 | §4 이동 중·정지 후 화면, §6 1x/2x 크롭 비교 |
 | 9 | 카메라 컴포넌트 `PostProcessSettings` 오버라이드: `bOverride_AutoExposureBias/AutoExposureBias` [확인 V-03 볼륨 동일 필드], `bOverride_DepthOfFieldFocalDistance/DepthOfFieldFocalDistance(cm)`, `bOverride_DepthOfFieldFstop/DepthOfFieldFstop`, `bOverride_MotionBlurAmount/MotionBlurAmount` [2차 이름], `PostProcessBlendWeight`; `FocalDistance = 0` = DOF 끔 [2차]; 카메라 오버라이드가 PPV 값을 **대체**(가산 아님) [2차]; 정지 중 뷰에 적용 [2차] | 필드명·off 규약·대체 규칙 | 이름은 오류 메시지대로(`Scene.h` grep); DOF off가 안 되면 `Fstop = 16`·`FocalDistance = 5000 cm`로 근사; EV 0 밝기가 다르면 base 재가산 제거 | §4 DOF on/off·EV ±3·EV 0 밝기 동일, §5 번짐 없음 |
 | 10 | 정지 중 노출 바이어스 변경이 **즉시** 화면에 반영(눈 적응 히스토리가 멈춰도 bias는 곱셈) [2차] | 눈 적응 정지로 EV 변화가 안 보일 가능성 | `bOverride_AutoExposureSpeedUp/Down = true, 값 20`(포토 동안만) → 그래도면 `bOverride_AutoExposureMethod = true, AEM_Manual`(런북에 화면 차이 기록) | §4 EV |
@@ -767,7 +771,7 @@ PauseMode=GamePause
 | 19 | `EKeys::` 이름: `P H O R Z C N M E Q Enter LeftBracket RightBracket Hyphen Equals Comma Period MouseWheelAxis Gamepad_Special_Left/Right Gamepad_DPad_* Gamepad_LeftShoulder/RightShoulder Gamepad_FaceButton_* Gamepad_RightThumbstick` [확인 EKeys 페이지]; `Gamepad_LeftTriggerAxis` [확인 J-product F7]·`Gamepad_RightTriggerAxis` [2차]; 휠 Axis1D 값이 노치당 ±1·`Triggered` 1프레임 [2차]; 트리거 축 0..1 + `UInputModifierNegate` [2차] | 축 이름·값 의미 | 오류난 이름만 `InputCoreTypes.h` grep; 휠은 부호만 사용(설계); 트리거는 `Gamepad_LeftTrigger/RightTrigger`(버튼) Bool 두 액션으로 | 빌드 + §3 휠 1노치 = 5°·LT/RT |
 | 20 | `Gamepad_Special_Left`·P가 PIE에서 에디터에 가로채이지 않음; Esc = PIE 종료 | [2차] | 게임패드 토글을 `Gamepad_Special_Right`로 교체(코드 상수) | §2 |
 | 21 | 캐릭터 `SetActorHiddenInGame(true)`가 그림자까지 제거 | [2차] | 메시 `SetCastShadow(false)` 병행·복원 | §4 H 후 그림자 |
-| 22 | `UPROPERTY(Transient) TArray<TObjectPtr<UInputAction>>`(GC 보관) | 리플렉션 가능 [2차] | 액션별 멤버 17개(한 줄에 하나 — UHT는 콤마 다중 선언 거부) | UHT/빌드 |
+| 22 | `UPROPERTY(Transient) TArray<TObjectPtr<UInputAction>>`(GC 보관) | 리플렉션 가능 [2차] | 액션별 멤버 21개(한 줄에 하나 — UHT는 콤마 다중 선언 거부) | UHT/빌드 |
 | 23 | `UGameplayStatics::SetGlobalTimeDilation/GetGlobalTimeDilation`, `AWorldSettings::MinGlobalTimeDilation`(0.0001), `AActor::CustomTimeDilation`(폴백 경로만) | [2차] | `World->GetWorldSettings()->SetTimeDilation`; 하한 위반이면 `MinGlobalTimeDilation` 값으로 | `PauseMode=TimeDilation`일 때만 |
 | 24 | `FDateTime::UtcNow().ToString(TEXT("%Y-%m-%dT%H:%M:%SZ"))`·`Now().ToString(TEXT("%Y%m%d_%H%M%S"))` [확인 V-03 경로 JSON·스크린샷] | — | — | 메타 `time_utc` |
 | 25 | `UWorld::bIsTearingDown`·`DoesSupportWorldType` [확인 V-03]; `EEndPlayReason::Destroyed/EndPlayInEditor/Quit/LevelTransition/RemovedFromWorld` [2차 이름] | enum 값 이름 | 오류 메시지대로 | 빌드 + §11 PIE 종료 |
@@ -840,3 +844,8 @@ PauseMode=GamePause
 | 38 | engine F13 / product F13 | 문서 | 법 조문 추측 금지 | §2-4: 이미 인용된 조문만, 판단은 D-009 |
 | 39 | product X11 `file` 필드 | data | nullrhi 폴백 이름과 어긋남 | 제외 |
 | 40 | engine·product "best ideas" | 채택 | `ShiftTransitionStart`·`FindLoadedZoneAt`·진입 FOV·DOF off·pre/post 프레임·PNG 폴링·메타 먼저·Windows CI 함정 목록·거부 경로 테스트·VRAM 표·JPG 4장 | 전부 채택(§0·§8·§9) |
+
+## 결과
+
+### 설계 대비 변경
+- **포토 액션 17 → 21개(`IA_GolmokPhotoLookPad` 추가)**: 설계 §5는 시선을 `Look` 한 액션(Axis2D)에 `Mouse2D`와 `Gamepad_Right2D`를 함께 매핑하고 핸들러에서 "마우스면 델타, 패드면 값"으로 나누도록 적었으나, 한 Axis2D 액션의 `FInputActionValue`에는 어느 장치에서 왔는지가 없어 핸들러가 둘을 구분할 수 없다(마우스 델타는 프레임마다 누적, 스틱 값은 유지·Completed에서 0이어야 함). 그래서 `Look`(Mouse2D, Triggered → `AddLookMouse`)과 `LookPad`(Gamepad_Right2D, Triggered/Completed → `SetLookPad`)로 나눴다. §0 #5·§3-2·§5·§10 #7/#22의 개수를 21로 고쳤고, `tools/tests/test_ue_wp12_fixture.py`의 `PHOTO_ACTIONS`(21개)가 코드의 `IA_GolmokPhoto*` 집합과 **같음(==)**을 고정한다(이전 `>=`는 액션 추가를 잡지 못했다).
