@@ -938,6 +938,7 @@ bool UGolmokPhotoModeSubsystem::Enter(FString& OutMessage)
 	bSavedHudVisible = Debug ? Debug->IsHudVisible() : false;
 	bSavedPawnHidden = Pawn->IsHidden();
 	bDebugKeysWereActive = !PC->IsDebugKeysSuspended();
+	bSavedCameraMoveableWhenPaused = World->bIsCameraMoveableWhenPaused != 0;
 	WorldTimeAtEnter = World->GetTimeSeconds();
 	UGameViewportClient* Viewport = World->GetGameViewport();
 	// Section 10 #12 / V-09 C2248: bSuppressTransitionMessage is protected and has no engine getter; the project viewport
@@ -1018,6 +1019,11 @@ bool UGolmokPhotoModeSubsystem::Enter(FString& OutMessage)
 		OutMessage = TEXT("cannot enter: pause refused");
 		return false;
 	}
+	// V-09 PC fix (runbook section 12 #57, section 10 #8): a paused world renders with bWorldIsPaused
+	// (= !UWorld::IsCameraMoveable()), which makes the view's temporal history read-only, so TSR / Lumen keep a ghost
+	// of the frame before the camera moved, on screen and in HighResShot. The engine flag keeps the game paused
+	// but lets the photo camera's view update its history like an unpaused frame. Exit restores the saved value.
+	World->bIsCameraMoveableWhenPaused = true;
 
 	// 7. no "PAUSED" transition message on screen or in the shot (section 10 #12).
 	if (Viewport)
@@ -1201,6 +1207,10 @@ void UGolmokPhotoModeSubsystem::RestoreAll()
 		Viewport->SetSuppressTransitionMessage(bSavedSuppressTransition);
 	}
 	ApplyPause(false);
+	if (World)
+	{
+		World->bIsCameraMoveableWhenPaused = bSavedCameraMoveableWhenPaused;
+	}
 	const bool bUnpaused = ActivePauseMode == EGolmokPhotoPauseMode::TimeDilation || !bWasPausedBefore;
 
 	// Time of day: a running transition resumes where it was, whether the world clock stood still or not.
