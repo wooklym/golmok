@@ -273,8 +273,8 @@ namespace GolmokPhotoTest
 				FovBefore = PC->PlayerCameraManager->GetFOVAngle();
 				CharacterLocationBefore = Pawn->GetActorLocation();
 				ControlRotationBefore = PC->GetControlRotation();
-				const bool bFullTick = PC->bShouldPerformFullTickWhenPaused;
-				bFullTickBefore = bFullTick;
+				// Protected in APlayerController (5.8.3): read through the project controller's accessor.
+				bFullTickBefore = PC->GetFullTickWhenPausedFlag();
 
 				FString Message;
 				if (!Test->TestTrue(TEXT("Enter()"), Photo->Enter(Message)))
@@ -364,8 +364,8 @@ namespace GolmokPhotoTest
 				Test->TestTrue(TEXT("character visible again"), Character.IsValid() && !Character->IsHidden());
 				Test->TestTrue(TEXT("debug HUD visibility restored (true)"), Debug->IsHudVisible());
 				Test->TestFalse(TEXT("debug keys no longer suspended"), PC->IsDebugKeysSuspended());
-				const bool bFullTickAfter = PC->bShouldPerformFullTickWhenPaused;
-				Test->TestTrue(TEXT("bShouldPerformFullTickWhenPaused restored (false)"), bFullTickAfter == bFullTickBefore && !bFullTickAfter);
+				const bool bFullTickAfter = PC->GetFullTickWhenPausedFlag();
+				Test->TestTrue(TEXT("full-tick-when-paused flag restored (false)"), bFullTickAfter == bFullTickBefore && !bFullTickAfter);
 				Test->TestTrue(TEXT("photo pawn destroyed (or pending kill)"), !PawnRef.IsValid() || PawnRef->IsPendingKillPending());
 				Test->TestTrue(TEXT("State == Inactive"), Photo->GetState() == EGolmokPhotoState::Inactive);
 

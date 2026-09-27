@@ -145,6 +145,17 @@ void AGolmokPlayerController::AddMappingContext()
 	Subsystem->AddMappingContext(DebugMappingContext, DebugMappingPriority);
 }
 
+bool AGolmokPlayerController::GetFullTickWhenPausedFlag() const
+{
+	// Protected member of the base class: readable here (derived class), not from the photo subsystem.
+	return bShouldPerformFullTickWhenPaused != 0;
+}
+
+void AGolmokPlayerController::SetFullTickWhenPausedFlag(bool bOn)
+{
+	bShouldPerformFullTickWhenPaused = bOn;
+}
+
 void AGolmokPlayerController::SetDebugKeysSuspended(bool bSuspended)
 {
 	if (bDebugKeysSuspended == bSuspended)

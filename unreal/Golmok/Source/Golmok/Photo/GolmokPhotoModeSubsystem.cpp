@@ -30,6 +30,7 @@
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 #include "Photo/GolmokPhotoCameraPawn.h"
+#include "Player/GolmokGameViewportClient.h"
 #include "Player/GolmokPlayerController.h"
 #include "Serialization/JsonReader.h"
 #include "Serialization/JsonSerializer.h"
@@ -575,6 +576,24 @@ AGolmokPlayerController* UGolmokPhotoModeSubsystem::GetPC() const
 	return Cast<AGolmokPlayerController>(UGameplayStatics::GetPlayerController(World, 0));
 }
 
+FGolmokPhotoRestoreState UGolmokPhotoModeSubsystem::GetRestoreState() const
+{
+	FGolmokPhotoRestoreState Out;
+	Out.bWasPausedBefore = bWasPausedBefore;
+	Out.bFullTickWhenPaused = bSavedFullTickWhenPaused;
+	Out.bHudVisible = bSavedHudVisible;
+	Out.bPawnHidden = bSavedPawnHidden;
+	Out.bTransitionMessageSuppressed = bSavedSuppressTransition;
+	Out.bDebugKeysActive = bDebugKeysWereActive;
+	Out.TimeDilation = SavedTimeDilation;
+	Out.PawnTimeDilation = SavedPawnTimeDilation;
+	Out.WorldTimeAtEnter = WorldTimeAtEnter;
+	Out.SavedPawn = SavedPawn.Get();
+	Out.SavedViewTarget = SavedViewTarget.Get();
+	Out.SavedControlRotation = SavedControlRotation;
+	return Out;
+}
+
 AGolmokPhotoCameraPawn* UGolmokPhotoModeSubsystem::GetPhotoPawn() const
 {
 	return PhotoPawn.Get();
@@ -908,16 +927,23 @@ bool UGolmokPhotoModeSubsystem::Enter(FString& OutMessage)
 	bWasPausedBefore = UGameplayStatics::IsGamePaused(World);
 	SavedTimeDilation = UGameplayStatics::GetGlobalTimeDilation(World);
 	SavedPawnTimeDilation = Pawn->CustomTimeDilation;
-	// A copy, never a reference: the flag may be a bitfield (section 10 #3).
-	const bool bSavedFullTick = PC->bShouldPerformFullTickWhenPaused;
-	bSavedFullTickWhenPaused = bSavedFullTick;
+	// Section 10 #3 / V-09 C2248: the flag is protected in APlayerController, so the project controller reads the raw bit.
+	bSavedFullTickWhenPaused = PC->GetFullTickWhenPausedFlag();
 	bSavedHudVisible = Debug ? Debug->IsHudVisible() : false;
 	bSavedPawnHidden = Pawn->IsHidden();
 	bDebugKeysWereActive = !PC->IsDebugKeysSuspended();
 	WorldTimeAtEnter = World->GetTimeSeconds();
 	UGameViewportClient* Viewport = World->GetGameViewport();
-	// Section 10 #12: the member read is the uncertain part; SetSuppressTransitionMessage(bool) is the setter.
-	bSavedSuppressTransition = Viewport ? Viewport->bSuppressTransitionMessage : false;
+	// Section 10 #12 / V-09 C2248: bSuppressTransitionMessage is protected and has no engine getter; the project viewport
+	// client (DefaultEngine.ini GameViewportClientClassName) exposes it. Without it the engine default (false) is assumed.
+	const UGolmokGameViewportClient* GolmokViewport = Cast<UGolmokGameViewportClient>(Viewport);
+	bSavedSuppressTransition = GolmokViewport ? GolmokViewport->IsTransitionMessageSuppressed() : false;
+	if (Viewport && !GolmokViewport && !bWarnedViewportClass)
+	{
+		bWarnedViewportClass = true;
+		UE_LOG(LogGolmok, Warning, TEXT("photo: game viewport is %s, not UGolmokGameViewportClient (DefaultEngine.ini GameViewportClientClassName); the transition message flag is restored to false"),
+			*Viewport->GetClass()->GetName());
+	}
 
 	// 3. camera pose: the photo camera starts exactly where the player camera is (FOV continuity, section 0 #12).
 	EnterLocation = Cam->GetCameraLocation();
@@ -967,12 +993,12 @@ bool UGolmokPhotoModeSubsystem::Enter(FString& OutMessage)
 	PC->SetViewTargetWithBlend(NewPawn, 0.f);
 
 	// 6. paused-tick path for the controller (camera manager update while paused, section 10 #3) + the pause itself.
-	PC->bShouldPerformFullTickWhenPaused = true;
+	PC->SetFullTickWhenPausedFlag(true);
 	ApplyPause(true);
 	if (PauseMode == EGolmokPhotoPauseMode::GamePause && !bWasPausedBefore && !UGameplayStatics::IsGamePaused(World))
 	{
 		// The game mode refused (section 10 #1): undo what was done so far.
-		PC->bShouldPerformFullTickWhenPaused = bSavedFullTickWhenPaused;
+		PC->SetFullTickWhenPausedFlag(bSavedFullTickWhenPaused);
 		AActor* Back = SavedViewTarget.IsValid() ? SavedViewTarget.Get() : static_cast<AActor*>(Pawn);
 		PC->SetViewTargetWithBlend(Back, 0.f);
 		PhotoPawn.Reset();
@@ -1158,7 +1184,7 @@ void UGolmokPhotoModeSubsystem::RestoreAll()
 			// Re-added only when bDebugKeysEnabled (the controller checks).
 			PC->SetDebugKeysSuspended(false);
 		}
-		PC->bShouldPerformFullTickWhenPaused = bSavedFullTickWhenPaused;
+		PC->SetFullTickWhenPausedFlag(bSavedFullTickWhenPaused);
 	}
 	if (UGameViewportClient* Viewport = World ? World->GetGameViewport() : nullptr)
 	{

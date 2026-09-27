@@ -73,6 +73,29 @@ struct FGolmokPhotoConfig
 	const FGolmokPhotoParamSpec& Spec(EGolmokPhotoParam P) const { return Params[static_cast<int32>(P)]; }
 };
 
+/**
+ * Snapshot of what Enter() saved and Exit() restores (design section 4-3). Plain struct, not reflected; read through
+ * UGolmokPhotoModeSubsystem::GetRestoreState() by integration tests (WP-18 roster x photo). Raw pointers are the
+ * weak pointers resolved at call time (null once the actor is gone).
+ */
+struct FGolmokPhotoRestoreState
+{
+	bool bWasPausedBefore = false;
+	/** AGolmokPlayerController::GetFullTickWhenPausedFlag() at entry. */
+	bool bFullTickWhenPaused = false;
+	bool bHudVisible = false;
+	bool bPawnHidden = false;
+	/** UGolmokGameViewportClient::IsTransitionMessageSuppressed() at entry (false when that class is not configured). */
+	bool bTransitionMessageSuppressed = false;
+	bool bDebugKeysActive = false;
+	float TimeDilation = 1.f;
+	float PawnTimeDilation = 1.f;
+	double WorldTimeAtEnter = 0.0;
+	APawn* SavedPawn = nullptr;
+	AActor* SavedViewTarget = nullptr;
+	FRotator SavedControlRotation = FRotator::ZeroRotator;
+};
+
 /** Parser helpers live in a NAMED namespace (unity build: GolmokLightingJson precedent). Static args are In* / Out* (C4458). */
 namespace GolmokPhotoJson
 {
@@ -168,6 +191,12 @@ public:
 	/** Section 0 #12: JSON defaults, DOF off, character / overlay shown, pose back to the entry point. */
 	void Reset();
 	bool IsActive() const { return State != EGolmokPhotoState::Inactive; }
+	/**
+	 * What Enter() saved and Exit() restores (public read contract for integration tests such as the WP-18 roster x photo
+	 * test): valid while IsActive(); Exit(Reason) is the restore. The controller flag comes from
+	 * AGolmokPlayerController::GetFullTickWhenPausedFlag(), the viewport flag from UGolmokGameViewportClient.
+	 */
+	FGolmokPhotoRestoreState GetRestoreState() const;
 	bool IsCapturing() const { return State == EGolmokPhotoState::Shooting || State == EGolmokPhotoState::Captured; }
 	EGolmokPhotoState GetState() const { return State; }
 	/** Null outside game worlds. */
@@ -331,6 +360,7 @@ private:
 	bool bSavedPawnHidden = false;
 	bool bSavedSuppressTransition = false;
 	bool bDebugKeysWereActive = false;
+	bool bWarnedViewportClass = false;
 	float SavedTimeDilation = 1.f;
 	float SavedPawnTimeDilation = 1.f;
 	double WorldTimeAtEnter = 0.0;

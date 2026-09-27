@@ -51,6 +51,14 @@ public:
 	/** Priority of IMC_GolmokPhotoToggle: above IMC_GolmokDebug (1), below the subsystem's IMC_GolmokPhoto (3). */
 	static constexpr int32 PhotoTogglePriority = 2;
 
+	/**
+	 * Raw APlayerController::bShouldPerformFullTickWhenPaused, which is protected in UE 5.8.3 (V-09 build report, C2248).
+	 * Photo mode saves the exact bit through the getter and writes it back through the setter; the engine's public
+	 * ShouldPerformFullTickWhenPaused() also ORs the XR condition, so it is not a snapshot of the bit.
+	 */
+	bool GetFullTickWhenPausedFlag() const;
+	void SetFullTickWhenPausedFlag(bool bOn);
+
 protected:
 	virtual void BeginPlay() override;
 	virtual void SetupInputComponent() override;

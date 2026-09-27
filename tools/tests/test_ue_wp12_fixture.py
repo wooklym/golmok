@@ -603,3 +603,58 @@ def test_convention_folders_include_photo():
         text = _read(header)
         assert text.lstrip().startswith("#pragma once") or header.suffix == ".cpp", header.name
     assert MATH_H.is_file() and PAWN_H.is_file() and SUBSYSTEM_H.is_file()
+
+
+# V-09 build report (Astra, UE 5.8.3 MSVC): C2248 at 7 sites — APlayerController's
+# bShouldPerformFullTickWhenPaused and UGameViewportClient's bSuppressTransitionMessage are protected.
+# Only the project subclasses may touch the raw members; everything else goes through their accessors.
+ENGINE_PROTECTED_MEMBERS = {
+    "bShouldPerformFullTickWhenPaused": {"GolmokPlayerController.cpp", "GolmokPlayerController.h"},
+    "bSuppressTransitionMessage": {"GolmokGameViewportClient.h", "GolmokGameViewportClient.cpp"},
+}
+ACCESSOR_FOR = {
+    "bShouldPerformFullTickWhenPaused": ("GetFullTickWhenPausedFlag", "SetFullTickWhenPausedFlag"),
+    "bSuppressTransitionMessage": ("IsTransitionMessageSuppressed",),
+}
+
+
+def test_engine_protected_members_only_touched_inside_project_subclasses():
+    for member, allowed in ENGINE_PROTECTED_MEMBERS.items():
+        pattern = re.compile(r"(->|\.)\s*" + member + r"\b")
+        for path in sorted(SOURCE.rglob("*.cpp")) + sorted(SOURCE.rglob("*.h")):
+            code = _strip_comments(path.read_text(encoding="utf-8"))
+            assert not pattern.search(code), f"{path.name}: raw access to protected engine member {member}"
+            if path.name not in allowed:
+                # Even a bare (implicit-this) use belongs to the subclass files only.
+                bare = re.search(r"\b" + member + r"\b", code)
+                assert bare is None, f"{path.name}: {member} outside its subclass"
+    controller = (SOURCE / "Player" / "GolmokPlayerController.h").read_text(encoding="utf-8")
+    for accessor in ACCESSOR_FOR["bShouldPerformFullTickWhenPaused"]:
+        assert accessor in controller
+    viewport = (SOURCE / "Player" / "GolmokGameViewportClient.h").read_text(encoding="utf-8")
+    assert "class GOLMOK_API UGolmokGameViewportClient : public UGameViewportClient" in viewport
+    assert ACCESSOR_FOR["bSuppressTransitionMessage"][0] in viewport
+    subsystem = (PHOTO / "GolmokPhotoModeSubsystem.cpp").read_text(encoding="utf-8")
+    assert "GetFullTickWhenPausedFlag()" in subsystem and "SetFullTickWhenPausedFlag(" in subsystem
+    assert "IsTransitionMessageSuppressed()" in subsystem
+
+
+def test_default_engine_ini_selects_the_project_viewport_client():
+    cp = parse_ue_ini((UE / "Config" / "DefaultEngine.ini").read_text(encoding="utf-8-sig"))
+    section = cp["/Script/Engine.Engine"]
+    assert section["GameViewportClientClassName"] == "/Script/Golmok.GolmokGameViewportClient"
+
+
+def test_restore_state_contract_is_public():
+    header = (PHOTO / "GolmokPhotoModeSubsystem.h").read_text(encoding="utf-8")
+    assert "struct FGolmokPhotoRestoreState" in header
+    assert "FGolmokPhotoRestoreState GetRestoreState() const;" in header
+    fields = (
+        "bWasPausedBefore",
+        "bFullTickWhenPaused",
+        "bHudVisible",
+        "bTransitionMessageSuppressed",
+        "bDebugKeysActive",
+    )
+    for field in fields:
+        assert re.search(r"\b" + field + r"\b", header), field
