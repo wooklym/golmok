@@ -408,7 +408,7 @@ V-09 PC 세션(Claude Desktop 워크트리 `upbeat-rosalind-95c87c`, 사용자 P
 | §11 PIE 종료 | ✅ | 포토 켠 채 종료 → `photo: teardown (world ending)` 1줄, 다른 경고·에러 없음. 캡처 창 중 종료(촬영과 같은 틱) → `teardown` 1줄, `capture window closed` 없음, JSON·PNG 모두 안 생김(메타 기록 전 — 고아 없음). 종료 뒤 에디터 월드에 포토 폰 없음, 더티 맵 없음. 재 PIE: `config loaded` 1회, 정지 잔재 없음. 포토 중 zone unload/load → 폰 유지, 폰 강제 삭제 → `photo mode off (restored, …)` |
 | 고친 API 번호(§12)·커밋 | 3건 | c026815: #57(`UWorld::bIsCameraMoveableWhenPaused` 저장·설정·복원 — 잔상) + #10(눈 적응 속도 20 EV/s). 4834941: `MaxMultiplier=2`(#59, §6 규칙). 컴파일 오류 수정은 0건 |
 | 설계와 다른 동작 발견 | 7건 | ① 정지 월드 이력 고정 잔상(#57, 수정). ② EV 눈 적응 완화(#10, 수정). ③ footprint 톱니(#58, 미수정·클라우드). ④ 벽 대각 밀착 정지(#60, 미수정). ⑤ 촬영이 게임 스레드를 멈춤 2x 1.2 s·3x 3~6 s(#59). ⑥ 사전 정지 종료 뒤 화면이 정지 해제까지 옛 구도(#3). ⑦ TimeDilation: 잔상은 없지만 EV 무반응·로그 `unpaused`(#61). 그 밖: 마우스 시선이 1000 px에 35°로 느림(조작감 판단), 뷰포트 2554×1354라 배율 해상도가 1440p 기대값보다 약간 작음 |
-| STATUS | `🟡 → 🔴` | §7 footprint 경계 톱니(#58)가 "20 cm 안쪽 정지"를 못 지킴 + 벽 대각 밀착 정지(#60) → 클라우드 수정 뒤 §7만 재검증. PC fix c026815는 Unreal 코드라 병합 전 Fable ultracode 적대 검증 필요 |
+| STATUS | `🟡 → 🔴` | §7 footprint 경계 톱니(#58)가 "20 cm 안쪽 정지"를 못 지킴 + 벽 대각 밀착 정지(#60) → 클라우드 수정 뒤 §7만 재검증. PC fix c026815는 Unreal 코드라 병합 전 Opus 5.5 ultracode 적대 검증 필요(모델 정책 2026-09-27) |
 
 §6 배율 VRAM 표(뷰포트 2554×1354, `nvidia-smi` GPU 전체 사용량; "증가"는 촬영 직전 1.5 s 최소값 대비 피크):
 
