@@ -145,6 +145,7 @@ void AGolmokPlayerController::AddMappingContext()
 	Subsystem->AddMappingContext(DebugMappingContext, DebugMappingPriority);
 }
 
+// [WP-12 hook] protected engine member: readable / writable from the derived class only
 bool AGolmokPlayerController::GetFullTickWhenPausedFlag() const
 {
 	// Protected member of the base class: readable here (derived class), not from the photo subsystem.
@@ -155,6 +156,7 @@ void AGolmokPlayerController::SetFullTickWhenPausedFlag(bool bOn)
 {
 	bShouldPerformFullTickWhenPaused = bOn;
 }
+// [/WP-12 hook]
 
 void AGolmokPlayerController::SetDebugKeysSuspended(bool bSuspended)
 {
