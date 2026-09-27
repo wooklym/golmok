@@ -80,6 +80,8 @@ struct FGolmokPhotoConfig
  */
 struct FGolmokPhotoRestoreState
 {
+	/** PauseMode latched by Enter(); Exit() restores this branch even if the property changed meanwhile. */
+	EGolmokPhotoPauseMode PauseMode = EGolmokPhotoPauseMode::GamePause;
 	bool bWasPausedBefore = false;
 	/** AGolmokPlayerController::GetFullTickWhenPausedFlag() at entry. */
 	bool bFullTickWhenPaused = false;
@@ -305,7 +307,7 @@ private:
 	void EnsureInputAssets(UObject* Outer);
 	/** IMC_GolmokPhoto at PhotoMappingPriority (3), Active only. */
 	void AddPhotoContext(bool bOn);
-	/** PauseMode branch; honours bWasPausedBefore. */
+	/** ActivePauseMode branch (latched at Enter); honours bWasPausedBefore. */
 	void ApplyPause(bool bOn);
 	/** Values -> pawn (FOV, roll, PP overrides), character hidden. */
 	void ApplyToPawn();
@@ -358,6 +360,7 @@ private:
 	TWeakObjectPtr<APawn> SavedPawn;
 	TWeakObjectPtr<AActor> SavedViewTarget;
 	FRotator SavedControlRotation = FRotator::ZeroRotator;
+	EGolmokPhotoPauseMode ActivePauseMode = EGolmokPhotoPauseMode::GamePause; // PauseMode as read at Enter()
 	bool bWasPausedBefore = false;
 	bool bSavedFullTickWhenPaused = false;
 	bool bSavedHudVisible = false;

@@ -21,7 +21,7 @@
 | `Source/Golmok/Debug/GolmokHUD.{h,cpp}` | `DrawHUD` 첫머리 `IsHudSuppressed()`(= 캡처 창) 가드 + 왼쪽 아래 포토 오버레이(흰/노랑·시안·회색·초록), 클래스 주석 정정 |
 | `Source/Golmok/Player/GolmokPlayerController.{h,cpp}` | `IA_GolmokPhotoToggle`(P, `Gamepad_Special_Left`, `bTriggerWhenPaused`)·`IMC_GolmokPhotoToggle`(우선순위 2, 항상), `OnTogglePhoto`(로그 `P: …`), `SetDebugKeysSuspended/IsDebugKeysSuspended`, `SetupInputComponent`가 `Photo->BindInput(Input)` 위임; `GetFullTickWhenPausedFlag/SetFullTickWhenPausedFlag`(f5c8861 — `APlayerController::bShouldPerformFullTickWhenPaused`가 5.8.3에서 protected라 원시 비트 스냅샷·복원, §12 #3) |
 | `Source/Golmok/Player/GolmokGameViewportClient.{h,cpp}` | 신규(f5c8861): `UGolmokGameViewportClient`(`UGameViewportClient` 파생) — `IsTransitionMessageSuppressed() const`로 protected `bSuppressTransitionMessage`를 읽음(엔진은 setter만 있음, §12 #12) |
-| `Config/DefaultEngine.ini` | `[/Script/Engine.Engine]` 3행 `GameViewportClientClassName=/Script/Golmok.GolmokGameViewportClient`(f5c8861). 이 줄이 없으면 서브시스템이 엔진 기본값(false)으로 복원하고 §2의 Warning을 1회 찍는다 |
+| `Config/DefaultEngine.ini` | 파일 끝 `[/Script/Engine.Engine]` 절(`[WP-12 hook]`) `GameViewportClientClassName=/Script/Golmok.GolmokGameViewportClient`(f5c8861; 병합 전 리뷰로 파일 끝으로 이동). 이 줄이 없으면 서브시스템이 엔진 기본값(false)으로 복원하고 §2의 Warning을 1회 찍는다 |
 | `Source/Golmok/Zones/GolmokZoneSubsystem.{h,cpp}` | 추가만: `AGolmokZone* FindLoadedZoneAt(const FVector2D& LevelUEPointCm) const`(Loaded + footprint 포함 + `ZoneWins`) |
 | `Source/Golmok/Lighting/GolmokTimeOfDay.{h,cpp}` | 추가만: `void ShiftTransitionStart(double DeltaSeconds)`(전환 중 아니면 no-op) |
 | `Source/Golmok/Tests/GolmokPhotoTest.cpp` | 자동화 3개 `Golmok.Photo.EnterExit / Clamp / MetaJson`(`EditorContext \| ProductFilter`, `L_Dev`, 대기는 전부 `FPlatformTime`) |
@@ -83,7 +83,7 @@ PIE 시작(PlayerStart = 001 zone-local (0, −5, 0) m, `Zone_z_synthetic_001` L
   ```
   LogGolmok: Warning: photo: game viewport is GameViewportClient, not UGolmokGameViewportClient (DefaultEngine.ini GameViewportClientClassName); the transition message flag is restored to false
   ```
-  찍히면(`%s` 자리는 실제 뷰포트 클래스 이름) `Config/DefaultEngine.ini` **3행** `GameViewportClientClassName=/Script/Golmok.GolmokGameViewportClient`가 있는지, `[/Script/Engine.Engine]` 아래인지 확인한다(§12 #12). 이 상태에서도 포토 모드는 동작하지만 종료 시 전환 메시지 억제 플래그를 원래 값 대신 false로 되돌린다 → §13.
+  찍히면(`%s` 자리는 실제 뷰포트 클래스 이름) `Config/DefaultEngine.ini` **파일 끝** `[/Script/Engine.Engine]` 절에 `GameViewportClientClassName=/Script/Golmok.GolmokGameViewportClient`가 있는지 확인한다(§12 #12). 이 상태에서도 포토 모드는 동작하지만 종료 시 전환 메시지 억제 플래그를 원래 값 대신 false로 되돌린다 → §13.
 - [ ] 화면: 정지(캐릭터 애니·바람 멈춤), 디버그 HUD 사라짐, **왼쪽 아래** 반투명 검정 박스에 5줄(`GolmokHUD.cpp` `PhotoColorForLine`: 1행 흰색, 2행 시안, 3~5행 회색):
   ```
   PHOTO  z_synthetic_001 v1  overcast_morning  3.3 / 3.3 m  2x

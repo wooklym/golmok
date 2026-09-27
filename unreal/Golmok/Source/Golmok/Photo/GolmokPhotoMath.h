@@ -82,7 +82,8 @@ namespace GolmokPhotoMath
 		{
 			K = MaxK;
 		}
-		return L + K * Step;
+		const double R = L + K * Step;
+		return (std::fabs(R) < Step * 1e-6) ? 0.0 : R; // a grid point at zero is +0.0 (json step 0.3333333333 gives -3e-10, printed -0.00)
 	}
 
 	/** Quantize(V + Dir * Step): Dir in {-1, 0, +1} (any |Dir| >= 1 counts as one step). */

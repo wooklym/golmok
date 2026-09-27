@@ -243,7 +243,8 @@ def test_clamp_param(driver):
 def ref_quantize(v: float, lo: float, hi: float, step: float) -> float:
     k = round((v - lo) / step)
     k = max(0, min(k, int(math.floor((hi - lo) / step + 1e-9))))
-    return lo + k * step
+    r = lo + k * step
+    return 0.0 if abs(r) < step * 1e-6 else r  # zero grid point is +0.0, never -3e-10 / -0.0
 
 
 def test_quantize_and_step_linear_stay_on_the_grid(driver):
@@ -272,7 +273,12 @@ def test_quantize_and_step_linear_stay_on_the_grid(driver):
     assert v == pytest.approx(3.0, abs=1e-8)
     for _ in range(9):
         v = one(driver, "steplin", v, EV_MIN, EV_MAX, EV_STEP_JSON, -1)
-    assert v == pytest.approx(0.0, abs=1e-8)
+    # exactly +0.0: the JSON step lands at -3e-10 without the zero snap, which the overlay prints as ev -0.00
+    assert v == 0.0 and math.copysign(1.0, v) == 1.0
+    z = one(driver, "quant", 0.0, EV_MIN, EV_MAX, EV_STEP_JSON)
+    assert z == 0.0 and math.copysign(1.0, z) == 1.0
+    z = one(driver, "quant", -3e-10, EV_MIN, EV_MAX, EV_STEP_JSON)
+    assert z == 0.0 and math.copysign(1.0, z) == 1.0
     assert one(driver, "quant", 0.34, EV_MIN, EV_MAX, EV_STEP_JSON) == pytest.approx(third, abs=1e-8)
     assert one(driver, "quant", -0.4, EV_MIN, EV_MAX, EV_STEP_JSON) == pytest.approx(-third, abs=1e-8)
     # 0.1 steps, 30 times: the result is a grid value (k * 0.1 from -1) and matches the Python reference

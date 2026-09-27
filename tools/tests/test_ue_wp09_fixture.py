@@ -77,10 +77,10 @@ CONSOLE_COMMANDS = {
     "golmok.zone.refresh",
     "golmok.zone.radius",
     "golmok.zone.index",  # WP-09
-    "golmok.photo",  # WP-12
-    "golmok.photo.shoot",
-    "golmok.photo.reset",
-    "golmok.photo.set",
+    "golmok.photo",  # [WP-12 hook]
+    "golmok.photo.shoot",  # [WP-12 hook]
+    "golmok.photo.reset",  # [WP-12 hook]
+    "golmok.photo.set",  # [WP-12 hook]
     "golmok.portal",
     "golmok.tod",
     "golmok.hud",

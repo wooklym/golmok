@@ -579,6 +579,7 @@ AGolmokPlayerController* UGolmokPhotoModeSubsystem::GetPC() const
 FGolmokPhotoRestoreState UGolmokPhotoModeSubsystem::GetRestoreState() const
 {
 	FGolmokPhotoRestoreState Out;
+	Out.PauseMode = ActivePauseMode;
 	Out.bWasPausedBefore = bWasPausedBefore;
 	Out.bFullTickWhenPaused = bSavedFullTickWhenPaused;
 	Out.bHudVisible = bSavedHudVisible;
@@ -1002,8 +1003,9 @@ bool UGolmokPhotoModeSubsystem::Enter(FString& OutMessage)
 
 	// 6. paused-tick path for the controller (camera manager update while paused, section 10 #3) + the pause itself.
 	PC->SetFullTickWhenPausedFlag(true);
+	ActivePauseMode = PauseMode; // latched: Exit() restores the same branch even if the property is changed meanwhile
 	ApplyPause(true);
-	if (PauseMode == EGolmokPhotoPauseMode::GamePause && !bWasPausedBefore && !UGameplayStatics::IsGamePaused(World))
+	if (ActivePauseMode == EGolmokPhotoPauseMode::GamePause && !bWasPausedBefore && !UGameplayStatics::IsGamePaused(World))
 	{
 		// The game mode refused (section 10 #1): undo what was done so far.
 		PC->SetFullTickWhenPausedFlag(bSavedFullTickWhenPaused);
@@ -1056,7 +1058,7 @@ void UGolmokPhotoModeSubsystem::ApplyPause(bool bOn)
 	{
 		return;
 	}
-	if (PauseMode == EGolmokPhotoPauseMode::TimeDilation)
+	if (ActivePauseMode == EGolmokPhotoPauseMode::TimeDilation)
 	{
 		// PC fallback (section 0 #2): the world crawls at 0.0001x, the character does not move at all.
 		if (bOn)
@@ -1199,7 +1201,7 @@ void UGolmokPhotoModeSubsystem::RestoreAll()
 		Viewport->SetSuppressTransitionMessage(bSavedSuppressTransition);
 	}
 	ApplyPause(false);
-	const bool bUnpaused = PauseMode == EGolmokPhotoPauseMode::TimeDilation || !bWasPausedBefore;
+	const bool bUnpaused = ActivePauseMode == EGolmokPhotoPauseMode::TimeDilation || !bWasPausedBefore;
 
 	// Time of day: a running transition resumes where it was, whether the world clock stood still or not.
 	double TodShift = 0.0;
