@@ -227,11 +227,83 @@ namespace GolmokPhotoMath
 		return Best;
 	}
 
+	/** Tolerances of the footprint clamp (cm): accepted distance slack, smallest inset, near-zero lengths. */
+	constexpr double FootprintTolCm = 1e-6;
+	constexpr double FootprintMinInsetCm = 1e-3;
+	/** Projection rounds of ClampToPolygonXY (convex corners need 2, the rest is headroom for narrow rings). */
+	constexpr int FootprintMaxIterations = 8;
+	/** Sphere / polygon rounds of Constrain (the sphere clamp can undo part of the polygon one near both limits). */
+	constexpr int ConstrainMaxRounds = 4;
+
+	/** Twice the signed area of the ring (> 0 counter-clockwise in X-right / Y-up axes). */
+	inline double RingArea2(const double* Xs, const double* Ys, std::size_t N)
+	{
+		double A = 0.0;
+		for (std::size_t j = 0; j < N; ++j)
+		{
+			const std::size_t k = (j + 1 < N) ? j + 1 : 0;
+			A += Xs[j] * Ys[k] - Xs[k] * Ys[j];
+		}
+		return A;
+	}
+
+	/** Inward unit normal of edge j (j -> j+1): the left normal for a positive area, the right one otherwise. False for a zero-length edge or a zero-area ring. */
+	inline bool EdgeInwardNormal(const double* Xs, const double* Ys, std::size_t N, std::size_t j, double& OutNx, double& OutNy)
+	{
+		const double Area2 = RingArea2(Xs, Ys, N);
+		const std::size_t k = (j + 1 < N) ? j + 1 : 0;
+		const double Dx = Xs[k] - Xs[j];
+		const double Dy = Ys[k] - Ys[j];
+		const double Len = std::sqrt(Dx * Dx + Dy * Dy);
+		if (!(Len > FootprintTolCm) || Area2 == 0.0 || !std::isfinite(Area2))
+		{
+			return false;
+		}
+		const double Sign = (Area2 > 0.0) ? 1.0 : -1.0;
+		OutNx = -Dy / Len * Sign;
+		OutNy = Dx / Len * Sign;
+		return true;
+	}
+
+	/** Distance from (X, Y) to the ring boundary, positive inside (PointInPolygon) and negative outside. N < 3 -> 0. */
+	inline double SignedBoundaryDistance(const double* Xs, const double* Ys, std::size_t N, double X, double Y)
+	{
+		if (N < 3 || Xs == nullptr || Ys == nullptr)
+		{
+			return 0.0;
+		}
+		double Qx = X;
+		double Qy = Y;
+		std::size_t Edge = 0;
+		const double D = NearestBoundaryPoint(Xs, Ys, N, X, Y, Qx, Qy, Edge);
+		return GolmokGeoMath::PointInPolygon(Xs, Ys, N, X, Y) ? D : -D;
+	}
+
 	/**
-	 * XY clamp into the ring: inside (GolmokGeoMath::PointInPolygon) -> 0, unchanged. Outside -> nearest boundary point Q,
-	 * then InsetCm toward (AnchorX, AnchorY) (the character, always inside), at most the distance to the anchor;
-	 * returns 1 when the nudged point passes PointInPolygon, 2 when it does not (Out = Q on the boundary; the caller keeps
-	 * its previous position). N < 3 -> 0, unchanged.
+	 * The inset ClampToPolygonXY really uses: max(InsetCm, FootprintMinInsetCm), capped at the anchor's own distance to the
+	 * boundary when the anchor is inside (a ring narrower than twice the margin keeps the anchor reachable; the floor keeps
+	 * the result strictly inside for the even-odd test). N < 3 -> the floored InsetCm.
+	 */
+	inline double EffectiveInsetCm(const double* Xs, const double* Ys, std::size_t N, double AnchorX, double AnchorY, double InsetCm)
+	{
+		double Inset = (InsetCm > FootprintMinInsetCm) ? InsetCm : FootprintMinInsetCm; // also NaN -> the floor
+		const double AnchorD = SignedBoundaryDistance(Xs, Ys, N, AnchorX, AnchorY);
+		if (AnchorD > 0.0 && AnchorD < Inset)
+		{
+			Inset = PhotoMax(AnchorD, FootprintMinInsetCm);
+		}
+		return Inset;
+	}
+
+	/**
+	 * XY clamp into the eroded ring S = {inside (GolmokGeoMath::PointInPolygon) and boundary distance >= Inset}, Inset =
+	 * EffectiveInsetCm(...) (V-09 #58: the old rule let every inside point through, so pushing at the edge saw-toothed
+	 * inside the 0..Inset band). A point already in S -> 0, unchanged. Otherwise projected (at most FootprintMaxIterations
+	 * rounds): Q = nearest boundary point, n = inward unit normal at Q ((P - Q) / D inside, (Q - P) / D outside, the edge
+	 * normal from the ring orientation on the boundary, the anchor direction as the last resort), P = Q + n * Inset; when two
+	 * adjacent edges alternate (convex corner) the intersection of their Inset offset lines is tried. Pushing into an edge
+	 * therefore stops exactly Inset inside and keeps the tangential part (slides). Returns 1 with the projected point, or 2
+	 * when no point of S was reached (X, Y unchanged; the caller keeps its previous position). N < 3 -> 0, unchanged.
 	 */
 	inline int ClampToPolygonXY(const double* Xs, const double* Ys, std::size_t N, double AnchorX, double AnchorY, double InsetCm, double& X, double& Y)
 	{
@@ -239,33 +311,97 @@ namespace GolmokPhotoMath
 		{
 			return 0;
 		}
-		if (GolmokGeoMath::PointInPolygon(Xs, Ys, N, X, Y))
+		const double Inset = EffectiveInsetCm(Xs, Ys, N, AnchorX, AnchorY, InsetCm);
+		double Px = X;
+		double Py = Y;
+		bool bHavePrevLine = false;
+		std::size_t PrevEdge = 0;
+		for (int Iter = 0; Iter <= FootprintMaxIterations; ++Iter)
 		{
-			return 0;
+			double Qx = Px;
+			double Qy = Py;
+			std::size_t Edge = 0;
+			const double D = NearestBoundaryPoint(Xs, Ys, N, Px, Py, Qx, Qy, Edge);
+			const bool bInside = GolmokGeoMath::PointInPolygon(Xs, Ys, N, Px, Py);
+			if (bInside && D >= Inset - FootprintTolCm)
+			{
+				if (Iter == 0)
+				{
+					return 0;
+				}
+				X = Px;
+				Y = Py;
+				return 1;
+			}
+			if (Iter == FootprintMaxIterations || !std::isfinite(D))
+			{
+				break;
+			}
+			// Inward unit normal at Q.
+			double Nx = 0.0;
+			double Ny = 0.0;
+			bool bEdgeLine = false; // the projection lands on edge Edge's offset line (Q inside the edge, not a vertex arc)
+			if (D > FootprintTolCm)
+			{
+				const double S = bInside ? 1.0 : -1.0;
+				Nx = (Px - Qx) / D * S;
+				Ny = (Py - Qy) / D * S;
+				double Ex = 0.0;
+				double Ey = 0.0;
+				bEdgeLine = EdgeInwardNormal(Xs, Ys, N, Edge, Ex, Ey) && std::fabs(Nx * Ex + Ny * Ey - 1.0) < 1e-9;
+			}
+			else if (EdgeInwardNormal(Xs, Ys, N, Edge, Nx, Ny))
+			{
+				bEdgeLine = true;
+			}
+			else
+			{
+				const double Ax = AnchorX - Qx;
+				const double Ay = AnchorY - Qy;
+				const double La = std::sqrt(Ax * Ax + Ay * Ay);
+				if (!(La > FootprintTolCm))
+				{
+					break;
+				}
+				Nx = Ax / La;
+				Ny = Ay / La;
+			}
+			// Convex corner: the last two projections were onto the offset lines of adjacent edges -> their intersection.
+			if (bHavePrevLine && bEdgeLine && Edge != PrevEdge)
+			{
+				const bool bAdjacent = (Edge + 1 == PrevEdge) || (PrevEdge + 1 == Edge) || (Edge == 0 && PrevEdge + 1 == N) || (PrevEdge == 0 && Edge + 1 == N);
+				double N1x = 0.0;
+				double N1y = 0.0;
+				double N2x = 0.0;
+				double N2y = 0.0;
+				if (bAdjacent && EdgeInwardNormal(Xs, Ys, N, PrevEdge, N1x, N1y) && EdgeInwardNormal(Xs, Ys, N, Edge, N2x, N2y))
+				{
+					// n1 . X = n1 . A1 + Inset, n2 . X = n2 . A2 + Inset (A = edge start vertex).
+					const double C1 = N1x * Xs[PrevEdge] + N1y * Ys[PrevEdge] + Inset;
+					const double C2 = N2x * Xs[Edge] + N2y * Ys[Edge] + Inset;
+					const double Det = N1x * N2y - N1y * N2x;
+					if (std::fabs(Det) > 1e-9)
+					{
+						const double Cx = (C1 * N2y - C2 * N1y) / Det;
+						const double Cy = (N1x * C2 - N2x * C1) / Det;
+						double Cqx = Cx;
+						double Cqy = Cy;
+						std::size_t CEdge = 0;
+						const double CD = NearestBoundaryPoint(Xs, Ys, N, Cx, Cy, Cqx, Cqy, CEdge);
+						if (GolmokGeoMath::PointInPolygon(Xs, Ys, N, Cx, Cy) && CD >= Inset - FootprintTolCm)
+						{
+							X = Cx;
+							Y = Cy;
+							return 1;
+						}
+					}
+				}
+			}
+			bHavePrevLine = bEdgeLine;
+			PrevEdge = Edge;
+			Px = Qx + Nx * Inset;
+			Py = Qy + Ny * Inset;
 		}
-		double Qx = X;
-		double Qy = Y;
-		std::size_t Edge = 0;
-		NearestBoundaryPoint(Xs, Ys, N, X, Y, Qx, Qy, Edge);
-		const double ToAnchorX = AnchorX - Qx;
-		const double ToAnchorY = AnchorY - Qy;
-		const double ToAnchor = std::sqrt(ToAnchorX * ToAnchorX + ToAnchorY * ToAnchorY);
-		const double Inset = PhotoMin((InsetCm > 0.0) ? InsetCm : 0.0, ToAnchor);
-		double Nx = Qx;
-		double Ny = Qy;
-		if (ToAnchor > 0.0 && Inset > 0.0)
-		{
-			Nx = Qx + ToAnchorX * (Inset / ToAnchor);
-			Ny = Qy + ToAnchorY * (Inset / ToAnchor);
-		}
-		if (GolmokGeoMath::PointInPolygon(Xs, Ys, N, Nx, Ny))
-		{
-			X = Nx;
-			Y = Ny;
-			return 1;
-		}
-		X = Qx;
-		Y = Qy;
 		return 2;
 	}
 
@@ -277,45 +413,79 @@ namespace GolmokPhotoMath
 		const double* Xs = nullptr;        // footprint ring (level UE cm), N = 0 -> no polygon
 		const double* Ys = nullptr;
 		std::size_t N = 0;
+		bool bHasCurrent = false;          // Current = the pawn's position before this move (MoveConstrained sets it)
+		Vec3 Current{};
 	};
 
 	/**
-	 * Sphere -> polygon, then re-checked: result must be inside the sphere AND (N == 0 or PointInPolygon). Returns 0 = accepted
-	 * (Out written), 1 = accepted after a sphere clamp, 2 = accepted after a polygon clamp, 3 = both, -1 = rejected (Out untouched;
-	 * the pawn keeps its previous position). The pawn calls this once per tick before the sweep.
+	 * Inset for this move: C.InsetCm, lowered to the current position's boundary distance when the pawn already stands
+	 * inside the ring closer than that (it can start there: the spring-arm camera). Such a pawn is never pushed inward by a
+	 * move (no jump); it can only move to points at least as far from the boundary, so the margin ratchets back up to
+	 * C.InsetCm as it moves inward. A current position outside the ring does not lower it (the first move snaps inside).
+	 */
+	inline double MoveInsetCm(const Constraint& C)
+	{
+		double Inset = C.InsetCm;
+		if (C.bHasCurrent && C.N >= 3 && C.Xs != nullptr && C.Ys != nullptr)
+		{
+			const double CurrentD = SignedBoundaryDistance(C.Xs, C.Ys, C.N, C.Current[0], C.Current[1]);
+			if (CurrentD > 0.0 && CurrentD < Inset - FootprintTolCm)
+			{
+				Inset = CurrentD;
+			}
+		}
+		return Inset;
+	}
+
+	/**
+	 * Sphere -> polygon, repeated up to ConstrainMaxRounds times while the polygon clamp leaves the sphere, then re-checked:
+	 * the result must be inside the sphere AND (N == 0 or in the eroded ring of ClampToPolygonXY with MoveInsetCm(C)).
+	 * Returns 0 = accepted unchanged (Out written), 1 = accepted after a sphere clamp, 2 = after a polygon clamp, 3 = both,
+	 * -1 = rejected (Out untouched; the pawn keeps its previous position). The pawn calls this before every sweep.
 	 */
 	inline int Constrain(const Constraint& C, const Vec3& Desired, Vec3& Out)
 	{
 		Vec3 P = Desired;
 		int Code = 0;
-		if (ClampToSphere(C.Anchor, C.RadiusCm, P))
-		{
-			Code |= 1;
-		}
 		const bool bPolygon = (C.N >= 3) && C.Xs != nullptr && C.Ys != nullptr;
+		const double Inset = MoveInsetCm(C);
+		const double Radius = (C.RadiusCm > 0.0) ? C.RadiusCm : 0.0;
+		for (int Round = 0; Round < ConstrainMaxRounds; ++Round)
+		{
+			if (ClampToSphere(C.Anchor, C.RadiusCm, P))
+			{
+				Code |= 1;
+			}
+			if (bPolygon)
+			{
+				const int PolyCode = ClampToPolygonXY(C.Xs, C.Ys, C.N, C.Anchor[0], C.Anchor[1], Inset, P[0], P[1]);
+				if (PolyCode == 2)
+				{
+					return -1;
+				}
+				if (PolyCode == 1)
+				{
+					Code |= 2;
+				}
+			}
+			if (Distance3(P, C.Anchor) <= Radius * (1.0 + 1e-12) + 1e-9)
+			{
+				break;
+			}
+		}
+		// Re-check both (design §6-2 ③): the accepted point is inside the sphere and a fixed point of the polygon clamp.
+		if (!(Distance3(P, C.Anchor) <= Radius * (1.0 + 1e-12) + 1e-9))
+		{
+			return -1;
+		}
 		if (bPolygon)
 		{
-			const int PolyCode = ClampToPolygonXY(C.Xs, C.Ys, C.N, C.Anchor[0], C.Anchor[1], C.InsetCm, P[0], P[1]);
-			if (PolyCode == 2)
+			double Cx = P[0];
+			double Cy = P[1];
+			if (ClampToPolygonXY(C.Xs, C.Ys, C.N, C.Anchor[0], C.Anchor[1], Inset, Cx, Cy) != 0)
 			{
 				return -1;
 			}
-			if (PolyCode == 1)
-			{
-				Code |= 2;
-			}
-		}
-		// Re-check both (design §6-2 ③): the polygon nudge can leave the sphere, and the accepted point must pass
-		// PointInPolygon again (concave rings) before the pawn moves.
-		const double Radius = (C.RadiusCm > 0.0) ? C.RadiusCm : 0.0;
-		const double Dist = Distance3(P, C.Anchor);
-		if (!(Dist <= Radius * (1.0 + 1e-12) + 1e-9))
-		{
-			return -1;
-		}
-		if (bPolygon && !GolmokGeoMath::PointInPolygon(C.Xs, C.Ys, C.N, P[0], P[1]))
-		{
-			return -1;
 		}
 		Out = P;
 		return Code;

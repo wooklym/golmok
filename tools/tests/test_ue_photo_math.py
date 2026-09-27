@@ -521,46 +521,78 @@ def polygon_cases():
     ]
 
 
-def check_clamp_against_shapely(driver, name, ring, anchor, inset, points):
-    from shapely.geometry import LineString, Point, Polygon
+# An acute (about 20 degree) apex at (400, 0) and a ring narrower than twice the 20 cm margin.
+WEDGE = [(0.0, -70.0), (400.0, 0.0), (0.0, 70.0)]
+NARROW = [(0.0, 0.0), (30.0, 0.0), (30.0, 400.0), (0.0, 400.0)]
+TOL = 1e-6  # GolmokPhotoMath::FootprintTolCm
+MIN_INSET = 1e-3  # GolmokPhotoMath::FootprintMinInsetCm
+
+
+def effective_inset(shape, anchor, inset: float) -> float:
+    """EffectiveInsetCm in Python: floored, capped at the anchor's boundary distance (anchor inside)."""
+    from shapely.geometry import Point
+
+    eff = max(inset, MIN_INSET)
+    a = Point(anchor)
+    if shape.contains(a):
+        d = shape.exterior.distance(a)
+        if 0.0 < d < eff:
+            eff = max(d, MIN_INSET)
+    return eff
+
+
+def in_eroded(shape, xy, eff: float, slack: float = TOL) -> bool:
+    from shapely.geometry import Point
+
+    pt = Point(xy)
+    return shape.contains(pt) and shape.exterior.distance(pt) >= eff - slack
+
+
+def check_clamp_against_shapely(
+    driver, name, ring, anchor, inset, points, max_code2: int = 0, nearest_check: bool = True
+):
+    """design §6-2 ② (V-09 #58): every result is in the eroded ring S (inside, boundary distance >= inset),
+    points already in S pass unchanged, and a projected point is the nearest point of S (shapely's negative
+    buffer, whose arcs at reflex vertices are polygonised: 0.05 cm slack)."""
+    from shapely.geometry import Point, Polygon
 
     shape = Polygon(ring)
     assert shape.is_valid and shape.contains(Point(anchor)), name
+    eff = effective_inset(shape, anchor, inset)
+    eroded = shape.buffer(-eff, quad_segs=64)
     results = poly(driver, ring, anchor, inset, points)
     nearest = polyq(driver, ring, points)
+    code2 = 0
     for p, (code, x, y), (dist, qx, qy, _edge) in zip(points, results, nearest, strict=True):
         pt = Point(p)
         boundary_dist = shape.exterior.distance(pt)
-        if boundary_dist < 1e-6:
-            continue  # on the boundary: even-odd side is arbitrary (tested separately)
-        if shape.contains(pt):
-            assert code == 0 and (x, y) == p, (name, p, code)
-            continue
-        assert code in (1, 2), (name, p, code)
-        # Q is the nearest boundary point (same distance as shapely, 1e-9)
+        # NearestBoundaryPoint is shapely's distance (1e-9) and Q lies on the ring
         assert abs(dist - boundary_dist) < 1e-9, (name, p, dist, boundary_dist)
         assert abs(math.dist(p, (qx, qy)) - boundary_dist) < 1e-9, (name, p)
         assert shape.exterior.distance(Point(qx, qy)) < 1e-9, (name, p)
-        to_anchor = math.dist((qx, qy), anchor)
-        nudge = min(inset, to_anchor)
-        expect = (qx + (anchor[0] - qx) * nudge / to_anchor, qy + (anchor[1] - qy) * nudge / to_anchor)
-        if code == 1:
-            assert shape.contains(Point(x, y)), (name, p, (x, y))
-            assert abs(math.dist((x, y), (qx, qy)) - nudge) < 1e-9, (name, p)
-            assert LineString([(qx, qy), anchor]).distance(Point(x, y)) < 1e-9, (name, p)
-            assert 0 < shape.exterior.distance(Point(x, y)) <= inset + 1e-6, (name, p)
-            assert (x, y) == pytest.approx(expect, abs=1e-9)
-        else:
-            assert (x, y) == (qx, qy), (name, p)
-            # the nudged point really is outside (or on the boundary) of the ring
-            assert not shape.contains(Point(expect)) or shape.exterior.distance(Point(expect)) < 1e-9, (
-                name,
-                p,
-            )
+        if boundary_dist < 1e-6 or abs(boundary_dist - eff) < 1e-6:
+            assert code in (0, 1, 2), (name, p, code)  # on the ring or on the inset line: side is arbitrary
+            continue
+        if shape.contains(pt) and boundary_dist > eff:
+            assert code == 0 and (x, y) == p, (name, p, code)
+            continue
+        if code == 2:
+            code2 += 1
+            assert (x, y) == p, (name, p)  # unchanged: the caller keeps its previous position
+            continue
+        assert code == 1, (name, p, code)
+        assert in_eroded(shape, (x, y), eff), (name, p, (x, y), shape.exterior.distance(Point(x, y)), eff)
+        # the nearest point of S for points within 40 cm of it (a tick's step: 4.5 m/s x 0.1 s at most); from
+        # far away (an entry pose metres outside) it still lands in S but not necessarily at the nearest point
+        if nearest_check and not eroded.is_empty and eroded.distance(pt) <= 40.0:
+            assert math.dist(p, (x, y)) <= eroded.distance(pt) + 0.05, (name, p, (x, y), eroded.distance(pt))
+    assert code2 <= max_code2, (name, code2)
 
 
-def test_clamp_to_polygon_matches_shapely(driver):
+def test_clamp_to_polygon_lands_in_the_eroded_ring(driver):
     pytest.importorskip("shapely")
+    from shapely.geometry import Point, Polygon
+
     rng = np.random.default_rng(15)
     for name, ring, anchor in polygon_cases():
         xs = [p[0] for p in ring]
@@ -575,37 +607,59 @@ def test_clamp_to_polygon_matches_shapely(driver):
             )
         ]
         check_clamp_against_shapely(driver, name, ring, anchor, 20.0, points)
-        check_clamp_against_shapely(driver, name, ring, anchor, 0.5 * max(w, h), points[:100])
+        # a wide margin (80 % of the anchor's own boundary distance), then one capped at that distance: S can
+        # shrink to (almost) the anchor alone (star centre), so refusals are allowed there but every accepted
+        # point is in S
+        anchor_d = Polygon(ring).exterior.distance(Point(anchor))
+        check_clamp_against_shapely(driver, name, ring, anchor, 0.8 * anchor_d, points[:100], max_code2=5)
+        check_clamp_against_shapely(
+            driver, name, ring, anchor, 0.5 * max(w, h), points[:100], max_code2=100, nearest_check=False
+        )
+    # an acute apex: points around it land in S (or, rarely, are refused); a ring narrower than twice the
+    # margin
+    for name, ring, anchor in (("wedge", WEDGE, (100.0, 0.0)), ("narrow", NARROW, (15.0, 200.0))):
+        pts = [
+            (float(x), float(y))
+            for x, y in zip(rng.uniform(-50, 450, 300), rng.uniform(-80, 420, 300), strict=True)
+        ]
+        check_clamp_against_shapely(driver, name, ring, anchor, 20.0, pts, max_code2=15)
 
 
-def test_clamp_to_polygon_square_edges_and_perpendicular_inset(driver):
+def test_clamp_to_polygon_square_edges_normals_and_corners(driver):
     pytest.importorskip("shapely")
     from shapely.geometry import Point, Polygon
 
     shape = Polygon(SQUARE)
-    # straight out of an edge with the anchor behind it: exactly inset inside, code 1
+    # straight out of an edge: exactly inset inside, code 1
     assert poly(driver, SQUARE, (0.0, 0.0), 20.0, [(150.0, 0.0)]) == [(1, 80.0, 0.0)]
     assert poly(driver, SQUARE, (0.0, 0.0), 20.0, [(0.0, -150.0)]) == [(1, 0.0, -80.0)]
-    assert poly(driver, SQUARE, (0.0, 30.0), 20.0, [(-100.5, 30.0)]) == [(1, -80.0, 30.0)]
-    # the nudge follows the anchor direction, not the edge normal (design §6-2: "toward the character")
-    (code, x, y) = poly(driver, SQUARE, (0.0, 0.0), 20.0, [(-100.5, 30.0)])[0]
-    assert code == 1 and (x, y) == pytest.approx(
-        (-100.0 + 20.0 * 100.0 / math.hypot(100.0, 30.0), 30.0 - 20.0 * 30.0 / math.hypot(100.0, 30.0))
+    # inside the 0..inset band (V-09 #58): pushed back to the inset line along the edge normal, not left there
+    band = poly(driver, SQUARE, (0.0, 0.0), 20.0, [(95.0, 10.0), (99.99, -30.0)])
+    assert [c for c, _x, _y in band] == [1, 1]
+    assert [v for _c, x, y in band for v in (x, y)] == pytest.approx([80.0, 10.0, 80.0, -30.0], abs=1e-9)
+    # the nudge follows the inward edge normal, not the anchor direction (no sideways drag, V-09 #58)
+    assert poly(driver, SQUARE, (0.0, 0.0), 20.0, [(-100.5, 30.0)]) == [(1, -80.0, 30.0)]
+    assert poly(driver, SQUARE, (-50.0, -70.0), 20.0, [(120.0, 60.0)]) == [(1, 80.0, 60.0)]
+    # convex corners, inside the band and outside: the corner of the inset square
+    corner = poly(
+        driver, SQUARE, (0.0, 0.0), 20.0, [(95.0, 95.0), (150.0, 150.0), (-150.0, 150.0), (99.0, -85.0)]
     )
-    # inside: unchanged
-    assert poly(driver, SQUARE, (0.0, 0.0), 20.0, [(10.0, -20.0)]) == [(0, 10.0, -20.0)]
-    # the inset is capped at the distance to the anchor
+    assert corner == [(1, 80.0, 80.0), (1, 80.0, 80.0), (1, -80.0, 80.0), (1, 80.0, -80.0)]
+    # inside, far enough: unchanged
+    assert poly(driver, SQUARE, (0.0, 0.0), 20.0, [(10.0, -20.0), (80.0, 80.0)]) == [
+        (0, 10.0, -20.0),
+        (0, 80.0, 80.0),
+    ]
+    # the inset is capped at the anchor's own distance to the boundary (the anchor stays reachable)
     (code, x, y) = poly(driver, SQUARE, (90.0, 0.0), 50.0, [(150.0, 0.0)])[0]
-    assert code == 1 and (x, y) == pytest.approx((90.0, 0.0))
-    # boundary points (edge midpoints and vertices) end up covered by the ring
+    assert code == 1 and (x, y) == pytest.approx((90.0, 0.0), abs=1e-9)
+    # boundary points (edge midpoints and vertices) end up inset inside
     boundary = [(100.0, 0.0), (0.0, 100.0), (-100.0, 0.0), (0.0, -100.0), *SQUARE]
     for p, (code, x, y) in zip(boundary, poly(driver, SQUARE, (0.0, 0.0), 20.0, boundary), strict=True):
-        assert code in (0, 1), p
-        assert shape.covers(Point(x, y)), (p, x, y)
-        if code == 1:
-            assert shape.contains(Point(x, y)) and abs(math.dist((x, y), p) - 20.0) < 1e-9, p
-        else:
-            assert (x, y) == p
+        assert code == 1, p
+        assert shape.contains(Point(x, y)) and shape.exterior.distance(Point(x, y)) >= 20.0 - TOL, (p, x, y)
+        assert abs(x) == pytest.approx(80.0 if abs(p[0]) == 100.0 else 0.0), p
+        assert abs(y) == pytest.approx(80.0 if abs(p[1]) == 100.0 else 0.0), p
     # nearest-point ties on the diagonals: the corner is shared by two edges -> the lower edge index
     ties = polyq(driver, SQUARE, [(150.0, 150.0), (150.0, -150.0), (-150.0, 150.0), (-150.0, -150.0)])
     assert [(qx, qy, edge) for _d, qx, qy, edge in ties] == [
@@ -615,27 +669,40 @@ def test_clamp_to_polygon_square_edges_and_perpendicular_inset(driver):
         (-100.0, -100.0, 0),
     ]
     assert all(abs(d - math.hypot(50.0, 50.0)) < 1e-9 for d, *_ in ties)
-    # inset 0: Q itself; on the boundary the even-odd test may say either side (code 1 or 2)
-    (code, x, y) = poly(driver, SQUARE, (0.0, 0.0), 0.0, [(150.0, 40.0)])[0]
-    assert code in (1, 2) and (x, y) == (100.0, 40.0)
-    (code, x, y) = poly(driver, SQUARE, (0.0, 0.0), -5.0, [(150.0, 40.0)])[0]  # negative inset == 0
-    assert code in (1, 2) and (x, y) == (100.0, 40.0)
+    # inset 0 / negative: floored at 0.001 cm, strictly inside
+    for inset in (0.0, -5.0, float("nan")):
+        (code, x, y) = poly(driver, SQUARE, (0.0, 0.0), inset, [(150.0, 40.0)])[0]
+        assert code == 1 and x == pytest.approx(100.0 - MIN_INSET, abs=1e-9) and y == 40.0, inset
+    # clockwise ring: same results (inward normals from the signed area)
+    cw = list(reversed(SQUARE))
+    assert poly(driver, cw, (0.0, 0.0), 20.0, [(150.0, 0.0), (95.0, 95.0)]) == [
+        (1, 80.0, 0.0),
+        (1, 80.0, 80.0),
+    ]
     # fewer than three vertices: nothing to clamp against
     assert poly(driver, SQUARE[:2], (0.0, 0.0), 20.0, [(500.0, 500.0)]) == [(0, 500.0, 500.0)]
     assert poly(driver, [], (0.0, 0.0), 20.0, [(500.0, 500.0)]) == [(0, 500.0, 500.0)]
 
 
-def test_clamp_to_polygon_concave_corner_gives_code_2(driver):
+def test_clamp_to_polygon_concave_rings(driver):
     # L shape, anchor in the vertical arm; a point in the notch is nearest to the notch's bottom edge (tie
-    # with the inner vertical edge -> lower index 2) and the nudge toward the anchor stays in the notch:
-    # code 2, Out = Q
+    # with the inner vertical edge -> lower index 2) and goes straight down that edge's normal: in S, code 1
+    # (the old anchor-direction nudge stayed in the notch and refused the move)
     anchor = (50.0, 350.0)
     (dist, qx, qy, edge) = polyq(driver, L_SHAPE, [(350.0, 350.0)])[0]
     assert (dist, qx, qy, edge) == (250.0, 350.0, 100.0, 2)
-    assert poly(driver, L_SHAPE, anchor, 20.0, [(350.0, 350.0)]) == [(2, 350.0, 100.0)]
-    # the same point with a huge inset reaches the anchor's side of the notch: code 1
-    (code, x, y) = poly(driver, L_SHAPE, anchor, 1000.0, [(350.0, 350.0)])[0]
-    assert code == 1 and (x, y) == pytest.approx(anchor)
+    assert poly(driver, L_SHAPE, anchor, 20.0, [(350.0, 350.0)]) == [(1, 350.0, 80.0)]
+    # just into the notch: nearest to the bottom edge (tie -> lower index), straight down its normal
+    assert poly(driver, L_SHAPE, anchor, 20.0, [(105.0, 105.0)]) == [(1, 105.0, 80.0)]
+    # the reflex vertex (100, 100): the eroded ring has an arc of radius inset around it
+    (code, x, y) = poly(driver, L_SHAPE, anchor, 20.0, [(97.0, 97.0)])[
+        0
+    ]  # inside, the vertex is its nearest point
+    assert code == 1 and math.dist((x, y), (100.0, 100.0)) == pytest.approx(20.0, abs=1e-9)
+    assert (x, y) == pytest.approx((100.0 - 20.0 / math.sqrt(2), 100.0 - 20.0 / math.sqrt(2)), abs=1e-9)
+    # off the diagonal: still on the arc
+    (code, x, y) = poly(driver, L_SHAPE, anchor, 20.0, [(90.0, 95.0)])[0]
+    assert code == 1 and math.dist((x, y), (100.0, 100.0)) == pytest.approx(20.0, abs=1e-9)
     # nearest edge index and point on the star's concave vertices
     pytest.importorskip("shapely")
     from shapely.geometry import Point, Polygon
@@ -645,68 +712,113 @@ def test_clamp_to_polygon_concave_corner_gives_code_2(driver):
     for p, (dist, qx, qy, edge) in zip([(0.0, 400.0), (0.0, -400.0), (400.0, 400.0)], rows, strict=True):
         assert abs(dist - star.exterior.distance(Point(p))) < 1e-9, p
         assert star.exterior.distance(Point(qx, qy)) < 1e-9 and 0 <= edge < len(STAR), p
+    # a ring narrower than twice the margin: the inset shrinks to the anchor's distance (centered: the mid
+    # line)
+    assert poly(driver, NARROW, (15.0, 200.0), 20.0, [(25.0, 100.0), (-10.0, 300.0)]) == [
+        (1, 15.0, 100.0),
+        (1, 15.0, 300.0),
+    ]
+    assert poly(driver, NARROW, (5.0, 200.0), 20.0, [(28.0, 100.0), (15.0, 50.0)]) == [
+        (1, 25.0, 100.0),
+        (0, 15.0, 50.0),
+    ]
 
 
-# -------------------------------------------------------------------------------------------------------- (j)
+def walk(driver: Path, anchor, r, inset, ring, start, step, ticks: int) -> list[tuple[int, np.ndarray]]:
+    text = f"{nums(*anchor)} {r!r} {inset!r} {ring_text(ring)} {nums(*start)} {nums(*step)} {ticks}"
+    rows = run_lines(driver, "walk", text)
+    assert len(rows) == ticks
+    return [(int(row[0]), np.array(row[1:])) for row in rows]
 
 
-def ref_nearest(ring, p) -> tuple[float, float, float]:
-    """Nearest boundary point with the C++ tie rule (lowest edge index)."""
-    best = None
-    for j in range(len(ring)):
-        ax, ay = ring[j]
-        bx, by = ring[(j + 1) % len(ring)]
-        dx, dy = bx - ax, by - ay
-        l2 = dx * dx + dy * dy
-        t = ((p[0] - ax) * dx + (p[1] - ay) * dy) / l2 if l2 > 0 else 0.0
-        t = min(1.0, max(0.0, t))
-        qx, qy = ax + t * dx, ay + t * dy
-        d = math.dist(p, (qx, qy))
-        if best is None or d < best[0]:
-            best = (d, qx, qy)
-    assert best is not None
-    return best
+def assert_settles(path, axis: int, limit: float, sign: float, name: str):
+    """Monotone approach to `limit` along `axis`, then exactly still (oscillation amplitude 0, V-09 #58)."""
+    values = [float(p[axis]) for _c, p in path]
+    for a, b in zip(values, values[1:], strict=False):
+        assert sign * (b - a) >= -1e-9, (name, a, b)  # never backs off
+    assert sign * values[-1] <= sign * limit + 1e-9, (name, values[-1])
+    assert values[-1] == pytest.approx(limit, abs=1e-9), (name, values[-1])
+    first = next(i for i, v in enumerate(values) if abs(v - limit) <= 1e-9)
+    assert max(values[first:]) - min(values[first:]) <= 1e-9, (name, values[first:])
+    return first
 
 
-def ref_constrain(anchor, r, inset, ring, desired, shape) -> tuple[int, np.ndarray | None]:
-    """design §6-2 ③ in Python: sphere -> polygon (nudge toward the anchor) -> re-check both, else -1."""
-    from shapely.geometry import Point
+def test_walk_into_the_edge_stops_inset_inside_and_slides(driver):
+    pytest.importorskip("shapely")
+    from shapely.geometry import Point, Polygon
 
-    a = np.asarray(anchor, dtype=float)
-    p = np.asarray(desired, dtype=float).copy()
-    code = 0
-    d = float(np.linalg.norm(p - a))
-    if r <= 0:
-        if not np.array_equal(p, a):
-            code |= 1
-        p = a.copy()
-    elif d > r:
-        p = a + (p - a) * (r / d)
-        code |= 1
-    if ring:
-        if shape.exterior.distance(Point(p[:2])) < 1e-6:
-            return -2, None  # ambiguous for an even-odd test: the caller skips it
-        if not shape.contains(Point(p[:2])):
-            _d, qx, qy = ref_nearest(ring, (p[0], p[1]))
-            to_anchor = math.dist((qx, qy), (a[0], a[1]))
-            nudge = min(max(inset, 0.0), to_anchor)
-            nx = qx + (a[0] - qx) * nudge / to_anchor if to_anchor > 0 else qx
-            ny = qy + (a[1] - qy) * nudge / to_anchor if to_anchor > 0 else qy
-            if shape.exterior.distance(Point(nx, ny)) < 1e-6:
-                return -2, None
-            if not shape.contains(Point(nx, ny)):
-                return -1, None
-            p[0], p[1] = nx, ny
-            code |= 2
-    radius = max(r, 0.0)
-    dist = float(np.linalg.norm(p - a))
-    if abs(dist - radius) < 1e-6 and dist > radius:
-        return -2, None
-    if dist > radius * (1 + 1e-12) + 1e-9:
-        return -1, None
-    if ring and not shape.contains(Point(p[:2])):
-        return -1, None
-    return code, p
+    far = 1.0e6  # sphere out of the way
+    # the V-09 case: 1.5 m/s at 120 Hz = 1.25 cm a tick toward the south edge (level y 1000): 980.0 and
+    # nothing else
+    rect = [(-500.0, -1000.0), (500.0, -1000.0), (500.0, 1000.0), (-500.0, 1000.0)]
+    path = walk(driver, (0.0, 0.0, 0.0), far, 20.0, rect, (0.0, 900.0, 0.0), (0.0, 1.25, 0.0), 120)
+    first = assert_settles(path, 1, 980.0, +1.0, "south edge")
+    assert first == 63 and all(c >= 0 for c, _ in path)
+    assert all(p[0] == 0.0 and p[2] == 0.0 for _c, p in path)  # no sideways drag
+    # same with the anchor off the edge normal (the old nudge pulled toward the anchor on every bounce)
+    path = walk(driver, (-400.0, -600.0, 0.0), far, 20.0, rect, (300.0, 960.0, 0.0), (0.0, 1.25, 0.0), 60)
+    assert_settles(path, 1, 980.0, +1.0, "off-normal anchor")
+    assert all(p[0] == 300.0 for _c, p in path)
+    # diagonal push: the normal part stops, the tangential part keeps going along the edge, then the corner
+    # holds
+    path = walk(driver, (0.0, 0.0, 0.0), far, 20.0, SQUARE, (0.0, 0.0, 0.0), (1.25, 0.5, 0.0), 300)
+    xs = [float(p[0]) for _c, p in path]
+    ys = [float(p[1]) for _c, p in path]
+    assert_settles(path, 0, 80.0, +1.0, "diagonal x")
+    assert_settles(path, 1, 80.0, +1.0, "diagonal y")
+    reach = next(i for i, x in enumerate(xs) if x == pytest.approx(80.0, abs=1e-9))
+    assert ys[reach + 10] > ys[reach] + 4.0  # slid along the edge after the x limit
+    # an oblique edge (fixture footprint) at walking speed: distance to the ring converges to 20 and stays
+    # there
+    fixture = fixture_footprint_ue()
+    shape = Polygon(fixture)
+    cx = sum(p[0] for p in fixture) / len(fixture)
+    cy = sum(p[1] for p in fixture) / len(fixture)
+    for angle in range(0, 360, 30):
+        step = (1.25 * math.cos(math.radians(angle)), 1.25 * math.sin(math.radians(angle)), 0.0)
+        path = walk(driver, (cx, cy, 0.0), far, 20.0, fixture, (cx, cy, 0.0), step, 2000)
+        dists = [shape.exterior.distance(Point(p[0], p[1])) for _c, p in path]
+        assert all(shape.contains(Point(p[0], p[1])) for _c, p in path), angle
+        assert min(dists) >= 20.0 - TOL, (angle, min(dists))
+        tail = [p for _c, p in path[-50:]]
+        spread = max(float(np.linalg.norm(t - tail[-1])) for t in tail)
+        # settled in a corner (still) or sliding along an edge at <= 1.25 cm a tick, never bouncing back
+        assert spread <= 50 * 1.25 + 1e-6, angle
+        moves = [float(np.linalg.norm(b - a)) for (_c, a), (_d, b) in zip(path, path[1:], strict=False)]
+        assert max(moves) <= 1.25 + 1e-6, angle  # no jump
+
+
+def test_walk_starts_on_the_boundary_in_the_band_and_in_acute_corners(driver):
+    pytest.importorskip("shapely")
+    from shapely.geometry import Point, Polygon
+
+    far = 1.0e6
+    # start inside the 0..20 band (spring-arm camera near the edge): no jump; parallel moves keep the
+    # distance, outward moves stop where it is, inward moves ratchet the margin back up to 20
+    path = walk(driver, (0.0, 0.0, 0.0), far, 20.0, SQUARE, (95.0, 0.0, 0.0), (0.0, 1.0, 0.0), 20)
+    assert all(p[0] == 95.0 for _c, p in path) and path[-1][1][1] == pytest.approx(20.0)
+    path = walk(driver, (0.0, 0.0, 0.0), far, 20.0, SQUARE, (95.0, 0.0, 0.0), (1.0, 0.0, 0.0), 10)
+    assert all(p[0] == 95.0 for _c, p in path)
+    path = walk(driver, (0.0, 0.0, 0.0), far, 20.0, SQUARE, (95.0, 0.0, 0.0), (-1.0, 0.0, 0.0), 10)
+    assert [round(float(p[0]), 9) for _c, p in path] == [94.0 - i for i in range(10)]
+    # start on the boundary (not inside for sure): the first move snaps inset inside, then it stays
+    path = walk(driver, (0.0, 0.0, 0.0), far, 20.0, SQUARE, (100.0, 0.0, 0.0), (1.0, 0.0, 0.0), 10)
+    assert all(c >= 0 for c, _ in path) and all(p[0] == pytest.approx(80.0, abs=1e-9) for _c, p in path)
+    # acute apex (about 20 degrees): converges into the inset apex or stops short, never oscillates or leaves
+    # S
+    shape = Polygon(WEDGE)
+    path = walk(driver, (100.0, 0.0, 0.0), far, 20.0, WEDGE, (100.0, 0.0, 0.0), (1.25, 0.3, 0.0), 400)
+    for _c, p in path:
+        assert shape.contains(Point(p[0], p[1])) and shape.exterior.distance(Point(p[0], p[1])) >= 20.0 - TOL
+    xs = [float(p[0]) for _c, p in path]
+    assert all(b >= a - 1e-9 for a, b in zip(xs, xs[1:], strict=False)), "backs off in the apex"
+    tail = [p for _c, p in path[-100:]]
+    assert max(float(np.linalg.norm(t - tail[-1])) for t in tail) <= 1e-9  # settled, amplitude 0
+    # sphere and polygon both active: settles on their common limit without bouncing
+    path = walk(driver, (0.0, 0.0, 0.0), 90.0, 20.0, SQUARE, (0.0, 0.0, 0.0), (1.25, 1.25, 0.0), 200)
+    tail = [p for _c, p in path[-50:]]
+    assert max(float(np.linalg.norm(t - tail[-1])) for t in tail) <= 1e-9
+    assert float(np.linalg.norm(tail[-1])) <= 90.0 + 1e-9 and abs(tail[-1][0]) <= 80.0 + 1e-9
 
 
 def constrain(driver: Path, anchor, r, inset, ring, points) -> list[tuple[int, np.ndarray]]:
@@ -719,7 +831,7 @@ def constrain(driver: Path, anchor, r, inset, ring, points) -> list[tuple[int, n
 
 def test_constrain_combines_sphere_and_polygon(driver):
     pytest.importorskip("shapely")
-    from shapely.geometry import Polygon
+    from shapely.geometry import Point, Polygon
 
     sentinel = np.array([-999999.0] * 3)
     anchor = (0.0, 0.0, 90.0)
@@ -730,37 +842,41 @@ def test_constrain_combines_sphere_and_polygon(driver):
         (0.0, 0.0, 500.0),  # above the sphere, XY inside -> 1
         (500.0, 0.0, 90.0),  # sphere clamp to (300, 0) then polygon to (80, 0) -> 3
         (150.0, 0.0, 90.0),  # inside the sphere, outside the polygon -> 2
-        (-150.0, 150.0, 90.0),  # corner: nudged along the diagonal -> 2
+        (-150.0, 150.0, 90.0),  # corner: the inset square's corner -> 2
+        (95.0, 0.0, 90.0),  # inside the ring but in the 20 cm band -> 2 (V-09 #58)
     ]
     got = constrain(driver, anchor, r, inset, SQUARE, pts)
-    assert [c for c, _ in got] == [0, 1, 3, 2, 2]
+    assert [c for c, _ in got] == [0, 1, 3, 2, 2, 2]
     assert np.array_equal(got[0][1], pts[0])
     assert np.allclose(got[1][1], [0.0, 0.0, 390.0])
     assert np.allclose(got[2][1], [80.0, 0.0, 90.0])
     assert np.allclose(got[3][1], [80.0, 0.0, 90.0])
-    assert np.allclose(got[4][1], [-100.0 + 20.0 / math.sqrt(2), 100.0 - 20.0 / math.sqrt(2), 90.0])
+    assert np.allclose(got[4][1], [-80.0, 80.0, 90.0])
+    assert np.allclose(got[5][1], [80.0, 0.0, 90.0])
     # no polygon (N = 0): sphere only
     got = constrain(driver, anchor, r, inset, [], [(500.0, 0.0, 90.0), (10.0, 10.0, 90.0)])
     assert got[0][0] == 1 and np.allclose(got[0][1], [300.0, 0.0, 90.0])
     assert got[1][0] == 0 and np.array_equal(got[1][1], [10.0, 10.0, 90.0])
-    # polygon nudge that leaves the sphere -> rejected, Out untouched (the driver prints its sentinel)
-    notch_anchor = (0.0, 0.0, 0.0)
-    got = constrain(driver, notch_anchor, 100.0, 5.0, NOTCHED, [(99.0, 0.0, 0.0), (99.0, 0.5, 0.0)])
+    # sphere and polygon near each other: the result is inside both (sphere 110 cm, inset square 80)
+    got = constrain(driver, anchor, 110.0, inset, SQUARE, [(200.0, 20.0, 90.0)])
+    assert got[0][0] == 3
+    out = got[0][1]
+    assert np.linalg.norm(out - anchor) <= 110.0 + 1e-9 and in_eroded(shape, out[:2], 20.0)
+    # a notch whose inset side lies outside the sphere: rejected, Out untouched (the driver prints its
+    # sentinel)
+    got = constrain(driver, (0.0, 0.0, 0.0), 100.0, 5.0, NOTCHED, [(99.0, 0.0, 0.0), (99.0, 0.5, 0.0)])
     assert [c for c, _ in got] == [-1, -1]
     assert all(np.array_equal(out, sentinel) for _, out in got)
-    assert ref_constrain(notch_anchor, 100.0, 5.0, NOTCHED, (99.0, 0.0, 0.0), Polygon(NOTCHED))[0] == -1
-    # a concave notch where the nudge stays outside -> rejected (ClampToPolygonXY code 2)
-    got = constrain(driver, (50.0, 350.0, 0.0), 1000.0, 20.0, L_SHAPE, [(350.0, 350.0, 0.0)])
-    assert got[0][0] == -1 and np.array_equal(got[0][1], sentinel)
-    # accepted results always satisfy both constraints; rejected ones match the Python rule
+    # accepted results always satisfy both constraints; points already in both pass unchanged
     rng = np.random.default_rng(16)
     for name, ring, ring_anchor in polygon_cases():
         shape = Polygon(ring)
         xs = [p[0] for p in ring]
         ys = [p[1] for p in ring]
         w, h = max(xs) - min(xs), max(ys) - min(ys)
+        eff = effective_inset(shape, ring_anchor, inset)
         for r_cm in (0.35 * max(w, h), 1.5 * max(w, h)):
-            a3 = (ring_anchor[0], ring_anchor[1], 100.0)
+            a3 = np.array((ring_anchor[0], ring_anchor[1], 100.0))
             points = [
                 (float(x), float(y), float(z))
                 for x, y, z in zip(
@@ -771,19 +887,22 @@ def test_constrain_combines_sphere_and_polygon(driver):
                 )
             ]
             got = constrain(driver, a3, r_cm, inset, ring, points)
+            rejected = 0
             for p, (code, out) in zip(points, got, strict=True):
-                ref_code, ref_out = ref_constrain(a3, r_cm, inset, ring, p, shape)
-                if ref_code == -2:
-                    continue
-                assert code == ref_code, (name, r_cm, p, code, ref_code)
+                d = float(np.linalg.norm(np.asarray(p) - a3))
+                bd = shape.exterior.distance(Point(p[0], p[1]))
+                if abs(d - r_cm) < 1e-6 or abs(bd - eff) < 1e-6 or bd < 1e-6:
+                    continue  # on a limit: either side
                 if code == -1:
+                    rejected += 1
                     assert np.array_equal(out, sentinel)
                     continue
-                assert ref_out is not None and np.allclose(out, ref_out, atol=1e-6), (name, p)
-                assert np.linalg.norm(out - a3) <= r_cm * (1 + 1e-12) + 1e-9
-                from shapely.geometry import Point
-
-                assert shape.covers(Point(out[0], out[1])), (name, p, out)
+                assert (code & 1) == (1 if d > r_cm else 0), (name, p, code)
+                if d <= r_cm and in_eroded(shape, p[:2], eff):
+                    assert code == 0 and np.array_equal(out, p), (name, p, code)
+                assert np.linalg.norm(out - a3) <= r_cm * (1 + 1e-12) + 1e-9, (name, p)
+                assert in_eroded(shape, out[:2], eff), (name, p, out)
+            assert rejected <= 15, (name, r_cm, rejected)
 
 
 # -------------------------------------------------------------------------------------------------------- (k)

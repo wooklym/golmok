@@ -873,15 +873,25 @@ bool FGolmokPhotoClampTest::RunTest(const FString& Parameters)
 	X = 200.0;
 	Y = 0.0;
 	const int32 EdgeCode = GolmokPhotoMath::ClampToPolygonXY(SquareX, SquareY, 4, 0.0, 0.0, 20.0, X, Y);
-	TestTrue(TEXT("ClampToPolygonXY: point on the boundary -> inside (0 or 1)"), (EdgeCode == 0 || EdgeCode == 1) && X <= 200.0 + 1e-9 && FMath::IsNearlyEqual(Y, 0.0, 1e-9));
+	TestTrue(TEXT("ClampToPolygonXY: point on the boundary -> 20 cm inside (1)"), EdgeCode == 1 && FMath::IsNearlyEqual(X, 180.0, 1e-9) && FMath::IsNearlyEqual(Y, 0.0, 1e-9));
+	// V-09 #58: inside the 0..20 cm band -> back onto the inset line (the old rule let it through: saw-tooth at the edge)
+	X = 195.0;
+	Y = 30.0;
+	TestEqual(TEXT("ClampToPolygonXY: inside the margin band -> 1"), GolmokPhotoMath::ClampToPolygonXY(SquareX, SquareY, 4, 0.0, 0.0, 20.0, X, Y), 1);
+	TestTrue(TEXT("ClampToPolygonXY: band point on the inset line, tangent kept"), FMath::IsNearlyEqual(X, 180.0, 1e-9) && FMath::IsNearlyEqual(Y, 30.0, 1e-9));
+	// convex corner -> the corner of the inset square
+	X = 260.0;
+	Y = 250.0;
+	TestEqual(TEXT("ClampToPolygonXY: outside a corner -> 1"), GolmokPhotoMath::ClampToPolygonXY(SquareX, SquareY, 4, 0.0, 0.0, 20.0, X, Y), 1);
+	TestTrue(TEXT("ClampToPolygonXY: inset corner (180, 180)"), FMath::IsNearlyEqual(X, 180.0, 1e-9) && FMath::IsNearlyEqual(Y, 180.0, 1e-9));
 	// concave L: the nearest boundary point of (150, 150) is the horizontal edge y = 100 (tie with x = 100 -> lowest edge index);
-	// nudged toward an anchor in the vertical arm it leaves the ring -> 2, Out = Q.
+	// it goes down that edge's inward normal (not toward the anchor in the vertical arm) -> (150, 80), 1.
 	const double LX[6] = {0.0, 400.0, 400.0, 100.0, 100.0, 0.0};
 	const double LY[6] = {0.0, 0.0, 100.0, 100.0, 400.0, 400.0};
 	X = 150.0;
 	Y = 150.0;
-	TestEqual(TEXT("ClampToPolygonXY: concave corner, inset point outside -> 2"), GolmokPhotoMath::ClampToPolygonXY(LX, LY, 6, 50.0, 350.0, 20.0, X, Y), 2);
-	TestTrue(TEXT("ClampToPolygonXY: code 2 leaves Q on the boundary"), FMath::IsNearlyEqual(X, 150.0, 1e-9) && FMath::IsNearlyEqual(Y, 100.0, 1e-9));
+	TestEqual(TEXT("ClampToPolygonXY: concave notch -> 1"), GolmokPhotoMath::ClampToPolygonXY(LX, LY, 6, 50.0, 350.0, 20.0, X, Y), 1);
+	TestTrue(TEXT("ClampToPolygonXY: concave notch along the edge normal"), FMath::IsNearlyEqual(X, 150.0, 1e-9) && FMath::IsNearlyEqual(Y, 80.0, 1e-9));
 	X = 300.0;
 	Y = 0.0;
 	TestEqual(TEXT("ClampToPolygonXY: N < 3 -> 0"), GolmokPhotoMath::ClampToPolygonXY(SquareX, SquareY, 2, 0.0, 0.0, 20.0, X, Y), 0);
@@ -914,6 +924,13 @@ bool FGolmokPhotoClampTest::RunTest(const FString& Parameters)
 	Out = {-1.0, -1.0, -1.0};
 	TestEqual(TEXT("Constrain: sphere and polygon both violated, no repair -> -1"), GolmokPhotoMath::Constrain(Arm, Vec3{2950.0, 0.0, 0.0}, Out), -1);
 	TestTrue(TEXT("Constrain: rejected leaves Out untouched"), Out[0] == -1.0 && Out[1] == -1.0 && Out[2] == -1.0);
+	// A pawn already inside the margin band (spring-arm start) is not pushed inward: it cannot get closer to the edge.
+	C.bHasCurrent = true;
+	C.Current = {195.0, 0.0, 0.0};
+	TestEqual(TEXT("Constrain: band start, outward -> 2"), GolmokPhotoMath::Constrain(C, Vec3{196.0, 10.0, 0.0}, Out), 2);
+	TestTrue(TEXT("Constrain: band start keeps its distance (195, 10)"), FMath::IsNearlyEqual(Out[0], 195.0, 1e-9) && FMath::IsNearlyEqual(Out[1], 10.0, 1e-9));
+	TestEqual(TEXT("Constrain: band start, inward -> 0"), GolmokPhotoMath::Constrain(C, Vec3{194.0, 0.0, 0.0}, Out), 0);
+	C.bHasCurrent = false;
 	C.N = 0;
 	TestEqual(TEXT("Constrain: no polygon -> sphere only"), GolmokPhotoMath::Constrain(C, Vec3{1000.0, 0.0, 0.0}, Out), 1);
 
