@@ -2,7 +2,7 @@
 
 > **소통 채널**: 이 파일의 큐와 순서 변경, 리뷰 요약, 병합 알림은 GitHub 이슈 [#30](https://github.com/wooklym/golmok/issues/30)의 `[오케스트레이터 → Astra]` 코멘트로도 알린다. Astra는 세션 시작 때 이슈 #30을 읽고, push·완료·질문·종료를 `[Astra → 오케스트레이터]` 코멘트로 남긴다(AGENTS.md §10). 이슈 코멘트와 이 파일이 다르면 **더 최근 것**을 따른다.
 
-이 파일은 Claude 오케스트레이터가 ChatGPT Astra에게 맡길 과제를 모아 둔 곳이다. 규칙 우선순위는 [`AGENTS.md`](../../AGENTS.md) 그대로(**과제 프롬프트 > AGENTS.md > CLAUDE.md**). 소유자가 Astra에게 "`docs/plan/astra-tasks.md`의 T3를 수행"처럼 번호로 전달한다. 과제가 끝나면 Astra는 AGENTS.md §9 형식으로 소유자에게 보고하고, PR은 Fable 리뷰 → 소유자 승인 → Fable 병합 순서를 따른다(DEVELOPMENT-PLAN §7.6).
+이 파일은 Claude 오케스트레이터가 ChatGPT Astra에게 맡길 과제를 모아 둔 곳이다. 규칙 우선순위는 [`AGENTS.md`](../../AGENTS.md) 그대로(**과제 프롬프트 > AGENTS.md > CLAUDE.md**). 소유자가 Astra에게 "`docs/plan/astra-tasks.md`의 T3를 수행"처럼 번호로 전달한다. 과제가 끝나면 Astra는 AGENTS.md §9 형식으로 소유자에게 보고하고, PR은 Opus ultracode 코드 리뷰(+설계 변경 시 Fable) → (A) 해소·CI 초록 → 오케스트레이터 병합 순서를 따른다(DEVELOPMENT-PLAN §7.6; 소유자 승인은 되돌릴 수 없는 일이 얽힌 PR에만, D-019 2026-09-27).
 
 배경(2026-09-27): Fable 주간 한도가 소진돼 소유자가 "Opus로 할 수 있는 것부터"를 지시했고, Astra가 WP-18(캐릭터)을 맡아 PR #22/#23을 병합, #24를 올렸다. 오케스트레이터는 Astra에게 **오디오 레인(WP-13·WP-17)**을 새로 배정하고, PC에서만 가능한 검증(V-04 실행, V-11 GUI, WP-12 포토 통합 재실행)을 Astra 과제로 옮긴다. 엔진 안 품질의 최종 판정·병합·공유 문서 갱신은 그대로 Claude(Fable) 몫이다.
 
@@ -29,6 +29,6 @@
 - 공유 문서 직접 수정, 병합, 구매·문의·발송(AGENTS.md §3).
 
 ## 오케스트레이터가 할 것
-- PR #24 리뷰 코멘트(Opus 읽기 전용 검증) → T1 → 소유자 승인 → `WP-18: 병합 시 반영 (Fable)` 커밋 → merge commit.
+- ~~PR #24 리뷰 코멘트(Opus 읽기 전용 검증)~~(2026-09-27 병합) → T1 PR #32 리뷰 완료((A) 4건) → Astra 수정 확인 → `WP-18: 병합 시 반영 (Fable)` 커밋 → merge commit(소유자 승인 불필요, D-019).
 - WP-12(PR #19) 마무리·병합, V-09는 PC Claude 세션.
 - T3/T4/T5 PR의 리뷰·병합, STATUS "병행 트랙" 갱신.
