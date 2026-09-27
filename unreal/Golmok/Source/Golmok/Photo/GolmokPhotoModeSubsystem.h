@@ -90,6 +90,8 @@ struct FGolmokPhotoRestoreState
 	/** UGolmokGameViewportClient::IsTransitionMessageSuppressed() at entry (false when that class is not configured). */
 	bool bTransitionMessageSuppressed = false;
 	bool bDebugKeysActive = false;
+	/** UWorld::bIsCameraMoveableWhenPaused at entry (V-09 #57: Enter sets it to true after the pause, RestoreAll puts this back). */
+	bool bCameraMoveableWhenPaused = false;
 	float TimeDilation = 1.f;
 	float PawnTimeDilation = 1.f;
 	double WorldTimeAtEnter = 0.0;
@@ -149,9 +151,9 @@ public:
 	UPROPERTY(Config, EditAnywhere, Category = "Golmok|Photo", meta = (ClampMin = "1", ClampMax = "8"))
 	int32 ScreenshotMultiplier = 2;
 
-	/** Upper bound of the photo multiplier (VRAM; runbook section 6 measures 2 and 3 on the RTX 5060 8 GB). */
+	/** Upper bound of the photo multiplier (VRAM; runbook section 6 measures 2 and 3 on the RTX 5060 8 GB). V-09: 3x stalls 3-6 s -> 2 (was 3). */
 	UPROPERTY(Config, EditAnywhere, Category = "Golmok|Photo", meta = (ClampMin = "1", ClampMax = "8"))
-	int32 MaxMultiplier = 3;
+	int32 MaxMultiplier = 2;
 
 	/** Free-camera sphere radius around the character's capsule center (m). */
 	UPROPERTY(Config, EditAnywhere, Category = "Golmok|Photo", meta = (ClampMin = "0.5", ClampMax = "20.0"))

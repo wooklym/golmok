@@ -777,3 +777,61 @@ def test_dead_world_teardown_restores_the_viewport_transition_flag():
     body = _function_body(code, "UGolmokPhotoModeSubsystem::TeardownForDeadWorld")
     assert "SetSuppressTransitionMessage(bSavedSuppressTransition)" in body
     assert "GetGameViewport()" in body
+
+
+# ---- V-09 follow-up (PR #27 review A2 / A3, #58 / #60) ------------------------------------------------
+
+
+def test_camera_moveable_when_paused_is_saved_set_and_restored():
+    """A3: Enter saves UWorld::bIsCameraMoveableWhenPaused before touching it and sets it only after the pause
+    succeeded (the refusal rollback returns before it); RestoreAll puts it back after ApplyPause(false); the
+    restore-state contract carries it."""
+    header = _strip_comments(_read(SUBSYSTEM_H))
+    code = _strip_comments(_read(SUBSYSTEM_CPP))
+    enter = _function_body(code, "UGolmokPhotoModeSubsystem::Enter")
+    save = enter.index("bSavedCameraMoveableWhenPaused = World->bIsCameraMoveableWhenPaused")
+    pause = enter.index("ApplyPause(true)")
+    refused = enter.index('TEXT("cannot enter: pause refused")', pause)
+    set_true = enter.index("World->bIsCameraMoveableWhenPaused = true;")
+    assert save < pause < refused < set_true
+    restore = _function_body(code, "UGolmokPhotoModeSubsystem::RestoreAll")
+    unpause = restore.index("ApplyPause(false)")
+    assert restore.index("World->bIsCameraMoveableWhenPaused = bSavedCameraMoveableWhenPaused;") > unpause
+    assert re.search(r"\bbool\s+bCameraMoveableWhenPaused\s*=\s*false;", header)
+    state = _function_body(code, "UGolmokPhotoModeSubsystem::GetRestoreState")
+    assert "Out.bCameraMoveableWhenPaused = bSavedCameraMoveableWhenPaused;" in state
+
+
+def test_restore_cuts_the_camera_after_the_view_target():
+    """A2: the photo camera's eye adaptation / TSR history does not carry into the player view on exit."""
+    code = _strip_comments(_read(SUBSYSTEM_CPP))
+    restore = _function_body(code, "UGolmokPhotoModeSubsystem::RestoreAll")
+    view = restore.index("PC->SetViewTargetWithBlend(Target, 0.f);")
+    cut = restore.index("PC->PlayerCameraManager->SetGameCameraCutThisFrame();")
+    assert view < cut
+
+
+def test_move_constrained_slides_once_and_constrains_every_leg():
+    """#60: at most two sweeps; the slide is the rest of the blocked move projected on the hit plane; every
+    leg goes through Constrain from the current position (#58 band start); a start-penetrating sweep still
+    retreats."""
+    pawn = _strip_comments(_read(PAWN_CPP))
+    assert re.search(r"constexpr\s+int32\s+PhotoMaxSweeps\s*=\s*2;", pawn)
+    move = _function_body(pawn, "AGolmokPhotoCameraPawn::MoveConstrained")
+    loop = move.index("for (int32 Leg = 0; Leg < PhotoMaxSweeps; ++Leg)")
+    assert move.index("LocalConstraint.Current =", loop) < move.index("GolmokPhotoMath::Constrain(", loop)
+    assert "LocalConstraint.bHasCurrent = true;" in move
+    slide = "VectorPlaneProject((Target - Start) * (1.0 - static_cast<double>(Hit.Time)), Hit.Normal)"
+    assert slide in move
+    assert "Hit.bStartPenetrating" in move and "PhotoPenetrationRetreatCm" in move
+    assert move.index("Hit.bStartPenetrating") < move.index("VectorPlaneProject")
+
+
+def test_polygon_clamp_projects_along_the_edge_normal():
+    """#58: the header projects onto the eroded ring (edge normals from the ring orientation), not toward the
+    anchor for outside points only."""
+    header = _read(PHOTO / "GolmokPhotoMath.h")
+    body = _function_body(_strip_comments(header), "ClampToPolygonXY")
+    assert "EffectiveInsetCm(" in body and "EdgeInwardNormal(" in body
+    assert "D >= Inset - FootprintTolCm" in body
+    assert "MoveInsetCm(C)" in _function_body(_strip_comments(header), "Constrain")
