@@ -788,6 +788,23 @@ def test_walk_into_the_edge_stops_inset_inside_and_slides(driver):
         assert max(moves) <= 1.25 + 1e-6, angle  # no jump
 
 
+def test_clamp_cost_on_a_finely_tessellated_ring(driver):
+    """Review round 2: a 200-gon pushed at its wall cost ~3 ms a tick (every piece pair tested); the local
+    seed keeps it well under that (1000 ticks, two walks, generous bound for slow CI machines)."""
+    import time
+
+    ring = [
+        (400.0 * math.cos(2 * math.pi * i / 200), 400.0 * math.sin(2 * math.pi * i / 200)) for i in range(200)
+    ]
+    step = (7.0 * math.cos(math.radians(70)), 7.0 * math.sin(math.radians(70)), 0.0)
+    t0 = time.perf_counter()
+    path = walk(driver, (0.0, 0.0, 0.0), 1.0e6, 20.0, ring, (128.7, 357.5, 0.0), step, 1000)
+    path += walk(driver, (0.0, 0.0, 0.0), 390.0, 20.0, ring, (0.0, 0.0, 0.0), (5.0, 1.0, 0.3), 1000)
+    elapsed = time.perf_counter() - t0
+    assert all(c >= 0 for c, _p in path)
+    assert elapsed < 1.5, elapsed  # the quadratic version needed about 3 s for the first walk alone
+
+
 def test_walk_starts_on_the_boundary_in_the_band_and_in_acute_corners(driver):
     pytest.importorskip("shapely")
     from shapely.geometry import Point, Polygon
@@ -895,6 +912,44 @@ def test_walk_short_duplicate_collinear_edges_and_junctions(driver):
     junction = (380.0, 300.0 + math.sqrt(300.0**2 - 120.0**2))
     assert math.dist(path[-1][1][:2], junction) < 0.01, path[-1]
     assert settled(path, 10) <= 1e-9
+    # round 2 of the review: the sphere meeting S at a reflex-vertex arc (the 4-round version froze with -1
+    # from tick 5 while a 16 cm move was valid); with 16 rounds it keeps sliding into the junction
+    ring18 = [
+        (188.81443071382674, -21.938559660466506),
+        (146.48941801516918, -54.91154931320874),
+        (-20.570641962859344, -150.07247017646864),
+        (-17.54895808777734, -83.88227712178563),
+        (-54.17924125843053, -32.340585422174236),
+        (-101.82343042165208, -53.6034377171236),
+        (-142.0398576580088, -46.92274127398089),
+        (-116.8105157657726, -2.626181874490854),
+        (-77.14109883345552, 15.382441248624058),
+        (-14.337555531075857, 150.98988372239003),
+        (-12.63518352764983, 179.34734383264444),
+        (9.373823826979779, 94.29531983258167),
+        (23.53232177359216, 96.86502160747123),
+        (26.788022373474995, 54.14209431521189),
+        (59.4653405098937, 105.93440046976532),
+        (129.53759786252897, 101.63959733464428),
+        (56.7371336582079, 35.239875683101),
+        (101.29234764023516, 54.134739113420274),
+    ]
+    a18 = (24.307546894477028, -40.55140023140064, -11.73362524184472)
+    path = walk(
+        driver,
+        a18,
+        92.695,
+        39.618,
+        ring18,
+        a18,
+        (-6.22209372173394, 17.623752436951676, 4.503916132933126),
+        10,
+    )
+    assert all(c >= 0 for c, _p in path), [c for c, _p in path]
+    assert math.dist(path[4][1][:2], (-2.8924, 27.8998)) > 10.0  # the old freeze point is left behind
+    shape18 = Polygon(ring18)
+    for _c, p in path:
+        assert np.linalg.norm(p - np.asarray(a18)) <= 92.695 + 1e-6 and in_eroded(shape18, p[:2], 39.618)
     # reflex-arc / edge cusp at a narrow tip: the exact nearest point of the eroded ring (shapely, 0.05 cm)
     star = Polygon(TIP_STAR)
     (code, x, y) = poly(driver, TIP_STAR, (0.0, 0.0), 20.0, [(141.55909975125141, -58.22838805036114)])[0]

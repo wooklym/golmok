@@ -231,9 +231,9 @@ namespace GolmokPhotoMath
 	constexpr double FootprintTolCm = 1e-6;
 	constexpr double FootprintMinInsetCm = 1e-3;
 	/** Sphere / polygon rounds of Constrain (the sphere clamp can undo part of the polygon one near both limits). */
-	constexpr int ConstrainMaxRounds = 4;
-	/** Bisection steps of the Constrain fallback along Current -> P (2^-30 of a tick's move). */
-	constexpr int ConstrainBisections = 30;
+	constexpr int ConstrainMaxRounds = 16;
+	/** Bisection steps of the Constrain fallback along Current -> P (2^-20 of a tick's move). */
+	constexpr int ConstrainBisections = 20;
 
 	/** Twice the signed area of the ring (> 0 counter-clockwise in X-right / Y-up axes). */
 	inline double RingArea2(const double* Xs, const double* Ys, std::size_t N)
@@ -290,18 +290,142 @@ namespace GolmokPhotoMath
 		return NearestBoundaryPoint(Xs, Ys, N, X, Y, Qx, Qy, Edge) >= Inset - FootprintTolCm;
 	}
 
+	/** One piece of the eroded ring's boundary: edge j shifted Inset inward (bLine) or the arc of radius Inset around vertex j. */
+	struct FootprintPiece
+	{
+		bool bLine = false;
+		double Ax = 0.0;  // line: start of the shifted edge; arc: the vertex
+		double Ay = 0.0;
+		double Ux = 0.0;  // line: unit direction
+		double Uy = 0.0;
+		double Nx = 0.0;  // line: unit inward normal
+		double Ny = 0.0;
+		double Len = 0.0; // line: edge length
+	};
+
+	/** Piece Index (2 j = shifted edge j, 2 j + 1 = arc of vertex j); false for a zero-length edge. Orient = sign of RingArea2. */
+	inline bool MakeFootprintPiece(const double* Xs, const double* Ys, std::size_t N, double Orient, double Inset, std::size_t Index, FootprintPiece& Out)
+	{
+		const std::size_t j = (Index / 2) % N;
+		Out = FootprintPiece();
+		if (Index % 2 == 1)
+		{
+			Out.Ax = Xs[j];
+			Out.Ay = Ys[j];
+			return true;
+		}
+		const std::size_t k = (j + 1 < N) ? j + 1 : 0;
+		const double Ex = Xs[k] - Xs[j];
+		const double Ey = Ys[k] - Ys[j];
+		const double Len = std::sqrt(Ex * Ex + Ey * Ey);
+		if (!(Len > FootprintTolCm))
+		{
+			return false;
+		}
+		Out.bLine = true;
+		Out.Ux = Ex / Len;
+		Out.Uy = Ey / Len;
+		Out.Nx = -Out.Uy * Orient;
+		Out.Ny = Out.Ux * Orient;
+		Out.Ax = Xs[j] + Out.Nx * Inset;
+		Out.Ay = Ys[j] + Out.Ny * Inset;
+		Out.Len = Len;
+		return true;
+	}
+
+	/** Nearest point of the piece to (Px, Py) (arcs: the full circle; a point on the vertex itself has none) and its distance. */
+	inline bool NearestOnPiece(const FootprintPiece& Piece, double Inset, double Px, double Py, double& OutX, double& OutY, double& OutDist)
+	{
+		if (Piece.bLine)
+		{
+			double T = (Px - Piece.Ax) * Piece.Ux + (Py - Piece.Ay) * Piece.Uy;
+			T = (T < 0.0) ? 0.0 : ((T > Piece.Len) ? Piece.Len : T);
+			OutX = Piece.Ax + Piece.Ux * T;
+			OutY = Piece.Ay + Piece.Uy * T;
+			OutDist = std::sqrt((Px - OutX) * (Px - OutX) + (Py - OutY) * (Py - OutY));
+			return true;
+		}
+		const double Vx = Px - Piece.Ax;
+		const double Vy = Py - Piece.Ay;
+		const double Vl = std::sqrt(Vx * Vx + Vy * Vy);
+		OutDist = std::fabs(Vl - Inset);
+		if (!(Vl > FootprintTolCm))
+		{
+			return false;
+		}
+		OutX = Piece.Ax + Vx / Vl * Inset;
+		OutY = Piece.Ay + Vy / Vl * Inset;
+		return true;
+	}
+
+	/** Up to two intersection points of two pieces (lines as infinite lines, arcs as full circles); returns the count. */
+	inline int IntersectPieces(const FootprintPiece& A, const FootprintPiece& B, double Inset, double OutX[2], double OutY[2])
+	{
+		if (A.bLine && B.bLine)
+		{
+			// nA . X = nA . A0, nB . X = nB . B0
+			const double Ca = A.Nx * A.Ax + A.Ny * A.Ay;
+			const double Cb = B.Nx * B.Ax + B.Ny * B.Ay;
+			const double Det = A.Nx * B.Ny - A.Ny * B.Nx;
+			if (!(std::fabs(Det) > 1e-12))
+			{
+				return 0;
+			}
+			OutX[0] = (Ca * B.Ny - Cb * A.Ny) / Det;
+			OutY[0] = (A.Nx * Cb - B.Nx * Ca) / Det;
+			return 1;
+		}
+		if (A.bLine != B.bLine)
+		{
+			const FootprintPiece& L = A.bLine ? A : B;
+			const FootprintPiece& C = A.bLine ? B : A;
+			// |L0 + t U - V|^2 = Inset^2
+			const double Wx = L.Ax - C.Ax;
+			const double Wy = L.Ay - C.Ay;
+			const double Bh = Wx * L.Ux + Wy * L.Uy;
+			const double Disc = Bh * Bh - (Wx * Wx + Wy * Wy - Inset * Inset);
+			if (Disc < 0.0)
+			{
+				return 0;
+			}
+			const double Root = std::sqrt(Disc);
+			OutX[0] = L.Ax + L.Ux * (-Bh - Root);
+			OutY[0] = L.Ay + L.Uy * (-Bh - Root);
+			OutX[1] = L.Ax + L.Ux * (-Bh + Root);
+			OutY[1] = L.Ay + L.Uy * (-Bh + Root);
+			return 2;
+		}
+		// two circles of radius Inset: on the perpendicular bisector, half-chord sqrt(Inset^2 - (d / 2)^2)
+		const double Cx = B.Ax - A.Ax;
+		const double Cy = B.Ay - A.Ay;
+		const double Cd = std::sqrt(Cx * Cx + Cy * Cy);
+		if (!(Cd > FootprintTolCm) || Cd > 2.0 * Inset)
+		{
+			return 0;
+		}
+		const double H = std::sqrt(PhotoMax(Inset * Inset - 0.25 * Cd * Cd, 0.0));
+		const double Mx = A.Ax + 0.5 * Cx;
+		const double My = A.Ay + 0.5 * Cy;
+		OutX[0] = Mx - Cy / Cd * H;
+		OutY[0] = My + Cx / Cd * H;
+		OutX[1] = Mx + Cy / Cd * H;
+		OutY[1] = My - Cx / Cd * H;
+		return 2;
+	}
+
 	/**
 	 * XY clamp into the eroded ring S = {inside (GolmokGeoMath::PointInPolygon) and boundary distance >= Inset}, Inset =
 	 * EffectiveInsetCm(...) (V-09 #58: the old rule let every inside point through, so pushing at the edge saw-toothed
 	 * inside the 0..Inset band, and nudged toward the anchor, so it also dragged sideways). A point already in S -> 0,
-	 * unchanged. Otherwise the NEAREST point of S (exact, not iterated): the boundary of S is made of the edges shifted
-	 * Inset inward (along the inward normal from the ring orientation) and arcs of radius Inset around the vertices, so the
-	 * candidates are the projection onto each such piece and the pairwise intersections of the pieces (its corners), plus
-	 * the anchor (in S by EffectiveInsetCm); the nearest candidate that is in S wins. Pieces farther than the best
-	 * single-piece candidate are skipped for the pairwise step (they cannot hold a nearer point), so this stays cheap.
-	 * Pushing into an edge stops exactly Inset inside and keeps the tangential part (slides); corners and short / duplicate /
-	 * collinear edges have a fixed point. Returns 1 with the projected point, or 2 when no candidate is in S (degenerate
-	 * ring; X, Y unchanged, the caller keeps its previous position). N < 3 -> 0, unchanged.
+	 * unchanged. Otherwise the NEAREST point of S (exact, not iterated): the boundary of S is made of the edges shifted Inset
+	 * inward (inward from the ring orientation) and arcs of radius Inset around the vertices, so the candidates are the
+	 * nearest point on each piece and the pairwise intersections of pieces (the corners of S), plus the anchor (in S by
+	 * EffectiveInsetCm); the nearest candidate that is in S wins. Cost: the pieces around the nearest boundary edge are tried
+	 * first (pairwise too), which normally gives the answer; the other pieces are only tested against that distance, and
+	 * pairs only among pieces closer than it. Pushing into an edge stops exactly Inset inside and keeps the tangential part
+	 * (slides); corners, short / duplicate / collinear edges and reflex arcs have fixed points. Returns 1 with the projected
+	 * point, or 2 when no candidate is in S (degenerate ring; X, Y unchanged, the caller keeps its previous position).
+	 * N < 3 -> 0, unchanged.
 	 */
 	inline int ClampToPolygonXY(const double* Xs, const double* Ys, std::size_t N, double AnchorX, double AnchorY, double InsetCm, double& X, double& Y)
 	{
@@ -317,7 +441,12 @@ namespace GolmokPhotoMath
 			return 0;
 		}
 		const double Area2 = RingArea2(Xs, Ys, N);
+		if (Area2 == 0.0 || !std::isfinite(Area2))
+		{
+			return 2;
+		}
 		const double Orient = (Area2 < 0.0) ? -1.0 : 1.0;
+		const std::size_t NumPieces = 2 * N;
 
 		bool bFound = false;
 		double BestX = Px;
@@ -325,9 +454,9 @@ namespace GolmokPhotoMath
 		double BestD2 = 0.0;
 		auto Try = [&](double Cx, double Cy)
 		{
-			const double Dx = Cx - Px;
-			const double Dy = Cy - Py;
-			const double D2 = Dx * Dx + Dy * Dy;
+			const double Ox = Cx - Px;
+			const double Oy = Cy - Py;
+			const double D2 = Ox * Ox + Oy * Oy;
 			if ((!bFound || D2 < BestD2) && InErodedRing(Xs, Ys, N, Inset, Cx, Cy))
 			{
 				bFound = true;
@@ -336,127 +465,89 @@ namespace GolmokPhotoMath
 				BestD2 = D2;
 			}
 		};
-
-		// Pieces: 2 * j = offset segment of edge j (A + t * (B - A) + n * Inset, t in [0, 1]), 2 * j + 1 = arc around vertex j.
-		struct Piece
+		auto TryPair = [&](const FootprintPiece& A, const FootprintPiece& B)
 		{
-			bool bLine = false;
-			double Ax = 0.0, Ay = 0.0, Dx = 0.0, Dy = 0.0; // line: start and direction (unit); arc: centre in Ax, Ay
-			double Nx = 0.0, Ny = 0.0, Len = 0.0;          // line: unit inward normal and length
-			double Dist = 0.0;                             // distance from P to the piece
+			double Ix[2] = {0.0, 0.0};
+			double Iy[2] = {0.0, 0.0};
+			const int Count = IntersectPieces(A, B, Inset, Ix, Iy);
+			for (int c = 0; c < Count; ++c)
+			{
+				Try(Ix[c], Iy[c]);
+			}
 		};
-		std::vector<Piece> Pieces;
-		Pieces.reserve(2 * N);
-		for (std::size_t j = 0; j < N; ++j)
+
+		// 1. local seed: the pieces of the nearest boundary edge and its neighbours (edges e-2..e+2, their vertices), pairwise.
 		{
-			const std::size_t k = (j + 1 < N) ? j + 1 : 0;
-			const double Ex = Xs[k] - Xs[j];
-			const double Ey = Ys[k] - Ys[j];
-			const double Len = std::sqrt(Ex * Ex + Ey * Ey);
-			if (Len > FootprintTolCm && Area2 != 0.0)
+			double Qx = Px;
+			double Qy = Py;
+			std::size_t Edge = 0;
+			NearestBoundaryPoint(Xs, Ys, N, Px, Py, Qx, Qy, Edge);
+			constexpr std::size_t LocalCount = 11; // pieces 2(e-2) .. 2(e+2)+2: 5 edges, 6 vertices
+			FootprintPiece Local[LocalCount];
+			bool bLocal[LocalCount] = {};
+			const std::size_t First = (2 * Edge + NumPieces * 2 - 4) % NumPieces;
+			for (std::size_t i = 0; i < LocalCount && i < NumPieces; ++i)
 			{
-				Piece L;
-				L.bLine = true;
-				L.Dx = Ex / Len;
-				L.Dy = Ey / Len;
-				L.Nx = -L.Dy * Orient;
-				L.Ny = L.Dx * Orient;
-				L.Ax = Xs[j] + L.Nx * Inset;
-				L.Ay = Ys[j] + L.Ny * Inset;
-				L.Len = Len;
-				double T = (Px - L.Ax) * L.Dx + (Py - L.Ay) * L.Dy;
-				T = (T < 0.0) ? 0.0 : ((T > Len) ? Len : T);
-				const double Cx = L.Ax + L.Dx * T;
-				const double Cy = L.Ay + L.Dy * T;
-				L.Dist = std::sqrt((Px - Cx) * (Px - Cx) + (Py - Cy) * (Py - Cy));
+				bLocal[i] = MakeFootprintPiece(Xs, Ys, N, Orient, Inset, (First + i) % NumPieces, Local[i]);
+				double Cx = 0.0;
+				double Cy = 0.0;
+				double Dist = 0.0;
+				if (bLocal[i] && NearestOnPiece(Local[i], Inset, Px, Py, Cx, Cy, Dist))
+				{
+					Try(Cx, Cy);
+				}
+			}
+			for (std::size_t a = 0; a < LocalCount && a < NumPieces; ++a)
+			{
+				for (std::size_t b = a + 1; b < LocalCount && b < NumPieces; ++b)
+				{
+					if (bLocal[a] && bLocal[b])
+					{
+						TryPair(Local[a], Local[b]);
+					}
+				}
+			}
+		}
+		// 2. every piece's own nearest point, and the anchor (both only tested when nearer than the best so far).
+		for (std::size_t i = 0; i < NumPieces; ++i)
+		{
+			FootprintPiece Piece;
+			double Cx = 0.0;
+			double Cy = 0.0;
+			double Dist = 0.0;
+			if (MakeFootprintPiece(Xs, Ys, N, Orient, Inset, i, Piece) && NearestOnPiece(Piece, Inset, Px, Py, Cx, Cy, Dist))
+			{
 				Try(Cx, Cy);
-				Pieces.push_back(L);
-			}
-			Piece Arc;
-			Arc.Ax = Xs[j];
-			Arc.Ay = Ys[j];
-			const double Vx = Px - Arc.Ax;
-			const double Vy = Py - Arc.Ay;
-			const double Vl = std::sqrt(Vx * Vx + Vy * Vy);
-			Arc.Dist = std::fabs(Vl - Inset);
-			if (Vl > FootprintTolCm)
-			{
-				Try(Arc.Ax + Vx / Vl * Inset, Arc.Ay + Vy / Vl * Inset);
-			}
-			Pieces.push_back(Arc);
-		}
-		{
-			const double Ax = AnchorX - Px;
-			const double Ay = AnchorY - Py;
-			if (!bFound || Ax * Ax + Ay * Ay < BestD2)
-			{
-				Try(AnchorX, AnchorY);
 			}
 		}
+		Try(AnchorX, AnchorY);
 		if (!bFound)
 		{
 			return 2;
 		}
-
-		// Corners of S: pairwise intersections of the pieces within the current best distance.
-		std::vector<std::size_t> Near;
+		// 3. corners of S among the pieces closer than the best candidate (a nearer point of S lies on such pieces only).
+		std::vector<FootprintPiece> Near;
 		const double Bound = std::sqrt(BestD2) + FootprintTolCm;
-		for (std::size_t i = 0; i < Pieces.size(); ++i)
+		for (std::size_t i = 0; i < NumPieces; ++i)
 		{
-			if (Pieces[i].Dist <= Bound)
+			FootprintPiece Piece;
+			double Cx = 0.0;
+			double Cy = 0.0;
+			double Dist = 0.0;
+			if (MakeFootprintPiece(Xs, Ys, N, Orient, Inset, i, Piece))
 			{
-				Near.push_back(i);
+				NearestOnPiece(Piece, Inset, Px, Py, Cx, Cy, Dist);
+				if (Dist <= Bound)
+				{
+					Near.push_back(Piece);
+				}
 			}
 		}
 		for (std::size_t a = 0; a < Near.size(); ++a)
 		{
 			for (std::size_t b = a + 1; b < Near.size(); ++b)
 			{
-				const Piece& P1 = Pieces[Near[a]];
-				const Piece& P2 = Pieces[Near[b]];
-				if (P1.bLine && P2.bLine)
-				{
-					// n1 . X = n1 . A1, n2 . X = n2 . A2
-					const double C1 = P1.Nx * P1.Ax + P1.Ny * P1.Ay;
-					const double C2 = P2.Nx * P2.Ax + P2.Ny * P2.Ay;
-					const double Det = P1.Nx * P2.Ny - P1.Ny * P2.Nx;
-					if (std::fabs(Det) > 1e-12)
-					{
-						Try((C1 * P2.Ny - C2 * P1.Ny) / Det, (P1.Nx * C2 - P2.Nx * C1) / Det);
-					}
-				}
-				else if (P1.bLine != P2.bLine)
-				{
-					const Piece& L = P1.bLine ? P1 : P2;
-					const Piece& Arc = P1.bLine ? P2 : P1;
-					// |L.A + t * L.D - V|^2 = Inset^2
-					const double Wx = L.Ax - Arc.Ax;
-					const double Wy = L.Ay - Arc.Ay;
-					const double Bh = Wx * L.Dx + Wy * L.Dy;
-					const double Cc = Wx * Wx + Wy * Wy - Inset * Inset;
-					const double Disc = Bh * Bh - Cc;
-					if (Disc >= 0.0)
-					{
-						const double Root = std::sqrt(Disc);
-						Try(L.Ax + L.Dx * (-Bh - Root), L.Ay + L.Dy * (-Bh - Root));
-						Try(L.Ax + L.Dx * (-Bh + Root), L.Ay + L.Dy * (-Bh + Root));
-					}
-				}
-				else
-				{
-					// two circles of radius Inset: on the perpendicular bisector, half-chord sqrt(Inset^2 - (d / 2)^2)
-					const double Dx = P2.Ax - P1.Ax;
-					const double Dy = P2.Ay - P1.Ay;
-					const double Dd = std::sqrt(Dx * Dx + Dy * Dy);
-					if (Dd > FootprintTolCm && Dd <= 2.0 * Inset)
-					{
-						const double H = std::sqrt(PhotoMax(Inset * Inset - 0.25 * Dd * Dd, 0.0));
-						const double Mx = P1.Ax + 0.5 * Dx;
-						const double My = P1.Ay + 0.5 * Dy;
-						Try(Mx - Dy / Dd * H, My + Dx / Dd * H);
-						Try(Mx + Dy / Dd * H, My - Dx / Dd * H);
-					}
-				}
+				TryPair(Near[a], Near[b]);
 			}
 		}
 		X = BestX;
