@@ -1,0 +1,204 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "default",
+    "characters"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1,
+      "type": "integer"
+    },
+    "default": {
+      "$ref": "#/$defs/id"
+    },
+    "characters": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 32,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "display_name",
+          "mesh",
+          "anim_class",
+          "height_cm",
+          "capsule",
+          "mesh_offset_cm",
+          "mesh_scale",
+          "mesh_yaw_deg",
+          "camera",
+          "movement",
+          "footstep_set"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/$defs/id"
+          },
+          "display_name": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "ko",
+              "en"
+            ],
+            "properties": {
+              "ko": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 80,
+                "pattern": "^(?=[^\\r\\n]*\\S)[^\\r\\n]+$"
+              },
+              "en": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 80,
+                "pattern": "^(?=[^\\r\\n]*\\S)[^\\r\\n]+$"
+              }
+            }
+          },
+          "mesh": {
+            "type": "string",
+            "maxLength": 256,
+            "pattern": "^/Game/([A-Za-z0-9_]+/)+[A-Za-z0-9_]+\\.[A-Za-z0-9_]+$"
+          },
+          "anim_class": {
+            "type": "string",
+            "maxLength": 256,
+            "pattern": "^/Game/([A-Za-z0-9_]+/)+[A-Za-z0-9_]+\\.[A-Za-z0-9_]+_C$"
+          },
+          "height_cm": {
+            "type": "number",
+            "minimum": 80,
+            "maximum": 220
+          },
+          "capsule": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "radius_cm",
+              "half_height_cm"
+            ],
+            "properties": {
+              "radius_cm": {
+                "type": "number",
+                "minimum": 15,
+                "maximum": 60
+              },
+              "half_height_cm": {
+                "type": "number",
+                "minimum": 40,
+                "maximum": 120
+              }
+            }
+          },
+          "mesh_offset_cm": {
+            "type": "array",
+            "minItems": 3,
+            "maxItems": 3,
+            "items": {
+              "type": "number",
+              "minimum": -250,
+              "maximum": 250
+            }
+          },
+          "mesh_scale": {
+            "type": "array",
+            "minItems": 3,
+            "maxItems": 3,
+            "items": {
+              "type": "number",
+              "minimum": 0.25,
+              "maximum": 2
+            }
+          },
+          "mesh_yaw_deg": {
+            "type": "number",
+            "minimum": -180,
+            "maximum": 180
+          },
+          "camera": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "boom_cm",
+              "socket_cm",
+              "fov_deg"
+            ],
+            "properties": {
+              "boom_cm": {
+                "type": "number",
+                "minimum": 100,
+                "maximum": 500
+              },
+              "socket_cm": {
+                "type": "array",
+                "minItems": 3,
+                "maxItems": 3,
+                "items": {
+                  "type": "number",
+                  "minimum": -150,
+                  "maximum": 150
+                }
+              },
+              "fov_deg": {
+                "type": "number",
+                "minimum": 40,
+                "maximum": 110
+              }
+            }
+          },
+          "movement": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "walk_cm_s",
+              "run_cm_s"
+            ],
+            "properties": {
+              "walk_cm_s": {
+                "type": "number",
+                "minimum": 50,
+                "maximum": 300
+              },
+              "run_cm_s": {
+                "type": "number",
+                "minimum": 100,
+                "maximum": 800
+              }
+            }
+          },
+          "footstep_set": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/$defs/id"
+              }
+            ]
+          }
+        }
+      }
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/wooklym/golmok/docs/spec/characters.schema.json",
+  "title": "Golmok WP-18a character roster v1",
+  "$defs": {
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 48,
+      "pattern": "^[a-z][a-z0-9_]{0,47}$",
+      "not": {
+        "const": "list"
+      }
+    }
+  },
+  "$comment": "Runtime and CI also require unique ids, an existing default, finite numbers, half_height_cm >= radius_cm and run_cm_s > walk_cm_s. Asset existence and same skeleton are checked by UE before applying."
+}
