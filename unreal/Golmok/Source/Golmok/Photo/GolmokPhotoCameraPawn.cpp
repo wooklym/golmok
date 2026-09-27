@@ -18,6 +18,10 @@ namespace
 	constexpr float PhotoMaxTickDt = 0.1f;
 	/** Retreat toward the anchor when a sweep starts penetrating (design section 6-3). */
 	constexpr float PhotoPenetrationRetreatCm = 10.f;
+	/** Sweeps per move: the blocked one plus one slide along the hit plane (V-09 #60). */
+	constexpr int32 PhotoMaxSweeps = 2;
+	/** A slide shorter than this is dropped (a head-on push leaves only rounding noise). */
+	constexpr double PhotoMinSlideCm = 0.01;
 } // namespace
 
 AGolmokPhotoCameraPawn::AGolmokPhotoCameraPawn()
@@ -182,23 +186,44 @@ void AGolmokPhotoCameraPawn::MoveConstrained(const FVector& InDesired)
 		LocalConstraint.N = static_cast<std::size_t>(Xs.Num());
 	}
 
-	// Sphere -> footprint polygon -> re-check; -1 cancels the move (the previous position satisfies both).
-	const GolmokPhotoMath::Vec3 Desired = {InDesired.X, InDesired.Y, InDesired.Z};
-	GolmokPhotoMath::Vec3 Accepted = {};
-	if (GolmokPhotoMath::Constrain(LocalConstraint, Desired, Accepted) < 0)
+	// Up to two sweeps (V-09 #60): the second one slides the rest of a blocked move along the hit plane, so a diagonal push
+	// into a wall keeps the component parallel to it. Each leg goes sphere -> footprint polygon -> re-check first (design
+	// section 6-2; -1 ends the move where it is, which satisfies both) and the slide leg is constrained again from where the
+	// first one stopped, so the result stays inside the sphere and the polygon.
+	FVector Desired = InDesired;
+	for (int32 Leg = 0; Leg < PhotoMaxSweeps; ++Leg)
 	{
-		return;
-	}
-
-	// One blocking sweep, stop at the first hit (no slide, design section 6-3 / section 10 #16).
-	FHitResult Hit;
-	SetActorLocation(FVector(Accepted[0], Accepted[1], Accepted[2]), /*bSweep*/ true, &Hit);
-	if (Hit.bStartPenetrating)
-	{
-		// Already inside geometry (a mesh seam): back off toward the anchor, which is always in free space.
-		const FVector Location = GetActorLocation();
-		const FVector Retreat = (Anchor - Location).GetSafeNormal() * PhotoPenetrationRetreatCm;
-		SetActorLocation(Location + Retreat, /*bSweep*/ true);
+		const FVector Start = GetActorLocation();
+		LocalConstraint.bHasCurrent = true;
+		LocalConstraint.Current = {Start.X, Start.Y, Start.Z};
+		const GolmokPhotoMath::Vec3 DesiredV = {Desired.X, Desired.Y, Desired.Z};
+		GolmokPhotoMath::Vec3 Accepted = {};
+		if (GolmokPhotoMath::Constrain(LocalConstraint, DesiredV, Accepted) < 0)
+		{
+			return;
+		}
+		const FVector Target(Accepted[0], Accepted[1], Accepted[2]);
+		FHitResult Hit;
+		SetActorLocation(Target, /*bSweep*/ true, &Hit);
+		if (Hit.bStartPenetrating)
+		{
+			// Already inside geometry (a mesh seam): back off toward the anchor, which is always in free space.
+			const FVector Location = GetActorLocation();
+			const FVector Retreat = (Anchor - Location).GetSafeNormal() * PhotoPenetrationRetreatCm;
+			SetActorLocation(Location + Retreat, /*bSweep*/ true);
+			return;
+		}
+		if (!Hit.bBlockingHit)
+		{
+			return;
+		}
+		// Hit.Time = fraction of Start -> Target covered before the hit (UMovementComponent::SlideAlongSurface does the same).
+		const FVector Slide = FVector::VectorPlaneProject((Target - Start) * (1.0 - static_cast<double>(Hit.Time)), Hit.Normal);
+		if (Slide.SizeSquared() < FMath::Square(PhotoMinSlideCm))
+		{
+			return;
+		}
+		Desired = GetActorLocation() + Slide;
 	}
 }
 
