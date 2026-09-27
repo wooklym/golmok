@@ -2,7 +2,7 @@
 
 2026-09-27 · ChatGPT Astra · 최초 기준 main `3c8f1b0` · 최초 브랜치 `astra/wp-18-followup`(PR #24 병합·닫힘)
 
-**2026-09-28 T1 현재 상태**: main `045cbe3` 기준 새 `astra/wp-18-review-fixes`. WP-12는 main `939207e`에 병합됐고 당시 컴파일 차단은 해소됐다. 아래 2026-09-27 실행 기록은 그때의 결과로 보존한다. `PauseMode`는 `Enter()`에서 래치되며 `GetRestoreState().PauseMode`로 확인 가능하다. 현재 V-09 런북 자동화 총계는 26개다. [PR #27](https://github.com/wooklym/golmok/pull/27)은 26/26과 PhotoIntegration 6조합 실행을 보고한다 [2차: PC 세션 보고, Astra T2 직접 실행 결과 아님]. T1 처리·게이트는 문서 끝에 기록한다.
+**2026-09-28 T1 현재 상태**: main `045cbe3`에서 시작해 `d37720e`를 병합한 새 `astra/wp-18-review-fixes`. WP-12는 main `939207e`에 병합됐고 당시 컴파일 차단은 해소됐다. 아래 2026-09-27 실행 기록은 그때의 결과로 보존한다. `PauseMode`는 `Enter()`에서 래치되며 `GetRestoreState().PauseMode`로 확인 가능하다. 현재 V-09 런북 자동화 총계는 26개다. [PR #27](https://github.com/wooklym/golmok/pull/27)은 26/26과 PhotoIntegration 6조합 실행을 보고한다 [2차: PC 세션 보고, Astra T2 직접 실행 결과 아님]. T1 처리·게이트는 문서 끝에 기록한다.
 
 사용자의 후속 작업 지시에 따라 [V-11 런북](../runbooks/pc-verify-wp18a.md)의 미검증 항목을 진행한다. 이번 변경은 캐릭터 레인의 검증 코드와 문서다. 게임 런타임·공유 설정·최종 룩·발주② 결정은 바꾸지 않는다.
 
@@ -107,3 +107,32 @@ V-11의 지속 이동·지형 항목은 이제 **물리/입력 자동화 확인,
 - 이번 변경의 최종 리뷰·병합 기록과 CI는 후속 PR에 남긴다. #22/#23에 한정한 자체 리뷰 예외를 독립 Fable 검토로 확대해 표기하지 않는다.
 
 반영 기록(2026-09-27, 병합 세션 Fable, §7.6 4단계): 위 문안은 `WP-18: 병합 시 반영 (Fable)` 커밋으로 STATUS 병행 트랙 WP-18·V-11·V-12·V-09 행, ROADMAP 1.3 캐릭터 행, `WP-18-characters.md` "리뷰" 절에 옮겼다. WP-12(#19)는 이보다 먼저 main 939207e에 병합됐으므로 `PhotoIntegration` 6조합은 V-09 PC 검증의 전체 실행에서 돈다. 마지막 항목(후속 PR에 남긴다)은 §7.6과 어긋나 적용하지 않았다(리뷰 B3).
+
+
+## T1 — PR #24 리뷰 후속 (2026-09-28)
+
+| 항목 | 조치 |
+|---|---|
+| B1 | PathRoundTrip의 z=1000 시작 폰은 재빙의 뒤 중력이 작용하므로 복귀 위치는 XY만 0.01cm 이내 단언. 메시·캡슐·선택·FOV·속도 복원 단언 유지 |
+| B2 | 이전 부분 컴파일 기록을 “해당 파일 오류 없음, 실행 전”으로 교정 |
+| B4 | RenderEvidence/PhotoIntegration 단독 필터의 succeededWithWarnings 및 Succeeded: 0 예외, NOT EXECUTED 구분과 JSON 진단을 런북 §8에 명시 |
+| B5 | Movement의 L_Dev 지형/좌표가 setup_dev_level.py에 의존함을 코드와 런북에 기록 |
+| B6 | 런북 §8 제목과 §6 엔진 API/래치 상태 표 갱신 |
+| B7 | 자동 재적용 실패의 CurrentId 잔류·실제 폰 확인 절차, 0.25s Controller 탐색과 Pawn 델리게이트 역할/한계를 §10에 보고. 런타임 변경 없음 |
+
+B3·B8은 PR #24 병합 세션 처리 범위다. 이번 PR은 테스트 2파일과 캐릭터 문서 2파일만 변경한다. main `d37720e` 병합 충돌 없음. 공유 등록부 훅·설정 변경 없음.
+
+### 직접 실행 근거
+
+- UE5.8.3: add-mannequin 뒤 최초 전체 빌드 성공(156.41s), 최신 main 병합 뒤 증분 빌드 성공(19.57s).
+- PathRoundTrip 단독: **1 Success, 경고0/실패0/미실행0**, 2.79s.
+- RenderEvidence 단독, 렌더 opt-in 없음: **Succeeded: 0 / succeededWithWarnings: 1 / failed: 0 / notRun: 0**, test.ps1 예외 재현. 개별 state는 Success지만 NOT EXECUTED이므로 렌더 검증 통과로 세지 않는다.
+- 최신 main 전체: **26 Success(19+경고7), failed0/notRun0**, 164.87s. RenderEvidence의 NOT EXECUTED 1개를 제외한 **실제 실행 성공 25개**. 나머지 경고는 Photo.MetaJson 및 synthetic Zone/Portal fixture 자산 관련이다.
+- PhotoIntegration: proxy135/proxy110/quinn × GamePause/TimeDilation **6조합 모두 EXECUTED**, 경고0. Locomotion 4종, PathRoundTrip, PortalRoundTrip 3회도 실제 실행 통과. 이는 T1 회귀 결과이며 T2 GUI·시각 품질 완료로 확장하지 않는다.
+- 로컬 증거(ignored): `Saved/Automation/T1/path-report.json`, `render-skip-report.json`, `full-report.json`, `build-main-log.txt`. 생성 L_Dev/Zone 테스트 맵과 로그는 커밋하지 않는다.
+
+Python 게이트: ruff check·format(98파일), pytest **694 passed / 63 skipped / 208 warnings, 43.20s**, check_repo 통과. g++ 미설치 검사는 CI에서 확인한다. 코드 리뷰 Opus ultracode 대기, 설계/품질 가설 변경 없음. push 후 정지하고 비동기 리뷰를 받는다.
+
+### 병합 시 반영 (T1, 완성 문안)
+
+> WP-18 T1: PR #24 리뷰 B1·B2·B4·B5·B6·B7 보완. PathRoundTrip XY 복귀 단언과 fixture 의존성, 필터 경고 판정·엔진 API·CurrentId 잔류/Controller 폴링 한계를 기록했다. main d37720e 기준 UE5.8.3 빌드 및 전체 26 Success(경고7, failed0/notRun0); RenderEvidence NOT EXECUTED 1개를 제외한 실제 실행25개. Character.PhotoIntegration 6조합 직접 실행 성공. V-11 GUI 잔여·시각 품질과 V-12는 대기. T2 GUI는 V-09 §7 세션 종료·PC 가용성·GUI 잠금 확인 후 진행한다.
