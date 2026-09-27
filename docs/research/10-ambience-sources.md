@@ -6,7 +6,7 @@
 
 ## 1. 권장안 (가설, 소유자 채택 전)
 
-**Freesound의 아래 CC0 7개를 첫 청취 후보로 삼는다.** 도시 낮/밤·실내·아스팔트/타일/계단·착지 각각의 출처를 추적할 수 있고, CC0는 수정과 재배포를 허용하는 경로다. 실제 골목과의 음색 적합성은 Fable·소유자 청취로 정한다. 무료라는 이유로 품질이 낮은 음원을 확정하지 않는다.
+**Freesound의 아래 CC0 7개를 첫 청취 후보로 삼는다.** 도시 낮/밤·실내·아스팔트/타일/계단·착지 각각의 출처를 추적할 수 있고, CC0는 수정과 재배포를 허용하는 경로다. 실제 골목과의 음색 적합성은 Fable·소유자 청취로 정한다. Fable 리뷰에 따라 C01~C03은 13b 로직 검증용 임시 후보이며 최종 야외 베드는 WP-17 현장 녹음으로 교체한다. C04~C07은 단발 추출 품질을 통과할 때 최종 후보로도 검토한다. 무료라는 이유로 품질이 낮은 음원을 확정하지 않는다.
 
 원본 확보가 막히면 WP-13b의 결정적 합성 플레이스홀더로 전환 로직을 먼저 검증한다. 플레이스홀더 통과는 실제 소리 품질 합격이 아니다. CC-BY 후보는 예비이며, 유료 구매는 현재 권장하지 않는다. 서울 현장음은 WP-17에서 별도로 검토한다.
 
@@ -16,7 +16,7 @@
 
 | 원문 | 짧은 인용 | 확인 내용과 프로젝트 적용 |
 |---|---|---|
-| [CC0 1.0 Universal legal code §2·3·4](https://creativecommons.org/publicdomain/zero/1.0/legalcode.en) | “in all territories worldwide”; “including without limitation commercial, advertising or promotional purposes” | [확인] 권리자가 가진 저작권·관련 권리를 법이 허용하는 범위에서 포기하고, 불가능한 경우 라이선스로 보완한다. 지역은 전 세계로 한국 제외 조항이 없다. 수정·상업 사용·재배포 경로로 검토 가능. 상표·특허는 제외되고 타인의 권리 처리는 보증하지 않는다. CC0 자체의 표기 의무와 별개로 프로젝트는 출처 기록을 유지한다. |
+| [CC0 1.0 Universal legal code §2·3·4](https://creativecommons.org/publicdomain/zero/1.0/legalcode.en) | “in all territories worldwide”; “including without limitation commercial, advertising or promotional purposes” | [확인] 권리자가 가진 저작권·관련 권리를 법이 허용하는 범위에서 포기하고, 불가능한 경우 라이선스로 보완한다. 지역은 전 세계로 한국 제외 조항이 없다. 수정·상업 사용·재배포 경로로 검토 가능. 상표·특허는 제외되고 타인의 권리 처리는 보증하지 않는다. CC0는 법문상 표기 의무가 없다. 그래도 프로젝트는 출처 추적을 위해 출처 기록을 유지한다(운영 규칙). |
 | [CC BY 4.0 legal code §2·3](https://creativecommons.org/licenses/by/4.0/legalcode.en) | “indicate if You modified the Licensed Material” | [확인] 전 세계 사용·수정·공유를 허용한다. 제공된 저자·저작권·라이선스·면책 고지와 원문 링크를 보존하고 수정 사실을 표시한다. 수신자의 권리 행사를 막는 추가 조건·기술적 제한을 적용할 수 없다. `ATTRIBUTION.md`를 배포물에도 포함하고 크레딧에서 접근 가능하게 해야 한다. 저장소에만 두는 것으로 게임 배포 표기를 완료하지 않는다. |
 | [Freesound FAQ: Licenses / How do I download a sound?](https://freesound.org/help/faq/) | “first make sure you are logged into your registered account” | [확인] 항목별 라이선스를 확인해야 하며 원본 다운로드에는 등록 계정 로그인이 필요하다. 미리듣기는 손실 압축, 다운로드는 게시된 원본이다. 이번 조사는 로그인·가입·약관 동의·음원 다운로드를 하지 않았다. |
 
@@ -34,7 +34,7 @@
 | C04 발소리 아스팔트 (`asphalt` / 기본 후보) | [Walking asphalt.wav — Rimmer, 648336](https://freesound.org/people/Rimmer/sounds/648336/) | 12.375 s · WAV 44.1 kHz/16-bit/stereo · 2.1 MB | 두 사람이 아스팔트를 거의 행진하듯 걷는 녹음. 겹치지 않는 한 걸음들을 분리할 수 있을 때만 채택한다. 전체 루프를 거리 기반 트리거에 재생하지 않는다. |
 | C05 발소리 타일 (`tile`) | [Footsteps on Tile — jtnewlin13, 349865](https://freesound.org/people/jtnewlin13/sounds/349865/) | 18.398 s · WAV 96 kHz/16-bit/mono · 3.4 MB | 무거운 부츠와 타일. 저자가 노이즈를 명시. 노이즈 처리 뒤 어택이 남는지, 작은 캐릭터의 가벼운 보행에 과도하지 않은지 평가한다. |
 | C06 발소리 계단 (`stairs`) | [Walking Up Stairs — qubodup, 210430](https://freesound.org/people/qubodup/sounds/210430/) | 30.158 s · FLAC 44.1 kHz/16-bit/stereo · 2.4 MB | 아파트 계단을 천천히 오르는 녹음. 계단의 재료는 특정하지 않는다. 단발 추출 뒤 WAV로 변환. 페이지는 2024-11-23 CC0 변경을 명시하고 현재 CC0 링크를 표시한다. 프로필의 일반 CC-BY 안내를 이 항목 라이선스로 오인하지 않는다. |
-| C07 착지 (`landing`) | [Thump.wav — Macif, 207824](https://freesound.org/people/Macif/sounds/207824/) | 1.399 s · WAV 44.1 kHz/32-bit/stereo · 488.5 KB | 단단한 실내 바닥에서 점프 후 착지. 충격·잔향이 야외 착지에 맞는지 확인한다. 32-bit PCM/float 여부는 파일 헤더 확인 전 미정. |
+| C07 착지 (`landing`) | [Thump.wav — Macif, 207824](https://freesound.org/people/Macif/sounds/207824/) | 1.399 s · WAV 44.1 kHz/32-bit/stereo · 488.5 KB | 단단한 바닥(실내 추정)에서 점프 후 착지. 충격·잔향이 야외 착지에 맞는지 확인한다. 32-bit PCM/float 여부는 파일 헤더 확인 전 미정. |
 
 추가 무료 출처:
 
@@ -59,7 +59,7 @@ CC-BY 예비 항목 표기 초안(미반입; 실제 편집값으로 완성):
 
 이 초안과 함께 제공된 고지/면책 및 이전 수정 이력을 보존한다. 파일의 재이용을 제한하는 게임 EULA/DRM과의 충돌 여부도 CC-BY 반입 시 확인한다. CC0 항목도 같은 출처 필드를 기록하되 CC-BY 의무가 있다고 쓰지 않는다.
 
-용량 계획 [계산·가설]: 보수적으로 **5 MB = 5,000,000 bytes**, 전체 40,000,000 bytes 이하로 검사한다. WAV PCM 48 kHz/16-bit/stereo 20초는 오디오 데이터 3,840,000 bytes이며 헤더가 추가된다. 세 앰비언스를 각 20초 이하, 발소리 3재질 × 6변형 × 0.5초 mono, 착지 2변형 × 1.5초 mono로 잡으면 약 12.67 MB + 헤더다. C01처럼 더 짧은 원본을 억지로 늘리지 않는다. 반복 품질이 부족하면 **24-bit/stereo 16초(4.608 MB + 헤더)** 등 포맷/구간안을 비교하거나 용량 제한 변경을 제안한다. 바이트 예산만으로 음질을 합격시키지 않는다.
+용량 계획 [계산·가설]: 보수적으로 **5 MB = 5,000,000 bytes**, 전체 40,000,000 bytes 이하로 검사한다. WAV PCM 48 kHz/16-bit/stereo 20초는 오디오 데이터 3,840,000 bytes이며 헤더가 추가된다. 세 앰비언스를 각 20초 이하, 발소리 3재질 × 6변형 × 0.5초 48 kHz/16-bit/mono, 착지 2변형 × 1.5초 48 kHz/16-bit/mono로 잡으면 약 12.67 MB + 헤더다. C01처럼 더 짧은 원본을 억지로 늘리지 않는다. 비트 깊이 대안은 **48 kHz/24-bit/stereo 16초(4.608 MB + 헤더)**다. 반복감 완화에는 48 kHz/16-bit/stereo 약 26초 또는 mono 약 52초(각 4.992 MB + 헤더, 실제 바이트 검사 필수)를 비교하거나 용량 제한 변경을 제안한다. 모노 변환의 공간감 손실도 청취한다. 바이트 예산만으로 음질을 합격시키지 않는다.
 
 반입 순서: 소유자 출처 채택 → 합법적으로 원본 확보 → 라이선스/파일 헤더/해시 확인 → 로컬 전 구간 청취와 편집 → 표기 → 바이트 제한 → LFS → 임포트 → V-10 청취. 녹음 원본과 라이브러리 전체는 커밋하지 않고 필요한 소형 파생 WAV만 검토한다. CC0/CC-BY의 공개 재배포 조건과 유료 원본 배포 금지를 혼동하지 않는다.
 
@@ -67,9 +67,11 @@ CC-BY 예비 항목 표기 초안(미반입; 실제 편집값으로 완성):
 
 | 후보·가격 원문 | 확인 범위 | 라이선스·판정 |
 |---|---|---|
-| [BOOM Urban Europe](https://www.boomlibrary.com/sound-effects/urban-europe/) | [확인] 지역별 페이지 표시가 다름: 웹 조회 **From $139.00**, 같은 날 직접 HTML 가격 표시 **From €119,00**. 에디션별 확정가·한국 결제 통화/세금/좌석 포함 견적은 [미확인]. Stereo 130파일·20+ GB·96 kHz/24-bit, 평균 3~5분 표기 | [확인] 아래 오디오 EULA. 완성 게임 사용 후보이나 **공개 저장소 WAV 업로드 불가**. 유럽 도시 녹음의 서울 적합성은 미청취. 지금은 구매 보류 권장 [가설]. |
+| [BOOM Urban Europe](https://www.boomlibrary.com/sound-effects/urban-europe/) | [확인] 지역별 페이지 표시가 다름: 웹 조회 **From $139.00**, 같은 날 직접 HTML에서는 **From €119,00**를 관찰했으나 리뷰에서 재현하지 못했다 **[미확인: 재현성]**. 에디션별 확정가·한국 결제 통화/세금/좌석 포함 견적은 [미확인]. Stereo 130파일·20+ GB·96 kHz/24-bit, 평균 3~5분 표기 | [확인] 아래 오디오 EULA. 완성 게임 사용 후보이나 **공개 저장소 WAV 업로드 불가**. 유럽 도시 녹음의 서울 적합성은 미청취. 지금은 구매 보류 권장 [가설]. |
 
-[BOOM 오디오 Single User EULA §1~3](https://www.boomlibrary.com/terms-conditions/) [확인, 2026-09-28]: “This license is granted to one individual only.” / “Standalone Redistribution: Reselling, trading, or sharing raw or processed files.” 공식 HTML을 직접 읽었다(웹 도구 재조회는 타임아웃, 로컬 HTTPS 조회로 보완). 상업·비상업 게임을 포함하는 전 세계 제작물 사용권, 다른 시청각 요소와 결합 조건, 단독 원본/가공 파일 공유 금지다. AI/ML 학습도 금지한다. Buyout은 영구권, subscription은 최소 3년이며 종료 때 미완성 제작물용 원본 삭제 조건이 있으므로 구매 방식도 구분해야 한다. 한국 제외는 이 전 세계 허용 문구에서 발견되지 않았으나 실제 주문 당사자·조건은 구매 전 재확인한다. 팀 접근 인원/좌석·게임 배포 형태·사운드 중심 제작물 제한은 채택 전에 소유자가 확인한다. 플러그인용 EULA나 2018 PDF를 현재 사운드 구매 조건으로 대체하지 않는다.
+[BOOM 오디오 Single User EULA §1~3](https://www.boomlibrary.com/terms-conditions/) [확인, 2026-09-28]: “one individual only” / “sharing raw or processed files” 공식 HTML을 직접 읽었다(웹 도구 재조회는 타임아웃, 로컬 HTTPS 조회로 보완). 상업·비상업 게임을 포함하는 전 세계 제작물 사용권, 다른 시청각 요소와 결합 조건, 단독 원본/가공 파일 공유 금지다. AI/ML 학습도 금지한다. Buyout은 영구권, subscription은 최소 3년이며 종료 때 미완성 제작물용 원본 삭제 조건이 있으므로 구매 방식도 구분해야 한다. 한국 제외는 이 전 세계 허용 문구에서 발견되지 않았으나 실제 주문 당사자·조건은 구매 전 재확인한다. 팀 접근 인원/좌석·게임 배포 형태·사운드 중심 제작물 제한은 채택 전에 소유자가 확인한다. 플러그인용 EULA나 2018 PDF를 현재 사운드 구매 조건으로 대체하지 않는다.
+
+같은 EULA §3 **Real-time Exploitation**은 “real-time audio tool, effect, or processor”와 “fixed element of a PRODUCTION”을 구분한다 [확인: 2026-09-28 원문 재조회]. 소리를 실시간 오디오 도구·효과·프로세서로 기능하게 하는 소프트웨어 탑재를 금지한다. 게임 내 루프 앰비언스가 고정된 제작물 구성요소에 해당하는지, 실시간 오디오 도구로 해석될 여지가 있는지는 **[미확인: 구매 전 적용 범위 확인]**이다. 일반적인 게임 허용 문구만으로 해당 구현까지 허용됐다고 판단하지 않는다.
 
 ## 6. 남은 결정과 확인
 
