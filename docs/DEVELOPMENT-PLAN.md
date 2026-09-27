@@ -272,11 +272,12 @@ docs/plan/STATUS.md, docs/plan/WP-0N-<name>.md를 먼저 읽고, WP-0N을 처음
 해결한 뒤에는 게이트를 다시 돌린다: `ruff check`, `ruff format --check`, `pytest -q`, `check_repo.py`. C++을 건드렸으면 가능할 때 `tools/ue/build.ps1`과 `tools/ue/test.ps1`도 돌린다. 해결 커밋 메시지는 `merge origin/main: <충돌 파일> — <해결 방법>`이다.
 
 **Astra PR 리뷰·병합**
+- **소통 채널(2026-09-27)**: 고정 이슈 [#30](https://github.com/wooklym/golmok/issues/30) + PR 코멘트(AGENTS.md §10). 오케스트레이터는 과제·리뷰 요약·병합 알림을 이슈 코멘트 `[오케스트레이터 → Astra]`로, Astra는 push/완료/질문/세션 종료를 `[Astra → 오케스트레이터]`로 남긴다. 소유자 승인은 Claude 세션의 말 또는 PR의 `[소유자 승인]` 코멘트(Astra는 쓰지 않음). 리뷰·승인·병합은 비동기이며 Astra는 기다리지 않고 다음 과제를 시작한다. 오케스트레이터는 체크인(약 1시간)마다 이슈 #30을 읽는다.
 - Astra PR 설명: 요약, 레인 파일 목록, 훅 목록(파일·표지), "병합 시 반영" 위치, 테스트 결과, 겹치는 브랜치.
 - 병합 흐름
   1. Opus ultracode 적대적 코드 리뷰를 받는다(필수). 게임 설계·품질 가설을 바꾸는 PR은 Fable 설계 리뷰를 더한다. 결과는 PR 리뷰 코멘트로 남긴다.
   2. 확정 결함은 Astra가 자기 브랜치에서 고친다. 사용자가 지시하면 Fable이 직접 고친다.
-  3. 사용자가 승인한다.
+  3. 사용자가 승인한다(Claude 세션에서 말하거나 PR에 `[소유자 승인]` 코멘트).
   4. Astra가 push를 멈춘 것을 확인한다. 병합 세션(오케스트레이터)이 Astra 브랜치에 **마지막 커밋 하나**(`WP-NN: 병합 시 반영 (Fable)` — 커밋 제목은 관례로 유지)를 더한다. 이 커밋은 리뷰 요약을 WP 문서 "리뷰" 절에, "병합 시 반영" 문안을 STATUS·DECISIONS·ROADMAP·DEVELOPMENT-PLAN에 옮긴다. Claude가 Astra 브랜치와 레인 파일을 고치는 유일한 예외다.
   5. merge commit으로 병합한다. PC 검증은 병합 뒤 🟡 상태에서 한다(§7.4).
 - 스택 PR(앞 단계 PR 위에 쌓은 PR)은 앞 단계 브랜치를 base로 연다. 앞 PR부터 병합한다. 앞 PR이 병합되면 base를 `main`으로 바꾸고 `git merge origin/main`을 한다.

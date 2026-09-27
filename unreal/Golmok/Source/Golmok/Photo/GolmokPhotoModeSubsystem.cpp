@@ -586,6 +586,7 @@ FGolmokPhotoRestoreState UGolmokPhotoModeSubsystem::GetRestoreState() const
 	Out.bPawnHidden = bSavedPawnHidden;
 	Out.bTransitionMessageSuppressed = bSavedSuppressTransition;
 	Out.bDebugKeysActive = bDebugKeysWereActive;
+	Out.bCameraMoveableWhenPaused = bSavedCameraMoveableWhenPaused;
 	Out.TimeDilation = SavedTimeDilation;
 	Out.PawnTimeDilation = SavedPawnTimeDilation;
 	Out.WorldTimeAtEnter = WorldTimeAtEnter;
@@ -938,6 +939,7 @@ bool UGolmokPhotoModeSubsystem::Enter(FString& OutMessage)
 	bSavedHudVisible = Debug ? Debug->IsHudVisible() : false;
 	bSavedPawnHidden = Pawn->IsHidden();
 	bDebugKeysWereActive = !PC->IsDebugKeysSuspended();
+	bSavedCameraMoveableWhenPaused = World->bIsCameraMoveableWhenPaused != 0;
 	WorldTimeAtEnter = World->GetTimeSeconds();
 	UGameViewportClient* Viewport = World->GetGameViewport();
 	// Section 10 #12 / V-09 C2248: bSuppressTransitionMessage is protected and has no engine getter; the project viewport
@@ -1018,6 +1020,14 @@ bool UGolmokPhotoModeSubsystem::Enter(FString& OutMessage)
 		OutMessage = TEXT("cannot enter: pause refused");
 		return false;
 	}
+	// V-09 PC fix (runbook section 12 #57, section 10 #8): a paused world renders with bWorldIsPaused
+	// (= !UWorld::IsCameraMoveable()), which makes the view's temporal history read-only, so TSR / Lumen keep a ghost
+	// of the frame before the camera moved, on screen and in HighResShot. The engine flag keeps the game paused
+	// but lets the photo camera's view update its history like an unpaused frame. Exit restores the saved value.
+	// Scope: the bWorldIsPaused assignment sits only in the #else (WITH_EDITOR) branch of the engine's SceneView.cpp
+	// (seen in the 5.6 / 5.7 source mirrors, 5.8.3 not checked), so the ghost and this fix are likely PIE / -game only;
+	// a packaged build probably never showed the ghost (runbook section 10 checks the same scene there).
+	World->bIsCameraMoveableWhenPaused = true;
 
 	// 7. no "PAUSED" transition message on screen or in the shot (section 10 #12).
 	if (Viewport)
@@ -1177,6 +1187,12 @@ void UGolmokPhotoModeSubsystem::RestoreAll()
 		{
 			PC->SetViewTargetWithBlend(Target, 0.f);
 		}
+		// Camera cut: the photo camera's eye adaptation (EV bias, 20 EV/s) and TSR history must not bleed into the player
+		// view (the entry needs none: the photo camera starts at the player camera's pose).
+		if (PC->PlayerCameraManager)
+		{
+			PC->PlayerCameraManager->SetGameCameraCutThisFrame();
+		}
 		PC->SetControlRotation(SavedControlRotation);
 	}
 	if (SavedPawn.IsValid())
@@ -1201,6 +1217,10 @@ void UGolmokPhotoModeSubsystem::RestoreAll()
 		Viewport->SetSuppressTransitionMessage(bSavedSuppressTransition);
 	}
 	ApplyPause(false);
+	if (World)
+	{
+		World->bIsCameraMoveableWhenPaused = bSavedCameraMoveableWhenPaused;
+	}
 	const bool bUnpaused = ActivePauseMode == EGolmokPhotoPauseMode::TimeDilation || !bWasPausedBefore;
 
 	// Time of day: a running transition resumes where it was, whether the world clock stood still or not.

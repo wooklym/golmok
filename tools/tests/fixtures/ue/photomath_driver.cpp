@@ -22,6 +22,10 @@
 //   constrain  ax ay az r inset n x1 y1 .. xn yn m px py pz ..
 //                                                        one "code x y z" line per point (Constrain); a rejected
 //                                                        point (-1) prints the untouched sentinel -999999 x3
+//   walk       ax ay az r inset n x1 y1 .. xn yn sx sy sz vx vy vz ticks
+//                                                        one "code x y z" line per tick: the pawn loop of
+//                                                        MoveConstrained without the sweep (Current = P, Desired = P + v,
+//                                                        P = Out unless the code is -1)
 //   meta       key=value lines                           FormatPhotoMetaJson text as is. Keys: version time_utc
 //                                                        preset (or "preset=-" -> null) zone_id zone_version
 //                                                        ("zone=-" -> both null) lon lat height_m ("geo=-" -> all
@@ -528,6 +532,53 @@ int main(int argc, char** argv)
 		if (R.Failed())
 		{
 			return 3;
+		}
+	}
+	else if (!std::strcmp(Cmd, "walk"))
+	{
+		Constraint C;
+		for (std::size_t i = 0; i < 3; ++i)
+		{
+			C.Anchor[i] = R.Number("anchor");
+		}
+		C.RadiusCm = R.Number("r");
+		C.InsetCm = R.Number("inset");
+		std::vector<double> Xs;
+		std::vector<double> Ys;
+		if (ReadRing(R, Xs, Ys) != 0)
+		{
+			return 3;
+		}
+		C.Xs = Xs.empty() ? nullptr : Xs.data();
+		C.Ys = Ys.empty() ? nullptr : Ys.data();
+		C.N = Xs.size();
+		Vec3 P{};
+		Vec3 V{};
+		for (std::size_t k = 0; k < 3; ++k)
+		{
+			P[k] = R.Number("start");
+		}
+		for (std::size_t k = 0; k < 3; ++k)
+		{
+			V[k] = R.Number("step");
+		}
+		const std::size_t Ticks = R.Count("ticks");
+		if (R.Failed())
+		{
+			return 3;
+		}
+		for (std::size_t t = 0; t < Ticks; ++t)
+		{
+			C.bHasCurrent = true;
+			C.Current = P;
+			const Vec3 Desired{P[0] + V[0], P[1] + V[1], P[2] + V[2]};
+			Vec3 Out = P;
+			const int Code = Constrain(C, Desired, Out);
+			if (Code >= 0)
+			{
+				P = Out;
+			}
+			std::printf("%d %.17g %.17g %.17g\n", Code, P[0], P[1], P[2]);
 		}
 	}
 	else
