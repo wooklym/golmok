@@ -203,9 +203,9 @@ docs/plan/STATUS.md, docs/plan/WP-0N-<name>.md를 먼저 읽고, WP-0N을 처음
 ```
 
 ### 7.4 모델·예산·시간
-- **모델 정책(2026-09-24 사용자 지시, 반드시 준수)**: Unreal Engine을 다루거나 게임성(비주얼·플레이 감각·성능)에 **직접** 영향을 주는 작업(WP-04·05·06, 이후 Zone 통합·조명·폴리시·스파이크 판단 등)은 **Claude Fable 5.1 + ultracode**(멀티 에이전트 워크플로: 설계 패널 → 구현 → 적대적 검증)로 한다. 조사, 파일 다운로드, 문서 정리, 단순 도구·CI처럼 비교적 단순한 작업은 오케스트레이터가 판단해 **Sonnet 또는 Opus**로 한다. WP-01~03(CI, Zone 스펙, 후처리 도구)은 정책 이전에 Opus로 시작했으므로 **병합 전에 Fable ultracode 적대적 리뷰**를 거친다.
-- **ChatGPT Astra 병행(2026-09-26 사용자 결정)**: ChatGPT Astra도 §7.6 레인 안에서 UE C++를 포함한 구현을 맡는다. Unreal이나 게임성에 영향을 주는 Astra 변경은 병합 전에 **Fable ultracode 적대적 리뷰**를 거친다. PC 런북 검증은 Claude WP와 같이 병합 뒤 `🟡 코드 완료·PC 검증 대기` 상태에서 PC 세션이 한다. 엔진 안 품질의 최종 판단(룩 검증, 스파이크, 폴리시)은 계속 Fable이 한다.
-- 권한 모드: auto. 세션당 예상 1~3시간(Fable ultracode 세션은 더 길 수 있다).
+- **모델 정책(2026-09-27 사용자 지시, 반드시 준수; 2026-09-24 규칙을 대체)**: **코딩은 Claude Opus 5.5 + ultracode**(멀티 에이전트 워크플로: 구현 → 적대적 검증)로 한다 — UE C++, 에디터 Python, 도구, 테스트, 런북, CI 수정, Astra PR 코드 리뷰 전부. **게임 설계에 관한 부분만 Claude Fable 5.1**로 한다 — WP의 설계 패널·"설계 (확정)" 절, 게임성(비주얼·플레이 감각) 판단(룩 검증·스파이크 판정·폴리시 결정·D-0xx 제안), Astra PR의 설계 부분 리뷰. 따라서 WP 세션은 Opus ultracode로 만들고, 설계 단계가 있는 WP는 오케스트레이터가 먼저 Fable(설계 서브세션 또는 오케스트레이터 자신)로 설계를 확정한 뒤 Opus 세션에 넘긴다. 조사, 파일 다운로드, 문서 정리, 단순 도구·CI는 오케스트레이터가 판단해 **Sonnet 또는 Opus**. 이력: WP-04~09·WP-12는 옛 규칙(Unreal·게임성 영향 작업 = Fable ultracode)으로 실행했고, WP-01~03은 Opus로 시작해 병합 전 Fable 리뷰를 거쳤다. 이전 지시 "검증 단계는 Opus"(2026-09-24)는 그대로다.
+- **ChatGPT Astra 병행(2026-09-26 사용자 결정)**: ChatGPT Astra도 §7.6 레인 안에서 UE C++를 포함한 구현을 맡는다. Astra 변경은 병합 전에 **Opus ultracode 적대적 코드 리뷰**를 거치고, 게임 설계·품질 가설을 바꾸면 **Fable 설계 리뷰**를 더한다(2026-09-27 모델 정책). PC 런북 검증은 Claude WP와 같이 병합 뒤 `🟡 코드 완료·PC 검증 대기` 상태에서 PC 세션이 한다. 엔진 안 품질의 최종 판단(룩 검증, 스파이크, 폴리시)은 계속 Fable이 한다.
+- 권한 모드: auto. 세션당 예상 1~3시간(ultracode 세션은 더 길 수 있다).
 - 오케스트레이션: 설계 세션(이 문서를 쓴 세션)이 WP 세션을 하나씩 만들고, 끝나면 브랜치를 받아 pytest·STATUS·CI를 확인하고, 조건(CI 초록·충돌 없음·STATUS 🟢/🟡)을 만족하면 PR을 merge commit으로 병합한 뒤(사용자 승인 2026-09-24) 다음 세션을 만든다.
 - 실패·중단 시: 같은 WP를 새 세션으로 다시 시작한다. STATUS의 인계 메모 덕분에 이어서 할 수 있다.
 
@@ -220,11 +220,11 @@ docs/plan/STATUS.md, docs/plan/WP-0N-<name>.md를 먼저 읽고, WP-0N을 처음
 
 **역할**
 
-| | Claude Fable(ultracode) | ChatGPT Astra |
+| | Claude(Opus 5.5 ultracode 코딩·리뷰, 설계·품질 판단은 Fable 5.1) | ChatGPT Astra |
 |---|---|---|
 | 맡는 일 | 기존 WP 순서(WP-12~17), Astra PR 적대적 리뷰와 병합, 엔진 안 품질 판단(룩 검증·스파이크·폴리시), 공유 문서 갱신 | 배정받은 레인의 WP(조사·설계·코드·테스트·런북, UE C++ 포함), 컨셉 이미지 |
 | 브랜치 | `claude/*`(WP 통합 브랜치 `claude/hopeful-allen-f0a0jb`), PC는 `pc/*` | `astra/<wp>-<주제>`(예: `astra/wp-18-design`) |
-| 병합 | §7.4 오케스트레이션 | 스스로 병합하지 않는다. Fable 리뷰 → 사용자 승인 → Fable이 merge commit으로 병합 |
+| 병합 | §7.4 오케스트레이션 | 스스로 병합하지 않는다. Claude 리뷰(Opus 코드 + 필요 시 Fable 설계) → 사용자 승인 → 병합 세션이 merge commit으로 병합 |
 
 **레인(파일 소유)**: 레인 주인만 그 파일을 고친다. 새 레인은 사용자나 오케스트레이터가 WP를 배정할 때 이 표에 더한다.
 
@@ -274,15 +274,15 @@ docs/plan/STATUS.md, docs/plan/WP-0N-<name>.md를 먼저 읽고, WP-0N을 처음
 **Astra PR 리뷰·병합**
 - Astra PR 설명: 요약, 레인 파일 목록, 훅 목록(파일·표지), "병합 시 반영" 위치, 테스트 결과, 겹치는 브랜치.
 - 병합 흐름
-  1. Fable ultracode 적대적 리뷰를 받는다(Unreal·게임성에 영향이 있으면 필수). 결과는 PR 리뷰 코멘트로 남긴다.
+  1. Opus ultracode 적대적 코드 리뷰를 받는다(필수). 게임 설계·품질 가설을 바꾸는 PR은 Fable 설계 리뷰를 더한다. 결과는 PR 리뷰 코멘트로 남긴다.
   2. 확정 결함은 Astra가 자기 브랜치에서 고친다. 사용자가 지시하면 Fable이 직접 고친다.
   3. 사용자가 승인한다.
-  4. Astra가 push를 멈춘 것을 확인한다. 병합 세션이 Astra 브랜치에 **마지막 커밋 하나**(`WP-NN: 병합 시 반영 (Fable)`)를 더한다. 이 커밋은 리뷰 요약을 WP 문서 "리뷰" 절에, "병합 시 반영" 문안을 STATUS·DECISIONS·ROADMAP·DEVELOPMENT-PLAN에 옮긴다. Claude가 Astra 브랜치와 레인 파일을 고치는 유일한 예외다.
+  4. Astra가 push를 멈춘 것을 확인한다. 병합 세션(오케스트레이터)이 Astra 브랜치에 **마지막 커밋 하나**(`WP-NN: 병합 시 반영 (Fable)` — 커밋 제목은 관례로 유지)를 더한다. 이 커밋은 리뷰 요약을 WP 문서 "리뷰" 절에, "병합 시 반영" 문안을 STATUS·DECISIONS·ROADMAP·DEVELOPMENT-PLAN에 옮긴다. Claude가 Astra 브랜치와 레인 파일을 고치는 유일한 예외다.
   5. merge commit으로 병합한다. PC 검증은 병합 뒤 🟡 상태에서 한다(§7.4).
 - 스택 PR(앞 단계 PR 위에 쌓은 PR)은 앞 단계 브랜치를 base로 연다. 앞 PR부터 병합한다. 앞 PR이 병합되면 base를 `main`으로 바꾸고 `git merge origin/main`을 한다.
 - 리뷰 세션 프롬프트 템플릿:
 ```
-당신은 Golmok의 Astra PR 리뷰·병합 세션이다(Fable 5.1 ultracode). CLAUDE.md, DEVELOPMENT-PLAN §7.4·§7.6,
+당신은 Golmok의 Astra PR 리뷰·병합 세션이다(코드 리뷰는 Opus 5.5 ultracode, 설계 부분은 Fable 5.1). CLAUDE.md, DEVELOPMENT-PLAN §7.4·§7.6,
 AGENTS.md, 브랜치 astra/<…>의 WP 문서와 diff를 읽는다. 레인·훅 규칙 위반, 정확성, 게임 품질, 라이선스를
 적대적으로 검증하고 결과를 PR 리뷰 코멘트로 남긴다. 확정 결함은 Astra에게 돌려보낸다(사용자가 지시하면 직접 고친다).
 사용자 승인 뒤, Astra가 push를 멈춘 것을 확인하고 Astra 브랜치에 마지막 커밋 `WP-NN: 병합 시 반영 (Fable)`을 더한다.
