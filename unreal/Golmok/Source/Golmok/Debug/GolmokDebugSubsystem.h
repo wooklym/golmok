@@ -272,6 +272,20 @@ private:
 	FTimerHandle CollisionTimer;
 	// [WP-13 hook] World-local extension providers, registered by Audio.
 public:
-	TArray<TFunction<FString()>> ExtraHudLineProviders;
+	FDelegateHandle AddExtraHudLineProvider(TFunction<FString()> Provider)
+	{
+		const FDelegateHandle Handle(FDelegateHandle::GenerateNewHandle);
+		ExtraHudLineProviders.Add(Handle, MoveTemp(Provider));
+		HudLinesTime = -1.0;
+		return Handle;
+	}
+	void RemoveExtraHudLineProvider(FDelegateHandle Handle)
+	{
+		ExtraHudLineProviders.Remove(Handle);
+		HudLinesTime = -1.0;
+	}
+	int32 NumExtraHudLineProviders() const { return ExtraHudLineProviders.Num(); }
+private:
+	TMap<FDelegateHandle, TFunction<FString()>> ExtraHudLineProviders;
 	// [/WP-13 hook]
 };

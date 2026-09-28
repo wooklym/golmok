@@ -187,3 +187,40 @@ Fable은 빠른 제3상태 최대50ms 교체, 70/110cm 보폭, 재질 default, P
 - **Fable 설계·품질**: 승인 가설(상태별 크로스페이드 JSON, ≤50 ms 조용한 슬롯 교체, 실내 우선, 보폭 70/110·달리기 250 cm/s, 재질 default·계단 태그, Photo mute/maintain)이 코드·런북에 그대로 반영. 합격은 V-10 청취(포털 1 s 왕복 3회 클릭, 진입 1 s/복귀 2 s 비교, 로스터별 보폭, 소유자 밸런스). `stride_scale_by_mesh`는 V-10 뒤 후속.
 - **(C) 옮긴 것**: STATUS 트랙 1A·병행 트랙 WP-13 행(🟡 코드 완료·PC V-10 대기), ROADMAP 1.6, DECISIONS D-002(합성 플레이스홀더 출처·cook 훅·의존성 없음), astra-tasks T3, 이 절. 병합 시 반영 문안의 칸별 분리(D1/D8)는 병합 세션이 처리.
 - 판정: **병합**. 실제 음질·패키징·볼륨 밸런스 합격이 아니며 V-10(PC)에서 판정한다. 원본 음원은 Freesound 계정 소유자 결정(STATUS 결정 필요 ③) 뒤 JSON+재임포트로 교체.
+
+
+## 13c 결과 — T6 리뷰 (B) 후속 (2026-09-29 KST)
+
+| 항목 | 반영 |
+|---|---|
+| A-4 | ToD 약한 참조가 파괴되어 null이 된 경우도 이전 바인딩 핸들로 감지. 프리셋·실내 상태 초기화, auto outdoor_day 복귀·새 ToD 재바인딩. 강제 상태는 유지 |
+| A-5/B-5 | Debug의 기존 WP-13 훅 안에서 공급자를 FDelegateHandle로 등록/제거. 순서가 바뀌거나 두 번 해제해도 다른 공급자를 지우지 않음. HUD 캐시 무효화 |
+| A-7/B-8 | SoundWave LoadObject 전에 패키지 존재 확인, 미임포트는 HUD 진단으로 안내 |
+| B-7 | Enter/ExitInterior broadcast가 이미 EnsurePresets 성공 조건 안임을 확인·문서화, Lighting 수정 없음 |
+| C-9 | 빈 imported_object_paths·SoundWave 아닌 객체 실패 회귀. 실패 시 기존 크레딧/ATTRIBUTION 유지 |
+| C-11 | 프로젝트에 이름이 정의되지 않은 PhysicalSurface 번호는 default. 명시 계단 태그 우선, 이름 있는 매핑만 적용 |
+| A-6/C-10/D7 | Controller+ToD 0.25 s 재탐색 범위, Packaging ini 재작성 주의, 메시 스케일 보폭은 V-10 청취 후 결정임을 런북에 명시 |
+| C-2 | Shipping 크레딧 UI 보류(이번 배정 제외, 실제 음원 확정 후) |
+
+검증: ruff check·format103·pytest818 passed/77 skipped·check_repo·diff check 통과. UE 최종 빌드4.92s 성공(최초128.95s), -SetupDevLevel -Filter Golmok.Audio 2 Success(경고1)·실패0. 전체 -SetupDevLevel 28 Success(20+경고8)·실패0·미실행0; 기본 RenderEvidence의 NOT EXECUTED를 제외한 실제27개. 기존 Audio.StateMachine/Footstep에 수명·HUD 핸들·미정의 표면 회귀 추가, 새 등록 없음. 청취/패키징/GUI 미실행, CI는 PR checks가 정본.
+
+## 병합 시 반영 — 13c T6
+
+STATUS 트랙 1A WP-13 행의 상태는 **🟡 코드 완료·PC V-10 대기** 유지. 근거 칸에 추가할 한 문장: “13c T6 리뷰 (B) 후속: ToD 수명 초기화·HUD 핸들·미임포트 패키지 선확인·미정의 물리 표면 default·임포트 실패 회귀, 헤드리스 검증; 청취·패키징 및 Shipping 크레딧 UI는 별도.”
+
+## 병합 기록 — 13c T6 PR #50 (2026-09-28, 오케스트레이터 세션)
+
+**내용**: PR #34 리뷰 (B) 중 청취 결과와 무관한 항목 — A-4 ToD 파괴 시 상태 초기화·재바인딩, A-5/B-5 HUD 공급자 인덱스 → 핸들 API(Debug/ 기존 `[WP-13 hook]` 블록 내부, 별도 커밋), A-7/B-8 `DoesPackageExist` 선확인, B-7 조건 위치 확인, C-9 임포트 실패 테스트 2케이스, C-11 미정의 `PhysicalSurfaces` → `default`, A-6/C-10/D7 문구. C-2(Shipping 크레딧 UI)는 오케스트레이터 보류(음원 확정 뒤). Astra 보고: PC 빌드, `Golmok.Audio` 2 Success(경고 1), 전체 28 Success, CI 10/10.
+
+**병합 전 리뷰(Opus 읽기 전용)**: BLOCKING·major 없음. 확인: 레인·hot-spot 준수(Debug/ 2파일은 훅 블록 내부, 재정렬 없음), 핸들 API 수명 안전(고유 ID·멱등 제거·HUD 캐시 무효화·Deinitialize 해제·weak 람다), 공급자 수 ==1 단언 유지, PR #49/#51/#52와 Debug 충돌 없음(merge-tree), A-4·A-7·B-7 동작, C-9 변이 3종 검증, 로컬 pytest 892. (B) 8건 → V-10 뒤 다음 Audio push: R50-1 미정의/미명명 표면 무진단 폴백(번호당 1회 경고 + 이름↔세트 id 대조 자동화 또는 이름 키잉), R50-2 런북 재질 비교 단계에 SurfaceType1~3 이름 지정 전제(`DefaultEngine.ini` 변경 커밋 금지), R50-3 헤드리스 경고 0→1(전체 21+7→20+8) 원인 기록, R50-4 훅 커밋 순서(중간 커밋 단독 빌드 불가), R50-5 B-5 잔여(`audio:` 줄 실제 단언·상대 개수), R50-6 패키지 실행에서 `error: missing SoundWave` 없음 확인, R50-7 D-019 훅 API 변경 기록(이번 병합 커밋에서 반영), R50-8 13b D7 문구.
+
+**병합**: 오케스트레이터 결정(D-019). WP-13 🟡 코드 완료·PC V-10 대기 유지.
+
+## 병합 기록 — V-10 PC 검증 [PR #53](https://github.com/wooklym/golmok/pull/53) → [PR #54](https://github.com/wooklym/golmok/pull/54) (2026-09-28)
+
+대상: PC 세션(Claude Desktop 워크트리 `stoic-kare-964e86`, Fable 5.1) `pc/v10-verify-wp13` 6273f78 → 클라우드 병합 브랜치 `claude/v10-merge`(main 4f91133 병합, STATUS·런북 충돌 해결). 리뷰: Opus 5.5 읽기 전용(R53-x, #53 코멘트)·Fable 설계 판단(런북 §7-3). 병합: 오케스트레이터 결정(D-019).
+
+- **판정: WP-13 🟢·V-10 🟢**(결함 0). 근거는 master submix 녹음 파형 분석(PIE)과 WASAPI 루프백(패키지)이며 사람 청취가 아니다. 빌드 무수정, 임포트 7+7, 자동화 Audio 2/2·전체 28, 낮/밤·실내 전환·포털 빠른 왕복 클릭 없음·재질 4종·태그 계단·착지·Photo mute/maintain·PIE 재시작 3회·clipping 0, 패키지에 SW 7개·audio.json·크레딧, 루프백 재생. A1~A9 결과 채움(코드 수정 없음). PC fix `tools/ue/package.ps1` `-ubtargs=-NoHotReloadFromIDE` 1건(Astra 레인 아님). 런북 §6·§7.
+- **소유자 항목(비차단)**: C-07 Windows 보안 대화상자(패키지 발소리 청취·이후 PC GUI 카드 차단), C-08 볼륨·크로스페이드 청취·최종 gain.
+- **Fable 설계 판단 → Astra T8**(`astra-tasks.md`, D-016 진행 2026-09-28): ① 실내 크로스페이드 1.0 s 채택 ② equal-power(sin/cos) 곡선 채택 ③ Photo mute 0.25 s 페이드 채택 ④ `stride_scale_by_mesh` 기각 → 캐릭터별 걷기/달리기 보폭 데이터(임시; V-08 뒤 노티파이) ⑤ 볼륨 후보(master 1.0·낮 0.5·밤 0.36·실내 0.30·발소리/착지 1.0) 임시 적용 ⑥ 생성 `Content/Golmok/Audio/*/SW_*.uasset` ignore(이 PR). T8에는 PR #50 리뷰 (B) R50-1~8도 포함.
+- **(C) 옮긴 것**: STATUS 마지막 갱신·WP-13 행 2개·V-10 행(PC 세션 작성)·C-07·C-08, DECISIONS D-016 진행 (a), ROADMAP 1.x WP-13 🟢, astra-tasks T8·우선순위, `.gitignore`.

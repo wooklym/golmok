@@ -11,6 +11,7 @@
 #include "Engine/World.h"
 #include "GameFramework/PlayerController.h"
 #include "Lighting/GolmokTimeOfDay.h"
+#include "PhysicsEngine/PhysicsSettings.h"
 #include "Tests/AutomationEditorCommon.h"
 
 namespace GolmokAudioTest
@@ -56,7 +57,30 @@ namespace GolmokAudioTest
 				if (Test->TestNotNull(TEXT("player pawn"), Pawn)) Test->TestNotNull(TEXT("footstep component attached without Player edit"), Pawn->FindComponentByClass<UGolmokFootstepComponent>());
 			}
 			auto* Debug = World->GetSubsystem<UGolmokDebugSubsystem>();
-			Test->TestTrue(TEXT("HUD provider registered"), Debug && Debug->ExtraHudLineProviders.Num() == 1);
+			Test->TestTrue(TEXT("HUD provider registered"), Debug && Debug->NumExtraHudLineProviders() == 1);
+			if (Debug)
+			{
+				const auto First = Debug->AddExtraHudLineProvider([]() { return FString(TEXT("audio_test_first")); });
+				const auto Second = Debug->AddExtraHudLineProvider([]() { return FString(TEXT("audio_test_second")); });
+				Debug->RemoveExtraHudLineProvider(First);
+				Test->TestTrue(TEXT("removing earlier provider preserves later provider"), Debug->GetHudLines().Contains(TEXT("audio_test_second")));
+				Debug->RemoveExtraHudLineProvider(First); // An expired handle must not remove its neighbor.
+				Debug->RemoveExtraHudLineProvider(Second);
+				Test->TestEqual(TEXT("only audio provider remains after out-of-order removal"), Debug->NumExtraHudLineProviders(), 1);
+				Test->TestFalse(TEXT("removed provider is absent from refreshed HUD"), Debug->GetHudLines().Contains(TEXT("audio_test_second")));
+			}
+			Tod->EnterInterior(TEXT("audio_destroy"));
+			Test->TestEqual(TEXT("destruction starts in interior"), Audio->GetState(), FString(TEXT("interior")));
+			Tod->Destroy();
+			Audio->RefreshBindings();
+			Test->TestEqual(TEXT("destroyed ToD resets auto state"), Audio->GetState(), FString(TEXT("outdoor_day")));
+			Tod = AGolmokTimeOfDay::FindOrSpawn(World);
+			Audio->RefreshBindings();
+			Tod->ApplyPreset(TEXT("night"), true);
+			Test->TestEqual(TEXT("replacement ToD event rebinds"), Audio->GetState(), FString(TEXT("outdoor_night")));
+			Tod->Destroy();
+			Audio->RefreshBindings();
+			Test->TestEqual(TEXT("destroyed night preset resets too"), Audio->GetState(), FString(TEXT("outdoor_day")));
 			Test->AddInfo(TEXT("EXECUTED actual Lighting preset/interior events -> audio, nested sources, force/auto, mute, credits, footstep attachment"));
 			return true;
 		}
@@ -116,6 +140,16 @@ bool FGolmokAudioFootstepTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("unknown material uses default"), GolmokAudioMath::ChooseSurface(false, false) == GolmokAudioMath::SurfaceChoice::Default);
 	TestTrue(TEXT("known material uses mapped set"), GolmokAudioMath::ChooseSurface(true, false) == GolmokAudioMath::SurfaceChoice::PhysicalMaterial);
 	TestTrue(TEXT("explicit stairs tag overrides surface"), GolmokAudioMath::ChooseSurface(true, true) == GolmokAudioMath::SurfaceChoice::StairsTag);
+	{
+		auto* Settings = GetMutableDefault<UPhysicsSettings>();
+		TGuardValue<TArray<FPhysicalSurfaceName>> RestoreSurfaces(Settings->PhysicalSurfaces, {});
+		TestEqual(TEXT("unnamed surface mapping falls back"), UGolmokFootstepComponent::ResolveSurfaceSet(Config, 1, false), FString(TEXT("default")));
+		TestEqual(TEXT("explicit stairs survives unnamed material"), UGolmokFootstepComponent::ResolveSurfaceSet(Config, 1, true), FString(TEXT("stairs")));
+		FPhysicalSurfaceName Named; Named.Type = SurfaceType1; Named.Name = TEXT("Asphalt");
+		Settings->PhysicalSurfaces.Add(Named);
+		TestEqual(TEXT("named surface uses audio mapping"), UGolmokFootstepComponent::ResolveSurfaceSet(Config, 1, false), Config.Surfaces.FindRef(1));
+		TestEqual(TEXT("unknown surface number falls back"), UGolmokFootstepComponent::ResolveSurfaceSet(Config, 63, false), FString(TEXT("default")));
+	}
 	AddInfo(TEXT("EXECUTED distance/air/landing/teleport/repossess and interrupted fade math; audible playback remains V-10"));
 	return true;
 }
