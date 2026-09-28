@@ -12,7 +12,8 @@ What is written (byte-identical in both places; nothing else of the generated zo
     tools/tests/fixtures/zones/index/{zones.json, cells/16_<x>_<y>.json}         (spec §6 path: <zones>/index)
     unreal/Golmok/Content/Golmok/Zones/index/{zones.json, cells/16_<x>_<y>.json}   (FGolmokZoneIndex reads)
 
-z_synthetic_002 is make_synthetic_zone.py with `--zone-id z_synthetic_002 --offset-m 200,0`: the same
+z_synthetic_002 is make_synthetic_zone.py with `--zone-id z_synthetic_002 --offset-m 200,0 --display-name
+"합성 골목 2"` (WP-15a: manifest schema_version 2 with spawn and display_name): the same
 synthetic scan as the WP-06 zone, but its origin 200 m east of z_synthetic_001's (spec §4 B), which puts it in
 the next z16 cell column (x 55874). It has no portals and no assets in the project (wire boxes in UE).
 The index is `golmok_tools.zone.index.build_index` over a temporary zones root holding the committed
@@ -53,6 +54,9 @@ CONTENT_ZONES_REL = Path("unreal/Golmok/Content/Golmok/Zones")
 ZONE_ID = "z_synthetic_002"
 VERSION = 1
 OFFSET_M = "200,0"  # --offset-m east,north of z_synthetic_001's origin (design §0 "픽스처")
+DISPLAY_NAME = (
+    "합성 골목 2"  # --display-name (WP-15a manifest v2; spawn is make_synthetic_zone's EXTERIOR_SPAWN)
+)
 SOURCE_ZONES = ("z_synthetic_001", "z_synthetic_001_interior")  # committed fixtures the index is built with
 COPY_FILES = (zm.MANIFEST_NAME, "blockers.json")  # exactly what zone_import._copy_files puts into Content
 INDEX_DIR_NAME = zone_index.INDEX_DIR_NAME
@@ -66,7 +70,8 @@ OUTPUT_DIRS = (  # relative to a repo root; every written file lives under one o
 
 def generate_zone_002(tmp: Path) -> Path:
     """make_synthetic_zone into <tmp>; returns the generated <tmp>/zones/z_synthetic_002/v1 folder."""
-    argv = ["--out", str(tmp), "--zone-id", ZONE_ID, "--offset-m", OFFSET_M, "--quiet"]
+    argv = ["--out", str(tmp), "--zone-id", ZONE_ID, "--offset-m", OFFSET_M, "--display-name", DISPLAY_NAME]
+    argv.append("--quiet")
     with contextlib.redirect_stdout(io.StringIO()):  # its "next: ..." line is not ours
         rc = msz.main(argv)
     if rc != 0:

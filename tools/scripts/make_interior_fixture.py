@@ -12,7 +12,8 @@ The same manifest is written to
 
 The interior is a real zone with its own origin: exterior zone-local (5, 13, 0) m of z_synthetic_001, i.e. the
 middle of an 8 x 6 m room behind the facade (exterior y 10..16). Its portal `door_out` (0, -3.5, 0) yaw -90 is
-the same point as the exterior `door_1` (5, 9.5, 0) yaw 90, facing the other way. No binary assets are
+the same point as the exterior `door_1` (5, 9.5, 0) yaw 90, facing the other way. WP-15a: schema_version 2
+with `spawn` SPAWN and `display_name` DISPLAY_NAME. No binary assets are
 committed: synthetic_zone.run(interior=True) imports SM_room / SM_<zone_id>_collision in the editor.
 tests/test_ue_interior_fixture.py regenerates the dict with build() and compares it with the committed files.
 """
@@ -50,6 +51,10 @@ DOOR_OUT = {
     "radius_m": 1.5,
     "kind": "door",
 }
+# WP-15a manifest v2: spawn just inside the door (2 m north of door_out, on the floor top z 0), facing north
+# into the room; clear of the walls (x +-3.8, y 2.8) and of the center marker cube (synthetic_zone).
+SPAWN = (0.0, -1.5, 0.0, 90.0)
+DISPLAY_NAME = "합성 골목 1 실내"
 
 EXTERIOR_MANIFEST = REPO / "unreal/Golmok/Content/Golmok/Zones" / PARENT_ZONE / "v1" / zm.MANIFEST_NAME
 CONTENT_PATH = REPO / "unreal/Golmok/Content/Golmok/Zones" / ZONE_ID / f"v{VERSION}" / zm.MANIFEST_NAME
@@ -90,6 +95,8 @@ def build(exterior: dict | None = None) -> dict:
         version=VERSION,
         parent_zone=PARENT_ZONE,
         priority=PRIORITY,
+        display_name=DISPLAY_NAME,
+        spawn=SPAWN,
     ).to_dict()
     d["layers"]["visual"] = {
         "format": "nanite_mesh",

@@ -17,7 +17,8 @@ from shapely.validation import explain_validity
 
 from . import schema, transform
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2  # what init / new_manifest write; bump keeps the source's (spec §3.3)
+SCHEMA_VERSIONS = (1, 2)  # what parsers read
 MANIFEST_NAME = "manifest.json"
 ZONE_ID_RE = re.compile(r"^z_[a-z0-9]+(_[a-z0-9]+)*$")
 VERSION_DIR_RE = re.compile(r"^v([1-9][0-9]*)$")
@@ -72,6 +73,14 @@ class Pose:
 
 
 @dataclass
+class Spawn:
+    """v2: where the player stands (feet) and faces on arrival, zone-local m (spec §3.3)."""
+
+    position_enu: list[float]
+    yaw_deg: float = 0.0
+
+
+@dataclass
 class Portal:
     id: str
     to_zone: str
@@ -111,6 +120,8 @@ class ZoneManifest:
     attribution: list[str] = field(default_factory=list)
     sources: list[dict] = field(default_factory=list)
     schema_version: int = SCHEMA_VERSION
+    spawn: Spawn | None = None  # v2 only; None = key absent
+    display_name: str | None = None  # v2 only; None = key absent
 
     # -- conversion -------------------------------------------------------------------------------
     @classmethod
@@ -149,6 +160,8 @@ class ZoneManifest:
             consent=Consent(**d.get("consent", {})),
             attribution=list(d.get("attribution", [])),
             sources=list(d.get("sources", [])),
+            spawn=Spawn(**d["spawn"]) if d.get("spawn") is not None else None,
+            display_name=d.get("display_name"),
         )
 
     def to_dict(self) -> dict:
@@ -171,6 +184,7 @@ _KEY_ORDER = [
     "version",
     "kind",
     "parent_zone",
+    "display_name",
     "origin",
     "origin_ecef",
     "transform",
@@ -178,6 +192,7 @@ _KEY_ORDER = [
     "replaces",
     "layers",
     "portals",
+    "spawn",
     "priority",
     "quality",
     "consent",
@@ -205,8 +220,11 @@ def new_manifest(
     version: int = 1,
     parent_zone: str | None = None,
     priority: int = 0,
+    display_name: str | None = None,
+    spawn: tuple[float, float, float, float] | None = None,
 ) -> ZoneManifest:
-    """A manifest with defaults: no chunks yet, collision.glb, consent by kind, unreviewed quality."""
+    """A schema_version 2 manifest with defaults: no chunks yet, collision.glb, consent by kind, unreviewed
+    quality. spawn = (x, y, z, yaw_deg) zone-local; None/omitted display_name and spawn stay absent."""
     m = transform.zone_transform(lat, lon, h, yaw_deg)
     return ZoneManifest(
         zone_id=zone_id,
@@ -221,6 +239,10 @@ def new_manifest(
         priority=priority,
         quality={"icp_rmse_m": None, "footprint_iou": None, "reviewed_by": None, "reviewed_at": None},
         consent=Consent(type="public_street" if kind == "exterior" else "owner_consent", record_id=None),
+        display_name=display_name,
+        spawn=None
+        if spawn is None
+        else Spawn(position_enu=[float(v) for v in spawn[:3]], yaw_deg=float(spawn[3])),
     )
 
 
@@ -347,6 +369,7 @@ def check(d: dict, path: str | Path | None = None, check_files: bool = False) ->
     _check_footprint(d, rep)
     _check_ids(d, rep)
     _check_misc(d, rep)
+    _check_v2(d, rep)
     if path is not None:
         _check_layout(d, Path(path), rep)
         if check_files:
@@ -446,6 +469,35 @@ def _check_misc(d: dict, rep: Report) -> None:
         rep.warnings.append("interior zone에 replaces.terrain_clip=true — 의도한 것인지 확인")
     if not d["sources"]:
         rep.warnings.append("sources가 비어 있다(captures/INDEX.md의 촬영 ID)")
+
+
+def spawn_footprint_distance_m(d: dict) -> float | None:
+    """Horizontal distance (m) from spawn.position_enu to the footprint, 0 inside or on the edge; None
+    without spawn. The spawn goes zone-local -> ECEF (transform) -> ENU at the origin, the frame the
+    footprint is flattened into (footprint_enu), so a zone yaw is accounted for."""
+    sp = d.get("spawn")
+    if sp is None:
+        return None
+    o = d["origin"]
+    origin = (o["lat"], o["lon"], o["height_ellipsoidal"])
+    ecef = transform.enu_to_ecef(transform.from_row_major(d["transform"]), sp["position_enu"])
+    enu = transform.apply(transform.rigid_inverse(transform.enu_frame_matrix(*origin)), ecef)
+    local = footprint_enu(d["footprint_wgs84"], origin)
+    return float(local.distance(Point(float(enu[0]), float(enu[1]))))
+
+
+def _check_v2(d: dict, rep: Report) -> None:
+    """schema_version 2 fields (the schema already rejects them in v1 and a blank display_name)."""
+    name = d.get("display_name")
+    if name is not None and not name.strip():
+        rep.errors.append("display_name이 비어 있다(공백뿐)")
+    if not footprint_polygon(d["footprint_wgs84"]).is_valid:
+        return  # _check_footprint already reported it
+    dist = spawn_footprint_distance_m(d)
+    if dist is not None and dist > 0:
+        rep.warnings.append(
+            f"spawn {d['spawn']['position_enu']}이 footprint 밖({dist:.2f} m)이다(도착 지점이 이 zone 밖)"
+        )
 
 
 def _check_layout(d: dict, path: Path, rep: Report) -> None:
