@@ -62,3 +62,6 @@ unreal/Golmok/Content/Golmok/Maps/L_ZoneTest06*
 unreal/Golmok/Config/Golmok/Viewpoints/L_ZoneTest06.json
 # WP-09 runbook §4: the L_ZoneTest copy with the placed Zone_* actors removed (index discovery test), plus its _BuiltData
 unreal/Golmok/Content/Golmok/Maps/L_ZoneTest09*
+# WP-13 (V-10 §7-5): SoundWave assets that golmok.audio_import generates from Content/Golmok/Audio/src/*.wav
+# (audio.json + the WAVs are the source; the runbook re-imports before packaging)
+unreal/Golmok/Content/Golmok/Audio/*/SW_*.uasset

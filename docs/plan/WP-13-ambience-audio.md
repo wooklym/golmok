@@ -215,3 +215,12 @@ STATUS 트랙 1A WP-13 행의 상태는 **🟡 코드 완료·PC V-10 대기** �
 **병합 전 리뷰(Opus 읽기 전용)**: BLOCKING·major 없음. 확인: 레인·hot-spot 준수(Debug/ 2파일은 훅 블록 내부, 재정렬 없음), 핸들 API 수명 안전(고유 ID·멱등 제거·HUD 캐시 무효화·Deinitialize 해제·weak 람다), 공급자 수 ==1 단언 유지, PR #49/#51/#52와 Debug 충돌 없음(merge-tree), A-4·A-7·B-7 동작, C-9 변이 3종 검증, 로컬 pytest 892. (B) 8건 → V-10 뒤 다음 Audio push: R50-1 미정의/미명명 표면 무진단 폴백(번호당 1회 경고 + 이름↔세트 id 대조 자동화 또는 이름 키잉), R50-2 런북 재질 비교 단계에 SurfaceType1~3 이름 지정 전제(`DefaultEngine.ini` 변경 커밋 금지), R50-3 헤드리스 경고 0→1(전체 21+7→20+8) 원인 기록, R50-4 훅 커밋 순서(중간 커밋 단독 빌드 불가), R50-5 B-5 잔여(`audio:` 줄 실제 단언·상대 개수), R50-6 패키지 실행에서 `error: missing SoundWave` 없음 확인, R50-7 D-019 훅 API 변경 기록(이번 병합 커밋에서 반영), R50-8 13b D7 문구.
 
 **병합**: 오케스트레이터 결정(D-019). WP-13 🟡 코드 완료·PC V-10 대기 유지.
+
+## 병합 기록 — V-10 PC 검증 [PR #53](https://github.com/wooklym/golmok/pull/53) → [PR #54](https://github.com/wooklym/golmok/pull/54) (2026-09-28)
+
+대상: PC 세션(Claude Desktop 워크트리 `stoic-kare-964e86`, Fable 5.1) `pc/v10-verify-wp13` 6273f78 → 클라우드 병합 브랜치 `claude/v10-merge`(main 4f91133 병합, STATUS·런북 충돌 해결). 리뷰: Opus 5.5 읽기 전용(R53-x, #53 코멘트)·Fable 설계 판단(런북 §7-3). 병합: 오케스트레이터 결정(D-019).
+
+- **판정: WP-13 🟢·V-10 🟢**(결함 0). 근거는 master submix 녹음 파형 분석(PIE)과 WASAPI 루프백(패키지)이며 사람 청취가 아니다. 빌드 무수정, 임포트 7+7, 자동화 Audio 2/2·전체 28, 낮/밤·실내 전환·포털 빠른 왕복 클릭 없음·재질 4종·태그 계단·착지·Photo mute/maintain·PIE 재시작 3회·clipping 0, 패키지에 SW 7개·audio.json·크레딧, 루프백 재생. A1~A9 결과 채움(코드 수정 없음). PC fix `tools/ue/package.ps1` `-ubtargs=-NoHotReloadFromIDE` 1건(Astra 레인 아님). 런북 §6·§7.
+- **소유자 항목(비차단)**: C-07 Windows 보안 대화상자(패키지 발소리 청취·이후 PC GUI 카드 차단), C-08 볼륨·크로스페이드 청취·최종 gain.
+- **Fable 설계 판단 → Astra T8**(`astra-tasks.md`, D-016 진행 2026-09-28): ① 실내 크로스페이드 1.0 s 채택 ② equal-power(sin/cos) 곡선 채택 ③ Photo mute 0.25 s 페이드 채택 ④ `stride_scale_by_mesh` 기각 → 캐릭터별 걷기/달리기 보폭 데이터(임시; V-08 뒤 노티파이) ⑤ 볼륨 후보(master 1.0·낮 0.5·밤 0.36·실내 0.30·발소리/착지 1.0) 임시 적용 ⑥ 생성 `Content/Golmok/Audio/*/SW_*.uasset` ignore(이 PR). T8에는 PR #50 리뷰 (B) R50-1~8도 포함.
+- **(C) 옮긴 것**: STATUS 마지막 갱신·WP-13 행 2개·V-10 행(PC 세션 작성)·C-07·C-08, DECISIONS D-016 진행 (a), ROADMAP 1.x WP-13 🟢, astra-tasks T8·우선순위, `.gitignore`.
