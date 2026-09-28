@@ -179,6 +179,13 @@ C-10: Packaging 설정을 에디터에서 저장한 뒤 DefaultGame.ini의 중�
 
 ![녹음 포락선: A(전 상태 2.0 s) vs A2(interior 1.0 s)](pc-verify-wp13-crossfade.jpg)
 
+### 7-1a. 저장소 분석 도구(R53-5)
+
+- 위 WAV 분석은 `tools/golmok_tools/audio_analysis.py`로 다시 돌린다(tools venv, numpy만 필요): `cd tools; python -m golmok_tools.audio_analysis <녹음.wav> --event <키 입력 s> … --fade 2 --exclude <발소리 t0:t1> … [--json]`. PCM 16/24/32·float WAV(EXTENSIBLE 포함)를 읽고 스테레오는 채널 평균으로 분석한다.
+- 출력: 피크 dBFS·clipping 샘플 수·전체 RMS·클릭 z 최댓값과 시각(판정 z ≥ 8), 이벤트마다 직전/최종 레벨·1 dB 안착·중간 dip. 안착은 이벤트 뒤 `--span`(기본: `--fade`가 있으면 페이드 + 1 s, 없으면 3 s; 다음 이벤트 전까지) 안에서 잰다. 100 ms 창 하나가 ±0.4 dB 흔들려 구간이 길면 늦은 이탈 한 번에 안착이 구간 끝으로 밀린다.
+- 창의 절반 이상이 디지털 무음(0)인 경계에서는 z가 부풀려진다(하드컷 수백~수천, 0.25 s 페이드아웃도 7~11). 출력에 무음 비율 줄이 나오면 레벨 곡선으로 판단하거나 `--exclude`로 뺀다.
+- 녹음·키 입력·`ListWaves`·WASAPI 루프백을 하는 PC 드라이버(V-09b `pie_driver.py` 오디오 단계)는 여전히 세션 scratchpad에만 있고 저장소에 없다.
+
 ### 7-2. 실행 목록
 
 | 실행 | 맵·설정 | 내용 |

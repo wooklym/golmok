@@ -224,3 +224,4 @@ STATUS 트랙 1A WP-13 행의 상태는 **🟡 코드 완료·PC V-10 대기** �
 - **소유자 항목(비차단)**: C-07 Windows 보안 대화상자(패키지 발소리 청취·이후 PC GUI 카드 차단), C-08 볼륨·크로스페이드 청취·최종 gain.
 - **Fable 설계 판단 → Astra T8**(`astra-tasks.md`, D-016 진행 2026-09-28): ① 실내 크로스페이드 1.0 s 채택 ② equal-power(sin/cos) 곡선 채택 ③ Photo mute 0.25 s 페이드 채택 ④ `stride_scale_by_mesh` 기각 → 캐릭터별 걷기/달리기 보폭 데이터(임시; V-08 뒤 노티파이) ⑤ 볼륨 후보(master 1.0·낮 0.5·밤 0.36·실내 0.30·발소리/착지 1.0) 임시 적용 ⑥ 생성 `Content/Golmok/Audio/*/SW_*.uasset` ignore(이 PR). T8에는 PR #50 리뷰 (B) R50-1~8도 포함.
 - **(C) 옮긴 것**: STATUS 마지막 갱신·WP-13 행 2개·V-10 행(PC 세션 작성)·C-07·C-08, DECISIONS D-016 진행 (a), ROADMAP 1.x WP-13 🟢, astra-tasks T8·우선순위, `.gitignore`.
+- 후속(R53-5, 2026-09-28): `tools/golmok_tools/audio_analysis.py`(RMS 안착·클릭 z·dip·clipping, `python -m golmok_tools.audio_analysis`) — PR #<n>
