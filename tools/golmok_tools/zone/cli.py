@@ -1,7 +1,8 @@
 """golmok-zone: create, check, index and version zone manifests (docs/spec/zone-manifest.md).
 
     golmok-zone init --id z_yeonnam_alley_001 --kind exterior --origin 37.5620,126.9250,50 \\
-        --footprint fp.geojson --out zones/z_yeonnam_alley_001/v1
+        --footprint fp.geojson --out zones/z_yeonnam_alley_001/v1 \\
+        [--display-name "연남동 골목"] [--spawn=0,-5,0,90]
     golmok-zone validate zones/z_yeonnam_alley_001/v1/manifest.json [--check-files]
     golmok-zone index build --zones-root zones --out index
     golmok-zone exclude --zones-root zones --out exclude.geojson [--buffer-m 0.75]
@@ -62,6 +63,7 @@ def cmd_init(args) -> int:
     if path.exists() and not args.force:
         print(f"ERROR 이미 있다: {path} (--force로 덮어쓰기)")
         return 2
+    spawn = _floats(args.spawn, 4, 4, "--spawn") if args.spawn is not None else None
     footprint = zm.read_footprint_file(args.footprint)
     m = zm.new_manifest(
         args.id,
@@ -73,6 +75,8 @@ def cmd_init(args) -> int:
         yaw_deg=args.yaw,
         parent_zone=args.parent if args.kind == "interior" else None,
         priority=args.priority,
+        display_name=args.display_name,
+        spawn=spawn,
     )
     d = m.to_dict()
     if args.capture:
@@ -179,7 +183,7 @@ def cmd_bump(args) -> int:
         print(f"WARN  v{d['version']}보다 새 버전(v{max(versions)})이 있다. v{new}로 만든다")
     dst = vdir.parent / f"v{new}"
     shutil.copytree(vdir, dst)  # fails if dst exists: versions are immutable
-    d["version"] = new
+    d["version"] = new  # schema_version, spawn and display_name are kept as they are (spec §3.3)
     q = d.setdefault("quality", {})
     q["reviewed_by"] = None  # a new version needs its own review
     q["reviewed_at"] = None
@@ -192,7 +196,7 @@ def build_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(prog="golmok-zone", description=__doc__.splitlines()[0])
     sub = ap.add_subparsers(dest="cmd", required=True)
 
-    p = sub.add_parser("init", help="새 zone v1 manifest 작성")
+    p = sub.add_parser("init", help="새 zone v1 manifest 작성(schema_version 2)")
     p.add_argument("--id", required=True, help="z_<지역>_<이름>_<번호>, 예: z_yeonnam_alley_001")
     p.add_argument("--kind", choices=["exterior", "interior"], required=True)
     p.add_argument("--origin", required=True, help="lat,lon[,타원체고 m] — zone-local (0,0,0)")
@@ -200,6 +204,12 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--yaw", type=float, default=0.0, help="zone +x의 방향, 동쪽에서 반시계(도)")
     p.add_argument("--parent", help="interior일 때 exterior zone id")
     p.add_argument("--priority", type=int, default=0)
+    p.add_argument("--display-name", help="지도·HUD 표시 이름(없으면 zone_id)")
+    p.add_argument(
+        "--spawn",
+        help="x,y,z,yaw — 도착 지점(zone-local m, 발 위치)과 방향(동에서 반시계, 도). 음수로 시작하면 "
+        "--spawn=-3,2,0,90. 없으면 spawn 키 없음(폴백)",
+    )
     p.add_argument("--capture", action="append", help="촬영 ID(captures/INDEX.md), 여러 번 가능")
     p.add_argument("--out", required=True, type=Path, help="zones/<id>/v1 폴더")
     p.add_argument("--force", action="store_true")
@@ -233,7 +243,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--json", action="store_true")
     p.set_defaults(func=cmd_transform)
 
-    p = sub.add_parser("bump", help="새 version 폴더로 복사(불변 버전)")
+    p = sub.add_parser("bump", help="새 version 폴더로 복사(불변 버전, schema_version 유지)")
     p.add_argument("manifest", type=Path)
     p.set_defaults(func=cmd_bump)
     return ap

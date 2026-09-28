@@ -1504,6 +1504,12 @@ void UGolmokPhotoModeSubsystem::OnEndFrame()
 	if (bPngPresent)
 	{
 		UE_LOG(LogGolmok, Log, TEXT("photo: capture window closed (%s.png present after %.2f s)"), *Base, Elapsed);
+		// [WP-15 hook] save index: the png path relative to <Project>/Saved/ (full path when it lies elsewhere)
+		FString SavedDir = FPaths::ConvertRelativePathToFull(FPaths::ProjectSavedDir());
+		if (!SavedDir.EndsWith(TEXT("/"))) { SavedDir += TEXT("/"); }
+		const FString PhotoRel = PngPath.StartsWith(SavedDir) ? PngPath.RightChop(SavedDir.Len()) : PngPath;
+		OnPhotoSaved.Broadcast(PhotoRel);
+		// [/WP-15 hook]
 	}
 	else
 	{

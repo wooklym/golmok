@@ -1,9 +1,10 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "zone_id": "z_synthetic_002",
   "version": 1,
   "kind": "exterior",
   "parent_zone": null,
+  "display_name": "합성 골목 2",
   "origin": {
     "lat": 37.562,
     "lon": 126.9272636,
@@ -71,6 +72,10 @@
     }
   },
   "portals": [],
+  "spawn": {
+    "position_enu": [-8.0, 3.0, -0.16],
+    "yaw_deg": 90.0
+  },
   "priority": 10,
   "quality": {
     "icp_rmse_m": null,
