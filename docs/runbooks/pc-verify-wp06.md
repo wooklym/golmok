@@ -30,7 +30,7 @@
 - [ ] 에디터 `.\tools\ue\open-editor.ps1` → **검증용 맵 사본 `L_ZoneTest06`**을 만든다. WP-04/05 픽스처 `z_synthetic_001`은 합성 zone과 **같은 원점·겹치는 footprint**라 한 맵에 두면 겹침 해소 규칙(우선순위·버전 동률 → zone id 순, `z_synthetic_001` < `z_synthetic_scan_001`)으로 WP-06 zone의 시각 레이어가 숨겨지고 WP-04 벽·포털이 §3/§5/§7에 섞인다. 원본 `L_ZoneTest`는 WP-05 `Golmok.Portal.*` 자동화 테스트가 계속 쓰므로 건드리지 않는다. Output Log → Python:
   ```python
   import unreal
-  unreal.EditorAssetLibrary.duplicate_asset("/Game/Golmok/Maps/L_ZoneTest06", "/Game/Golmok/Maps/L_ZoneTest06")
+  unreal.EditorAssetLibrary.duplicate_asset("/Game/Golmok/Maps/L_ZoneTest", "/Game/Golmok/Maps/L_ZoneTest06")
   les = unreal.get_editor_subsystem(unreal.LevelEditorSubsystem); les.load_level("/Game/Golmok/Maps/L_ZoneTest06")
   eas = unreal.get_editor_subsystem(unreal.EditorActorSubsystem)
   for a in eas.get_all_level_actors():
@@ -373,8 +373,8 @@ basemap_import: GeoOrigin lat=… lon=… h=… (basemap origin; ellipsoidal = D
 ## 11. 결과 기록
 | 항목 | 결과 | 메모·실측 |
 |---|---|---|
-| 전제(pytest·`L_ZoneTest06` 사본) | | |
-| §1 생성(파일 27개·PNG·validate OK) | | |
+| 전제(pytest·`L_ZoneTest06` 사본) | **차단(2026-09-28 Astra T5)** | §0 오타 정정: 이슈 #30 06:33Z 결정대로 원본 인자를 L_ZoneTest로 수정. UE5.8.3 빌드5.66s 성공. 에디터에서 duplicate_asset 뒤 load_level(copy)가 `World Memory Leaks: 2 leaks objects and packages`(EditorServer.cpp:2544)로 종료. L_ZoneTest06 저장 전, §2 미도달. 상세 재현은 아래 |
+| §1 생성(파일 27개·PNG·validate OK) | **통과** | --interior로 파일27개 생성. PNG5개256×256 디코딩·색/숫자/흰 사각형 확인. 실외·실내 manifest --strict --check-files 오류0·경고0. 자체 worktree Saved/T5Synthetic 사용(D: 대체), 소스/생성 에셋 커밋 없음 |
 | §2 route / obj mapping / glb mapping | | `import_result.json`의 `route`, `scale`·`m`·`err` 그대로 |
 | §2 텍스처(`size=` 표기, `merged by importer`/`packed`/`tile 1001 only`, VT, 숫자 방향) | | |
 | §2 청크(Nanite·슬롯·bounds 오차)·충돌 | | `deleted importer-created asset` 개수 |
@@ -390,6 +390,23 @@ basemap_import: GeoOrigin lat=… lon=… h=… (basemap origin; ellipsoidal = D
 | §10 basemap GeoOrigin | | |
 | 고친 API(§12 번호) | | 커밋 해시 |
 | 설계와 다른 동작 발견 | | 이 문서에 없는 추가분 |
+
+### T5 차단 재현과 인계 (2026-09-28)
+
+main b0f583d, 별도 Astra worktree. 기존 L_ZoneTest 존재·L_ZoneTest06 없음. 오케스트레이터가 승인한 §0 원본 인자 정정 후 아래 순서로 실행했다. 에디터 시작 옵션 `-ExecutePythonScript=<로컬 검증 스크립트> -NoSplash -unattended`로 동일 Python 호출을 전달했다. GUI 입력이 아닌 정상 에디터 Python 실행이며, 출력 로그에 MAP LOAD·LevelEditorSubsystem.LoadLevel 스택을 확인했다.
+
+```python
+assert unreal.EditorAssetLibrary.duplicate_asset(
+    "/Game/Golmok/Maps/L_ZoneTest", "/Game/Golmok/Maps/L_ZoneTest06")
+les = unreal.get_editor_subsystem(unreal.LevelEditorSubsystem)
+assert les.load_level("/Game/Golmok/Maps/L_ZoneTest06")
+```
+
+07:13:27Z `Old world /Game/Golmok/Maps/L_ZoneTest06.L_ZoneTest06 not cleaned up by garbage collection while loading new map!` → `World Memory Leaks: 2 leaks objects and packages`, EditorServer.cpp:2544. 로그는 standalone KEEPFLAGS가 남은 복제 World와 패키지를 지목한다. 프로세스가 종료됐고 L_ZoneTest06.umap은 디스크에 없음. **원인 확정은 아님**: 복제 후 명시적 저장 또는 에디터 UI Save As 절차가 필요한지 담당자가 검토해야 한다. 삭제/GC 우회나 zone_import 코드 수정은 하지 않았다.
+
+원본 L_ZoneTest는 보존했고 load 실패 뒤 destroy_actor·save_map·zone_import.run에는 도달하지 않았다. §2~§10 및 최종 GUI/성능은 미실행이다. 로컬 로그 `tools/.venv/t5-startup-crash.log`·`t5-preflight.txt`(정정 전 source-not-found), `t5-build2.txt`, 생성 입력 `Saved/T5Synthetic/`를 보관했다. 해당 에디터 PID43864 종료 확인 후 Astra GUI 잠금을 해제했다. GUI 검증 스크린샷은 없음.
+
+**병합 시 반영 — STATUS V-04 행 인계 문안**: T5 부분 검증. 합성 입력27개·PNG5개·실내/실외 strict validate 통과, UE5.8.3 빌드 성공. 런북 §0 원본 맵 인자 오타 정정 후 duplicate_asset→load_level에서 World Memory Leaks로 에디터 종료, §2~§10 미실행. 복제 맵 저장/로드 절차 담당 수정 뒤 재개. V-04 전체 통과/완료로 표시하지 않는다.
 
 기록 뒤:
 1. 이 표를 채우고 커밋(`WP-06: PC 검증 결과`). 스크린샷은 `docs/runbooks/` 옆에 `pc-verify-wp06-*.jpg`(작게).
@@ -408,7 +425,7 @@ basemap_import: GeoOrigin lat=… lon=… h=… (basemap origin; ellipsoidal = D
 | 5 | zone_import | `Texture2D.set_editor_property("virtual_texture_streaming", True)`·`("srgb", True)` 뒤 재빌드 필요 여부 | 저장으로 충분한지 | `save_loaded_asset` 후 `MaterialEditingLibrary.recompile_material(M_ZoneScan)`; 못 켜면 `M_ZoneScan_NoVT` |
 | 6 | zone_import | `EditorAssetLibrary.list_assets(folder, recursive=True)` 반환 형식(`/Game/A/B.B` vs `/Game/A/B`), `imported_object_paths` 형식 | 문자열 형식 | `.split(".")[0]` 정규화(둘 다 처리) |
 | 7 | zone_import | `StaticMesh.get_editor_property("static_materials")[i].get_editor_property("material_slot_name")`, `set_material(i, mi)`; 머티리얼 임포트 off일 때 슬롯 이름이 `usemtl`인지 | 슬롯 이름 규약(2차) | 정확 → 대소문자 → usemtl 순서 폴백 + warn; `get_material_index(name)` 병행 |
-| 8 | zone_import | `EditorAssetLibrary.rename_asset(old, new)`, `delete_directory`, `duplicate_asset`; 규약 경로의 이전 에셋은 `delete_asset`(강제 삭제 — 참조 확인 없음)으로 지운 뒤 옮긴다(`sz._move_asset`과 같은 규칙) | 안정(WP-04 동일) | `delete_asset`이 False면 `ERROR …: <path> exists and could not be deleted (referenced?)`; rename 실패 시 `duplicate_asset`+`delete_asset` |
+| 8 | zone_import | `EditorAssetLibrary.rename_asset(old, new)`, `delete_directory`, `duplicate_asset`; 규약 경로의 이전 에셋은 `delete_asset`(강제 삭제 — 참조 확인 없음)으로 지운 뒤 옮긴다(`sz._move_asset`과 같은 규칙) | T5: 일반 에셋과 별개로 §0 World 복제→load_level은 GC fatal 재현(§11), 저장/로드 절차 확인 필요 | `delete_asset`이 False면 `ERROR …: <path> exists and could not be deleted (referenced?)`; rename 실패 시 `duplicate_asset`+`delete_asset` |
 | 9 | zone_import | `bm._set_nanite`(`unreal.StaticMeshEditorSubsystem.set_nanite_settings`), `bm._complex_collision`(`unreal.CollisionTraceFlag`) | V-02 확인 | 기존 hasattr 분기 |
 | 10 | materials·zone_import | `unreal.MaterialExpressionTextureSampleParameter2D.sampler_type = unreal.MaterialSamplerType.SAMPLERTYPE_VIRTUAL_COLOR`; **VT 샘플러의 기본 텍스처는 VT여야 한다**(비VT `DefaultTexture`면 컴파일 오류). 기본 텍스처는 마스터 전용 `/Game/Golmok/Materials/T_ZoneScanDefault`(생성 PNG 256×256 회색, VT on; NoVT 마스터는 `T_ZoneScanDefault_NoVT`, VT off) — zone 텍스처를 기본으로 두면 그 zone 재임포트의 강제 삭제가 기본을 None으로 만들고 커밋할 마스터가 zone 에셋에 묶인다. 이미 있는 마스터는 `unreal.MaterialEditingLibrary.get_material_property_input_node(mat, unreal.MaterialProperty.MP_BASE_COLOR)`로 샘플러를 찾아 `texture`를 제자리에서 고친다(`recompile_material`+저장; 다른 zone의 MI parent 유지) | enum 이름은 citations 확인; 기본 텍스처 제약은 엔진 규칙; `get_material_property_input_node` 노출은 미확인 | enum 없으면 미설정 + warn(수동 설정); `T_ZoneScanDefault`를 VT로 못 켜면 WARNING 후 첫 VT zone 텍스처를 기본으로(이전 동작); 함수가 없거나 샘플러를 못 찾으면 WARNING `… set it by hand` → `M_ZoneScan`을 열어 BaseColor 샘플러의 Texture를 `T_ZoneScanDefault`로 바꾸고 저장 |
 | 11 | interior_setup | `AGolmokZone.unload_in_editor()` 뒤 `get_actor_transform()` 유효 | WP-05 동일 | rebuild 직후 transform 취득(현재 순서) |
