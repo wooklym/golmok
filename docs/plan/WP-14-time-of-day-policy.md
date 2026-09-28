@@ -153,3 +153,12 @@ night 프리셋 값·look-dev(14b), 가로등·간판 발광 에셋(14b, Zone �
 - STATUS WP-14a 행: `🟡 코드 완료·PC V-13 대기(PR #<번호>, 2026-09-28): GolmokClockMath·연속 시각·fixed/clock/realtime·schema 2 time·키프레임 유지 hold_minutes(night 480 = 21:30→05:30 유지, 설계 보완 §2a)·OnPresetChanged 중점 발화·OnNightChanged·golmok.tod time/mode/rate/status·HUD 시각·자동화 29(Golmok.Lighting.Clock), Fixed 종전 동일·프리셋 값 불변, 런북 pc-verify-wp14a.md`
 - ROADMAP 1.3 조명 프리셋 행 끝: `WP-14a 연속 시각·시계 모드(fixed/clock/realtime, 키프레임 time 보간·night 유지 21:30→05:30) 🟡 코드 완료·PC V-13 대기(2026-09-28) — night look-dev·발광은 14b(D-010 뒤)`
 - ROADMAP 1.6: "시간대 폴리시(WP-14)는 D-010 뒤." → `시간대 폴리시 WP-14a(연속 시각·시계 모드) 🟡 PC V-13 대기, 14b(night look-dev·발광 에셋)는 D-010 뒤.`
+
+## 병합 기록 — [PR #51](https://github.com/wooklym/golmok/pull/51) (2026-09-28)
+
+대상: `claude/hopeful-allen-f0a0jb` bfc1105(세션 session_01S3bDop479NqGLXdV66Ky1L Opus 5.5 ultracode 구현 → 오케스트레이터 Opus 마무리: main 병합·§2a hold_minutes → Opus 읽기 전용 리뷰 R51-1~12(A 없음) → Opus 수정 R51-3~12 → main f759bf8 병합). 병합: 오케스트레이터 결정(D-019).
+
+- **판정: 🟡 코드 완료·PC V-13 대기.** 게이트(병합 트리): ruff·format 통과, pytest 1046 passed/3 skipped, check_repo OK, `git diff --check origin/main...HEAD` 깨끗. C++·UE 자동화는 미컴파일 — 런북 `pc-verify-wp14a.md`(§10 #2/#8/#9/#14, §3 성능 단계 포함).
+- **리뷰 요약**: Fixed 모드는 WP-05와 동일, hold 경계·파서 대응·이벤트 계약·Realtime/Clock·유니티 빌드·핫스팟/레인 무변경 확인. (B) R51-1 STATUS 충돌(병합에서 해소)·R51-2 WP-15a 교차(PR #49 병합 준비: 자동화 32·시간대 {Minutes, Mode} 저장/복원)·R51-3 성능 단계(런북 §3, 양자화는 V-13 뒤). (C) R51-4~12 반영("리뷰 반영" 목록).
+- **Fable 결정 기록**: DECISIONS D-015 진행(§2a hold_minutes, IsNight 계약, NextPreset 시계 기준, Realtime 공백 재동기).
+- **(C) 옮긴 것**: STATUS 마지막 갱신·WP-14a 행·세션 로그, ROADMAP 1.3 조명 프리셋 행·1.6, DECISIONS D-015, 이 절. 다음: V-13 PC 카드, 14b는 D-010 뒤.
