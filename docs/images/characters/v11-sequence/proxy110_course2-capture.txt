@@ -1,0 +1,77 @@
+ENGINE INPUT DRIVER RENDER EVIDENCE; not real keyboard/video; no hitch/fps verdict
+fixed simulation dt=1/60; screenshot requests at 0.1s sim intervals; image resolved on render frame
+id=proxy110 course=2 (0=walk3s/run3s,1=L_Dev stairs,2=portal roundtrip) camera=diagnostic boom1.5 pitch-10
+input sim=0.6083 key=W up
+input sim=0.6083 key=S up
+input sim=0.6083 key=LeftShift up
+setup teleport sim=0.6249 position=X=18170.577 Y=-23008.010 Z=1058.548; no teleports during traversal
+input sim=3.6249 key=W down
+frame sim=3.7249 elapsed=0.1000 id=proxy110 course=2 position=X=18170.577 Y=-23017.424 Z=1057.698 velocity=X=-0.003 Y=-120.000 Z=0.000 file=proxy110_course2_sim0000.100.png
+frame sim=3.8249 elapsed=0.2000 id=proxy110 course=2 position=X=18170.577 Y=-23029.424 Z=1057.698 velocity=X=-0.003 Y=-120.000 Z=0.000 file=proxy110_course2_sim0000.200.png
+frame sim=3.9249 elapsed=0.3000 id=proxy110 course=2 position=X=18170.576 Y=-23041.424 Z=1057.698 velocity=X=-0.003 Y=-120.000 Z=0.000 file=proxy110_course2_sim0000.300.png
+frame sim=4.0249 elapsed=0.4000 id=proxy110 course=2 position=X=18170.576 Y=-23053.424 Z=1057.698 velocity=X=-0.003 Y=-120.000 Z=0.000 file=proxy110_course2_sim0000.400.png
+frame sim=4.1249 elapsed=0.5000 id=proxy110 course=2 position=X=18170.576 Y=-23065.424 Z=1057.698 velocity=X=-0.003 Y=-120.000 Z=0.000 file=proxy110_course2_sim0000.500.png
+frame sim=4.2249 elapsed=0.6000 id=proxy110 course=2 position=X=18170.576 Y=-23077.424 Z=1057.698 velocity=X=-0.003 Y=-120.000 Z=0.000 file=proxy110_course2_sim0000.600.png
+frame sim=4.3249 elapsed=0.7000 id=proxy110 course=2 position=X=18170.575 Y=-23089.424 Z=1057.698 velocity=X=-0.003 Y=-120.000 Z=0.000 file=proxy110_course2_sim0000.700.png
+frame sim=4.4249 elapsed=0.8000 id=proxy110 course=2 position=X=18170.575 Y=-23101.424 Z=1057.698 velocity=X=-0.003 Y=-120.000 Z=0.000 file=proxy110_course2_sim0000.800.png
+frame sim=4.5249 elapsed=0.9000 id=proxy110 course=2 position=X=18170.575 Y=-23113.424 Z=1057.698 velocity=X=-0.003 Y=-120.000 Z=0.000 file=proxy110_course2_sim0000.900.png
+frame sim=4.6249 elapsed=1.0000 id=proxy110 course=2 position=X=18170.575 Y=-23125.424 Z=1057.698 velocity=X=-0.003 Y=-120.000 Z=0.000 file=proxy110_course2_sim0001.000.png
+frame sim=4.7249 elapsed=1.1000 id=proxy110 course=2 position=X=18170.574 Y=-23137.424 Z=1057.698 velocity=X=-0.003 Y=-120.000 Z=0.000 file=proxy110_course2_sim0001.100.png
+frame sim=4.8249 elapsed=1.2000 id=proxy110 course=2 position=X=18170.574 Y=-23149.424 Z=1057.698 velocity=X=-0.003 Y=-120.000 Z=0.000 file=proxy110_course2_sim0001.200.png
+frame sim=4.9249 elapsed=1.3000 id=proxy110 course=2 position=X=18170.574 Y=-23161.424 Z=1057.698 velocity=X=-0.003 Y=-120.000 Z=0.000 file=proxy110_course2_sim0001.300.png
+frame sim=5.0249 elapsed=1.4000 id=proxy110 course=2 position=X=18170.574 Y=-23173.424 Z=1057.698 velocity=X=-0.003 Y=-120.000 Z=0.000 file=proxy110_course2_sim0001.400.png
+frame sim=5.1249 elapsed=1.5000 id=proxy110 course=2 position=X=18170.573 Y=-23185.424 Z=1057.698 velocity=X=-0.003 Y=-120.000 Z=0.000 file=proxy110_course2_sim0001.500.png
+input sim=5.2249 key=W up
+input sim=5.2249 key=S down
+frame sim=5.2249 elapsed=1.6000 id=proxy110 course=2 position=X=18170.573 Y=-23197.424 Z=1057.698 velocity=X=-0.003 Y=-120.000 Z=0.000 file=proxy110_course2_sim0001.600.png
+frame sim=5.3249 elapsed=1.7000 id=proxy110 course=2 position=X=18170.573 Y=-23193.195 Z=1057.698 velocity=X=0.003 Y=120.000 Z=0.000 file=proxy110_course2_sim0001.700.png
+frame sim=5.4249 elapsed=1.8000 id=proxy110 course=2 position=X=18170.573 Y=-23181.195 Z=1057.698 velocity=X=0.003 Y=120.000 Z=0.000 file=proxy110_course2_sim0001.800.png
+frame sim=5.5249 elapsed=1.9000 id=proxy110 course=2 position=X=18170.574 Y=-23169.195 Z=1057.698 velocity=X=0.003 Y=120.000 Z=0.000 file=proxy110_course2_sim0001.900.png
+frame sim=5.6249 elapsed=2.0000 id=proxy110 course=2 position=X=18170.574 Y=-23157.195 Z=1057.698 velocity=X=0.003 Y=120.000 Z=0.000 file=proxy110_course2_sim0002.000.png
+frame sim=5.7249 elapsed=2.1000 id=proxy110 course=2 position=X=18170.574 Y=-23145.195 Z=1057.698 velocity=X=0.003 Y=120.000 Z=0.000 file=proxy110_course2_sim0002.100.png
+frame sim=5.8249 elapsed=2.2000 id=proxy110 course=2 position=X=18170.574 Y=-23133.195 Z=1057.698 velocity=X=0.003 Y=120.000 Z=0.000 file=proxy110_course2_sim0002.200.png
+frame sim=5.9249 elapsed=2.3000 id=proxy110 course=2 position=X=18170.575 Y=-23121.195 Z=1057.698 velocity=X=0.003 Y=120.000 Z=0.000 file=proxy110_course2_sim0002.300.png
+frame sim=6.0249 elapsed=2.4000 id=proxy110 course=2 position=X=18170.575 Y=-23109.195 Z=1057.698 velocity=X=0.003 Y=120.000 Z=0.000 file=proxy110_course2_sim0002.400.png
+frame sim=6.1249 elapsed=2.5000 id=proxy110 course=2 position=X=18170.575 Y=-23097.195 Z=1057.698 velocity=X=0.003 Y=120.000 Z=0.000 file=proxy110_course2_sim0002.500.png
+frame sim=6.2249 elapsed=2.6000 id=proxy110 course=2 position=X=18170.576 Y=-23085.195 Z=1057.698 velocity=X=0.003 Y=120.000 Z=0.000 file=proxy110_course2_sim0002.600.png
+frame sim=6.3249 elapsed=2.7000 id=proxy110 course=2 position=X=18170.576 Y=-23073.195 Z=1057.698 velocity=X=0.003 Y=120.000 Z=0.000 file=proxy110_course2_sim0002.700.png
+frame sim=6.4249 elapsed=2.8000 id=proxy110 course=2 position=X=18170.576 Y=-23061.195 Z=1057.698 velocity=X=0.003 Y=120.000 Z=0.000 file=proxy110_course2_sim0002.800.png
+frame sim=6.5249 elapsed=2.9000 id=proxy110 course=2 position=X=18170.576 Y=-23049.194 Z=1057.698 velocity=X=0.003 Y=120.000 Z=0.000 file=proxy110_course2_sim0002.900.png
+frame sim=6.6249 elapsed=3.0000 id=proxy110 course=2 position=X=18170.577 Y=-23037.194 Z=1057.698 velocity=X=0.003 Y=120.000 Z=0.000 file=proxy110_course2_sim0003.000.png
+frame sim=6.7249 elapsed=3.1000 id=proxy110 course=2 position=X=18170.577 Y=-23025.194 Z=1057.698 velocity=X=0.003 Y=120.000 Z=0.000 file=proxy110_course2_sim0003.100.png
+frame sim=6.8249 elapsed=3.2000 id=proxy110 course=2 position=X=18170.577 Y=-23013.194 Z=1057.698 velocity=X=0.003 Y=120.000 Z=0.000 file=proxy110_course2_sim0003.200.png
+frame sim=6.9249 elapsed=3.3000 id=proxy110 course=2 position=X=18170.577 Y=-23001.194 Z=1057.698 velocity=X=0.003 Y=120.000 Z=0.000 file=proxy110_course2_sim0003.300.png
+frame sim=7.0249 elapsed=3.4000 id=proxy110 course=2 position=X=18170.578 Y=-22989.194 Z=1057.698 velocity=X=0.003 Y=120.000 Z=0.000 file=proxy110_course2_sim0003.400.png
+frame sim=7.1249 elapsed=3.5000 id=proxy110 course=2 position=X=18170.578 Y=-22977.194 Z=1057.698 velocity=X=0.003 Y=120.000 Z=0.000 file=proxy110_course2_sim0003.500.png
+frame sim=7.2249 elapsed=3.6000 id=proxy110 course=2 position=X=18170.578 Y=-22965.194 Z=1057.698 velocity=X=0.003 Y=120.000 Z=0.000 file=proxy110_course2_sim0003.600.png
+frame sim=7.3249 elapsed=3.7000 id=proxy110 course=2 position=X=18170.578 Y=-22953.194 Z=1057.698 velocity=X=0.003 Y=120.000 Z=0.000 file=proxy110_course2_sim0003.700.png
+frame sim=7.4249 elapsed=3.8000 id=proxy110 course=2 position=X=18170.579 Y=-22941.194 Z=1057.698 velocity=X=0.003 Y=120.000 Z=0.000 file=proxy110_course2_sim0003.800.png
+frame sim=7.5249 elapsed=3.9000 id=proxy110 course=2 position=X=18170.579 Y=-22929.194 Z=1057.698 velocity=X=0.003 Y=120.000 Z=0.000 file=proxy110_course2_sim0003.900.png
+frame sim=7.6249 elapsed=4.0000 id=proxy110 course=2 position=X=18170.579 Y=-22917.194 Z=1057.698 velocity=X=0.003 Y=120.000 Z=0.000 file=proxy110_course2_sim0004.000.png
+frame sim=7.7249 elapsed=4.1000 id=proxy110 course=2 position=X=18170.579 Y=-22905.194 Z=1057.698 velocity=X=0.003 Y=120.000 Z=0.000 file=proxy110_course2_sim0004.100.png
+frame sim=7.8249 elapsed=4.2000 id=proxy110 course=2 position=X=18170.580 Y=-22893.194 Z=1057.698 velocity=X=0.003 Y=120.000 Z=0.000 file=proxy110_course2_sim0004.200.png
+frame sim=7.9249 elapsed=4.3000 id=proxy110 course=2 position=X=18170.580 Y=-22881.194 Z=1057.698 velocity=X=0.003 Y=120.000 Z=0.000 file=proxy110_course2_sim0004.300.png
+frame sim=8.0249 elapsed=4.4000 id=proxy110 course=2 position=X=18170.580 Y=-22869.194 Z=1057.698 velocity=X=0.003 Y=120.000 Z=0.000 file=proxy110_course2_sim0004.400.png
+frame sim=8.1249 elapsed=4.5000 id=proxy110 course=2 position=X=18170.580 Y=-22857.194 Z=1057.698 velocity=X=0.003 Y=120.000 Z=0.000 file=proxy110_course2_sim0004.500.png
+frame sim=8.2249 elapsed=4.6000 id=proxy110 course=2 position=X=18170.581 Y=-22845.194 Z=1057.698 velocity=X=0.003 Y=120.000 Z=0.000 file=proxy110_course2_sim0004.600.png
+frame sim=8.3249 elapsed=4.7000 id=proxy110 course=2 position=X=18170.581 Y=-22833.194 Z=1057.698 velocity=X=0.003 Y=120.000 Z=0.000 file=proxy110_course2_sim0004.700.png
+input sim=8.4249 key=S up
+frame sim=8.4249 elapsed=4.8000 id=proxy110 course=2 position=X=18170.581 Y=-22821.194 Z=1057.698 velocity=X=0.003 Y=120.000 Z=0.000 file=proxy110_course2_sim0004.800.png
+frame sim=8.5249 elapsed=4.9000 id=proxy110 course=2 position=X=18170.581 Y=-22820.283 Z=1057.698 velocity=X=0.000 Y=0.000 Z=0.000 file=proxy110_course2_sim0004.900.png
+frame sim=8.6249 elapsed=5.0000 id=proxy110 course=2 position=X=18170.581 Y=-22820.283 Z=1057.698 velocity=X=0.000 Y=0.000 Z=0.000 file=proxy110_course2_sim0005.000.png
+frame sim=8.7249 elapsed=5.1000 id=proxy110 course=2 position=X=18170.581 Y=-22820.283 Z=1057.698 velocity=X=0.000 Y=0.000 Z=0.000 file=proxy110_course2_sim0005.100.png
+frame sim=8.8249 elapsed=5.2000 id=proxy110 course=2 position=X=18170.581 Y=-22820.283 Z=1057.698 velocity=X=0.000 Y=0.000 Z=0.000 file=proxy110_course2_sim0005.200.png
+frame sim=8.9249 elapsed=5.3000 id=proxy110 course=2 position=X=18170.581 Y=-22820.283 Z=1057.698 velocity=X=0.000 Y=0.000 Z=0.000 file=proxy110_course2_sim0005.300.png
+frame sim=9.0249 elapsed=5.4000 id=proxy110 course=2 position=X=18170.581 Y=-22820.283 Z=1057.698 velocity=X=0.000 Y=0.000 Z=0.000 file=proxy110_course2_sim0005.400.png
+frame sim=9.1249 elapsed=5.5000 id=proxy110 course=2 position=X=18170.581 Y=-22820.283 Z=1057.698 velocity=X=0.000 Y=0.000 Z=0.000 file=proxy110_course2_sim0005.500.png
+frame sim=9.2249 elapsed=5.6000 id=proxy110 course=2 position=X=18170.581 Y=-22820.283 Z=1057.698 velocity=X=0.000 Y=0.000 Z=0.000 file=proxy110_course2_sim0005.600.png
+frame sim=9.3249 elapsed=5.7000 id=proxy110 course=2 position=X=18170.581 Y=-22820.283 Z=1057.698 velocity=X=0.000 Y=0.000 Z=0.000 file=proxy110_course2_sim0005.700.png
+frame sim=9.4249 elapsed=5.8000 id=proxy110 course=2 position=X=18170.581 Y=-22820.283 Z=1057.698 velocity=X=0.000 Y=0.000 Z=0.000 file=proxy110_course2_sim0005.800.png
+frame sim=9.5249 elapsed=5.9000 id=proxy110 course=2 position=X=18170.581 Y=-22820.283 Z=1057.698 velocity=X=0.000 Y=0.000 Z=0.000 file=proxy110_course2_sim0005.900.png
+frame sim=9.6249 elapsed=6.0000 id=proxy110 course=2 position=X=18170.581 Y=-22820.283 Z=1057.698 velocity=X=0.000 Y=0.000 Z=0.000 file=proxy110_course2_sim0006.000.png
+input sim=9.6249 key=W up
+input sim=9.6249 key=S up
+input sim=9.6249 key=LeftShift up
+COMPLETE frames=60 duration=6.0000
+
+verified_resolution=1014x550; PNG decoded=60; cadence 0.1000s checked; JPG sheets are selected samples, not all frames.

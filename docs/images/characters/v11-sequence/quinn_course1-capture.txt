@@ -1,0 +1,77 @@
+ENGINE INPUT DRIVER RENDER EVIDENCE; not real keyboard/video; no hitch/fps verdict
+fixed simulation dt=1/60; screenshot requests at 0.1s sim intervals; image resolved on render frame
+id=quinn course=1 (0=walk3s/run3s,1=L_Dev stairs,2=portal roundtrip) camera=diagnostic boom1.5 pitch-10
+input sim=0.6069 key=W up
+input sim=0.6069 key=S up
+input sim=0.6069 key=LeftShift up
+setup teleport sim=0.6236 position=X=400.000 Y=-1500.000 Z=95.000; no teleports during traversal
+input sim=3.6236 key=W down
+frame sim=3.7236 elapsed=0.1000 id=quinn course=1 position=X=411.533 Y=-1500.000 Z=94.150 velocity=X=180.000 Y=0.000 Z=0.000 file=quinn_course1_sim0000.100.png
+frame sim=3.8236 elapsed=0.2000 id=quinn course=1 position=X=429.533 Y=-1500.000 Z=94.150 velocity=X=180.000 Y=0.000 Z=0.000 file=quinn_course1_sim0000.200.png
+frame sim=3.9236 elapsed=0.3000 id=quinn course=1 position=X=447.533 Y=-1500.000 Z=94.150 velocity=X=180.000 Y=0.000 Z=0.000 file=quinn_course1_sim0000.300.png
+frame sim=4.0236 elapsed=0.4000 id=quinn course=1 position=X=465.533 Y=-1500.000 Z=94.150 velocity=X=180.000 Y=0.000 Z=0.000 file=quinn_course1_sim0000.400.png
+frame sim=4.1236 elapsed=0.5000 id=quinn course=1 position=X=483.533 Y=-1500.000 Z=107.787 velocity=X=180.000 Y=0.000 Z=0.000 file=quinn_course1_sim0000.500.png
+frame sim=4.2236 elapsed=0.6000 id=quinn course=1 position=X=501.533 Y=-1500.000 Z=117.031 velocity=X=180.000 Y=0.000 Z=0.000 file=quinn_course1_sim0000.600.png
+frame sim=4.3236 elapsed=0.7000 id=quinn course=1 position=X=519.533 Y=-1500.000 Z=126.825 velocity=X=180.000 Y=0.000 Z=0.000 file=quinn_course1_sim0000.700.png
+frame sim=4.4236 elapsed=0.8000 id=quinn course=1 position=X=537.533 Y=-1500.000 Z=138.636 velocity=X=180.000 Y=0.000 Z=0.000 file=quinn_course1_sim0000.800.png
+frame sim=4.5236 elapsed=0.9000 id=quinn course=1 position=X=555.533 Y=-1500.000 Z=144.912 velocity=X=180.000 Y=0.000 Z=0.000 file=quinn_course1_sim0000.900.png
+frame sim=4.6236 elapsed=1.0000 id=quinn course=1 position=X=573.533 Y=-1500.000 Z=158.787 velocity=X=180.000 Y=0.000 Z=0.000 file=quinn_course1_sim0001.000.png
+frame sim=4.7236 elapsed=1.1000 id=quinn course=1 position=X=591.533 Y=-1500.000 Z=168.031 velocity=X=180.000 Y=0.000 Z=0.000 file=quinn_course1_sim0001.100.png
+frame sim=4.8236 elapsed=1.2000 id=quinn course=1 position=X=609.533 Y=-1500.000 Z=177.825 velocity=X=180.000 Y=0.000 Z=0.000 file=quinn_course1_sim0001.200.png
+frame sim=4.9236 elapsed=1.3000 id=quinn course=1 position=X=627.533 Y=-1500.000 Z=189.636 velocity=X=180.000 Y=0.000 Z=0.000 file=quinn_course1_sim0001.300.png
+frame sim=5.0236 elapsed=1.4000 id=quinn course=1 position=X=645.533 Y=-1500.000 Z=195.912 velocity=X=180.000 Y=0.000 Z=0.000 file=quinn_course1_sim0001.400.png
+frame sim=5.1236 elapsed=1.5000 id=quinn course=1 position=X=663.533 Y=-1500.000 Z=209.787 velocity=X=180.000 Y=0.000 Z=0.000 file=quinn_course1_sim0001.500.png
+frame sim=5.2236 elapsed=1.6000 id=quinn course=1 position=X=681.533 Y=-1500.000 Z=219.031 velocity=X=180.000 Y=0.000 Z=0.000 file=quinn_course1_sim0001.600.png
+frame sim=5.3236 elapsed=1.7000 id=quinn course=1 position=X=699.533 Y=-1500.000 Z=228.825 velocity=X=180.000 Y=0.000 Z=0.000 file=quinn_course1_sim0001.700.png
+frame sim=5.4236 elapsed=1.8000 id=quinn course=1 position=X=717.533 Y=-1500.000 Z=240.636 velocity=X=180.000 Y=0.000 Z=0.000 file=quinn_course1_sim0001.800.png
+frame sim=5.5236 elapsed=1.9000 id=quinn course=1 position=X=735.533 Y=-1500.000 Z=246.912 velocity=X=180.000 Y=0.000 Z=0.000 file=quinn_course1_sim0001.900.png
+frame sim=5.6236 elapsed=2.0000 id=quinn course=1 position=X=753.533 Y=-1500.000 Z=260.787 velocity=X=180.000 Y=0.000 Z=0.000 file=quinn_course1_sim0002.000.png
+frame sim=5.7236 elapsed=2.1000 id=quinn course=1 position=X=771.533 Y=-1500.000 Z=263.912 velocity=X=180.000 Y=0.000 Z=0.000 file=quinn_course1_sim0002.100.png
+frame sim=5.8236 elapsed=2.2000 id=quinn course=1 position=X=789.533 Y=-1500.000 Z=263.912 velocity=X=180.000 Y=0.000 Z=0.000 file=quinn_course1_sim0002.200.png
+frame sim=5.9236 elapsed=2.3000 id=quinn course=1 position=X=807.533 Y=-1500.000 Z=263.912 velocity=X=180.000 Y=0.000 Z=0.000 file=quinn_course1_sim0002.300.png
+frame sim=6.0236 elapsed=2.4000 id=quinn course=1 position=X=825.533 Y=-1500.000 Z=263.912 velocity=X=180.000 Y=0.000 Z=0.000 file=quinn_course1_sim0002.400.png
+frame sim=6.1236 elapsed=2.5000 id=quinn course=1 position=X=843.533 Y=-1500.000 Z=263.912 velocity=X=180.000 Y=0.000 Z=0.000 file=quinn_course1_sim0002.500.png
+frame sim=6.2236 elapsed=2.6000 id=quinn course=1 position=X=861.533 Y=-1500.000 Z=263.912 velocity=X=180.000 Y=0.000 Z=0.000 file=quinn_course1_sim0002.600.png
+frame sim=6.3236 elapsed=2.7000 id=quinn course=1 position=X=879.533 Y=-1500.000 Z=263.912 velocity=X=180.000 Y=0.000 Z=0.000 file=quinn_course1_sim0002.700.png
+frame sim=6.4236 elapsed=2.8000 id=quinn course=1 position=X=897.533 Y=-1500.000 Z=263.912 velocity=X=180.000 Y=0.000 Z=0.000 file=quinn_course1_sim0002.800.png
+input sim=6.4402 key=W up
+input sim=6.4402 key=S down
+frame sim=6.5236 elapsed=2.9000 id=quinn course=1 position=X=900.758 Y=-1500.000 Z=263.912 velocity=X=-74.801 Y=0.000 Z=0.000 file=quinn_course1_sim0002.900.png
+frame sim=6.6236 elapsed=3.0000 id=quinn course=1 position=X=884.605 Y=-1500.000 Z=263.912 velocity=X=-180.000 Y=0.000 Z=0.000 file=quinn_course1_sim0003.000.png
+frame sim=6.7236 elapsed=3.1000 id=quinn course=1 position=X=866.605 Y=-1500.000 Z=263.912 velocity=X=-180.000 Y=0.000 Z=0.000 file=quinn_course1_sim0003.100.png
+frame sim=6.8236 elapsed=3.2000 id=quinn course=1 position=X=848.605 Y=-1500.000 Z=263.912 velocity=X=-180.000 Y=0.000 Z=0.000 file=quinn_course1_sim0003.200.png
+frame sim=6.9236 elapsed=3.3000 id=quinn course=1 position=X=830.605 Y=-1500.000 Z=263.912 velocity=X=-180.000 Y=0.000 Z=0.000 file=quinn_course1_sim0003.300.png
+frame sim=7.0236 elapsed=3.4000 id=quinn course=1 position=X=812.605 Y=-1500.000 Z=263.912 velocity=X=-180.000 Y=0.000 Z=0.000 file=quinn_course1_sim0003.400.png
+frame sim=7.1236 elapsed=3.5000 id=quinn course=1 position=X=794.605 Y=-1500.000 Z=263.912 velocity=X=-180.000 Y=0.000 Z=0.000 file=quinn_course1_sim0003.500.png
+frame sim=7.2236 elapsed=3.6000 id=quinn course=1 position=X=776.605 Y=-1500.000 Z=263.912 velocity=X=-180.000 Y=0.000 Z=0.000 file=quinn_course1_sim0003.600.png
+frame sim=7.3236 elapsed=3.7000 id=quinn course=1 position=X=758.605 Y=-1500.000 Z=262.575 velocity=X=-180.000 Y=0.000 Z=0.000 file=quinn_course1_sim0003.700.png
+frame sim=7.4236 elapsed=3.8000 id=quinn course=1 position=X=740.605 Y=-1500.000 Z=252.149 velocity=X=-180.000 Y=0.000 Z=0.000 file=quinn_course1_sim0003.800.png
+frame sim=7.5236 elapsed=3.9000 id=quinn course=1 position=X=722.605 Y=-1500.000 Z=243.378 velocity=X=-180.000 Y=0.000 Z=0.000 file=quinn_course1_sim0003.900.png
+frame sim=7.6236 elapsed=4.0000 id=quinn course=1 position=X=704.605 Y=-1500.000 Z=229.802 velocity=X=-180.000 Y=0.000 Z=0.000 file=quinn_course1_sim0004.000.png
+frame sim=7.7236 elapsed=4.1000 id=quinn course=1 position=X=686.605 Y=-1500.000 Z=223.031 velocity=X=-180.000 Y=0.000 Z=0.000 file=quinn_course1_sim0004.100.png
+frame sim=7.8236 elapsed=4.2000 id=quinn course=1 position=X=668.605 Y=-1500.000 Z=211.575 velocity=X=-180.000 Y=0.000 Z=0.000 file=quinn_course1_sim0004.200.png
+frame sim=7.9236 elapsed=4.3000 id=quinn course=1 position=X=650.605 Y=-1500.000 Z=201.149 velocity=X=-180.000 Y=0.000 Z=0.000 file=quinn_course1_sim0004.300.png
+frame sim=8.0236 elapsed=4.4000 id=quinn course=1 position=X=632.605 Y=-1500.000 Z=192.378 velocity=X=-180.000 Y=0.000 Z=0.000 file=quinn_course1_sim0004.400.png
+frame sim=8.1236 elapsed=4.5000 id=quinn course=1 position=X=614.605 Y=-1500.000 Z=178.802 velocity=X=-180.000 Y=0.000 Z=0.000 file=quinn_course1_sim0004.500.png
+frame sim=8.2236 elapsed=4.6000 id=quinn course=1 position=X=596.605 Y=-1500.000 Z=172.031 velocity=X=-180.000 Y=0.000 Z=0.000 file=quinn_course1_sim0004.600.png
+frame sim=8.3236 elapsed=4.7000 id=quinn course=1 position=X=578.605 Y=-1500.000 Z=160.575 velocity=X=-180.000 Y=0.000 Z=0.000 file=quinn_course1_sim0004.700.png
+frame sim=8.4236 elapsed=4.8000 id=quinn course=1 position=X=560.605 Y=-1500.000 Z=150.149 velocity=X=-180.000 Y=0.000 Z=0.000 file=quinn_course1_sim0004.800.png
+frame sim=8.5236 elapsed=4.9000 id=quinn course=1 position=X=542.605 Y=-1500.000 Z=141.378 velocity=X=-180.000 Y=0.000 Z=0.000 file=quinn_course1_sim0004.900.png
+frame sim=8.6236 elapsed=5.0000 id=quinn course=1 position=X=524.605 Y=-1500.000 Z=127.802 velocity=X=-180.000 Y=0.000 Z=0.000 file=quinn_course1_sim0005.000.png
+frame sim=8.7236 elapsed=5.1000 id=quinn course=1 position=X=506.605 Y=-1500.000 Z=121.031 velocity=X=-180.000 Y=0.000 Z=0.000 file=quinn_course1_sim0005.100.png
+frame sim=8.8236 elapsed=5.2000 id=quinn course=1 position=X=488.605 Y=-1500.000 Z=109.575 velocity=X=-180.000 Y=0.000 Z=0.000 file=quinn_course1_sim0005.200.png
+frame sim=8.9236 elapsed=5.3000 id=quinn course=1 position=X=470.605 Y=-1500.000 Z=99.149 velocity=X=-180.000 Y=0.000 Z=0.000 file=quinn_course1_sim0005.300.png
+frame sim=9.0236 elapsed=5.4000 id=quinn course=1 position=X=452.605 Y=-1500.000 Z=94.150 velocity=X=-180.000 Y=0.000 Z=0.000 file=quinn_course1_sim0005.400.png
+frame sim=9.1236 elapsed=5.5000 id=quinn course=1 position=X=434.605 Y=-1500.000 Z=94.150 velocity=X=-180.000 Y=0.000 Z=0.000 file=quinn_course1_sim0005.500.png
+frame sim=9.2236 elapsed=5.6000 id=quinn course=1 position=X=416.605 Y=-1500.000 Z=94.150 velocity=X=-180.000 Y=0.000 Z=0.000 file=quinn_course1_sim0005.600.png
+frame sim=9.3236 elapsed=5.7000 id=quinn course=1 position=X=398.605 Y=-1500.000 Z=94.150 velocity=X=-180.000 Y=0.000 Z=0.000 file=quinn_course1_sim0005.700.png
+frame sim=9.4236 elapsed=5.8000 id=quinn course=1 position=X=380.605 Y=-1500.000 Z=94.150 velocity=X=-180.000 Y=0.000 Z=0.000 file=quinn_course1_sim0005.800.png
+input sim=9.4402 key=S up
+frame sim=9.5236 elapsed=5.9000 id=quinn course=1 position=X=375.310 Y=-1500.000 Z=94.150 velocity=X=0.000 Y=0.000 Z=0.000 file=quinn_course1_sim0005.900.png
+frame sim=9.6236 elapsed=6.0000 id=quinn course=1 position=X=375.310 Y=-1500.000 Z=94.150 velocity=X=0.000 Y=0.000 Z=0.000 file=quinn_course1_sim0006.000.png
+input sim=9.6236 key=W up
+input sim=9.6236 key=S up
+input sim=9.6236 key=LeftShift up
+COMPLETE frames=60 duration=6.0000
+
+verified_resolution=1014x550; PNG decoded=60; cadence 0.1000s checked; JPG sheets are selected samples, not all frames.
