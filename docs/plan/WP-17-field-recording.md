@@ -4,7 +4,7 @@
 
 ## 목표·산출물
 
-[현장 녹음 절차](../capture/03-field-recording.md): 아이폰/외장·바람막이 비교, 위치·시간대·테이크 분량, 대화 제외 운영 규칙, 파일명·비공개 원본 보존, 정규화·루프 편집·용량, 권리/확인일·청취 기록·WP-13 반입 기준. 장비/수치는 Fable 리뷰 전 가설이다. 구매·장비/도구 설치·현장 녹음·새 소스/약정 채택은 하지 않았다.
+[현장 녹음 절차](../capture/03-field-recording.md): 아이폰/외장·바람막이 비교, 위치·시간대·테이크 분량, 대화 제외 운영 규칙, 파일명·비공개 원본 보존, 정규화·루프 편집·용량, 권리/확인일·청취 기록·WP-13 반입 기준. 녹음 수치와 sounds[] 설계는 Fable이 제안/가설로 승인했다. 실제 채택은 Zone2곳 확보·V-10 통과·Fable 청취 뒤다. 구매·장비/도구 설치·현장 녹음·새 소스/약정 채택은 하지 않았다.
 
 Zone sounds[]는 아래의 **변경 제안**이며 공유 스펙·스키마·런타임은 수정하지 않는다. 현재 v1에 추가하면 알 수 없는 최상위 키 오류가 난다. [현행 Zone 계약](../spec/zone-manifest.md)의 좌표·버전 원칙을 따른다.
 
@@ -45,7 +45,7 @@ Zone sounds[]는 아래의 **변경 제안**이며 공유 스펙·스키마·런
 | radius_m | 유한 수 >0; 중심에서 이 거리까지 감쇠해0, 거리 밖 무음 |
 | gain | 유한 수0~1, SoundWave gain·master에 추가 곱하는 위치 점 배율 |
 
-각 원소는 위5개 필수 키만 허용한다. loop/저자/라이선스/확인일/소스 경로는 audio.json이 정본이므로 여기서 중복 정의하지 않는다. 1차 위치 점은 loop=true인 채택 자산만 허용한다. 원샷 이벤트/시간대별 배치/확률 재생은 후속 스펙으로 분리한다. 하나의 Zone은 최대32점(초기 예산 가설)이며 초과는 조용히 잘라내지 않고 검증 오류로 돌린다.
+각 원소는 위5개 필수 키만 허용한다. loop/저자/라이선스/확인일/소스 경로는 audio.json이 정본이므로 여기서 중복 정의하지 않는다. 1차 위치 점은 loop=true인 채택 자산만 허용한다. 감쇠는 1차 선형→0 가설이며 `falloff`는 청취 뒤 확장할 예약 후보로만 두고 현재 키에는 추가하지 않는다. 원샷 이벤트/시간대별 배치/확률 재생은 후속 스펙으로 분리한다. 하나의 Zone은 최대32점(초기 예산 가설)이며 초과는 조용히 잘라내지 않고 검증 오류로 돌린다.
 
 좌표 변환은 `zone-local → manifest.transform으로 ECEF → area ENU → UE` 순서로 기존 Zone 변환을 재사용한다. 마지막 ENU→UE는 `(100x,-100y,100z)`이며 zone yaw를 중복 적용하지 않는다. 예시의 x/y 부호·단위·비영 yaw·서로 다른 원점·origin shift를 합성 테스트로 대조한다.
 
@@ -59,22 +59,37 @@ Zone sounds[]는 아래의 **변경 제안**이며 공유 스펙·스키마·런
 
 1. 새 버전 예약과 v1 읽기 호환 범위를 결정한다. v1은 sounds 없음으로 처리하며 원본은 수정하지 않는다.
 2. docs/spec 원본과 tools 패키지 사본 스키마, Python validator/생성기, UE manifest 로더를 같은 변경 묶음에서 갱신한다. 이전 UE가 새 버전을 읽으면 명시적 미지원 오류를 내야 한다.
-3. 마이그레이션은 새 Zone version에 빈 sounds 배열을 생성하고 변경 전후 좌표/기존 필드 보존을 확인한다. 실제 점은 별도 검토 후 입력한다.
+3. schema_version은 파일 계약 버전이고 Zone data version은 v<version> 폴더의 불변 데이터 버전이다. 모든 Zone을 일괄 bump하지 않는다. sounds 누락은 위치 음원 없음으로 유지하고 실제 점을 넣는 Zone만 새 data version으로 bump한다(reviewed_* 초기화 후 재검토). 새 schema_version에 맞게 이행하며 좌표/기존 필드를 보존한다.
 4. 양/음성 테스트: 빈 배열·중복ID·없는 asset·원샷/stereo 참조·NaN/Inf·0/음수 반경·범위 밖 gain·추가 키·32점 초과·회전/원점변환·로드 취소/재진입·겹친 Zone·Photo·패키지 cook.
-5. rollback은 이전 Zone version/로더로 되돌리는 방식이며 불변 원본을 덮어쓰지 않는다. v1 데이터를 새 스키마로 오인해 재저장하지 않는다.
+5. rollback은 이전 Zone data version/호환 로더로 되돌리는 방식이며 불변 원본을 덮어쓰지 않는다. v1 데이터를 새 스키마로 오인해 재저장하지 않는다.
 
 ### docs/plan/STATUS.md — Astra 병행 트랙 WP-17 행
 
-> WP-17 현장 녹음 절차·Zone별 소리(D-016 (b), 문서): 🟢 문서 완료 — ChatGPT Astra(T4). capture/03-field-recording.md(장비·분량·대화 제외·명명/정규화/루프·기록표), WP-17의 sounds[] 새 스키마 제안. 실제 녹음·권리 채택·스키마/런타임 구현·청취는 미실행이며 후속 배정. 설계 수치는 Fable 검토 대상.
+- 상태 칸: `🟢 문서 완료(2026-09-28 #37 병합) — 현장 녹음·sounds[] 스키마/로더 미실행`
+- 담당 칸: `**ChatGPT Astra**(T4), 설계 리뷰 Fable·문서 리뷰 Opus·병합 오케스트레이터`
+- 메모 칸: `capture/03-field-recording.md(장비·분량·대화 제외·명명/정규화/루프·기록표), WP-17 sounds[] 새 스키마 제안; 실제 녹음·권리 계약 확장·스키마/로더 구현은 후속 배정 대기.`
+
+행 조립은 병합 세션이 한다.
 
 ### docs/ROADMAP.md — D-016(b) 현장 녹음 진행 문안
 
 > WP-17 T4 현장 녹음 절차 문서 완료. 채택 음원의 권리/확인일·루프·배포 크레딧 및 V-10 소유자 밸런스를 통과한 뒤 실제 반입한다. Zone sounds[]는 새 스키마·로더 동시 변경 제안 단계로, 현재 v1에 반영하지 않는다.
 
-### docs/plan/astra-tasks.md — T4 상태 셀
+### docs/plan/astra-tasks.md — T4 언제 열과 우선순위 줄
 
-> 문서 완료·리뷰 대기 → 리뷰/병합 뒤 문서 완료. 현장 녹음·스키마 구현과 구분. 다음 T2(V-09 §7 종료 알림 뒤) → T5(PC GUI).
+- T4 언제 열: `**완료·병합**(#37, 2026-09-28) — 절차 문서만, 현장 녹음·sounds[] 구현 별도`
+- 우선순위 줄: 끝의 `→ T4`를 `~~T4~~` 완료 항목으로 옮기고, 남은 순서 `T2 GUI → T5(PC GUI)`를 유지한다.
+
+### 오디오 레인 후속 인계
+
+현행 audio.json 계약으로 자체 녹음은 반입 불가다. 자체 녹음 license 값·license_url·HTTPS source_url 대신 내부 기록 ID 사용 규칙을 Python/C++ 검증과 ATTRIBUTION/크레딧에 함께 확장하는 별도 작업이 필요하다. 공개 CC0/CC-BY 부여는 소유자 승인 사항이며 가짜 URL이나 project-generated로 우회하지 않는다.
+
+통합 검사는 제안 도구 `golmok-zone validate --audio-config <audio.json>`에서 asset 존재/loop/표기와 연결 WAV 헤더의 mono 채널을 검사하는 방식으로 인계한다(현재 구현된 옵션 아님). 경로는 audio.json과 Audio/src를 명시적으로 제공하고 원본 녹음을 자동 탐색하지 않는다. cook 포함은 에디터 Python/패키지 manifest 검증 단계에서 확인한다. audio.json에 channels 필드를 추가하려면 오디오 레인 계약 변경으로 별도 검토한다.
 
 ## 검증 기록
 
 2026-09-28 로컬: ruff check/format103, pytest **736 passed/68 skipped/208 warnings,43.90s**, check_repo, diff --check 통과. 변경은 문서2개뿐이며 UE 빌드/GUI/녹음은 실행하지 않았다. CI는 PR 현재 head 결과로 확인한다.
+
+## PR #37 리뷰 수정
+
+F1/F2/F4/F7/F9 반영: 자체 녹음 계약 확장 필수·공개 라이선스 소유자 승인, STATUS 칸별/astra-tasks 열별 문안, asset ID/파일 대응, 자문8 링크·iCloud 동기화 끄기 운영 규칙. F6/F8 이행 버전 구분·통합 검사 도구/mono 근거도 반영했다. Fable 보정대로 원경 stereo20~26초·룸톤 mono30~40초, falloff 예약 후보만 기록. main c16b5a7 병합 충돌 없음.
