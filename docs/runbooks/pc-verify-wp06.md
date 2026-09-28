@@ -380,7 +380,7 @@ basemap_import: GeoOrigin lat=… lon=… h=… (basemap origin; ellipsoidal = D
 
 ## 11. 결과 기록
 
-2026-09-28 Astra T5, 별도 worktree, main `1d68316` 반영. **부분 검증 — V-04 완료 아님.** §0 Save As로 선행 차단은 해소했으나 §8 레이어 맵 생성에서 같은 종류의 GC fatal을 재현했다. 제품 코드 수정 없음.
+2026-09-28 Astra T5, 별도 worktree, main `b8b442c`(PR #43) 반영. **T5 실행·보고 완료, V-04 최종 판정은 리뷰에서 확정.** §0·§8 GC 차단은 Save As로 해소했다. 선택 §9 실패와 아래 부분 확인·미실행 항목은 남긴다. 제품 코드 수정 없음.
 
 | 항목 | 결과 | 메모·실측 |
 |---|---|---|
@@ -396,10 +396,10 @@ basemap_import: GeoOrigin lat=… lon=… h=… (basemap origin; ellipsoidal = D
 | §6 재실행 | **부분 확인** | reimport_textures=False 및 True, interior_setup 재실행 완료. ManualProp 보존·Interior_Light 각1개. True 재임포트 경고0·크기512/256 정상. False 직후 readback32×32 → 새 에디터 12s 대기 후512/256 확인(아래). 재임포트 뒤 §5 실제 드라이버 왕복 통과 |
 | §7 시점·캡처·무인 종료 | **파일 생성 통과 / HUD 관찰** | 고정 시점10개 저장·prepare 누락0. a×clear_noon/night 20장 모두2560×1440, 0 missing. 인덱스 분리 후 재검증: 전경53.656s·백그라운드67.063s 각각20/20. 메모장을 앞에 두어도 PIE 그리기 지속, 약25% 느림(단일 비교). quit_editor=True 후 프로세스 종료 |
 | §7 컨택트 시트·템플릿 | **생성 확인** | contact_sheet.html·report_template.md 생성. HTML table2개·img20개 확인, 실제 이미지도 별도 열어 확인. 브라우저 file:// 접근은 도구 보안정책으로 거부되어 HTML 렌더는 미확인(우회하지 않음) |
-| §8 레이어 맵·-game CSV | **차단** | s.save_layer_levels() 첫 L_Spike_b duplicate_asset→load_level에서 World Memory Leaks fatal. 완료 로그 없음. walk_01 InputKey 실시간 녹화73.003s·731샘플 확보. a 단독 -game CSV 생성·자동 종료 성공(아래). b는 수정 대기 |
+| §8 레이어 맵·-game CSV | **통과** | PR #43 반영 후 b·c·ac Save As→디스크 재열기→저장 성공, 원본 맵 해시 불변. walk_01 73.003s·731샘플. a/b 모두 CSV 생성·경로 종료·자동 종료 성공(아래) |
 | §9 PIE 참고치 | **실행 실패(선택)** | perf_all이 기록 중인 CSV 생성만 보고 PIE 종료. 73s 경로 대신 첫2s 제외2프레임만 남음. fps 참고값으로 인정하지 않음 |
 | §10 basemap GeoOrigin | **미실행(선택)** | 다른 세션의 베이스맵을 변경하지 않음 |
-| 게이트 | **통과** | ruff check, format103파일, pytest740 passed/77 skipped, check_repo OK. UE 전체 -SetupDevLevel 재실행: 28 Success(21+경고7), fail0; RenderEvidence 기본 NOT EXECUTED를 제외한 실제27개. 별도 opt-in 보행은 실행 성공 |
+| 게이트 | **통과** | ruff check, format103파일, PR #43 병합 후 pytest763 passed/77 skipped, check_repo OK. UE 전체 -SetupDevLevel 재실행: 28 Success(21+경고7), fail0; RenderEvidence 기본 NOT EXECUTED를 제외한 실제27개. 별도 opt-in 보행은 실행 성공 |
 | 고친 API | **문서만** | 승인된 §0 Save As 절차 및 §12 #8·#18 관찰 기록. 제품 Python/C++ 수정 없음. 09:14Z 승인된 Astra 테스트 opt-in 드라이버2파일 추가/연결 |
 
 ### InputKey 실행 근거 (오케스트레이터 09:14Z 허용)
@@ -422,20 +422,23 @@ basemap_import: GeoOrigin lat=… lon=… h=… (basemap origin; ellipsoidal = D
 
 [유리 압박](pc-verify-wp06-glass.jpg), [실내 보행](pc-verify-wp06-interior.jpg). 종료 시 zone.list=실외 loaded·실내 unloaded. 추가 실내 코스에서 진입2.100s 후 전환 종료·fog=0·exposure bias=base+1EV를 직접 계측했다. 천장 검증은 trace이며 점프 동작으로 과장하지 않는다.
 
-### `-game` 성능(1920×1080, a 단독 선행 실행)
+### `-game` 성능(1920×1080, a/b)
 
 RTX5060, 다른 UE 프로세스 없는 상태에서 실행. 원본 생성 스크립트는 보존하고 Saved 아래 실행 사본에만 위 인덱스 탐색 비활성 옵션을 추가했다. CPU/GPU를 쓰는 검사와 겹치지 않았다. 경로73.0s·731샘플, CsvProfile Start→csv 로그 확인, -csvCaptureFrames 없음, 타임아웃 아닌 자동 종료. CSV는 프로젝트 Saved/Profiling/CSV/Profile(20260928_184024).csv에 생성됐고 Saved/Golmok/spike/csv/a_clear_noon_walk_01.csv로 복사됐다. 아래 프레임은 golmok-perf의 첫2s 제외 후 집계다. 단일 실행 수치이며 품질 승인/성능 목표 통과 판정은 아니다.
 
 | 구성 | 프레임 | 평균 fps | 1% low fps | 프레임 p50 ms | p99 ms | Game ms | Render ms | GPU ms |
 |---|---|---|---|---|---|---|---|---|
 | a_clear_noon_walk_01 | 9861 | 139.1 | 11.1 | 4.63 | 90.27 | 1.80 | 7.18 | 6.56 |
+| b_clear_noon_walk_01 | 11675 | 164.6 | 12.4 | 3.03 | 80.78 | 1.41 | 6.07 | 5.58 |
+
+b는10:11:13.654Z CsvProfile Start→10:12:26.632Z csv→10:12:26.700Z ExitAfterCsvProfiling(exit0), 원본 CSV는 Saved/Profiling/CSV/Profile(20260928_191113).csv. a/b 모두 단일 실행이며 성능 목표·품질 승인으로 해석하지 않는다.
 
 생성된 PowerShell의 pathDirs 첫 항목이 원본 경로와 같아 Copy-Item의 자기 자신 덮어쓰기 경고가 있었다. Continue 정책 아래 다음 경로 복사·실행·CSV 수집은 완료됐다. 제품 스크립트 변경 없이 관찰로 인계한다.
 
 ### 재현과 인계
 
 1. **§0 선행 차단 해소**: 기존 duplicate_asset→load_level(copy)는 07:13:27Z EditorServer.cpp:2544의 `World Memory Leaks: 2 leaks objects and packages`로 종료했다. 오케스트레이터 [08:44Z 정정](https://github.com/wooklym/golmok/pull/41#issuecomment-5866539207)에 따라 §0를 save_map(world, copy)로 변경해 실제 성공. 원본 SHA-256은 실행 전후 `F284238B2172AC784923EDCD28499DD5A963341C3631FAFD6923BC7AD0E9F3D3`로 동일.
-2. **§8 독립 차단 재현**: 정상 L_ZoneTest06을 연 새 에디터에서 `import golmok.spike_runner as s; s.save_layer_levels()` 실행. 09:14:17Z `T5 LAYER START` 직후 첫 L_Spike_b의 복제 World가 GC에 남아 같은 fatal 발생. `T5 LAYER COMPLETE` 없음. spike_runner.save_layer_levels의 duplicate_asset→load_level 절차를 Claude 레인에서 검토해야 한다. 저장/GC 우회나 제품 코드 변경은 하지 않았다.
+2. **§8 독립 차단 재현**: 정상 L_ZoneTest06을 연 새 에디터에서 `import golmok.spike_runner as s; s.save_layer_levels()` 실행. 09:14:17Z `T5 LAYER START` 직후 첫 L_Spike_b의 복제 World가 GC에 남아 같은 fatal 발생. `T5 LAYER COMPLETE` 없음. PR #43 main b8b442c 반영 후10:10:50~52Z에 b·c·ac 세 맵 생성 성공. Save As는 열린 맵 이름을 바꾸지 않았고, 각 태그에서 #18 ④ 경고 뒤 디스크 재열기가 성공했다(fatal 없음). 원본 L_ZoneTest06 SHA-256은 전후 `ce6ef0994258335e4fb0596b883a095fb610d0393ef11516916941cb388024b5`로 동일. 새 에디터의 저장된 원본으로 시작했으며 dirty 검사 경고 없음. `t5-save-layers-fixed.log` 보존. §12 #18은 병합 지시대로 main 문안을 유지하고 PC 관찰은 여기에 기록한다.
 3. **§7 HUD 기대 불일치**: `golmok.hud 0` 이후에도 이미지 좌상단에 `path: play vp_...` 줄이 남는다. GolmokHUD.cpp의 `!Debug->IsHudVisible()` 분기는 IsPlaying일 때 이 줄을 명시적으로 그린다. 일반 HUD와 캐릭터는 숨지만 런북의 HUD 없음 기대를 충족하지 못한다. 캡처 전용 숨김 여부는 오케스트레이터 09:18Z 답변: 재생 중 표시는 의도된 설계이며 캡처 증거에 영향 없음.
 4. **텍스처 readback**: reimport_textures=False와 다음 에디터 시작 직후 facade/ground `blueprint_get_size_x/y`가32×32. True 재임포트 보고는512/256이고 실제 캡처에 숫자/색이 보인다. 별도 새 에디터에서 텍스처를 로드한 뒤 slate tick으로12s 대기하자09:15:09Z facade512×512·ground256×256으로 정상화됐다. 즉시 조회는 임시 크기일 수 있으므로 재실행 기대값 판정은 준비 완료 후 해야 한다. 제품 손상으로 판정하지 않는다.
 5. **night 관찰**: 첫 실행은 Zone 인덱스 중첩이 있어 외관 판정에서 제외했다. 인덱스 분리 후에도 실내 PointLight가 켜진 시점은 노란 조명이 보이므로 전부 검정은 아니다. 기존 V-03 기록과 이번 측정 조건을 구별하며 야간 품질 판정은 하지 않는다.
@@ -444,7 +447,7 @@ RTX5060, 다른 UE 프로세스 없는 상태에서 실행. 원본 생성 스크
 
 증거: [실외 타일 캡처](pc-verify-wp06-exterior.jpg), [HUD 상태줄 잔류](pc-verify-wp06-capture-hud.jpg). 원본20장2560×1440은 로컬 Saved/Screenshots/Golmok/a에 보존. 로그 tools/.venv/t5-saveas-import.log, t5-interior-reimport.log, t5-capture.log, t5-layer-crash.log, t5-texture-readback.log, 초기 t5-startup-crash.log 보관. 생성 에셋·원본PNG·검증 스크립트는 커밋하지 않는다. 시점은 에디터 Python 카메라 API로 저장했으며 수동 비행/보행으로 기록하지 않았다.
 
-**병합 시 반영 — STATUS V-04 행 인계 문안**: T5 부분 검증. Save As로 §0 GC 차단 해소·원본 맵 해시 불변, 합성 입력27개 strict validate·실외/실내 import·ManualProp 보존 재실행 확인. PIE 캡처20장2560×1440·누락0·자동 종료 확인. §8 save_layer_levels 맵 복제→로드 GC fatal 재현, §7 경로 상태줄 잔류. 실제 InputKey 보행·포털·실내 단언25개 통과·73.003s 경로 녹화. 전경/백그라운드 각20장 누락0 확인. a -game CSV(73s)·자동 종료 확인, b 성능은 레이어 맵 생성 수정 대기. V-04 전체 통과/완료로 표시하지 않는다. Claude 레인 레이어 맵 생성 수정 뒤 잔여 재개.
+**병합 시 반영 — STATUS V-04 행 인계 문안**: T5 실행·보고 완료(최종 상태는 리뷰에서 확정). §0·§8 Save As로 GC 차단 해소, 원본 L_ZoneTest·L_ZoneTest06 해시 불변. 합성 입력27개 strict validate·실외/실내 import·ManualProp 보존 재실행 확인. InputKey6코스25단언·73.003s/731샘플 경로, 전경/백그라운드 각20장2560×1440·누락0·자동 종료 확인. b/c/ac 레이어 맵 생성 및 a/b -game CSV 정상: 평균139.1/164.6fps, 1%low11.1/12.4fps(품질 승인 아님). 선택 §9 WAIT_CSV 조기 완료(2프레임)·생성 PS 자기 복사 경고는 Claude 후속. 선택 §10 미실행·HTML 브라우저 렌더 미확인·천장은 점프 대신 trace 등 §11 제한 유지. 모든 수동 관찰을 통과했다고 기록하지 않는다.
 
 기록 뒤:
 1. 이 표를 채우고 커밋(`WP-06: PC 검증 결과`). 스크린샷은 `docs/runbooks/` 옆에 `pc-verify-wp06-*.jpg`(작게).
