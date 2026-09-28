@@ -56,7 +56,8 @@ L_Dev PIE, F1로 HUD를 켠다.
   - 태양이 **끊김 없이** 돌고 밝기·색이 이어진다(프리셋 사이 계단 없음). 18:00 근처 볼류메트릭 안개가 켜지는 순간(15:15, 12:30–18:00 중점)은 한 번 바뀌는 것이 정상.
   - HUD 이름이 **중점에서** 바뀐다: 15:15 → `golden_evening`, 19:45 → `night`, 02:30 → `overcast_morning`, 10:00 → `clear_noon`.
   - 21:25 무렵부터 night 구간은 어둡거나 검정(14b 전 정상). 태양은 lux ≤ 0.01인 21:29~21:32 사이에만 꺼지고(night 키프레임 lux 0 양옆) 그 밖에서 **깜빡이지 않는다**(가시성은 매 틱 lux > 0.01 한 규칙).
-  - 자정(23:59 → 00:00)에서 튐 없이 이어지고 태양 yaw가 0° 쪽 최단 호로 돈다.
+  - 태양 yaw의 0°/360° 통과는 golden_evening(265°) → night(0°) 구간(19:45에 312.5°, 21:30에 0°)에서 최단 호로 튐 없이. 자정(23:59 → 00:00)은 night → overcast_morning 구간 안이라 yaw 약 27.5° → 110°로 계속 이어진다(튐 없음). 볼류메트릭 안개는 15:15에 켜지고 02:30(night → overcast_morning 중점)에 꺼진다.
+  - **설계상 알려진 모습(결함 아님, 14b 항목)**: 키프레임 4개 선형 보간이라 night(21:30, lux 0) → overcast_morning(07:30, lux 2.5) 600분 구간에서 lux가 곧바로 오른다 — `IsNight`(lux < 0.1)는 21:24:45~21:54만 참이고, 태양 pitch가 00:30에 0°를 지나 00:30~07:30은 지평선 위 약한 태양(03:00 lux 1.4)이 보인다. 저녁 쪽도 19:13 무렵 pitch 0°에서 lux 약 2.6(지평선 아래에서 비추는 빛). 밤 구간 유지·완화(night 유지 키프레임, smoothstep/EV 공간 보간)나 `IsNight` 정의는 14b look-dev 결정(WP 문서 결과 #15).
 - [ ] 스크린샷(선택): 11:00·16:00·20:30 세 장 `pc-verify-wp14a-clock-*.jpg`.
 
 ## 4. 시각 점프 전환
@@ -70,7 +71,7 @@ L_Dev PIE, F1로 HUD를 켠다.
 - [ ] `golmok.tod mode realtime` → `golmok.tod: mode fixed -> realtime at HH:MM`(PC 시계와 같은 시각), 2 s 전환. HUD `tod: <가장 가까운 키프레임> HH:MM realtime`이 1분마다 1분씩 간다.
 - [ ] **P**(포토 모드)로 들어가 1분 넘게 머문다 → 조명·시각이 진입 시각에 머문다(HUD는 포토 오버레이라 `golmok.tod status`로 확인해도 된다). P로 나오면 2 s 전환으로 현재 PC 시각에 맞춰진다.
 - [ ] 포토 모드 `PauseMode=TimeDilation`(ini 선택 키, 커밋하지 않음)으로 한 번 더: 같은 결과.
-- [ ] realtime에서 키 **3** → `LogGolmok: TimeOfDay: preset golden_evening in realtime mode -> fixed`, 18:00에 멈춘다(설계상 판단 — WP 문서 결과 #3).
+- [ ] realtime에서 키 **3** → `LogGolmok: TimeOfDay: preset golden_evening in realtime mode -> fixed`, 18:00에 멈춘다(설계상 판단 — WP 문서 결과 #3). 다시 `golmok.tod mode realtime` 뒤 `golmok.tod time 09:00` → `LogGolmok: TimeOfDay: time set in realtime mode -> fixed`, 09:00에 멈춘다.
 
 ## 6. F5·키 4개 호환(Fixed 기본)
 
@@ -90,13 +91,15 @@ L_Dev PIE, F1로 HUD를 켠다.
 
 `Config/DefaultGame.ini`는 hot-spot이고 `test_ue_wp05_fixture.py`가 `[/Script/Golmok.GolmokTimeOfDay]` 키 집합을 고정한다. 시험할 때만 로컬에서 섹션에 더한다:
 ```ini
-ClockMode=Clock            ; Fixed | Clock | Realtime
+; ClockMode: Fixed | Clock | Realtime. TimeOfDayMinutes = Clock start time (an InitialPreset keyframe wins).
+ClockMode=Clock
 ClockMinutesPerRealSecond=0.5
 RealtimeOffsetMinutes=0
 NightLuxThreshold=0.1
-TimeOfDayMinutes=450       ; Clock 시작 시각(InitialPreset이 있으면 그 키프레임)
+TimeOfDayMinutes=450
 ```
-- [ ] `ClockMode=Clock`으로 PIE → 시작부터 07:30 보간 상태에서 시계가 간다(HUD `clock x0.5`). 시험 뒤 되돌린다.
+(UE ini에는 줄 끝 주석이 없다 — 주석은 `;`로 시작하는 자기 줄에만.) ini를 바꾼 뒤에는 **에디터를 다시 연다**(클래스 기본 객체가 Config를 시작 때 읽는다).
+- [ ] `ClockMode=Clock`으로 PIE → 시작부터 07:30 보간 상태에서 시계가 간다(HUD `clock x0.5`). `ClockMode=Realtime` + `InitialPreset=clear_noon`이어도 Realtime으로 시작한다(설정 모드 우선). 시험 뒤 되돌린다.
 
 ## 10. 불확실 API·가정
 
@@ -111,7 +114,9 @@ TimeOfDayMinutes=450       ; Clock 시작 시각(InitialPreset이 있으면 그 
 | 7 | 테스트 `TMap<FName, FGolmokLightingPreset>::Add(Key)` 참조 반환·`TestEqual(float, float)`·`AddLambda` 캡처 `this` | 5.8 그대로 | `Emplace`/`TestTrue(IsNearlyEqual)` |
 | 8 | `FString::Printf(TEXT("%s"), TCHAR[6])` 배열 인자 | 5.8 형식 검사가 배열→포인터 변환을 받아들임 | `FString(Buffer)` 후 `*` |
 | 9 | Python `unreal.GolmokTimeOfDay`·프로퍼티 `clock_mode`/`time_of_day_minutes`/`clock_minutes_per_real_second`·enum 값의 `.name`(`CLOCK`) | UE Python 이름 규칙 | `l.mode()`/`l.status()`가 `None` → `get_editor_property` 이름을 로그로 확인해 고침 |
+| 13 | `TimeOfDayMinutes`(float) + 내부 double | 시계는 `PreciseMinutes`(double)로 진행하고 float 프로퍼티에 복사; 밖에서 float을 바꾸면 그 값으로 다시 맞춘다 | — |
 | 10 | 정적 SkyLight 재캡처 | Clock/Realtime에서는 키프레임 이름이 바뀔 때(중점)만 `RecaptureSky()`(매 틱 아님). L_Dev가 real-time capture면 해당 없음 | 하늘 앰비언트가 늦게 따라오면 기록(14b 항목) |
+| 12 | 에디터 월드의 `golmok.tod` | 에디터 월드(PIE 없음)에서 `time/mode/rate`는 배치된 `AGolmokTimeOfDay`의 Config 프로퍼티를 바꾸고 레벨 저장 시 함께 저장될 수 있다(L_Dev에는 배치 액터가 없어 해당 없음) | 배치 레벨에서는 PIE에서만 쓴다 |
 | 11 | 전환 중 시계 진행 | clock 모드의 점프 전환은 매 틱 목표를 현재 시계로 다시 잡는다(`To = ComposeTarget()`) | 전환 끝 튐이 보이면 기록 |
 
 ## 11. 결과 기록

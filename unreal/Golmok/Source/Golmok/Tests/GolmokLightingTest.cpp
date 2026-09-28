@@ -470,6 +470,16 @@ namespace GolmokLightingTest
 				Test->TestTrue(TEXT("rate 10: 23:55 + 1 s -> 00:05"), FMath::IsNearlyEqual(static_cast<double>(Tod->GetTimeOfDayMinutes()), 5.0, 1e-3));
 				Test->TestEqual(TEXT("00:05 nearest night"), Tod->CurrentPreset.ToString(), FString(TEXT("night")));
 
+				// 8b. Slow rate at a high frame rate still advances (double accumulator, not float steps near 1440).
+				Tod->ClockMinutesPerRealSecond = 1.f / 60.f;
+				Tod->SetTimeOfDay(1400.f, true);
+				for (int32 Step = 0; Step < 2400; ++Step)
+				{
+					Tod->AdvanceClock(1.0 / 240.0); // 10 s at 240 fps
+				}
+				Test->TestTrue(*FString::Printf(TEXT("rate 1/60 at 240 fps: 10 s -> +%.4f min"), static_cast<double>(Tod->GetTimeOfDayMinutes()) - 1400.0),
+					FMath::IsNearlyEqual(static_cast<double>(Tod->GetTimeOfDayMinutes()), 1400.0 + 10.0 / 60.0, 1e-3));
+
 				// 9. Realtime jumps (with a transition) to the local time.
 				Test->TestTrue(TEXT("SetClockMode(Realtime)"), Tod->SetClockMode(EGolmokClockMode::Realtime));
 				const double Local = Tod->RealtimeTargetMinutes();
@@ -477,6 +487,10 @@ namespace GolmokLightingTest
 					GolmokClockMath::CircularDistance(static_cast<double>(Tod->GetTimeOfDayMinutes()), Local) < 0.1);
 				Test->TestTrue(TEXT("realtime re-sync is a transition"), Tod->IsTransitioning());
 				Test->AddInfo(FString::Printf(TEXT("realtime:%s"), *Tod->DescribeClock()));
+				// An explicit time cannot hold in Realtime: SetTimeOfDay falls back to Fixed (like ApplyPreset).
+				Test->TestTrue(TEXT("SetTimeOfDay in realtime"), Tod->SetTimeOfDay(600.f, true));
+				Test->TestTrue(TEXT("... switches to Fixed"), Tod->GetClockMode() == EGolmokClockMode::Fixed);
+				Test->TestTrue(TEXT("... and keeps 10:00"), FMath::IsNearlyEqual(static_cast<double>(Tod->GetTimeOfDayMinutes()), 600.0, 1e-3));
 
 				// 10. Clock again at 60 min/s on real ticks.
 				Test->TestTrue(TEXT("SetClockMode(Clock) from realtime"), Tod->SetClockMode(EGolmokClockMode::Clock));

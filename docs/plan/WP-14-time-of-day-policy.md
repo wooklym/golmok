@@ -93,10 +93,28 @@ night 프리셋 값·look-dev(14b), 가로등·간판 발광 에셋(14b, Zone �
 12. 포토 모드 감지를 위해 `GolmokTimeOfDay.cpp`가 `Photo/GolmokPhotoModeSubsystem.h`를 include(읽기만, Photo 코드 수정 없음). HUD 줄은 `Debug/GolmokDebugSubsystem.cpp` `BuildLightingLine` 한 줄(Fable 레인, hot-spot 아님; `GolmokHUD.cpp`·Astra 훅 블록은 그대로).
 13. `lighting.py` `mode()`/`status()`의 조회는 월드의 `GolmokTimeOfDay` 액터 프로퍼티(`clock_mode` 등)를 읽고, 없으면 `None`(콘솔 `status` 줄은 항상 로그). 콘솔은 PIE 월드 우선, 없으면 에디터 월드.
 14. 기존 V-03 런북의 HUD 기대 줄(`tod: overcast_morning` 등)은 스펙 §6대로 뒤에 ` HH:MM fixed`가 붙는다 — 접두·앞부분·로그는 그대로(런북 V-13 §6에 명시).
+15. **night 구간이 짧다(설계 그대로, 14b 결정 항목)**: 키프레임 4개 선형 보간이라 night(21:30, lux 0) → overcast_morning(07:30) 600분 구간에서 lux가 곧바로 올라 `IsNight`(lux < 0.1)는 21:24:45~21:54만 참이고, 태양 pitch가 00:30에 0°를 지나 새벽에 약한 태양이 보인다. 스펙 §3(선형 보간)·§5(`IsNight` = lux < 임계)·프리셋 값 불변을 지키면 이렇게 되므로 14a에서는 바꾸지 않았다. 14b look-dev에서 정할 것: 밤 유지 키프레임(예: `night_late` 02:00) 추가 또는 cycle 4 고정 해제, 구간 완화(smoothstep·EV 공간 보간), `IsNight` 정의(가장 가까운 키프레임 = night 등). WP-13 오디오는 이름 매핑이라 19:45~02:30이 밤으로 영향 없음. 런북 V-13 §3에 "결함 아님"으로 명시.
+16. Realtime에서 `SetTimeOfDay`(콘솔 `time` 포함)도 `ApplyPreset`처럼 Fixed로 전환(다음 틱 재동기가 되돌리고 `OnPresetChanged`가 두 번 나는 것을 막음; 로그 `TimeOfDay: time set in realtime mode -> fixed`). 시계 자신의 점프(모드 전환·재동기·BeginPlay)는 내부 `JumpTo`로 이 전환을 거치지 않는다.
+17. 시계 정밀도: `TimeOfDayMinutes`(float, Config) 옆에 내부 `PreciseMinutes`(double)로 진행(느린 배율·높은 fps에서 float 스텝이 사라지거나 튀는 것 방지). 밖에서 float을 바꾸면 그 값으로 다시 맞춘다.
 
 **적대 검증**(별도 에이전트 1라운드)
 
-(검증 뒤 채움)
+검증 대상 3943e4a(+ 런북). 에이전트는 파일을 고치지 않고 pytest 957 통과·g++ 드라이버·`Golmok.Lighting.Clock` 단언을 수치로 추적했다. **Fixed 모드 종전 동일 확인**(ApplyPreset/NextPreset/실내/전환/틱/가시성/Describe/콘솔 프리셋 경로·PresetApply 무수정 통과), blocker 없음. 반영 커밋: 이 절 다음 커밋.
+
+| # | 심각도 | 지적 | 조치 |
+|---|---|---|---|
+| 1 | major(설계) | night 구간이 약 29분, 00:30 이후 지평선 위 약한 태양(4 키프레임 선형 보간의 결과) | 스펙 설계·프리셋 값 불변 그대로 — 판단 #15로 14b 결정 항목, 런북 §3에 "결함 아님" 명시 |
+| 2 | minor | float 시계가 느린 배율·높은 fps에서 멈추거나 튐 | 수정: 내부 double `PreciseMinutes`(판단 #17), 자동화에 rate 1/60·240 fps 10 s 단언 추가 |
+| 3 | minor | `ClockMode=Realtime` + `InitialPreset`이면 BeginPlay에서 Fixed로 끝남 | 수정: 설정 모드를 ApplyPreset 전에 저장해 우선 |
+| 4 | minor | Realtime에서 `SetTimeOfDay`가 다음 틱에 되돌려지고 이벤트 2회 | 수정: Fixed로 전환(판단 #16), 내부 점프는 `JumpTo`; 자동화 단언 추가 |
+| 5 | minor | Python `HH:MM` 정규식이 끝 개행 허용(C++와 불일치) | 수정: `fullmatch` + pytest(개행·공백 4종, JSON `12:30\n`) |
+| 6 | minor | 시계 기본 상태의 전환 끝 가시성이 lux > 0(시계 규칙 0.01과 다름, 한 프레임 두 번 토글) | 수정: `bBaseFromClock`이면 `IsSunVisible`(전환 시작·끝 모두); 프리셋 기본은 WP-05 그대로 |
+| 7 | nit | 런북 §3 자정 yaw 서술 오류·volumetric 꺼짐(02:30) 누락 | 수정 |
+| 8 | nit | 런북 §9 ini 줄 끝 `;` 주석·에디터 재시작 누락 | 수정 |
+| 9 | nit | 에디터 월드에서 `golmok.tod` 하위 명령이 배치 액터 Config 값을 바꿔 레벨에 저장될 수 있음 | 런북 §10 #12에 기록(L_Dev 해당 없음) |
+| 10 | nit | 초대형 스텝(배율 1440·히치)에서 틱당 이벤트 최대 1회 | 최종 이름은 맞음 — 조치 없음 |
+| 11 | nit | 포토 모드 중 `SetClockMode(Realtime)`은 즉시 점프 | 명시적 조작이라 그대로 |
+| 12 | nit | HUD `x` 표기 | 판단 #8(의도) |
 
 **게이트**: ruff check·format, pytest, check_repo, `git diff --check` — PR 본문에 수치.
 

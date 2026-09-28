@@ -449,15 +449,18 @@ void AGolmokTimeOfDay::BeginPlay()
 	// return point while the base preset is None.
 	CaptureState(Initial);
 	Applied = Initial;
-	TimeOfDayMinutes = static_cast<float>(GolmokClockMath::WrapMinutes(TimeOfDayMinutes));
+	StoreMinutes(static_cast<double>(TimeOfDayMinutes));
+	// The configured mode wins over ApplyPreset's Realtime -> Fixed fallback for InitialPreset.
+	const EGolmokClockMode ConfiguredMode = ClockMode;
 	if (!InitialPreset.IsNone())
 	{
 		ApplyPreset(InitialPreset, /*bInstant*/ true);
 	}
 	// WP-14a: a Clock / Realtime mode from the config starts on the clock state at once (Fixed = WP-05 as before).
-	if (ClockMode != EGolmokClockMode::Fixed && CycleTimes.Num() > 0)
+	if (ConfiguredMode != EGolmokClockMode::Fixed && CycleTimes.Num() > 0)
 	{
-		SetTimeOfDay(static_cast<float>(ClockMode == EGolmokClockMode::Realtime ? RealtimeTargetMinutes() : TimeOfDayMinutes), /*bInstant*/ true);
+		ClockMode = ConfiguredMode;
+		JumpTo(ClockMode == EGolmokClockMode::Realtime ? RealtimeTargetMinutes() : ClockMinutesNow(), /*bInstant*/ true);
 	}
 	RefreshNight(/*bBroadcast*/ false);
 	UpdateTickEnabled();
@@ -618,7 +621,7 @@ bool AGolmokTimeOfDay::ApplyPreset(FName Name, bool bInstant)
 	}
 	if (Preset.bHasTime)
 	{
-		TimeOfDayMinutes = static_cast<float>(Preset.TimeMinutes);
+		StoreMinutes(Preset.TimeMinutes);
 	}
 	// Fixed: CurrentPreset's own values exactly as in WP-05; Clock: the interpolation at the keyframe (same values)
 	// that the running clock then moves on from.
@@ -873,7 +876,7 @@ FGolmokLightingState AGolmokTimeOfDay::StateFromPreset(const FGolmokLightingPres
 FGolmokLightingState AGolmokTimeOfDay::ComposeBase() const
 {
 	FGolmokLightingState Base = Initial;
-	if (bBaseFromClock && EvaluateClock(TimeOfDayMinutes, Base))
+	if (bBaseFromClock && EvaluateClock(ClockMinutesNow(), Base))
 	{
 		return Base;
 	}
@@ -942,7 +945,7 @@ void AGolmokTimeOfDay::StartTransition(const FGolmokLightingState& InTo, bool bI
 	// Cache-invalidating toggles happen once: switching on at the start (off happens at the end, in ApplyState).
 	if (UDirectionalLightComponent* Component = Sun.Get())
 	{
-		if (To.Lux > 0.0)
+		if (bBaseFromClock ? GolmokClockMath::IsSunVisible(To.Lux) : To.Lux > 0.0)
 		{
 			Component->SetVisibility(true);
 		}
@@ -1031,7 +1034,8 @@ void AGolmokTimeOfDay::ApplyState(const FGolmokLightingState& S, bool bFinal)
 		}
 		if (bFinal)
 		{
-			Component->SetVisibility(S.Lux > 0.0);
+			// WP-14a: on the clock the lux > 0.01 rule (ApplyClockState); preset bases keep WP-05's lux > 0.
+			Component->SetVisibility(bBaseFromClock ? GolmokClockMath::IsSunVisible(S.Lux) : S.Lux > 0.0);
 		}
 	}
 	if (USkyLightComponent* Component = Sky.Get())
@@ -1204,7 +1208,34 @@ double AGolmokTimeOfDay::RealtimeTargetMinutes() const
 	return GolmokClockMath::WrapMinutes(Minutes + static_cast<double>(RealtimeOffsetMinutes));
 }
 
+double AGolmokTimeOfDay::ClockMinutesNow() const
+{
+	return static_cast<float>(PreciseMinutes) == TimeOfDayMinutes ? PreciseMinutes : static_cast<double>(TimeOfDayMinutes);
+}
+
+void AGolmokTimeOfDay::StoreMinutes(double Minutes)
+{
+	PreciseMinutes = GolmokClockMath::WrapMinutes(Minutes);
+	TimeOfDayMinutes = GolmokTimeOfDayClock::ToStoredMinutes(PreciseMinutes);
+	if (static_cast<double>(TimeOfDayMinutes) == 0.0)
+	{
+		PreciseMinutes = 0.0; // a value just under 1440 stored as 0
+	}
+}
+
 bool AGolmokTimeOfDay::SetTimeOfDay(float Minutes, bool bInstant)
+{
+	// An explicit time cannot hold in Realtime (the next tick re-syncs to the local time): same fallback as ApplyPreset.
+	if (ClockMode == EGolmokClockMode::Realtime && FMath::IsFinite(Minutes) && EnsurePresets() && CycleTimes.Num() > 0)
+	{
+		UE_LOG(LogGolmok, Log, TEXT("TimeOfDay: time set in realtime mode -> fixed"));
+		ClockMode = EGolmokClockMode::Fixed;
+		bRealtimeHeld = false;
+	}
+	return JumpTo(static_cast<double>(Minutes), bInstant);
+}
+
+bool AGolmokTimeOfDay::JumpTo(double Minutes, bool bInstant)
 {
 	if (!EnsurePresets())
 	{
@@ -1215,9 +1246,9 @@ bool AGolmokTimeOfDay::SetTimeOfDay(float Minutes, bool bInstant)
 		LastError = CycleTimes.Num() == 0 ? FString(TEXT("no keyframes")) : FString(TEXT("time is not a number"));
 		return false;
 	}
-	TimeOfDayMinutes = GolmokTimeOfDayClock::ToStoredMinutes(static_cast<double>(Minutes));
+	StoreMinutes(Minutes);
 	bBaseFromClock = true;
-	const FName Nearest = NearestKeyframe(TimeOfDayMinutes);
+	const FName Nearest = NearestKeyframe(PreciseMinutes);
 	const bool bPresetChanged = Nearest != CurrentPreset;
 	FromPreset = CurrentPreset;
 	CurrentPreset = Nearest;
@@ -1243,12 +1274,12 @@ bool AGolmokTimeOfDay::SetClockMode(EGolmokClockMode Mode)
 	bRealtimeHeld = false;
 	if (Mode == EGolmokClockMode::Realtime)
 	{
-		SetTimeOfDay(static_cast<float>(RealtimeTargetMinutes()), /*bInstant*/ false);
+		JumpTo(RealtimeTargetMinutes(), /*bInstant*/ false);
 	}
 	else if (Mode == EGolmokClockMode::Clock && !bBaseFromClock)
 	{
 		// From a preset (or the level's lighting) onto the clock at the current time.
-		SetTimeOfDay(TimeOfDayMinutes, /*bInstant*/ false);
+		JumpTo(ClockMinutesNow(), /*bInstant*/ false);
 	}
 	// Fixed: the clock stops where it is and the lighting stays what it is.
 	UpdateTickEnabled();
@@ -1261,11 +1292,12 @@ void AGolmokTimeOfDay::AdvanceClock(double DeltaSeconds)
 	{
 		return;
 	}
-	double Target = TimeOfDayMinutes;
+	const double Current = ClockMinutesNow();
+	double Target = Current;
 	if (ClockMode == EGolmokClockMode::Clock)
 	{
 		// World delta: a paused world does not tick, photo mode's time dilation leaves it near 0.
-		Target = GolmokClockMath::Advance(TimeOfDayMinutes, static_cast<double>(ClockMinutesPerRealSecond), DeltaSeconds);
+		Target = GolmokClockMath::Advance(Current, static_cast<double>(ClockMinutesPerRealSecond), DeltaSeconds);
 	}
 	else
 	{
@@ -1276,20 +1308,20 @@ void AGolmokTimeOfDay::AdvanceClock(double DeltaSeconds)
 			return;
 		}
 		Target = RealtimeTargetMinutes();
-		if (bRealtimeHeld || GolmokClockMath::CircularDistance(TimeOfDayMinutes, Target) > GolmokClockMath::ResyncMinutes)
+		if (bRealtimeHeld || GolmokClockMath::CircularDistance(Current, Target) > GolmokClockMath::ResyncMinutes)
 		{
 			bRealtimeHeld = false;
-			SetTimeOfDay(static_cast<float>(Target), /*bInstant*/ false);
+			JumpTo(Target, /*bInstant*/ false);
 			return;
 		}
 	}
 	if (!bBaseFromClock)
 	{
-		SetTimeOfDay(static_cast<float>(Target), /*bInstant*/ false);
+		JumpTo(Target, /*bInstant*/ false);
 		return;
 	}
-	TimeOfDayMinutes = GolmokTimeOfDayClock::ToStoredMinutes(Target);
-	const FName Nearest = NearestKeyframe(TimeOfDayMinutes);
+	StoreMinutes(Target);
+	const FName Nearest = NearestKeyframe(PreciseMinutes);
 	if (Nearest != CurrentPreset)
 	{
 		// The clock passed the midpoint between two keyframes: one notification per crossing (design section 5).

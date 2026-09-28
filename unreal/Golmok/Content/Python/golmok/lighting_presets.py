@@ -69,7 +69,7 @@ def _error(reason: str, preset: str | None = None) -> ValueError:
 
 def parse_hhmm(text: str) -> int:
     """ "HH:MM" (two digits each, 00:00-23:59) -> minutes of the day; ValueError otherwise (GolmokClockMath::ParseHHMM)."""
-    m = HHMM_RE.match(text) if isinstance(text, str) else None
+    m = HHMM_RE.fullmatch(text) if isinstance(text, str) else None  # fullmatch: "$" would allow a trailing "\n"
     if not m or int(m.group(1)) > 23 or int(m.group(2)) > 59:
         raise ValueError(f"time must be HH:MM (00:00-23:59), got {text!r}")
     return int(m.group(1)) * 60 + int(m.group(2))

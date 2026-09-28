@@ -171,6 +171,13 @@ def test_parse_hhmm_table_matches_python(driver, text, ok, minutes):
             lp.parse_hhmm(py)
 
 
+@pytest.mark.parametrize("text", ["07:30\n", "07:30 ", " 07:30", "07:30\r"])
+def test_python_parse_hhmm_rejects_what_cpp_rejects(driver, text):
+    # C++ ParseHHMM needs the terminator right after MM; Python must not accept more (single source).
+    with pytest.raises(ValueError):
+        lp.parse_hhmm(text)
+
+
 @pytest.mark.parametrize(
     ("minutes", "text"),
     [

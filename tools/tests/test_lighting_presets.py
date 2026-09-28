@@ -152,6 +152,7 @@ def _top(key: str, value):
         pytest.param(_set("clear_noon", "time", "24:00"), ["clear_noon", "time"], id="time-hours"),
         pytest.param(_set("clear_noon", "time", "7:30"), ["clear_noon", "time"], id="time-format"),
         pytest.param(_set("clear_noon", "time", 750), ["clear_noon", "time"], id="time-not-string"),
+        pytest.param(_set("clear_noon", "time", "12:30\n"), ["clear_noon", "time"], id="time-newline"),
         pytest.param(_set("clear_noon", "time", "07:30"), ["duplicate", "07:30"], id="time-duplicate"),
         pytest.param(
             _set("golden_evening", "time", "12:00"), ["increase", "golden_evening"], id="time-reverse"

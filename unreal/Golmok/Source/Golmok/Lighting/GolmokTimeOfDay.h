@@ -272,6 +272,12 @@ private:
 	void RefreshNight(bool bBroadcast);
 	void ApplyClockState(const FGolmokLightingState& S);
 	bool IsPhotoModeActive() const;
+	/** The clock at full precision: PreciseMinutes while it still matches the float property, else the property (set from outside). */
+	double ClockMinutesNow() const;
+	/** Wraps Minutes and stores it in PreciseMinutes and TimeOfDayMinutes. */
+	void StoreMinutes(double Minutes);
+	/** SetTimeOfDay without the Realtime -> Fixed fallback (the clock's own jumps: mode switch, re-sync, BeginPlay). */
+	bool JumpTo(double Minutes, bool bInstant);
 
 	TArray<FGolmokLightingPreset> Presets;
 	TArray<FName> Cycle;
@@ -284,6 +290,8 @@ private:
 	bool bRealtimeHeld = false;
 	/** A static sky light is recaptured when the nearest keyframe changes on the clock (not every tick). */
 	bool bRecapturePending = false;
+	/** Double copy of TimeOfDayMinutes so a slow rate / high frame rate still advances (a float step near 1440 rounds away). */
+	double PreciseMinutes = 0.0;
 	bool bPresetsLoaded = false;
 	bool bPresetsFailed = false;
 	bool bTransitioning = false;
