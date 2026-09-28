@@ -19,7 +19,8 @@ namespace GolmokAudioMath
 			if (!std::isfinite(Dt) || Dt < 0.0) return;
 			Elapsed += Dt;
 			const double Alpha = Seconds > 0.0 ? Clamp01(Elapsed / Seconds) : 1.0;
-			Value = From + (To - From) * Alpha;
+			// Interpolate power, retaining the current amplitude when retargeting.
+			Value = std::sqrt(From * From * (1.0 - Alpha) + To * To * Alpha);
 		}
 		bool Done() const { return Seconds == 0.0 || Elapsed >= Seconds; }
 	};

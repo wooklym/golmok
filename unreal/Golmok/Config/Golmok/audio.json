@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
-  "master_volume": 0.7,
+  "master_volume": 1.0,
   "crossfade_seconds": 2.0,
   "crossfade_seconds_by_state": {
     "outdoor_day": 2.0,
     "outdoor_night": 2.0,
-    "interior": 2.0
+    "interior": 1.0
   },
   "pause_policy": "mute",
   "assets": {
@@ -20,7 +20,7 @@
       "changes": "Deterministic filtered noise/tone; not a field recording.",
       "placeholder": true,
       "loop": true,
-      "gain": 0.25,
+      "gain": 0.5,
       "seed": 1300,
       "verified": "2026-09-28"
     },
@@ -35,7 +35,7 @@
       "changes": "Deterministic filtered noise/tone; not a field recording.",
       "placeholder": true,
       "loop": true,
-      "gain": 0.18,
+      "gain": 0.36,
       "seed": 1301,
       "verified": "2026-09-28"
     },
@@ -50,7 +50,7 @@
       "changes": "Deterministic filtered noise/tone; not a field recording.",
       "placeholder": true,
       "loop": true,
-      "gain": 0.15,
+      "gain": 0.3,
       "seed": 1302,
       "verified": "2026-09-28"
     },
@@ -65,7 +65,7 @@
       "changes": "Deterministic filtered noise/tone; not a field recording.",
       "placeholder": true,
       "loop": false,
-      "gain": 0.5,
+      "gain": 1.0,
       "seed": 1303,
       "verified": "2026-09-28"
     },
@@ -80,7 +80,7 @@
       "changes": "Deterministic filtered noise/tone; not a field recording.",
       "placeholder": true,
       "loop": false,
-      "gain": 0.5,
+      "gain": 1.0,
       "seed": 1304,
       "verified": "2026-09-28"
     },
@@ -95,7 +95,7 @@
       "changes": "Deterministic filtered noise/tone; not a field recording.",
       "placeholder": true,
       "loop": false,
-      "gain": 0.5,
+      "gain": 1.0,
       "seed": 1305,
       "verified": "2026-09-28"
     },
@@ -110,7 +110,7 @@
       "changes": "Deterministic filtered noise/tone; not a field recording.",
       "placeholder": true,
       "loop": false,
-      "gain": 0.6,
+      "gain": 1.0,
       "seed": 1306,
       "verified": "2026-09-28"
     }
@@ -159,6 +159,25 @@
       "2": "tile",
       "3": "stairs"
     },
-    "landing": "landing"
-  }
+    "landing": "landing",
+    "stride_cm_by_character": {
+      "manny": {
+        "walk": 67,
+        "run": 146
+      },
+      "quinn": {
+        "walk": 67,
+        "run": 146
+      },
+      "proxy135": {
+        "walk": 54,
+        "run": 142
+      },
+      "proxy110": {
+        "walk": 45,
+        "run": 115
+      }
+    }
+  },
+  "photo_mute_fade_seconds": 0.25
 }

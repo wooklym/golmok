@@ -9,10 +9,16 @@ struct FGolmokAudioAsset
 
 struct FGolmokAudioConfig
 {
-	double MasterVolume = 0.7, CrossfadeSeconds = 2.0;
+	double MasterVolume = 0.7, CrossfadeSeconds = 2.0, PhotoMuteFadeSeconds = 0.25;
 	double WalkStride = 70.0, RunStride = 110.0, RunThreshold = 250.0, TeleportLimit = 300.0;
 	double PitchMin = 0.95, PitchMax = 1.05, VolumeMin = 0.9, VolumeMax = 1.0;
 	bool bMuteInPhoto = true;
+	TMap<FString, FVector2D> StrideByCharacter;
+	double StrideFor(const FString& Id, bool bRunning) const
+	{
+		const FVector2D* Pair = StrideByCharacter.Find(Id);
+		return Pair ? (bRunning ? Pair->Y : Pair->X) : (bRunning ? RunStride : WalkStride);
+	}
 	TMap<FString, double> StateCrossfadeSeconds;
 	double FadeSeconds(const FString& Destination) const
 	{
