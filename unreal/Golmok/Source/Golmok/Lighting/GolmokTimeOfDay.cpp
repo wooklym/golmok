@@ -489,11 +489,14 @@ void AGolmokTimeOfDay::BeginPlay()
 	CaptureState(Initial);
 	Applied = Initial;
 	StoreMinutes(static_cast<double>(TimeOfDayMinutes));
-	// The configured mode wins over ApplyPreset's Realtime -> Fixed fallback for InitialPreset.
+	// The configured mode wins over ApplyPreset's Realtime -> Fixed fallback for InitialPreset: the preset is applied
+	// as Fixed (no misleading "-> fixed" log, R51-8) and the configured mode is restored right after.
 	const EGolmokClockMode ConfiguredMode = ClockMode;
 	if (!InitialPreset.IsNone())
 	{
+		ClockMode = EGolmokClockMode::Fixed;
 		ApplyPreset(InitialPreset, /*bInstant*/ true);
+		ClockMode = ConfiguredMode;
 	}
 	// WP-14a: a Clock / Realtime mode from the config starts on the clock state at once (Fixed = WP-05 as before).
 	if (ConfiguredMode != EGolmokClockMode::Fixed && CycleTimes.Num() > 0)
@@ -501,7 +504,7 @@ void AGolmokTimeOfDay::BeginPlay()
 		ClockMode = ConfiguredMode;
 		JumpTo(ClockMode == EGolmokClockMode::Realtime ? RealtimeTargetMinutes() : ClockMinutesNow(), /*bInstant*/ true);
 	}
-	RefreshNight(/*bBroadcast*/ false);
+	UpdateNight(); // no broadcast: nothing has subscribed yet
 	UpdateTickEnabled();
 }
 
@@ -510,6 +513,7 @@ void AGolmokTimeOfDay::EndPlay(const EEndPlayReason::Type Reason)
 	InteriorSources.Empty();
 	bTransitioning = false;
 	bRealtimeHeld = false;
+	LastRealtimeStepSeconds = -1.0;
 	SetActorTickEnabled(false);
 	Super::EndPlay(Reason);
 }
@@ -659,6 +663,7 @@ bool AGolmokTimeOfDay::ApplyPreset(FName Name, bool bInstant)
 		UE_LOG(LogGolmok, Log, TEXT("TimeOfDay: preset %s in %s mode -> fixed"), *Name.ToString(), ClockModeName(ClockMode));
 		ClockMode = EGolmokClockMode::Fixed;
 		bRealtimeHeld = false;
+		LastRealtimeStepSeconds = -1.0;
 	}
 	if (Preset.bHasTime)
 	{
@@ -671,10 +676,15 @@ bool AGolmokTimeOfDay::ApplyPreset(FName Name, bool bInstant)
 	CurrentPreset = Name;
 	TargetPreset = Name;
 	StartTransition(ComposeTarget(), bInstant);
+	// R51-5: IsNight() already holds the target's value inside OnPresetChanged; OnNightChanged follows it.
+	const bool bNightChanged = UpdateNight();
 	// [WP-13 hook]
 	OnPresetChanged.Broadcast(Name, bInstant);
 	// [/WP-13 hook]
-	RefreshNight(/*bBroadcast*/ true);
+	if (bNightChanged)
+	{
+		OnNightChanged.Broadcast(bNight);
+	}
 	return true;
 }
 
@@ -684,6 +694,26 @@ bool AGolmokTimeOfDay::NextPreset()
 	{
 		return false;
 	}
+	if (bBaseFromClock && CycleTimes.Num() == Cycle.Num() && CycleHolds.Num() == CycleTimes.Num())
+	{
+		// R51-4: on the clock CurrentPreset is the nearest keyframe, which may still lie ahead (10:01 is nearest
+		// clear_noon 12:30), so its cycle successor would skip it; F5 goes to the next keyframe in time instead.
+		// FindKeyframes' Next is Prev + 1 (wrapping), so at a keyframe time it is the one after it; a clock just short
+		// of Next's time (within AtKeyframeMinutes = 0.6 game seconds, a float rest) counts as at it and skips on.
+		constexpr double AtKeyframeMinutes = 0.01;
+		const double Now = ClockMinutesNow();
+		const GolmokClockMath::KeyframeSpan Span = GolmokClockMath::FindKeyframes(Now, CycleTimes.GetData(), CycleHolds.GetData(), CycleTimes.Num());
+		if (Span.IsValid())
+		{
+			int32 NextIndex = Span.Next;
+			if (GolmokClockMath::CircularDistance(Now, CycleTimes[NextIndex]) < AtKeyframeMinutes)
+			{
+				NextIndex = (NextIndex + 1) % Cycle.Num();
+			}
+			return ApplyPreset(Cycle[NextIndex]);
+		}
+	}
+	// Preset base (Fixed ApplyPreset, WP-05) or the level's lighting: the cycle order after CurrentPreset.
 	const int32 Index = Cycle.IndexOfByKey(CurrentPreset);
 	const FName Next = (Index == INDEX_NONE || Index + 1 >= Cycle.Num()) ? Cycle[0] : Cycle[Index + 1];
 	return ApplyPreset(Next);
@@ -1274,6 +1304,7 @@ bool AGolmokTimeOfDay::SetTimeOfDay(float Minutes, bool bInstant)
 		UE_LOG(LogGolmok, Log, TEXT("TimeOfDay: time set in realtime mode -> fixed"));
 		ClockMode = EGolmokClockMode::Fixed;
 		bRealtimeHeld = false;
+		LastRealtimeStepSeconds = -1.0;
 	}
 	return JumpTo(static_cast<double>(Minutes), bInstant);
 }
@@ -1297,12 +1328,17 @@ bool AGolmokTimeOfDay::JumpTo(double Minutes, bool bInstant)
 	CurrentPreset = Nearest;
 	TargetPreset = Nearest;
 	StartTransition(ComposeTarget(), bInstant);
+	// R51-5: the target's IsNight() is set before OnPresetChanged; OnNightChanged follows it.
+	const bool bNightChanged = UpdateNight();
 	if (bPresetChanged)
 	{
 		// Same (name, bInstant) meaning as ApplyPreset(): WP-13 maps the nearest keyframe name to day / night.
 		OnPresetChanged.Broadcast(Nearest, bInstant);
 	}
-	RefreshNight(/*bBroadcast*/ true);
+	if (bNightChanged)
+	{
+		OnNightChanged.Broadcast(bNight);
+	}
 	return true;
 }
 
@@ -1315,6 +1351,7 @@ bool AGolmokTimeOfDay::SetClockMode(EGolmokClockMode Mode)
 	}
 	ClockMode = Mode;
 	bRealtimeHeld = false;
+	LastRealtimeStepSeconds = -1.0;
 	if (Mode == EGolmokClockMode::Realtime)
 	{
 		JumpTo(RealtimeTargetMinutes(), /*bInstant*/ false);
@@ -1344,6 +1381,14 @@ void AGolmokTimeOfDay::AdvanceClock(double DeltaSeconds)
 	}
 	else
 	{
+		// R51-6: a GamePause photo mode (the default PauseMode) stops this actor's tick, so IsPhotoModeActive() is never
+		// seen while it lasts. A real-time gap since the previous realtime step longer than the transition (at least
+		// ResyncGapSeconds) re-syncs with a transition like the photo-mode hold does (a pause or a long hitch too).
+		const UWorld* World = GetWorld();
+		const double RealNow = World ? World->GetRealTimeSeconds() : -1.0;
+		const double GapLimit = FMath::Max(static_cast<double>(TransitionSeconds), GolmokClockMath::ResyncGapSeconds);
+		const bool bRealGap = RealNow >= 0.0 && LastRealtimeStepSeconds >= 0.0 && RealNow - LastRealtimeStepSeconds > GapLimit;
+		LastRealtimeStepSeconds = RealNow;
 		if (IsPhotoModeActive())
 		{
 			// Photo mode keeps the entry time; the first tick after it re-syncs with a transition (design section 4).
@@ -1351,7 +1396,7 @@ void AGolmokTimeOfDay::AdvanceClock(double DeltaSeconds)
 			return;
 		}
 		Target = RealtimeTargetMinutes();
-		if (bRealtimeHeld || GolmokClockMath::CircularDistance(Current, Target) > GolmokClockMath::ResyncMinutes)
+		if (bRealtimeHeld || bRealGap || GolmokClockMath::CircularDistance(Current, Target) > GolmokClockMath::ResyncMinutes)
 		{
 			bRealtimeHeld = false;
 			JumpTo(Target, /*bInstant*/ false);
@@ -1365,19 +1410,28 @@ void AGolmokTimeOfDay::AdvanceClock(double DeltaSeconds)
 	}
 	StoreMinutes(Target);
 	const FName Nearest = NearestKeyframe(PreciseMinutes);
-	if (Nearest != CurrentPreset)
+	const bool bPresetChanged = Nearest != CurrentPreset;
+	if (bPresetChanged)
 	{
-		// The clock passed the midpoint between two keyframes: one notification per crossing (design section 5).
 		CurrentPreset = Nearest;
 		TargetPreset = Nearest;
 		bRecapturePending = true;
-		OnPresetChanged.Broadcast(Nearest, /*bInstant*/ false);
 	}
 	if (!bTransitioning)
 	{
 		ApplyClockState(ComposeTarget());
 	}
-	RefreshNight(/*bBroadcast*/ true);
+	// R51-5: the new state is applied and IsNight() updated before OnPresetChanged; OnNightChanged follows it.
+	const bool bNightChanged = UpdateNight();
+	if (bPresetChanged)
+	{
+		// The clock passed the midpoint between two keyframes: one notification per crossing (design section 5).
+		OnPresetChanged.Broadcast(Nearest, /*bInstant*/ false);
+	}
+	if (bNightChanged)
+	{
+		OnNightChanged.Broadcast(bNight);
+	}
 }
 
 void AGolmokTimeOfDay::ApplyClockState(const FGolmokLightingState& S)
@@ -1411,18 +1465,15 @@ void AGolmokTimeOfDay::ApplyClockState(const FGolmokLightingState& S)
 	}
 }
 
-void AGolmokTimeOfDay::RefreshNight(bool bBroadcast)
+bool AGolmokTimeOfDay::UpdateNight()
 {
 	const bool bNow = GolmokClockMath::IsNight(ComposeBase().Lux, static_cast<double>(NightLuxThreshold));
 	if (bNow == bNight)
 	{
-		return;
+		return false;
 	}
 	bNight = bNow;
-	if (bBroadcast)
-	{
-		OnNightChanged.Broadcast(bNight);
-	}
+	return true;
 }
 
 void AGolmokTimeOfDay::UpdateTickEnabled()
@@ -1445,7 +1496,7 @@ FString AGolmokTimeOfDay::DescribeClock() const
 	TCHAR Hhmm[6];
 	GolmokClockMath::FormatHHMM(static_cast<double>(TimeOfDayMinutes), Hhmm);
 	// The level's own lighting has no time of day.
-	const FString TimeText = (CurrentPreset.IsNone() && !bBaseFromClock) ? FString(TEXT("--:--")) : FString(Hhmm);
+	const FString TimeText = HasTimeOfDay() ? FString(Hhmm) : FString(TEXT("--:--"));
 	if (ClockMode == EGolmokClockMode::Clock)
 	{
 		return FString::Printf(TEXT(" %s clock x%g"), *TimeText, static_cast<double>(ClockMinutesPerRealSecond));
@@ -1465,21 +1516,29 @@ namespace GolmokTimeOfDayConsole
 		return FString(Text);
 	}
 
+	/** The clock as "HH:MM", or "--:--" for the level's own lighting (the DescribeClock / HUD rule, R51-7). */
+	FString ClockText(const AGolmokTimeOfDay& TimeOfDay)
+	{
+		return TimeOfDay.HasTimeOfDay() ? Hhmm(static_cast<double>(TimeOfDay.GetTimeOfDayMinutes())) : FString(TEXT("--:--"));
+	}
+
 	/**
 	 * "status 12:30 fixed rate 0.5 min/s | prev clear_noon 12:30 next golden_evening 18:00 alpha 0.00 | current clear_noon | night no | interior off";
-	 * inside a keyframe hold (design 2a) " | night 23:10 hold until 05:30" follows the prev / next part.
+	 * inside a keyframe hold (design 2a) " | night 23:10 hold until 05:30" follows the prev / next part. The level's own
+	 * lighting (no preset, not on the clock) has no time: "status --:-- fixed rate 0.5 min/s | current (level) | ..."
+	 * without the prev / next part (R51-7, same rule as the HUD).
 	 */
 	FString DescribeStatus(const AGolmokTimeOfDay& TimeOfDay)
 	{
 		const double Minutes = static_cast<double>(TimeOfDay.GetTimeOfDayMinutes());
-		FString Line = FString::Printf(TEXT("status %s %s rate %g min/s"), *Hhmm(Minutes), AGolmokTimeOfDay::ClockModeName(TimeOfDay.GetClockMode()),
+		FString Line = FString::Printf(TEXT("status %s %s rate %g min/s"), *ClockText(TimeOfDay), AGolmokTimeOfDay::ClockModeName(TimeOfDay.GetClockMode()),
 			static_cast<double>(TimeOfDay.ClockMinutesPerRealSecond));
 		const TArray<FName>& Cycle = TimeOfDay.GetCycle();
 		const TArray<double>& Times = TimeOfDay.GetCycleTimes();
 		const TArray<double>& Holds = TimeOfDay.GetCycleHolds();
 		const GolmokClockMath::KeyframeSpan Span =
 			GolmokClockMath::FindKeyframes(Minutes, Times.GetData(), Holds.Num() == Times.Num() ? Holds.GetData() : nullptr, Times.Num());
-		if (Span.IsValid() && Times.Num() == Cycle.Num())
+		if (TimeOfDay.HasTimeOfDay() && Span.IsValid() && Times.Num() == Cycle.Num())
 		{
 			Line += FString::Printf(TEXT(" | prev %s %s next %s %s alpha %.2f"), *Cycle[Span.Prev].ToString(), *Hhmm(Times[Span.Prev]),
 				*Cycle[Span.Next].ToString(), *Hhmm(Times[Span.Next]), Span.Alpha);
@@ -1503,7 +1562,7 @@ namespace GolmokTimeOfDayConsole
 			UE_LOG(LogGolmok, Log, TEXT("golmok.tod: ERROR time must be HH:MM (00:00-23:59), got '%s'"), Args.Num() < 2 ? TEXT("") : *Args[1]);
 			return;
 		}
-		const FString Before = Hhmm(static_cast<double>(TimeOfDay.GetTimeOfDayMinutes()));
+		const FString Before = ClockText(TimeOfDay);
 		if (!TimeOfDay.SetTimeOfDay(static_cast<float>(Minutes), /*bInstant*/ false))
 		{
 			UE_LOG(LogGolmok, Log, TEXT("golmok.tod: ERROR %s"), *TimeOfDay.LastError);
@@ -1527,8 +1586,7 @@ namespace GolmokTimeOfDayConsole
 			UE_LOG(LogGolmok, Log, TEXT("golmok.tod: ERROR %s"), *TimeOfDay.LastError);
 			return;
 		}
-		UE_LOG(LogGolmok, Log, TEXT("golmok.tod: mode %s -> %s at %s"), Before, AGolmokTimeOfDay::ClockModeName(Mode),
-			*Hhmm(static_cast<double>(TimeOfDay.GetTimeOfDayMinutes())));
+		UE_LOG(LogGolmok, Log, TEXT("golmok.tod: mode %s -> %s at %s"), Before, AGolmokTimeOfDay::ClockModeName(Mode), *ClockText(TimeOfDay));
 	}
 
 	void CmdRate(AGolmokTimeOfDay& TimeOfDay, const TArray<FString>& Args)

@@ -87,6 +87,10 @@ enum class EGolmokClockMode : uint8
  * per world second, Realtime follows the PC's local time. CurrentPreset is always the nearest keyframe.
  * Design 2a: a keyframe with "hold_minutes" keeps its state that long from its time, then ramps to the next keyframe
  * (the default night holds 21:30 -> 05:30); the nearest-keyframe midpoint is the ramp's.
+ *
+ * Event contract (PR #51 R51-5, Fable): CurrentPreset and IsNight() describe the TARGET state from the moment a jump
+ * starts (ApplyPreset, SetTimeOfDay, a mode switch, a Realtime re-sync), not after its transition has finished. Inside
+ * an OnPresetChanged callback IsNight() already returns the new value; OnNightChanged fires after OnPresetChanged.
  */
 // [WP-13 hook] Native notifications for audio subscribers.
 DECLARE_MULTICAST_DELEGATE_TwoParams(FGolmokOnPresetChanged, FName, bool);
@@ -176,7 +180,11 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Golmok|Lighting")
 	bool ApplyPreset(FName Name, bool bInstant = false);
 
-	/** Next cycle preset after CurrentPreset (cycle[0] when none or last). */
+	/**
+	 * Next cycle preset after CurrentPreset (cycle[0] when none or last). On the clock (after SetTimeOfDay, Clock /
+	 * Realtime) the next keyframe after the clock time instead (R51-4): 10:01 -> clear_noon 12:30, not the one after
+	 * the nearest keyframe; at a keyframe time the one after it.
+	 */
 	UFUNCTION(BlueprintCallable, Category = "Golmok|Lighting")
 	bool NextPreset();
 
@@ -230,7 +238,7 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Golmok|Lighting")
 	EGolmokClockMode GetClockMode() const { return ClockMode; }
 
-	/** Base lighting lux < NightLuxThreshold (the interpolated state; OnNightChanged fires when it flips). */
+	/** Base lighting lux < NightLuxThreshold (the interpolated TARGET state: already the new value inside OnPresetChanged; OnNightChanged fires after it when this flips). */
 	UFUNCTION(BlueprintCallable, Category = "Golmok|Lighting")
 	bool IsNight() const { return bNight; }
 
@@ -251,6 +259,9 @@ public:
 
 	/** " 12:30 fixed" | " 13:02 clock x10" | " 21:40 realtime" | " --:-- fixed" (level lighting) - appended to the HUD tod: line. */
 	FString DescribeClock() const;
+
+	/** False while the base is the level's authored lighting (no preset, not on the clock): the HUD and golmok.tod status show --:--. */
+	bool HasTimeOfDay() const { return !CurrentPreset.IsNone() || bBaseFromClock; }
 
 	/** "fixed" | "clock" | "realtime". */
 	static const TCHAR* ClockModeName(EGolmokClockMode Mode);
@@ -277,7 +288,8 @@ private:
 	FGolmokLightingState ComposeBase() const;
 	FName NearestKeyframe(double Minutes) const;
 	void UpdateTickEnabled();
-	void RefreshNight(bool bBroadcast);
+	/** Recomputes IsNight() from the base (target) state; true when it flipped. Callers set it before OnPresetChanged and broadcast OnNightChanged after it (R51-5). */
+	bool UpdateNight();
 	void ApplyClockState(const FGolmokLightingState& S);
 	bool IsPhotoModeActive() const;
 	/** The clock at full precision: PreciseMinutes while it still matches the float property, else the property (set from outside). */
@@ -298,6 +310,8 @@ private:
 	bool bNight = false;
 	/** Realtime: photo mode held the clock; the next free tick re-syncs with a transition. */
 	bool bRealtimeHeld = false;
+	/** Realtime: UWorld::GetRealTimeSeconds() of the previous clock step (-1 = none). A GamePause photo mode stops the tick, so a gap longer than the transition re-syncs with one (R51-6). */
+	double LastRealtimeStepSeconds = -1.0;
 	/** A static sky light is recaptured when the nearest keyframe changes on the clock (not every tick). */
 	bool bRecapturePending = false;
 	/** Double copy of TimeOfDayMinutes so a slow rate / high frame rate still advances (a float step near 1440 rounds away). */
@@ -324,6 +338,6 @@ public:
 	FGolmokOnPresetChanged OnPresetChanged;
 	FGolmokOnInteriorChanged OnInteriorChanged;
 	// [/WP-13 hook]
-	/** WP-14a: base lighting crossed NightLuxThreshold (true = night). No subscriber yet (14b emissives, audio optional). */
+	/** WP-14a: base lighting crossed NightLuxThreshold (true = night), fired after OnPresetChanged when both change. No subscriber yet (14b emissives, audio optional). */
 	FGolmokOnNightChanged OnNightChanged;
 };

@@ -15,6 +15,8 @@ namespace GolmokClockMath
 	constexpr double MaxRate = 1440.0;
 	/** Realtime: a gap larger than this between the clock and the local time (photo mode, a hitch, a pause) re-syncs with a transition. */
 	constexpr double ResyncMinutes = 1.0;
+	/** Realtime: a real-time gap between two clock steps longer than this (or than TransitionSeconds, whichever is larger) also re-syncs with a transition (a GamePause photo mode stops the tick). */
+	constexpr double ResyncGapSeconds = 2.0;
 
 	/** Any finite minutes -> [0, 1440); non-finite -> 0. */
 	inline double WrapMinutes(double Minutes)

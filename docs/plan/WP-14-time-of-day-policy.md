@@ -1,6 +1,6 @@
 # WP-14 — 시간대 폴리시 (D-015 (a)): 14a 연속 시각·시계 모드(클라우드) / 14b 밤 look-dev(PC, D-010 뒤)
 
-상태: 🔵 **14a 진행 중**(2026-09-28 설계 확정, 오케스트레이터 결정 D-019) · 담당: 14a **Opus 5.5 ultracode**(설계 Fable 5.1, 검증 Opus), 14b PC 세션 + 소유자 채점 · PC 검증 번호 **V-13**(14a).
+상태: 🟡 **14a 코드 완료·PC V-13 대기**(2026-09-28 설계 확정·구현·PR #51 리뷰 반영, 오케스트레이터 결정 D-019) · 담당: 14a **Opus 5.5 ultracode**(설계 Fable 5.1, 검증 Opus), 14b PC 세션 + 소유자 채점 · PC 검증 번호 **V-13**(14a).
 
 ## 목표
 "같은 골목이 다르게 보인다"(DEVELOPMENT-PLAN §1.2 경험 3)의 시간대 부분. 지금은 프리셋 4개를 키 4개·F5로만 바꾼다(WP-05). 14a는 프리셋 사이를 잇는 **연속 시각(하루 1440분)**과 **시계 모드(fixed/clock/realtime)**를 넣어 어느 시각에서든 조명이 이웃 프리셋 둘의 보간으로 정해지게 하고, 포토 모드 시간대 슬라이더(Phase 2, D-013 확장)·세이브(WP-15, D-017)·환경음 낮/밤(WP-13)·가로등 발광(Zone 에셋)이 **같은 시계**를 쓰게 한다. 14b는 night 프리셋 값(look-dev, [`design/lighting-night-lookdev.md`](../design/lighting-night-lookdev.md))과 발광 에셋 연동 — D-010 뒤 PC.
@@ -92,7 +92,7 @@ night 프리셋 값·look-dev(14b), 가로등·간판 발광 에셋(14b, Zone �
 1. **Fixed의 기본 상태 두 갈래**: `ApplyPreset`/`NextPreset`(Fixed)는 종전처럼 프리셋 값 그대로(`bBaseFromClock` false — WP-05와 같은 코드 경로), `SetTimeOfDay`(Fixed)는 그 시각의 보간 상태를 보이고 시계는 멈춘 채. 키프레임 시각의 보간값은 프리셋 값과 비트 단위로 같다(alpha 0; pytest·자동화가 확인).
 2. `TimeOfDayMinutes`도 `UPROPERTY(Config)`(지시 "전부 Config"): Clock 시작 시각(InitialPreset이 있으면 그 키프레임이 우선). 기본 450(07:30, 첫 키프레임).
 3. **Realtime에서 `ApplyPreset`(키 1–4·F5·콘솔 프리셋) → Fixed로 전환**: 그대로 두면 다음 틱 재동기가 곧바로 현재 시각으로 되돌린다. Clock에서는 그 키프레임에서 계속 흐른다. `time` 없는 프리셋(`interior`를 기본으로 거는 콘솔 사용)도 Clock/Realtime이면 Fixed로. 로그 `TimeOfDay: preset <name> in <mode> mode -> fixed`.
-4. **Realtime 재동기 규칙**: 포토 모드 중(`IsActiveIn`) 유지 → 끝나면 전환. `GamePause` 포토 모드는 액터 틱이 멈춰 감지되지 않으므로 "시계와 로컬 시각 차가 1분(`GolmokClockMath::ResyncMinutes`) 넘으면 전환으로 재동기"를 함께 둔다(일시정지·히치에도 같은 규칙).
+4. **Realtime 재동기 규칙**: 포토 모드 중(`IsActiveIn`) 유지 → 끝나면 전환. `GamePause` 포토 모드는 액터 틱이 멈춰 감지되지 않으므로 "시계와 로컬 시각 차가 1분(`GolmokClockMath::ResyncMinutes`) 넘으면 전환으로 재동기"를 함께 둔다(일시정지·히치에도 같은 규칙). 리뷰 R51-6 뒤: 틱 사이 **실시간 공백**(`UWorld::GetRealTimeSeconds`)이 max(`TransitionSeconds`, `GolmokClockMath::ResyncGapSeconds` 2 s)를 넘어도 첫 틱에 전환으로 재동기(1분 미만 포토 모드도 스냅 없음).
 5. Clock/Realtime에서 점프 전환 중에는 목표를 매 틱 현재 시계 상태로 다시 잡는다(전환 끝에 시계가 흐른 만큼 튀지 않게).
 6. 정적 SkyLight 재캡처는 시계 틱마다가 아니라 가장 가까운 키프레임이 바뀔 때만(비용). L_Dev가 real-time capture면 해당 없음.
 7. `IsNight`는 실내 오버레이를 뺀 기본 상태 lux로 판단(오버레이는 lux를 안 바꾼다). `OnNightChanged`는 명시적 점프·`ApplyPreset`에서도 바뀌면 발화한다. BeginPlay 끝의 판정은 발화하지 않는다(`InitialPreset` 적용은 `ApplyPreset` 경로라 바뀌면 발화하지만 구독자가 붙기 전이다).
@@ -112,6 +112,7 @@ night 프리셋 값·look-dev(14b), 가로등·간판 발광 에셋(14b, Zone �
     - 액터: `CycleHolds`/`GetCycleHolds()`, `EvaluateClock`·`NearestKeyframe`이 hold를 쓴다 → `CurrentPreset`·`OnPresetChanged`(램프 중점)·`IsNight`·`OnNightChanged`가 자동으로 따른다. Fixed의 `ApplyPreset`/`NextPreset`는 코드 경로 그대로(프리셋 값), Clock의 `ApplyPreset(night)`도 21:30 = 유지 시작이라 같은 값.
     - 표시: `golmok.tod status`는 유지 중 prev/next 뒤에 ` | night 23:10 hold until 05:30`, `lighting.status()`는 반환 dict에 `"hold"`(유지 밖 `None`)와 로그 `golmok.lighting: status 23:10 clock | night 23:10 hold until 05:30`. HUD `tod:` 줄은 그대로(스펙 범위 밖).
     - 기본 데이터의 결과: 가장 가까운 키프레임 night = 19:45~06:30(WP-13 오디오 밤도 06:30까지), `IsNight` 21:24:45~05:34:48, 태양 숨김(lux ≤ 0.01) 약 21:29~05:30, 볼류메트릭 안개 06:30에 꺼짐, 자정 yaw 0°(유지). 남는 look 항목(14b): 램프 05:30~06:06은 pitch가 아직 0° 위(지평선 아래에서 비춤, lux ≤ 0.75), 저녁 19:13 무렵도 같은 현상.
+19. **시계 틱 비용 — 태양 회전 양자화는 V-13 수치 뒤(리뷰 R51-3, 2026-09-28)**: Clock/Realtime은 매 틱 태양 회전·세기·색온도, SkyLight 세기, 안개, PPV를 다시 쓴다. 매 프레임 도는 movable 태양은 VSM 캐시를 매 프레임 무효화하고 Lumen 갱신 비용을 더하며, 정적 SkyLight의 중점 `RecaptureSky()`는 히치가 될 수 있다. 측정 없이 갱신을 계단식으로 만들면 look(태양 움직임의 연속성)을 해칠 수 있어 **지금은 매 틱 갱신을 유지**하고, 런북 V-13 §3 성능 단계(`stat unit`/`stat gpu` fixed vs clock x0.5, `r.Shadow.Virtual.ShowStats`, 중점 히치)의 수치가 크면 태양 회전 갱신 양자화(변화 약 0.02° 이상일 때만 또는 N Hz)를 후속으로 정한다.
 
 **적대 검증**(별도 에이전트 1라운드)
 
@@ -132,10 +133,23 @@ night 프리셋 값·look-dev(14b), 가로등·간판 발광 에셋(14b, Zone �
 | 11 | nit | 포토 모드 중 `SetClockMode(Realtime)`은 즉시 점프 | 명시적 조작이라 그대로 |
 | 12 | nit | HUD `x` 표기 | 판단 #8(의도) |
 
-**게이트**: ruff check·format, pytest, check_repo, `git diff --check` — PR 본문에 수치. 설계 보완 §2a 커밋(origin/main 병합 뒤): ruff·format 통과, pytest 1044 passed·3 skipped(병합 직후 988), check_repo OK, `git diff --check` 깨끗.
+**리뷰 반영 (PR #51 R51-1~12, 2026-09-28)** — Opus 적대 리뷰(PR #51 코멘트, 판정 병합 가능·(A) 없음)의 (B)/(C) 반영. 대상 62b3a1c.
+- R51-1 (B) STATUS 충돌: origin/main(#50·#52·#54) 병합 — 충돌은 `STATUS.md`뿐, main 줄을 모두 취하고 이 브랜치의 WP-14a 행만 유지(병합 시 반영 문안으로 오케스트레이터가 교체).
+- R51-2 (B) WP-15a 교차: 자동화 총수 32·세이브의 `GetTimeOfDayMinutes()`/`GetClockMode()` 저장·복원은 PR #49 병합 준비(R49-7)에서 처리. 이 브랜치의 `pc-verify-wp12.md` 총수는 29 그대로.
+- R51-3 (B) 성능: 런북 V-13 §3에 성능 단계(fixed vs clock x0.5 `stat unit`/`stat gpu`·`r.Shadow.Virtual.ShowStats`·중점 히치)와 §11 기록 행 추가. 양자화는 판단 #19(V-13 수치 뒤).
+- R51-4 (C) `NextPreset`: 시계 기준(`bBaseFromClock`)이면 `FindKeyframes(ClockMinutesNow()).Next`(= Prev + 1; 키프레임 시각이면 그 다음, Next 시각 0.01분 안쪽이면 하나 더) — 10:01에서 F5 → clear_noon 12:30(종전 golden_evening). 프리셋 기준(Fixed `ApplyPreset`, WP-05)은 종전 코드 그대로. 자동화 단언·런북 §6 추가.
+- R51-5 (C) 이벤트 순서: `RefreshNight` → `UpdateNight()`(바뀌었는지만 반환). `ApplyPreset`·`JumpTo`·`AdvanceClock`이 night를 먼저 계산 → `OnPresetChanged` → `OnNightChanged`(`AdvanceClock`은 상태 적용 뒤 발화; WP-13 훅 블록 줄은 그대로). 헤더 계약(Fable): `CurrentPreset`·`IsNight()`는 점프 **시작** 순간부터 목표 상태, `OnPresetChanged` 콜백 안의 `IsNight()`는 새 값. 자동화: 19:45 전환·06:30 중점 콜백 안 `IsNight()` false, 18:00 → 23:00 전환 점프 콜백 안 true·`OnNightChanged`는 그 뒤.
+- R51-6 (C) Realtime 공백: `AdvanceClock` Realtime이 `UWorld::GetRealTimeSeconds()`로 틱 사이 공백 > max(`TransitionSeconds`, 2 s)면 첫 틱에 전환 재동기(`LastRealtimeStepSeconds`, 모드 전환·Fixed 폴백·EndPlay에서 초기화; `GolmokClockMath::ResyncGapSeconds`). 판단 #4 보강, 런북 §5·§10 #14.
+- R51-7 (C) `status` 시각: 레벨 조명(프리셋 없음·시계 아님)이면 `status --:-- …`·prev/next 생략 — 공개 `HasTimeOfDay()`로 `DescribeClock`(HUD)과 같은 규칙, `time`·`mode` 로그의 시각도(`ClockText`). Python `lighting.status()`는 콘솔 문구를 파싱하지 않고 액터 프로퍼티를 읽어 변경 없음. 런북 §3 기대 줄.
+- R51-8 (C) BeginPlay 로그: `InitialPreset`을 Fixed로 적용한 뒤 설정 모드 복원 — ini Realtime + `InitialPreset`에서 `preset … in realtime mode -> fixed` 로그가 안 나온다(동작 동일). 런북 §9.
+- R51-9 (C) 이 문서 EOF 빈 줄 제거(`git diff --check origin/main...HEAD`), 아래 게이트 수치는 origin/main 병합 뒤 트리·`origin/main...HEAD` 기준.
+- R51-10 (C) 문서 머리 상태 🔵 → 🟡. STATUS 🟡 행·DECISIONS(§2a `hold_minutes` 결정)는 병합 시 반영(오케스트레이터).
+- R51-11 (C) 자동화 라벨: `SetClockMode(Clock) from realtime` → `from fixed`(앞의 `SetTimeOfDay`가 Realtime을 Fixed로 바꿈) + 별도 Realtime → Clock 단언(모드 Clock·분 그대로·`OnPresetChanged` 0 — 점프 없음).
+- R51-12 (C, 선택) 보류·파서 변경 없음: `golmok.tod rate 1e1` 같은 지수 표기는 일반 문구 `rate must be a number in (0, 1440] min/s`로 거절되고, 콘솔 예약어(`time`/`mode`/`rate`/`status`/`next`/`list`)는 프리셋 이름으로 막지 않는다(그 이름의 프리셋은 `golmok.tod <preset>`으로 걸 수 없다). 필요해지면 후속.
+
+**게이트**: ruff check·format, pytest, check_repo, `git diff --check` — PR 본문에 수치. 설계 보완 §2a 커밋(origin/main 병합 뒤): ruff·format 통과, pytest 1044 passed·3 skipped(병합 직후 988), check_repo OK, `git diff --check` 깨끗. **리뷰 반영 커밋**(origin/main f759bf8(#54까지) 병합 f795e7c 뒤 트리, `origin/main...HEAD` 기준): ruff check·format 통과, pytest **1046 passed·3 skipped**, check_repo OK, `git diff --check`·`git diff --check origin/main...HEAD` 깨끗. UE 빌드·자동화 29는 PC V-13.
 
 **병합 시 반영**(오케스트레이터)
 - STATUS WP-14a 행: `🟡 코드 완료·PC V-13 대기(PR #<번호>, 2026-09-28): GolmokClockMath·연속 시각·fixed/clock/realtime·schema 2 time·키프레임 유지 hold_minutes(night 480 = 21:30→05:30 유지, 설계 보완 §2a)·OnPresetChanged 중점 발화·OnNightChanged·golmok.tod time/mode/rate/status·HUD 시각·자동화 29(Golmok.Lighting.Clock), Fixed 종전 동일·프리셋 값 불변, 런북 pc-verify-wp14a.md`
 - ROADMAP 1.3 조명 프리셋 행 끝: `WP-14a 연속 시각·시계 모드(fixed/clock/realtime, 키프레임 time 보간·night 유지 21:30→05:30) 🟡 코드 완료·PC V-13 대기(2026-09-28) — night look-dev·발광은 14b(D-010 뒤)`
 - ROADMAP 1.6: "시간대 폴리시(WP-14)는 D-010 뒤." → `시간대 폴리시 WP-14a(연속 시각·시계 모드) 🟡 PC V-13 대기, 14b(night look-dev·발광 에셋)는 D-010 뒤.`
-

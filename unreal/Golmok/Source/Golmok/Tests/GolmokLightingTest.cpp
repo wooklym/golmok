@@ -9,6 +9,9 @@
 // OnPresetChanged midpoint contract and OnNightChanged, ApplyPreset moving the clock, the Fixed-mode PresetApply
 // sequence, and the interior overlay returning to the clock state. Design 2a: inside the night hold (21:30 -> 05:30)
 // the state is the night preset and IsNight() holds; the ramp to 07:30 fires OnPresetChanged once at 06:30.
+// PR #51 review: NextPreset() on the clock goes to the next keyframe in time (R51-4); IsNight() inside OnPresetChanged
+// is already the target's value and OnNightChanged follows OnPresetChanged (R51-5); Fixed -> Clock and
+// Realtime -> Clock keep the minutes without a jump (R51-11).
 // All pass under -nullrhi (no rendering is inspected).
 //
 // Headless: .\tools\ue\test.ps1 -Filter Golmok.Lighting   (or in the editor console: Automation RunTests Golmok.Lighting)
@@ -385,7 +388,16 @@ namespace GolmokLightingTest
 				Tod->RealtimeOffsetMinutes = 0.f;
 				Tod->ClockMinutesPerRealSecond = 0.5f;
 				Test->TestTrue(TEXT("SetClockMode(Fixed)"), Tod->SetClockMode(EGolmokClockMode::Fixed));
-				PresetHandle = Tod->OnPresetChanged.AddLambda([this](FName Name, bool bInstant) { ++PresetEvents; LastPreset = Name; bLastInstant = bInstant; });
+				PresetHandle = Tod->OnPresetChanged.AddLambda(
+					[this](FName Name, bool bInstant)
+					{
+						++PresetEvents;
+						LastPreset = Name;
+						bLastInstant = bInstant;
+						// R51-5: what a subscriber sees inside the callback.
+						bNightAtPresetEvent = TimeOfDay.IsValid() && TimeOfDay->IsNight();
+						NightEventsAtPresetEvent = NightEvents;
+					});
 				NightHandle = Tod->OnNightChanged.AddLambda([this](bool bValue) { ++NightEvents; bLastNight = bValue; });
 				for (const FName& Name : Tod->GetCycle())
 				{
@@ -428,9 +440,29 @@ namespace GolmokLightingTest
 				Test->TestEqual(TEXT("06:30 nearest overcast_morning (ramp midpoint)"), Tod->CurrentPreset.ToString(), FString(TEXT("overcast_morning")));
 
 				// 4. Shortest arc: golden_evening 265 -> night 0 passes 312.5 at the midpoint (19:45), volumetric = next.
+				ResetEvents();
 				Tod->SetTimeOfDay(1185.f, true);
 				CheckState(*Tod, ExpectedBetween(Evening, Night, 0.5), TEXT("19:45"));
 				Test->TestEqual(TEXT("19:45 nearest night (midpoint)"), Tod->CurrentPreset.ToString(), FString(TEXT("night")));
+				// R51-5: the switch to the night keyframe at 19:45 is not night yet (lux 2.0): IsNight() false inside the callback.
+				Test->TestEqual(TEXT("19:45 night switch: OnPresetChanged once"), PresetEvents, 1);
+				Test->TestEqual(TEXT("... to night"), LastPreset.ToString(), FString(TEXT("night")));
+				Test->TestFalse(TEXT("... IsNight() inside the callback is false at 19:45 (lux 2.0)"), bNightAtPresetEvent);
+
+				// 4b. R51-5 contract: a jump that changes the keyframe and the night state together (18:00 day -> 23:00 in
+				//     the night hold, with a transition). Inside OnPresetChanged IsNight() is already the target's (true)
+				//     while the transition has only started; OnNightChanged comes after OnPresetChanged.
+				Tod->SetTimeOfDay(1080.f, true);
+				Test->TestFalse(TEXT("18:00 is not night"), Tod->IsNight());
+				ResetEvents();
+				Tod->SetTimeOfDay(1380.f, /*bInstant*/ false);
+				Test->TestTrue(TEXT("18:00 -> 23:00 jump is a transition"), Tod->IsTransitioning());
+				Test->TestEqual(TEXT("18:00 -> 23:00: OnPresetChanged once"), PresetEvents, 1);
+				Test->TestEqual(TEXT("... to night"), LastPreset.ToString(), FString(TEXT("night")));
+				Test->TestTrue(TEXT("... IsNight() inside the callback is already the target's (true)"), bNightAtPresetEvent);
+				Test->TestEqual(TEXT("... OnNightChanged had not fired yet inside OnPresetChanged"), NightEventsAtPresetEvent, 0);
+				Test->TestEqual(TEXT("... OnNightChanged(true) once, after it"), NightEvents, 1);
+				Test->TestTrue(TEXT("... IsNight() is the target's from the start of the jump"), bLastNight && Tod->IsNight());
 
 				// 5. ApplyPreset / NextPreset move the clock to the keyframe.
 				Test->TestTrue(TEXT("ApplyPreset(golden_evening, instant)"), Tod->ApplyPreset(TEXT("golden_evening"), true));
@@ -438,6 +470,13 @@ namespace GolmokLightingTest
 				CheckState(*Tod, ExpectedBetween(Evening, Evening, 0.0), TEXT("ApplyPreset golden_evening"));
 				Test->TestTrue(TEXT("NextPreset()"), Tod->NextPreset());
 				Test->TestTrue(TEXT("NextPreset sets 21:30"), FMath::IsNearlyEqual(static_cast<double>(Tod->GetTimeOfDayMinutes()), 1290.0, 1e-3));
+				// R51-4: on the clock NextPreset() goes to the next keyframe in time: at 10:01 (nearest clear_noon) that is
+				//        clear_noon 12:30, not golden_evening (the cycle successor of the nearest keyframe).
+				Tod->SetTimeOfDay(601.f, true);
+				Test->TestEqual(TEXT("10:01 nearest clear_noon"), Tod->CurrentPreset.ToString(), FString(TEXT("clear_noon")));
+				Test->TestTrue(TEXT("NextPreset() at 10:01"), Tod->NextPreset());
+				Test->TestEqual(TEXT("NextPreset at 10:01 -> clear_noon (not golden_evening)"), Tod->CurrentPreset.ToString(), FString(TEXT("clear_noon")));
+				Test->TestTrue(TEXT("NextPreset at 10:01 sets 12:30"), FMath::IsNearlyEqual(static_cast<double>(Tod->GetTimeOfDayMinutes()), 750.0, 1e-3));
 				Tod->ApplyPreset(TEXT("clear_noon"), true);
 				Test->TestTrue(TEXT("ApplyPreset sets 12:30"), FMath::IsNearlyEqual(static_cast<double>(Tod->GetTimeOfDayMinutes()), 750.0, 1e-3));
 
@@ -507,6 +546,7 @@ namespace GolmokLightingTest
 				Test->TestEqual(TEXT("OnPresetChanged exactly once across the ramp midpoint"), PresetEvents, 1);
 				Test->TestEqual(TEXT("... to overcast_morning"), LastPreset.ToString(), FString(TEXT("overcast_morning")));
 				Test->TestFalse(TEXT("... with bInstant false"), bLastInstant);
+				Test->TestFalse(TEXT("... IsNight() inside the callback is false at 06:30 (lux 1.26 on the ramp, R51-5)"), bNightAtPresetEvent);
 				CheckState(*Tod, ExpectedBetween(Night, Morning, 61.5 / 120.0), TEXT("clock 06:31.5 (ramp)"));
 
 				// 8. Rate and midnight wrap on the clock.
@@ -538,8 +578,19 @@ namespace GolmokLightingTest
 				Test->TestTrue(TEXT("... switches to Fixed"), Tod->GetClockMode() == EGolmokClockMode::Fixed);
 				Test->TestTrue(TEXT("... and keeps 10:00"), FMath::IsNearlyEqual(static_cast<double>(Tod->GetTimeOfDayMinutes()), 600.0, 1e-3));
 
-				// 10. Clock again at 60 min/s on real ticks.
+				// 10. Fixed -> Clock (the SetTimeOfDay above switched Realtime to Fixed) and Realtime -> Clock: both keep the
+				//     minutes, neither jumps (R51-11).
+				Test->TestTrue(TEXT("SetClockMode(Clock) from fixed"), Tod->SetClockMode(EGolmokClockMode::Clock));
+				Test->TestTrue(TEXT("fixed -> clock keeps 10:00"), FMath::IsNearlyEqual(static_cast<double>(Tod->GetTimeOfDayMinutes()), 600.0, 1e-3));
+				Test->TestTrue(TEXT("SetClockMode(Realtime) before realtime -> clock"), Tod->SetClockMode(EGolmokClockMode::Realtime));
+				const float RealtimeAt = Tod->GetTimeOfDayMinutes();
+				ResetEvents();
 				Test->TestTrue(TEXT("SetClockMode(Clock) from realtime"), Tod->SetClockMode(EGolmokClockMode::Clock));
+				Test->TestTrue(TEXT("realtime -> clock is clock mode"), Tod->GetClockMode() == EGolmokClockMode::Clock);
+				Test->TestEqual(TEXT("realtime -> clock keeps the minutes (no jump)"), Tod->GetTimeOfDayMinutes(), RealtimeAt);
+				Test->TestEqual(TEXT("realtime -> clock: no OnPresetChanged (no jump)"), PresetEvents, 0);
+
+				// 11. Clock at 60 min/s on real ticks.
 				Tod->ClockMinutesPerRealSecond = 60.f;
 				ClockStart = Tod->GetTimeOfDayMinutes();
 				return Next(EClockPhase::ClockRunning, Now);
@@ -694,6 +745,8 @@ namespace GolmokLightingTest
 			PresetEvents = 0;
 			NightEvents = 0;
 			LastPreset = NAME_None;
+			bNightAtPresetEvent = false;
+			NightEventsAtPresetEvent = -1;
 		}
 
 		AGolmokTimeOfDay* Get()
@@ -736,6 +789,9 @@ namespace GolmokLightingTest
 		FName LastPreset;
 		bool bLastInstant = true;
 		bool bLastNight = false;
+		/** R51-5: IsNight() and the OnNightChanged count seen inside the last OnPresetChanged callback. */
+		bool bNightAtPresetEvent = false;
+		int32 NightEventsAtPresetEvent = -1;
 		double ClockStart = 0.0;
 		float FixedAt = 0.f;
 	};
