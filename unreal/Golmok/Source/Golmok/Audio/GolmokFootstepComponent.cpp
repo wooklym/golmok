@@ -7,6 +7,7 @@
 #include "GameFramework/PlayerController.h"
 #include "Kismet/GameplayStatics.h"
 #include "Photo/GolmokPhotoModeSubsystem.h"
+#include "PhysicsEngine/PhysicsSettings.h"
 #include "Player/GolmokCharacter.h"
 
 UGolmokFootstepComponent::UGolmokFootstepComponent()
@@ -49,11 +50,19 @@ void UGolmokFootstepComponent::TriggerFootstep(bool bLanding)
 	if (GetWorld()->LineTraceSingleByChannel(Hit, Start, End, ECC_Visibility, Params))
 	{
 		Point = Hit.ImpactPoint;
-		const FString* Mapped = Audio->GetConfig().Surfaces.Find(static_cast<int32>(UGameplayStatics::GetSurfaceType(Hit)));
-		// The editor folder is not a runtime tag. Only an explicitly authored tag overrides the fallback.
-		const auto Choice = GolmokAudioMath::ChooseSurface(Mapped != nullptr, Hit.GetActor() && Hit.GetActor()->ActorHasTag(TEXT("Course/Stairs")));
-		if (Choice == GolmokAudioMath::SurfaceChoice::StairsTag) Set = TEXT("stairs");
-		else if (Choice == GolmokAudioMath::SurfaceChoice::PhysicalMaterial) Set = *Mapped;
+		Set = ResolveSurfaceSet(Audio->GetConfig(), static_cast<int32>(UGameplayStatics::GetSurfaceType(Hit)),
+			Hit.GetActor() && Hit.GetActor()->ActorHasTag(TEXT("Course/Stairs")));
 	}
 	Audio->PlayFootstep(Set, bLanding, Point);
+}
+
+FString UGolmokFootstepComponent::ResolveSurfaceSet(const FGolmokAudioConfig& Config, int32 Surface, bool bStairs)
+{
+	// SurfaceType numbers alone do not define an authored physical surface in this project.
+	const bool bNamed = Surface == 0 || GetDefault<UPhysicsSettings>()->PhysicalSurfaces.ContainsByPredicate(
+		[Surface](const FPhysicalSurfaceName& Entry) { return static_cast<int32>(Entry.Type) == Surface && !Entry.Name.IsNone(); });
+	const FString* Mapped = bNamed ? Config.Surfaces.Find(Surface) : nullptr;
+	const auto Choice = GolmokAudioMath::ChooseSurface(Mapped != nullptr, bStairs);
+	if (Choice == GolmokAudioMath::SurfaceChoice::StairsTag) return TEXT("stairs");
+	return Choice == GolmokAudioMath::SurfaceChoice::PhysicalMaterial ? *Mapped : FString(TEXT("default"));
 }
