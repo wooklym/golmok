@@ -1187,13 +1187,21 @@ void UGolmokPhotoModeSubsystem::RestoreAll()
 		{
 			PC->SetViewTargetWithBlend(Target, 0.f);
 		}
-		// Camera cut: the photo camera's eye adaptation (EV bias, 20 EV/s) and TSR history must not bleed into the player
-		// view (the entry needs none: the photo camera starts at the player camera's pose).
-		if (PC->PlayerCameraManager)
-		{
-			PC->PlayerCameraManager->SetGameCameraCutThisFrame();
-		}
 		PC->SetControlRotation(SavedControlRotation);
+		if (APlayerCameraManager* CameraManager = PC->PlayerCameraManager)
+		{
+			// V-09b #64: an Exit inside a tick that began paused (P in GamePause) gets no camera manager update in that
+			// tick (UWorld::Tick skips UpdateCameraManager for a paused world unless the controller full-ticks, and the
+			// flag was just restored), so the frame would still render the photo POV / post process and consume the cut
+			// below, and the first player frame would inherit the photo camera's eye adaptation. Refreshing the cached
+			// POV here renders the exit frame from the player camera (also ends the old framing after a pre-existing
+			// pause, #63 (b)); an unpaused tick updates the camera again later in the same tick (dt 0 here: no lag or
+			// shake step twice). Section 12 #64.
+			CameraManager->UpdateCamera(0.f);
+			// Camera cut after the refresh: the photo camera's eye adaptation (EV bias, 20 EV/s) and TSR history must not
+			// bleed into the player view (the entry needs none: the photo camera starts at the player camera's pose).
+			CameraManager->SetGameCameraCutThisFrame();
+		}
 	}
 	if (SavedPawn.IsValid())
 	{

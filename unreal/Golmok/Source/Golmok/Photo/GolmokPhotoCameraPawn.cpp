@@ -164,7 +164,7 @@ void AGolmokPhotoCameraPawn::SetRoll(float InRollDeg)
 	}
 }
 
-void AGolmokPhotoCameraPawn::MoveConstrained(const FVector& InDesired)
+void AGolmokPhotoCameraPawn::MoveConstrained(const FVector& InDesired, bool bKeepHeight)
 {
 	UGolmokPhotoModeSubsystem* LocalOwner = Owner.Get();
 	if (!LocalOwner)
@@ -185,6 +185,8 @@ void AGolmokPhotoCameraPawn::MoveConstrained(const FVector& InDesired)
 		LocalConstraint.Ys = Ys.GetData();
 		LocalConstraint.N = static_cast<std::size_t>(Xs.Num());
 	}
+	// D-013 decision 3: without Q/E the constraint and the slide never change the height (see GolmokPhotoMath::Constrain).
+	LocalConstraint.bKeepHeight = bKeepHeight;
 
 	// Up to two sweeps (V-09 #60): the second one slides the rest of a blocked move along the hit plane, so a diagonal push
 	// into a wall keeps the component parallel to it. Each leg goes sphere -> footprint polygon -> re-check first (design
@@ -218,7 +220,13 @@ void AGolmokPhotoCameraPawn::MoveConstrained(const FVector& InDesired)
 			return;
 		}
 		// Hit.Time = fraction of Start -> Target covered before the hit (UMovementComponent::SlideAlongSurface does the same).
-		const FVector Slide = FVector::VectorPlaneProject((Target - Start) * (1.0 - static_cast<double>(Hit.Time)), Hit.Normal);
+		FVector Slide = FVector::VectorPlaneProject((Target - Start) * (1.0 - static_cast<double>(Hit.Time)), Hit.Normal);
+		if (bKeepHeight)
+		{
+			// D-013 decision 3: a blocked horizontal move slides in the horizontal plane only (a sloped or curved hit plane
+			// would otherwise lift or drop it); nothing left in that plane ends the move below.
+			Slide.Z = 0.0;
+		}
 		if (Slide.SizeSquared() < FMath::Square(PhotoMinSlideCm))
 		{
 			return;
@@ -264,7 +272,8 @@ void AGolmokPhotoCameraPawn::Tick(float DeltaSeconds)
 		return;
 	}
 	const float SpeedCmPerSec = LocalOwner->MoveSpeedMps * 100.f * (bFast ? UGolmokPhotoModeSubsystem::FastMultiplier : 1.f);
-	MoveConstrained(GetActorLocation() + Direction * (SpeedCmPerSec * LocalDt));
+	// D-013 decision 3: only Q/E (UpDownInput) may change the height through the constraint / slide; W/S keep their pitch.
+	MoveConstrained(GetActorLocation() + Direction * (SpeedCmPerSec * LocalDt), /*bKeepHeight*/ UpDownInput == 0.f);
 }
 
 void AGolmokPhotoCameraPawn::EndPlay(const EEndPlayReason::Type Reason)

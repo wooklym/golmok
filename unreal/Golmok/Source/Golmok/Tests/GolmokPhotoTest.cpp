@@ -3,10 +3,12 @@
 // Golmok.Photo.EnterExit: on L_Dev, Enter() pauses the game, makes the photo pawn the view target WITHOUT possessing
 //                         it, hides the debug HUD and suspends the debug keys; the pawn ticks while paused; playback
 //                         and recording refuse each other; a running lighting transition resumes where it was after
-//                         Exit(); a pause that pre-dates photo mode is kept; golmok.photo 1 / 0 round-trip.
+//                         Exit(); Exit() leaves the camera manager at the player camera with a camera cut (#64); a
+//                         pause that pre-dates photo mode is kept; golmok.photo 1 / 0 round-trip.
 // Golmok.Photo.Clamp:     the pure constraint math (sphere / footprint polygon / Constrain / parameter steps), then
 //                         on L_Dev the pawn stays inside the sphere and a test footprint, stops on the floor, stops
-//                         at a transient blocking box and passes once the box is gone; SetParam / Reset.
+//                         at a transient blocking box and passes once the box is gone; a horizontal push keeps the
+//                         height (D-013 decision 3); SetParam / Reset.
 // Golmok.Photo.MetaJson:  FormatPhotoMetaJson matches the design section 2-2 layout byte for byte (null groups, string
 //                         escapes, FJsonSerializer round trip); GolmokPhotoJson::ParseConfigText rejects the design
 //                         section 2-1 violations and accepts Config/Golmok/photo.json; on L_Dev BuildMeta / Shoot()
@@ -318,6 +320,12 @@ namespace GolmokPhotoTest
 				Test->TestTrue(TEXT("character did not move while paused (1 cm)"), FVector::Dist(Character->GetActorLocation(), CharacterLocationBefore) <= 1.0);
 				Test->TestTrue(FString::Printf(TEXT("photo pawn ticked while paused (%d ticks)"), Photo->GetPawnTickCount()), Photo->GetPawnTickCount() > 0);
 
+				// #64: move the photo camera away from the player camera so the exit check below can tell the two POVs apart.
+				if (AGolmokPhotoCameraPawn* PhotoPawn = Photo->GetPhotoPawn())
+				{
+					PhotoPawn->MoveConstrained(PhotoPawn->GetActorLocation() + FVector(0.0, 0.0, 80.0));
+				}
+
 				Photo->SetCharacterHidden(true);
 				Test->TestTrue(TEXT("SetCharacterHidden(true) hides the character"), Character->IsHidden());
 				FString Message;
@@ -351,7 +359,21 @@ namespace GolmokPhotoTest
 				{
 					return false;
 				}
+				APlayerCameraManager* CameraManager = PC->PlayerCameraManager;
+				if (CameraManager)
+				{
+					Test->AddInfo(FString::Printf(TEXT("camera before Exit %s, player camera at entry %s"),
+						*CameraManager->GetCameraLocation().ToString(), *CameraLocationBefore.ToString()));
+				}
 				Test->TestTrue(TEXT("Exit(test)"), Photo->Exit(TEXT("test")));
+				// #64: the exit frame already renders the player camera (the camera manager was refreshed inside Exit, with no
+				// world tick in between) and carries the camera cut, so no photo eye adaptation reaches the player view.
+				if (CameraManager)
+				{
+					const double CameraDelta = FVector::Dist(CameraManager->GetCameraLocation(), CameraLocationBefore);
+					Test->TestTrue(FString::Printf(TEXT("camera manager POV back at the player camera right after Exit (%.2f cm <= 2)"), CameraDelta), CameraDelta <= 2.0);
+					Test->TestTrue(TEXT("camera cut set on the exit frame"), CameraManager->bGameCameraCutThisFrame != 0);
+				}
 				AGolmokTimeOfDay* Tod = AGolmokTimeOfDay::Find(World);
 				if (bDriftStarted && Tod)
 				{
@@ -376,6 +398,7 @@ namespace GolmokPhotoTest
 					Test->TestTrue(TEXT("Enter() while already paused"), Photo->Enter(Message));
 					Test->TestTrue(TEXT("Enter() message says 'already paused'"), Message.Contains(TEXT("already paused")));
 					Test->TestTrue(TEXT("Exit() after a pre-existing pause"), Photo->Exit(TEXT("test")));
+					Test->TestTrue(TEXT("camera cut set on the exit frame (pre-existing pause)"), PC->PlayerCameraManager && PC->PlayerCameraManager->bGameCameraCutThisFrame != 0);
 					Test->TestTrue(TEXT("pre-existing pause kept after Exit"), UGameplayStatics::IsGamePaused(World));
 					UGameplayStatics::SetGamePaused(World, false);
 				}
@@ -566,6 +589,24 @@ namespace GolmokPhotoTest
 			Test->AddInfo(FString::Printf(TEXT("after -500 z: %s (floor z %.1f)"), *Location.ToString(), FloorZ));
 			Test->TestTrue(TEXT("pawn inside the sphere after -500 z"), FVector::Dist(Location, Anchor) <= RadiusCm + 1.0);
 			Test->TestTrue(TEXT("floor sweep stops the pawn (z >= floor - radius - 20 cm)"), Location.Z >= FloorZ - Sweep - 20.0);
+
+			// (b2) D-013 decision 3: a horizontal push (no Q/E: bKeepHeight) into the square / sphere never changes the height,
+			// even where the 3D nearest point would pull the pawn toward the anchor's height (V-09b junction observation).
+			// Start 60 cm above the anchor (a free 3D move, like Q/E), then push toward the +x / +y corner.
+			Pawn->MoveConstrained(Anchor + FVector(0.0, 0.0, 60.0));
+			const FVector PushStart = Pawn->GetActorLocation();
+			double MaxDz = 0.0;
+			for (int32 Step = 0; Step < 60; ++Step)
+			{
+				Pawn->MoveConstrained(Pawn->GetActorLocation() + FVector(15.0, 6.0, 0.0), /*bKeepHeight*/ true);
+				MaxDz = FMath::Max(MaxDz, FMath::Abs(Pawn->GetActorLocation().Z - PushStart.Z));
+			}
+			Location = Pawn->GetActorLocation();
+			Test->AddInfo(FString::Printf(TEXT("keep height: from %s to %s, max |dz| %.4f"), *PushStart.ToString(), *Location.ToString(), MaxDz));
+			Test->TestTrue(TEXT("horizontal push keeps the height (|dz| <= 0.01 cm)"), MaxDz <= 0.01);
+			Test->TestTrue(TEXT("horizontal push moved the pawn (> 50 cm)"), FVector::Dist2D(Location, PushStart) > 50.0);
+			Test->TestTrue(TEXT("horizontal push stays inside the sphere"), FVector::Dist(Location, Anchor) <= Photo->GetEffectiveRadiusCm() + 1.0);
+			Test->TestTrue(TEXT("horizontal push stays inside the square"), FMath::Abs(Location.X - Anchor.X) <= 200.0 + 0.01 && FMath::Abs(Location.Y - Anchor.Y) <= 200.0 + 0.01);
 
 			// (c) a transient blocking box 1 m in front of the anchor; the move stops before it and passes once it is gone
 			Photo->Reset();

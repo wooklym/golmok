@@ -1247,3 +1247,146 @@ def test_walk_anchor_inside_the_inset_band_at_a_sphere_junction_settles(driver):
             np.array_equal(tail[0], t) for t in tail
         ), (step, tail[0], tail[-1])
         assert all(shape.contains(Point(float(p[0]), float(p[1]))) for p in pts)
+
+
+# ------------------------------------------------------------------------------------ D-013 decision 3
+
+
+def walk_mode(driver: Path, cmd: str, anchor, r, inset, ring, start, step, ticks: int):
+    text = f"{nums(*anchor)} {r!r} {inset!r} {ring_text(ring)} {nums(*start)} {nums(*step)} {ticks}"
+    rows = run_lines(driver, cmd, text)
+    assert len(rows) == ticks
+    return [(int(row[0]), np.array(row[1:])) for row in rows]
+
+
+def constrain_keep_height(driver: Path, anchor, r, inset, ring, points) -> list[tuple[int, np.ndarray]]:
+    text = f"{nums(*anchor)} {r!r} {inset!r} {ring_text(ring)} {len(points)} "
+    text += nums(*(v for p in points for v in p))
+    rows = run_lines(driver, "constrainh", text)
+    assert len(rows) == len(points)
+    return [(int(row[0]), np.array(row[1:])) for row in rows]
+
+
+def test_walk_keep_height_at_the_sphere_footprint_junction(driver):
+    """V-09b: a horizontal push into the junction of the sphere and the footprint edge (camera above the
+    anchor) slid along the sphere toward the anchor's height (Shift 1.6 s: -44 cm). With bKeepHeight (no
+    Q/E) the height never changes: the pawn slides in its horizontal plane into the corner of the sphere's
+    slice and the eroded edge, then stands exactly still."""
+    anchor = (0.0, 0.0, 90.0)
+    r, inset = 300.0, 20.0
+    rect = [(-1000.0, -250.0), (1000.0, -250.0), (1000.0, 250.0), (-1000.0, 250.0)]
+    start = (0.0, 200.0, 190.0)
+    step = (2.0, 5.0, 0.0)  # ~Shift 4.5 m/s at 120 Hz, into the edge and along it toward the sphere
+    old = walk_mode(driver, "walk", anchor, r, inset, rect, start, step, 400)
+    new = walk_mode(driver, "walkh", anchor, r, inset, rect, start, step, 400)
+    # the old path (Q/E semantics) still follows the sphere down: that is the observed drift
+    assert old[-1][1][2] < 190.0 - 10.0, old[-1]
+    assert all(c >= 0 for c, _p in new)
+    assert all(p[2] == 190.0 for _c, p in new), [p[2] for _c, p in new if p[2] != 190.0][:3]
+    slice_r = math.sqrt(r * r - 100.0**2)
+    corner = (math.sqrt(slice_r**2 - 230.0**2), 230.0)
+    end = new[-1][1]
+    # the fixed point of the per-tick clamp (sphere after polygon) sits on the slice circle within one step of
+    # the corner (161.6 here; the 3D path would be at the same place but keep sinking)
+    assert end[1] == pytest.approx(230.0, abs=1e-9) and 0.0 <= corner[0] - end[0] < math.hypot(*step[:2]), end
+    tail = np.array([p for _c, p in new[-100:]])
+    assert float(np.ptp(tail, axis=0).max()) <= 1e-9, tail[[0, -1]]
+    xs = [float(p[0]) for _c, p in new]
+    assert all(b - a >= -1e-9 for a, b in zip(xs, xs[1:], strict=False))  # never backs off
+    for _c, p in new:
+        assert np.linalg.norm(p - np.array(anchor)) <= r * (1 + 1e-12) + 1e-9
+        assert p[1] <= 230.0 + 1e-9
+
+
+def test_walk_keep_height_pure_sphere_push(driver):
+    """No footprint: a radial push stops on the slice circle, an oblique one slides along it, both at the
+    start height; the Q/E path (walk) keeps its old 3D behaviour."""
+    anchor = (0.0, 0.0, 0.0)
+    r = 300.0
+    slice_r = math.sqrt(r * r - 120.0**2)
+    radial = walk_mode(driver, "walkh", anchor, r, 20.0, [], (0.0, 0.0, 120.0), (3.0, 0.0, 0.0), 200)
+    assert all(p[2] == 120.0 for _c, p in radial)
+    assert radial[-1][1][0] == pytest.approx(slice_r, abs=1e-9) and radial[-1][1][1] == 0.0
+    oblique = walk_mode(driver, "walkh", anchor, r, 20.0, [], (0.0, -100.0, 120.0), (3.0, 2.0, 0.0), 400)
+    assert all(p[2] == 120.0 for _c, p in oblique)
+    radii = [math.hypot(float(p[0]), float(p[1])) for _c, p in oblique]
+    assert max(radii) <= slice_r * (1 + 1e-12) + 1e-9
+    # slides along the slice circle toward the point where the push is radial (constant world direction)
+    end = oblique[-1][1]
+    assert math.atan2(float(end[1]), float(end[0])) == pytest.approx(math.atan2(2.0, 3.0), abs=0.01)
+    assert math.hypot(float(end[0]), float(end[1])) == pytest.approx(slice_r, abs=1e-9)
+    on_circle = [i for i, rr in enumerate(radii) if rr > slice_r - 1e-6]
+    assert on_circle and max(radii) > slice_r - 1e-6
+    first = on_circle[0]
+    ang = [math.atan2(float(p[1]), float(p[0])) for _c, p in oblique[first:]]
+    assert ang[0] < ang[-1] - 0.05  # it did slide around the circle, not stop where it touched
+    # vertical input (Q/E): the 3D path moves Z, and a pushed-out-and-up move follows the sphere
+    up = walk_mode(driver, "walk", anchor, r, 20.0, [], (0.0, 0.0, 120.0), (0.0, 0.0, 5.0), 60)
+    assert up[-1][1][2] == pytest.approx(r, abs=1e-9)
+    slide = walk_mode(driver, "walk", anchor, r, 20.0, [], (slice_r, 0.0, 120.0), (3.0, 0.0, 0.0), 50)
+    assert slide[-1][1][2] < 120.0 - 1.0
+
+
+def test_walk_keep_height_with_a_pitched_move_and_outside_the_slab(driver):
+    """bKeepHeight leaves the desired move's own Z (W with pitch, design §5-2) alone and adds none; a desired
+    height beyond the sphere's slab keeps the current plane instead."""
+    anchor = (0.0, 0.0, 0.0)
+    r = 300.0
+    # pitched down 45 degrees on the sphere: Z drops exactly by the commanded 2 cm a tick while the XY clamp
+    # keeps the pawn on the (growing) slice circle as it moves toward the equator
+    start = (math.sqrt(r * r - 200.0**2), 0.0, 200.0)
+    got = walk_mode(driver, "walkh", anchor, r, 20.0, [], start, (2.0, 0.0, -2.0), 50)
+    expected = [200.0 - 2.0 * (i + 1) for i in range(50)]
+    assert [float(p[2]) for _c, p in got] == pytest.approx(expected, abs=1e-9)
+    # desired height above the slab (|dz| > r): the move continues in the current plane (z 280)
+    got = walk_mode(driver, "walkh", anchor, r, 20.0, [], (0.0, 0.0, 280.0), (2.0, 0.0, 30.0), 80)
+    assert all(p[2] == 280.0 for _c, p in got)
+    assert got[-1][1][0] == pytest.approx(math.sqrt(r * r - 280.0**2), abs=1e-9)
+    # without a current position the same point is rejected
+    ((code, out),) = constrain_keep_height(driver, anchor, r, 20.0, [], [(0.0, 0.0, 400.0)])
+    assert code == -1 and np.array_equal(out, [-999999.0] * 3)
+
+
+def test_constrain_keep_height_never_changes_z(driver):
+    """Random points with the height inside the slab: the accepted result keeps Desired.z exactly and
+    satisfies both limits; the sphere clamp is the nearest point of the slice disk; points already valid pass
+    unchanged."""
+    pytest.importorskip("shapely")
+    from shapely.geometry import Point, Polygon
+
+    inset = 20.0
+    rng = np.random.default_rng(64)
+    for name, ring, ring_anchor in polygon_cases():
+        shape = Polygon(ring)
+        xs = [p[0] for p in ring]
+        ys = [p[1] for p in ring]
+        w, h = max(xs) - min(xs), max(ys) - min(ys)
+        eff = effective_inset(shape, ring_anchor, inset)
+        for r_cm in (0.35 * max(w, h), 1.5 * max(w, h)):
+            a3 = np.array((ring_anchor[0], ring_anchor[1], 100.0))
+            points = [
+                (float(x), float(y), float(z))
+                for x, y, z in zip(
+                    rng.uniform(min(xs) - 0.5 * w, max(xs) + 0.5 * w, 150),
+                    rng.uniform(min(ys) - 0.5 * h, max(ys) + 0.5 * h, 150),
+                    rng.uniform(100.0 - 0.95 * r_cm, 100.0 + 0.95 * r_cm, 150),
+                    strict=True,
+                )
+            ]
+            got = constrain_keep_height(driver, a3, r_cm, inset, ring, points)
+            for p, (code, out) in zip(points, got, strict=True):
+                if code == -1:
+                    continue
+                assert out[2] == p[2], (name, p, out)
+                assert np.linalg.norm(out - a3) <= r_cm * (1 + 1e-12) + 1e-9, (name, p)
+                bd = shape.exterior.distance(Point(p[0], p[1]))
+                d = float(np.linalg.norm(np.asarray(p) - a3))
+                if abs(d - r_cm) < 1e-6 or abs(bd - eff) < 1e-6 or bd < 1e-6:
+                    continue
+                assert in_eroded(shape, out[:2], eff), (name, p, out)
+                if d <= r_cm and in_eroded(shape, p[:2], eff):
+                    assert code == 0 and np.array_equal(out, p), (name, p, code)
+    # sphere only: the nearest point of the slice disk
+    got = constrain_keep_height(driver, (0.0, 0.0, 0.0), 300.0, 20.0, [], [(400.0, 300.0, 180.0)])
+    assert got[0][0] == 1
+    assert np.allclose(got[0][1], [0.8 * 240.0, 0.6 * 240.0, 180.0])

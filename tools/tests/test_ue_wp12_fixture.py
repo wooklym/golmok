@@ -807,8 +807,31 @@ def test_restore_cuts_the_camera_after_the_view_target():
     code = _strip_comments(_read(SUBSYSTEM_CPP))
     restore = _function_body(code, "UGolmokPhotoModeSubsystem::RestoreAll")
     view = restore.index("PC->SetViewTargetWithBlend(Target, 0.f);")
-    cut = restore.index("PC->PlayerCameraManager->SetGameCameraCutThisFrame();")
-    assert view < cut
+    control = restore.index("PC->SetControlRotation(SavedControlRotation);")
+    # V-09b #64: the exit tick may have begun paused (no camera manager update in UWorld::Tick), so RestoreAll
+    # refreshes the cached POV itself, then cuts: the frame that consumes the cut is the player camera's
+    refresh = restore.index("CameraManager->UpdateCamera(0.f);")
+    cut = restore.index("CameraManager->SetGameCameraCutThisFrame();")
+    assert view < control < refresh < cut
+    assert restore.count("SetGameCameraCutThisFrame") == 1
+    # the pause / full-tick restore does not undo it: both come after, and nothing re-targets the view later
+    assert refresh < restore.index("ApplyPause(false);")
+    assert restore.count("SetViewTargetWithBlend") == 1
+
+
+def test_keep_height_without_vertical_input():
+    """D-013 decision 3 (V-09b): without Q/E the constraint clamps in the horizontal plane and the wall slide
+    is flattened, so only the desired move itself changes Z."""
+    pawn = _strip_comments(_read(PAWN_CPP))
+    tick = _function_body(pawn, "AGolmokPhotoCameraPawn::Tick")
+    assert re.search(r"MoveConstrained\([^;]*,\s*UpDownInput == 0\.f\);", tick)
+    move = _function_body(pawn, "AGolmokPhotoCameraPawn::MoveConstrained")
+    assert "LocalConstraint.bKeepHeight = bKeepHeight;" in move
+    flatten = move.index("Slide.Z = 0.0;")
+    assert move.index("VectorPlaneProject") < flatten < move.index("PhotoMinSlideCm")
+    assert "void MoveConstrained(const FVector& InDesired, bool bKeepHeight = false);" in _read(PAWN_H)
+    math_h = _read(MATH_H)
+    assert "bool bKeepHeight = false;" in math_h and "inline bool ClampToSphereXY(" in math_h
 
 
 def test_move_constrained_slides_once_and_constrains_every_leg():
