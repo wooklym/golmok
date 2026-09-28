@@ -22,6 +22,8 @@ namespace
 	constexpr int32 PhotoMaxSweeps = 2;
 	/** A slide shorter than this is dropped (a head-on push leaves only rounding noise). */
 	constexpr double PhotoMinSlideCm = 0.01;
+	/** |Q/E axis| at or below this counts as no vertical input (a resting gamepad trigger has no dead zone, D-013 decision 3). */
+	constexpr float PhotoUpDownDeadZone = 0.1f;
 } // namespace
 
 AGolmokPhotoCameraPawn::AGolmokPhotoCameraPawn()
@@ -164,7 +166,7 @@ void AGolmokPhotoCameraPawn::SetRoll(float InRollDeg)
 	}
 }
 
-void AGolmokPhotoCameraPawn::MoveConstrained(const FVector& InDesired)
+void AGolmokPhotoCameraPawn::MoveConstrained(const FVector& InDesired, bool bKeepHeight)
 {
 	UGolmokPhotoModeSubsystem* LocalOwner = Owner.Get();
 	if (!LocalOwner)
@@ -185,6 +187,8 @@ void AGolmokPhotoCameraPawn::MoveConstrained(const FVector& InDesired)
 		LocalConstraint.Ys = Ys.GetData();
 		LocalConstraint.N = static_cast<std::size_t>(Xs.Num());
 	}
+	// D-013 decision 3: without Q/E the constraint and the slide never change the height (see GolmokPhotoMath::Constrain).
+	LocalConstraint.bKeepHeight = bKeepHeight;
 
 	// Up to two sweeps (V-09 #60): the second one slides the rest of a blocked move along the hit plane, so a diagonal push
 	// into a wall keeps the component parallel to it. Each leg goes sphere -> footprint polygon -> re-check first (design
@@ -218,7 +222,13 @@ void AGolmokPhotoCameraPawn::MoveConstrained(const FVector& InDesired)
 			return;
 		}
 		// Hit.Time = fraction of Start -> Target covered before the hit (UMovementComponent::SlideAlongSurface does the same).
-		const FVector Slide = FVector::VectorPlaneProject((Target - Start) * (1.0 - static_cast<double>(Hit.Time)), Hit.Normal);
+		FVector Slide = FVector::VectorPlaneProject((Target - Start) * (1.0 - static_cast<double>(Hit.Time)), Hit.Normal);
+		if (bKeepHeight)
+		{
+			// D-013 decision 3: a blocked horizontal move slides in the horizontal plane only (a sloped or curved hit plane
+			// would otherwise lift or drop it); nothing left in that plane ends the move below.
+			Slide.Z = 0.0;
+		}
 		if (Slide.SizeSquared() < FMath::Square(PhotoMinSlideCm))
 		{
 			return;
@@ -253,18 +263,22 @@ void AGolmokPhotoCameraPawn::Tick(float DeltaSeconds)
 	MouseDelta = FVector2D::ZeroVector;
 	ApplyLook(NewLook);
 
-	// Move: forward includes the pitch, right is yaw only, up is world up; unit direction times the owner's speed.
-	const FVector Forward = Look.Vector();
+	// Move: forward and right are yaw only (D-013 decision 3: W/S/A/D move in the horizontal plane, only Q/E changes the
+	// height), up is world up; unit direction times the owner's speed.
+	const FVector Forward = FRotator(0.f, Look.Yaw, 0.f).Vector();
 	const FVector Right = FRotator(0.f, Look.Yaw, 0.f).RotateVector(FVector::RightVector);
+	const float UpDown = (FMath::Abs(UpDownInput) > PhotoUpDownDeadZone) ? UpDownInput : 0.f;
 	const FVector Direction =
-		(Forward * MoveInput.Y + Right * MoveInput.X + FVector::UpVector * UpDownInput).GetClampedToMaxSize(1.0);
+		(Forward * MoveInput.Y + Right * MoveInput.X + FVector::UpVector * UpDown).GetClampedToMaxSize(1.0);
 	if (Direction.IsNearlyZero())
 	{
 		// No input: nothing to constrain or sweep this tick.
 		return;
 	}
 	const float SpeedCmPerSec = LocalOwner->MoveSpeedMps * 100.f * (bFast ? UGolmokPhotoModeSubsystem::FastMultiplier : 1.f);
-	MoveConstrained(GetActorLocation() + Direction * (SpeedCmPerSec * LocalDt));
+	// D-013 decision 3: only Q/E (UpDown past the dead zone) changes the height. Without it the desired move is horizontal
+	// (yaw-only W/S/A/D) and bKeepHeight makes the constraint / slide keep it in that plane (a guard: Desired.z == Z).
+	MoveConstrained(GetActorLocation() + Direction * (SpeedCmPerSec * LocalDt), /*bKeepHeight*/ UpDown == 0.f);
 }
 
 void AGolmokPhotoCameraPawn::EndPlay(const EEndPlayReason::Type Reason)

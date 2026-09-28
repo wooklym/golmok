@@ -541,6 +541,8 @@ void UGolmokPhotoModeSubsystem::Deinitialize()
 		FCoreDelegates::OnEndFrame.Remove(EndFrameHandle);
 		EndFrameHandle.Reset();
 	}
+	// Section 12 #67: a restore still waiting for the unpause belongs to this world; the flag goes with it.
+	CancelCameraMoveableRestore();
 	Super::Deinitialize();
 }
 
@@ -939,7 +941,12 @@ bool UGolmokPhotoModeSubsystem::Enter(FString& OutMessage)
 	bSavedHudVisible = Debug ? Debug->IsHudVisible() : false;
 	bSavedPawnHidden = Pawn->IsHidden();
 	bDebugKeysWereActive = !PC->IsDebugKeysSuspended();
-	bSavedCameraMoveableWhenPaused = World->bIsCameraMoveableWhenPaused != 0;
+	if (!bRestoreCameraMoveableOnUnpause)
+	{
+		bSavedCameraMoveableWhenPaused = World->bIsCameraMoveableWhenPaused != 0;
+	}
+	// else: the previous exit left the world paused and the flag at our true (section 12 #67); the value saved then is
+	// still the one to restore, so it is kept (the pending restore is dropped once this Enter cannot fail any more).
 	WorldTimeAtEnter = World->GetTimeSeconds();
 	UGameViewportClient* Viewport = World->GetGameViewport();
 	// Section 10 #12 / V-09 C2248: bSuppressTransitionMessage is protected and has no engine getter; the project viewport
@@ -1027,6 +1034,8 @@ bool UGolmokPhotoModeSubsystem::Enter(FString& OutMessage)
 	// Scope: the bWorldIsPaused assignment sits only in the #else (WITH_EDITOR) branch of the engine's SceneView.cpp
 	// (seen in the 5.6 / 5.7 source mirrors, 5.8.3 not checked), so the ghost and this fix are likely PIE / -game only;
 	// a packaged build probably never showed the ghost (runbook section 10 checks the same scene there).
+	// This session's exit restores bSavedCameraMoveableWhenPaused (kept above): a #67 restore still pending is dropped.
+	CancelCameraMoveableRestore();
 	World->bIsCameraMoveableWhenPaused = true;
 
 	// 7. no "PAUSED" transition message on screen or in the shot (section 10 #12).
@@ -1187,13 +1196,21 @@ void UGolmokPhotoModeSubsystem::RestoreAll()
 		{
 			PC->SetViewTargetWithBlend(Target, 0.f);
 		}
-		// Camera cut: the photo camera's eye adaptation (EV bias, 20 EV/s) and TSR history must not bleed into the player
-		// view (the entry needs none: the photo camera starts at the player camera's pose).
-		if (PC->PlayerCameraManager)
-		{
-			PC->PlayerCameraManager->SetGameCameraCutThisFrame();
-		}
 		PC->SetControlRotation(SavedControlRotation);
+		if (APlayerCameraManager* CameraManager = PC->PlayerCameraManager)
+		{
+			// V-09b #64: an Exit inside a tick that began paused (P in GamePause) gets no camera manager update in that
+			// tick (UWorld::Tick skips UpdateCameraManager for a paused world unless the controller full-ticks, and the
+			// flag was just restored), so the frame would still render the photo POV / post process and consume the cut
+			// below, and the first player frame would inherit the photo camera's eye adaptation. Refreshing the cached
+			// POV here renders the exit frame from the player camera (also ends the old framing after a pre-existing
+			// pause, #63 (b)); an unpaused tick updates the camera again later in the same tick (dt 0 here: no lag or
+			// shake step twice). Section 12 #64.
+			CameraManager->UpdateCamera(0.f);
+			// Camera cut after the refresh: the photo camera's eye adaptation (EV bias, 20 EV/s) and TSR history must not
+			// bleed into the player view (the entry needs none: the photo camera starts at the player camera's pose).
+			CameraManager->SetGameCameraCutThisFrame();
+		}
 	}
 	if (SavedPawn.IsValid())
 	{
@@ -1219,7 +1236,24 @@ void UGolmokPhotoModeSubsystem::RestoreAll()
 	ApplyPause(false);
 	if (World)
 	{
-		World->bIsCameraMoveableWhenPaused = bSavedCameraMoveableWhenPaused;
+		if (UGameplayStatics::IsGamePaused(World) && !bSavedCameraMoveableWhenPaused)
+		{
+			// Section 12 #67 (PR #40 review R1): the world stays paused (a pause from before Enter, GamePause or
+			// TimeDilation). With the flag back at false the paused views' temporal history is read-only again
+			// (bWorldIsPaused, #57), so the photo camera's last TSR / Lumen history would keep reprojecting into the
+			// player view after the one cut frame above. The flag stays true until the first end of frame that sees
+			// the world unpaused, then goes back to the saved value.
+			bRestoreCameraMoveableOnUnpause = true;
+			if (!CameraMoveableRestoreHandle.IsValid())
+			{
+				CameraMoveableRestoreHandle = FCoreDelegates::OnEndFrame.AddUObject(this, &UGolmokPhotoModeSubsystem::OnEndFrameCameraMoveableRestore);
+			}
+			UE_LOG(LogGolmok, Log, TEXT("photo: world still paused; camera-moveable-when-paused flag kept true until the unpause"));
+		}
+		else
+		{
+			World->bIsCameraMoveableWhenPaused = bSavedCameraMoveableWhenPaused;
+		}
 	}
 	const bool bUnpaused = ActivePauseMode == EGolmokPhotoPauseMode::TimeDilation || !bWasPausedBefore;
 
@@ -1279,6 +1313,7 @@ void UGolmokPhotoModeSubsystem::TeardownForDeadWorld()
 		FCoreDelegates::OnEndFrame.Remove(EndFrameHandle);
 		EndFrameHandle.Reset();
 	}
+	CancelCameraMoveableRestore();
 	PhotoPawn.Reset();
 	SavedPawn.Reset();
 	SavedViewTarget.Reset();
@@ -1292,6 +1327,33 @@ void UGolmokPhotoModeSubsystem::TeardownForDeadWorld()
 	bOverlayDirty = true;
 	State = EGolmokPhotoState::Inactive;
 	UE_LOG(LogGolmok, Log, TEXT("photo: teardown (world ending)"));
+}
+
+void UGolmokPhotoModeSubsystem::OnEndFrameCameraMoveableRestore()
+{
+	UWorld* World = GetWorld();
+	if (World && UGameplayStatics::IsGamePaused(World))
+	{
+		// Still paused: the views keep updating their history like the photo session did (section 12 #67).
+		return;
+	}
+	if (World)
+	{
+		World->bIsCameraMoveableWhenPaused = bSavedCameraMoveableWhenPaused;
+		UE_LOG(LogGolmok, Log, TEXT("photo: camera-moveable-when-paused flag restored after the unpause (%s)"),
+			bSavedCameraMoveableWhenPaused ? TEXT("true") : TEXT("false"));
+	}
+	CancelCameraMoveableRestore();
+}
+
+void UGolmokPhotoModeSubsystem::CancelCameraMoveableRestore()
+{
+	if (CameraMoveableRestoreHandle.IsValid())
+	{
+		FCoreDelegates::OnEndFrame.Remove(CameraMoveableRestoreHandle);
+		CameraMoveableRestoreHandle.Reset();
+	}
+	bRestoreCameraMoveableOnUnpause = false;
 }
 
 void UGolmokPhotoModeSubsystem::OnPhotoPawnEndPlay(AGolmokPhotoCameraPawn* Pawn, EEndPlayReason::Type Reason)

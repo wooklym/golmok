@@ -1,10 +1,10 @@
 # V-11 — WP-18a 캐릭터 로스터 PC 검증
 
 2026-09-27 갱신 · 작성/헤드리스·standalone GUI 기초 검증 ChatGPT Astra · 지속 보행/품질 후속 Fable PC. 이번 #22/#23은 사용자 지시로 Astra 자체 리뷰·병합.
-**코드·UE 헤드리스/4종 지속 이동·지형 통과, GUI 교체·점프 확인. WP-12 통합 T1 직접 실행 완료(EXECUTED 6/6, 경고 0). T2는 GUI·시각 항목만 대기.** D-018 ①은 승인됐으며 설계 PR → 구현 PR 병합 뒤 아래 남은 항목을 진행한다. V-12 채점과 대조군/야간 실패의 판정은 [WP-18](../plan/WP-18-characters.md)의 최신 절차를 따른다.
+**코드·UE 헤드리스/4종 지속 이동·지형 통과, GUI 교체·점프 확인. WP-12 통합 T1 직접 실행 완료(EXECUTED 6/6, 경고 0). T2(#39): 엔진 입력 드라이버 렌더 근거·PIE 재시작·콘솔 선택 확인(§11); 잔여 실제 키보드 지속 입력 영상·사람 눈 검수는 PC 카드, 시트 판정은 Fable.** D-018 ①은 승인됐으며 설계 PR → 구현 PR 병합 뒤 아래 남은 항목을 진행한다. V-12 채점과 대조군/야간 실패의 판정은 [WP-18](../plan/WP-18-characters.md)의 최신 절차를 따른다.
 계약과 D-018은 [WP-18](../plan/WP-18-characters.md), 아트 판단은 [컨셉](../design/character-concept.md), 예산은 [제작 사양](../research/11-character-pipeline.md).
 
-병합 후 최신 진행: [WP-18 후속 기록](../plan/WP-18-followup.md). **2026-09-28 T1 기준 WP-12는 main에 병합돼 컴파일 차단이 해소됐고 PhotoIntegration 6조합을 T1에서 직접 실행 완료했다(EXECUTED 6/6, 경고 0). T2는 GUI·시각 항목만 남았다.** 아래 초기 결과표는 당시 기록이며 후속 기록을 우선한다. [V-09 PR #27](https://github.com/wooklym/golmok/pull/27)의 26/26·6조합 통과 보고는 [2차]이며 Astra T1 직접 검증 결과는 후속 기록의 T1 절에 있다.
+병합 후 최신 진행: [WP-18 후속 기록](../plan/WP-18-followup.md). **2026-09-28 T1 기준 WP-12는 main에 병합돼 컴파일 차단이 해소됐고 PhotoIntegration 6조합을 T1에서 직접 실행 완료했다(EXECUTED 6/6, 경고 0). T2(#39): 엔진 입력 드라이버 렌더 근거·PIE 재시작·콘솔 선택 확인(§11); 잔여 실제 키보드 지속 입력 영상·사람 눈 검수는 PC 카드, 시트 판정은 Fable.** 아래 초기 결과표는 당시 기록이며 후속 기록을 우선한다. [V-09 PR #27](https://github.com/wooklym/golmok/pull/27)의 26/26·6조합 통과 보고는 [2차]이며 Astra T1 직접 검증 결과는 후속 기록의 T1 절에 있다.
 
 ## 1. 안전한 별도 PC 작업 폴더
 
@@ -101,7 +101,7 @@ V-12는 실제 Zone, 없으면 L_Basemap_Yeonnam에서 **프록시2종 × PBR/5.
 | `UAnimBlueprintGeneratedClass::TargetSkeleton` 및 Quinn 같은 ABP | 확인(로드·설정) | Runtime 실제 Quinn mesh/ABP 경로 성공. 시각 애니메이션 품질은 GUI 대기 |
 | `FScopedMovementUpdate`, `CacheInitialMeshOffset` | 확인 | include는 `Engine/ScopedMovementUpdate.h`. 메시를 부모 캡슐 이동 전에 갱신한 뒤 proxy offsetZ−69와 고정 발밑 단언 성공 |
 | `OverlapBlockingTestByChannel`+capsule response | 확인(자동화) | 인공 천장과 합성 실내 표식 아래 확대 거절, 여유 지점 성공. 실제 포털과 교체3회 왕복 통과. GUI는 §4 대기 |
-| WP-12 실제 포토 actor/time dilation·앵커 | T1 직접 실행 완료(EXECUTED 6/6, 경고 0), T2는 GUI·시각 항목만 | `Enter()`에서 PauseMode 래치, `FGolmokPhotoRestoreState::PauseMode` 읽기 가능. Enter 전에 모드를 쓰는 기존 테스트 유지. T1 main d37720e에서 6조합 직접 실행 성공 |
+| WP-12 실제 포토 actor/time dilation·앵커 | T1 직접 실행 완료(EXECUTED 6/6, 경고 0), T2(#39): 엔진 입력 드라이버 렌더 근거·PIE 재시작·콘솔 선택 확인(§11); 잔여 실제 키보드 지속 입력 영상·사람 눈 검수는 PC 카드, 시트 판정은 Fable | `Enter()`에서 PauseMode 래치, `FGolmokPhotoRestoreState::PauseMode` 읽기 가능. Enter 전에 모드를 쓰는 기존 테스트 유지. T1 main d37720e에서 6조합 직접 실행 성공 |
 | `FScreenshotRequest::RequestScreenshot(..., FIntRect(), true)` | 5.8.3 헤더 확인·기존 D3D12 실행 확인 | 설치 `Engine/Source/Runtime/Engine/Public/UnrealClient.h:219`, 6번째 인자는 `bInRestrictToGameViewport`. §8 후속 렌더 12장 저장 기록. 실제 PNG 크기 확인은 매 실행 필요 |
 | `USpringArmComponent::IsCollisionFixApplied()` | 5.8.3 헤더 확인·기존 Locomotion 실행 확인 | `Engine/Source/Runtime/Engine/Classes/GameFramework/SpringArmComponent.h:132`, const 공개 API. 벽 앞 true/열린 방향 false를 검사함. 애니메이션 품질 판단과 별개 |
 | `FApp::CanEverRender()` | 5.8.3 헤더 확인 | `Engine/Source/Runtime/Core/Public/Misc/App.h:400`. 명시적 렌더 요청에 nullrhi를 같이 주면 RenderEvidence가 오류로 거절함. true가 캡처 성공을 보장하지 않으므로 파일 저장·디코딩을 따로 확인 |
@@ -124,7 +124,7 @@ V-12는 실제 Zone, 없으면 L_Basemap_Yeonnam에서 **프록시2종 × PBR/5.
 
 2026-09-27 포털 통합 자동화 추가 후 최신 결과: **UE 전체19 Success(14+경고5), failed0/notRun0, 63.79s**. Character 필터는3 Success이며, 새 `PortalRoundTrip`24.08s에서3회 왕복 완료 로그를 확인했다. Python/ruff/check_repo 성공(608 passed/42 skipped/208 warnings, 32.85s). 위 초기 표의 포털+교체 미실행은 이제 **GUI 조합만** 해당한다. 화면/실제 보행·실제 경로 재생·포토·성능/V-12는 계속 대기다.
 
-2026-09-27 [Claude 리뷰 지적](https://github.com/wooklym/golmok/pull/23#discussion_r4111832801) 수정 후 재실행: UE 빌드 성공, Character2 Success, 전체18 Success(13+경고5)/실패0/미실행0, 39.87s. Python 게이트도 통과(608 passed/42 skipped/208 warnings, 40.12s). Runtime은 ini 메시 실패와 같은 `mesh=null`/대체 캡슐 표시 상태에서 잘못된 선택은 표시를 유지하고, 정상 로스터 메시 적용은 캡슐만 숨기며 메시와 Actor는 표시하는 회귀를 추가했다. GUI 검증에는 이 초기 실패 → 정상 선택 복구도 포함한다. 향후 crouch 지원 시 uncrouch의 CDO 크기/offset 복원은 별도 검증한다.
+2026-09-27 [Claude 리뷰 지적](https://github.com/wooklym/golmok/pull/23#discussion_r4111832801) 수정 후 재실행: UE 빌드 성공, Character2 Success, 전체18 Success(13+경고5)/실패0/미실행0, 39.87s. Python 게이트도 통과(608 passed/42 skipped/208 warnings, 40.12s). Runtime은 ini 메시 실패와 같은 `mesh=null`/대체 캡슐 표시 상태에서 잘못된 선택은 표시를 유지하고, 정상 로스터 메시 적용은 캡슐만 숨기며 메시와 Actor는 표시하는 회귀를 추가했다. 초기 실패 → 정상 선택 복구는 T2 D-019 결정으로 이 Runtime 검사와 ini 실패 로그로 대체·종결했다. 향후 crouch 지원 시 uncrouch의 CDO 크기/offset 복원은 별도 검증한다.
 
 헤드리스 보고서: `unreal/Golmok/Saved/Automation/Report/index.json`, 로그는 같은 worktree의 `Saved/Logs`에 있다(ignored). 재실행하면 보고서가 대체된다. V-11 전체 완료는 위 GUI 미검증 항목까지 채운 뒤 기록한다.
 
@@ -171,10 +171,33 @@ $wp18Result.tests | ForEach-Object { $_.entries.event.message } | Select-String 
 
 2026-09-27 Astra가 사용자 보안 창 처리 후 L_Dev의1280×720 게임 창에서4종 목록, Quinn→proxy135→proxy110→Manny 교체, 각4종 Space 점프·착지, 잘못된 ID 거절을 확인했다. 엔진 캡처4장(2560×1440)과 로그·검증 범위는 [후속 기록의 GUI 절](../plan/WP-18-followup.md#보안-창-처리-뒤-gui-검증)에 있다. 두 프록시의 기본 구도에서는 발끝이 하단에 잘렸다.
 
-이 결과는 §7 초기 표의 GUI 전부 미실행 상태를 **기초 동작 부분 확인**으로 갱신한다. 이후 §8 Locomotion에서 지속 키 입력·달리기 중 교체·턱/계단/붐 충돌은 물리 자동화로 확인했다. 보행 주기/관절/발 미끄러짐의 시각 검수, 포털 GUI 영상, PIE 재시작, 초기 메시 실패 후 GUI 복구는 아직 실행하지 않았다. 현재 WP-12 컴파일 차단은 해소됐으며 사진 통합6조합은 T1 직접 실행 완료(EXECUTED 6/6, 경고 0)다. T2는 GUI·시각 항목만 남았다. 품질 채점은 V-12에서 별도로 한다.
+이 결과는 §7 초기 표의 GUI 전부 미실행 상태를 **기초 동작 부분 확인**으로 갱신한다. 이후 §8 Locomotion에서 지속 키 입력·달리기 중 교체·턱/계단/붐 충돌은 물리 자동화로 확인했다. T2(2026-09-28)에서 PIE 재시작과 초기 메시 실패 로그 뒤 Quinn 콘솔 선택을 확인했다. 로스터 기본 Manny가 BeginPlay에서 캡슐을 덮으므로 ini만으로 GUI 캡슐 화면은 재현되지 않는다. 오케스트레이터 D-019 결정으로 Runtime 헤드리스 복구 검사와 T2 ini 실패 로그로 대체·종결했다. 보행 주기/관절/발 미끄러짐은 [엔진 입력 드라이버 렌더 근거(실제 키보드 지속 입력·영상 아님)](#11-t2-연속-엔진-렌더-근거-재현-런북-9-보완)를 Fable이 판정하며 실제 키보드 영상·사람 눈 검수는 PC 카드로 인계한다. 현재 WP-12 컴파일 차단은 해소됐으며 사진 통합6조합은 T1 직접 실행 완료(EXECUTED 6/6, 경고 0)다. T2(#39): 엔진 입력 드라이버 렌더 근거·PIE 재시작·콘솔 선택 확인(§11); 잔여 실제 키보드 지속 입력 영상·사람 눈 검수는 PC 카드, 시트 판정은 Fable. 품질 채점은 V-12에서 별도로 한다.
 
 ## 10. 자동 재적용 실패와 Controller 바인딩 (B7 검토)
 
 `CurrentId`는 마지막 성공 선택을 기억한다. 새 캐릭터 폰으로 바뀔 때 `ApplyEntry`가 초기화/자산/캡슐 충돌 등으로 실패하면 실패 메시지만 로그에 남고 이전 ID가 유지된다. 따라서 `list current=proxy135`만으로 **새 폰에 프록시가 적용됐다고 판정하면 안 된다**. 기존 폰의 잘못된 수동 선택은 원자적으로 기존 상태를 유지하므로 이 경우와 구분한다. 재현 시 이전/새 폰·요청 ID·로그와 새 폰의 실제 메시/캡슐/속도를 함께 보고한다. 경로 폰 왕복은 이전 선택을 복원해야 하므로 이 소형 PR에서 ID를 지우거나 default로 바꾸지 않았다. 선택 의도와 적용된 폰/상태를 별도로 노출하는 것은 후속 API 설계 후보다.
 
 `RefreshController`의 0.25초 월드 타이머는 최초 Controller의 지연 생성·Controller 교체를 발견한다. 동일 Controller면 즉시 반환하고, 실제 Pawn 교체는 `OnPossessedPawnChanged` 델리게이트로 받는다. **타이머가 실패한 ApplyEntry를 0.25초마다 재시도하지는 않는다.** 타이머를 첫 바인딩 뒤 끄면 Controller 교체를 놓치며, 엔진 델리게이트로 완전히 대체하는 변경은 별도 수명주기 회귀 검사가 필요하다. 현재는 유지한다. 이 간격은 게임 월드 시간 기준으로 pause/time dilation에 영향을 받으므로 실시간 0.25초 복구 SLA나 성능 개선을 주장하지 않는다.
+
+
+## 11. T2 연속 엔진 렌더 근거 재현 (런북 §9 보완)
+
+**엔진 입력 드라이버 렌더 근거(실제 키보드 지속 입력·영상 아님)**. 이슈 #30의 2026-09-28 결정에 따라 §9의 지속 보행·계단·포털 🟡 근거로만 사용한다. 아래 실제 명령의 두 opt-in 플래그와 D3D12로 실행하면 정적12장 대신 proxy135/proxy110/quinn × 3코스를 실행한다. L_Dev·L_ZoneTest fixture와 마네킹을 먼저 준비하며 §8의 L_Dev 좌표 의존성이 그대로 적용된다. nullrhi 금지, 다른 GUI 세션과 잠금 조율 필요.
+
+출력은 `Saved/Automation/WP18T2Sequence/<캐릭터_courseN_GUID>/`의 원본 PNG·capture.txt다. fixed dt1/60, 코스 기준0.1초마다 게임 뷰포트 캡처 요청, 각 코스6초 이상이다. course0은 걷기3초/달리기3초, course1은 계단 왕복, course2는 포털 왕복이다. 테스트 종료 시 입력과 fixed timestep 설정을 복원한다. PNG를 모두 디코딩해 실제 해상도·프레임 수·인접 sim 간격을 확인하고, 해상도를 manifest에 보충한다. ResX/ResY 요청값을 실제 해상도로 기록하지 않는다.
+
+PR에는 4×3 프레임 JPG 시트 기본 코스당1~2장(리뷰 요청으로 Quinn 달리기·proxy135 하강은 각1장 추가)(긴 변≤1600px·각≤300KB)과 capture.txt만 넣는다. 원본 PNG는 로컬 보관한다. [T2 실행 표와 시트](../plan/WP-18-followup.md#t2-엔진-입력-드라이버-렌더-근거-2026-09-28-06시-utc)를 보며 Fable이 보행 주기·관절·발 미끄러짐을 판정한다. 샘플 시트·고정 sim clock에서 hitch/fps를 추론하지 않는다. WP-18/V-11은 🟡 유지한다.
+
+
+T2 실제 실행 명령(2026-09-28, offscreen):
+
+```powershell
+& 'C:/Program Files/Epic Games/UE_5.8/Engine/Binaries/Win64/UnrealEditor-Cmd.exe' `
+  'C:/Users/user/golmok-astra/wp-13a-sources/unreal/Golmok/Golmok.uproject' `
+  '-ExecCmds=Automation RunTests Golmok.Character.RenderEvidence;Quit' `
+  '-ReportExportPath=C:/Users/user/golmok-astra/wp-13a-sources/unreal/Golmok/Saved/Automation/WP18T2SequenceReport2' `
+  -GolmokCharacterRenderEvidence -GolmokCharacterSequence -d3d12 -RenderOffscreen `
+  -unattended -nosplash -nopause -nosound -ResX=960 -ResY=540
+```
+
+후처리: 최신 완료 GUID 폴더별 PNG를 모두 Pillow로 디코딩하고 manifest 프레임 수와 일치, 크기 단일값1014×550, 인접 elapsed 차이가0.1s±0.002인지 검사했다. `post-processed:` 해상도 줄은 엔진 코드가 아닌 후처리에서 추가했다. `_1`은 전체 프레임 인덱스 `round(i*(N-1)/11)`(i=0..11) 균등12장, `_2`는 elapsed1.1~2.2s 연속12장(걷기 구간만)이다. 추가 `_3`은 Quinn course0 달리기3.1~4.2s, proxy135 course1 하강4.1~5.2s 연속12장이다. 1600×750 캔버스에4×3 배치, 이미지396×220 내 종횡비 유지, 파일명 라벨을 넣고 JPEG quality86/optimize=True로 저장했다. 300000bytes 초과 시 quality를5씩 낮추며, 추가2장은86에서 제한 통과. 원본 PNG는 그대로 로컬 보관한다.
