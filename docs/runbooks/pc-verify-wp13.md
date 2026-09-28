@@ -45,4 +45,4 @@ V-10 GUI는 다른 UE 세션 종료와 GUI 잠금 확인 뒤 수행한다. 낮/�
 | Lighting 프리셋/실내 변경 이벤트 | 현행 공개 상태는 있으나 델리게이트 없음. 이슈 #30에 타 레인 API 요청 |
 | HUD audio: 줄 | Debug 레인 연동 권한/훅 요청, 미구현 |
 | audio.json UFS | 기존 DefaultGame.ini의 ../Config/Golmok 스테이징 사용 |
-| 배포 크레딧 UFS·SoundWave cook | DefaultGame.ini 말미 WP-13 훅으로 경로 등록. 패키징/게임 내 크레딧 노출은 미검증 |
+| 배포 크레딧·SoundWave cook | Audio cook 등록은 WP-05 고정 목록 테스트의 타 레인 계약 확장 후 추가. 크레딧 원본 메타데이터는 기존 UFS의 audio.json에 포함되며 게임 내 표시가 이를 읽도록 후속 구현. 독립 txt는 배포 문서용 생성물이고 별도 UFS에 넣지 않음. 패키징/게임 내 노출 미검증 |

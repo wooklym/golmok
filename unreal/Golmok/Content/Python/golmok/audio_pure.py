@@ -190,7 +190,7 @@ def attribution(data):
             "",
             f"Author: {item['author']}",
             f"Source: {item['source_url']}",
-            f"License: {item['license']} {item['license_url']}",
+            f"License: {item['license']} {item['license_url']}".rstrip(),
             f"Changes: {item['changes']}",
             f"Placeholder: {item['placeholder']}",
             "",
