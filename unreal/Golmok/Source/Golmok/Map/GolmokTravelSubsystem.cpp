@@ -47,6 +47,19 @@ namespace GolmokTravelPrivate
 
 	/** Timer rate > 0 (SetTimer with 0 only clears the handle). */
 	float TimerRate(float Seconds) { return FMath::Max(Seconds, 0.01f); }
+
+	/** ZoneId is known only from the Zone Index: no level-placed actor (an actor spawned from the index counts as none). */
+	bool IsIndexOnlyZone(const UGolmokZoneSubsystem& Zones, const FString& ZoneId)
+	{
+		const AGolmokZone* Zone = Zones.FindZone(ZoneId);
+		return (!Zone || Zone->bSpawnedFromIndex) && Zones.IsZoneInIndex(ZoneId);
+	}
+
+	bool LevelHasGeoOrigin(UWorld* World)
+	{
+		UGolmokGeoSubsystem* Geo = World ? World->GetSubsystem<UGolmokGeoSubsystem>() : nullptr;
+		return Geo && Geo->HasOrigin();
+	}
 } // namespace GolmokTravelPrivate
 
 // ---- lifecycle ------------------------------------------------------------------------------------------------
@@ -138,7 +151,7 @@ double UGolmokTravelSubsystem::RegionDistanceKm(const FString& ZoneId) const
 	FVector CenterUE = FVector::ZeroVector;
 	if (!Entry || !Geo || !Geo->LonLatToLevelUE((Entry->West + Entry->East) * 0.5, (Entry->South + Entry->North) * 0.5, 0.0, CenterUE))
 	{
-		return 0.0; // placed-only zones and levels without a geo origin are always "this region"
+		return 0.0; // placed-only zones are always "this region" (StartTravel refuses index zones in a level without a geo origin)
 	}
 	return GolmokTravelMath::HorizontalDistanceM(GolmokTravelMath::Vec3{CenterUE.X, CenterUE.Y, 0.0}, GolmokTravelMath::Vec3{0.0, 0.0, 0.0})
 		   / 1000.0;
@@ -281,6 +294,19 @@ bool UGolmokTravelSubsystem::StartTravel(
 			LastError = OutMessage;
 			LastErrorSeconds = FPlatformTime::Seconds();
 		}
+		UE_LOG(LogGolmok, Log, TEXT("GolmokTravel: %s"), *OutMessage);
+		return false;
+	}
+	// Without an AGolmokGeoOrigin (L_Dev) an index zone has no place in this level: the geo fallback would build it at the
+	// level origin, and the "another region" rule (index bbox center within MaxRegionDistanceKm of the level origin) cannot
+	// run. Level-placed zones stay reachable.
+	if (!ZoneId.IsEmpty() && GolmokTravelPrivate::IsIndexOnlyZone(*Zones, ZoneId) && !GolmokTravelPrivate::LevelHasGeoOrigin(World))
+	{
+		OutMessage = FString::Printf(
+			TEXT("travel to %s refused: this level has no geo origin (AGolmokGeoOrigin), so a Zone Index zone cannot be placed; only zones placed in the level"),
+			*ZoneId);
+		LastError = OutMessage;
+		LastErrorSeconds = FPlatformTime::Seconds();
 		UE_LOG(LogGolmok, Log, TEXT("GolmokTravel: %s"), *OutMessage);
 		return false;
 	}
@@ -544,16 +570,20 @@ FString UGolmokTravelSubsystem::DescribeList()
 	const TArray<FGolmokZoneIndexEntry>& Entries = Zones->GetIndex().GetEntries();
 	FString Out = FString::Printf(TEXT("golmok.travel list: %d index zones%s"), Entries.Num(),
 		Zones->GetIndex().IsAvailable() ? TEXT("") : TEXT(" (no zone index)"));
+	const bool bNoGeoOrigin = !GolmokTravelPrivate::LevelHasGeoOrigin(World);
 	TSet<FString> Listed;
 	for (const FGolmokZoneIndexEntry& Entry : Entries)
 	{
 		Listed.Add(Entry.Id);
 		const double RegionKm = RegionDistanceKm(Entry.Id);
 		const bool bOtherRegion = MaxRegionDistanceKm > 0.f && RegionKm > static_cast<double>(MaxRegionDistanceKm);
+		// Refused by StartTravel (an interior goes to its parent, whose own line tells).
+		const bool bNoPlace = bNoGeoOrigin && Entry.Kind != EGolmokZoneKind::Interior && GolmokTravelPrivate::IsIndexOnlyZone(*Zones, Entry.Id);
 		Out += FString::Printf(TEXT("\n  %-28s v%-3d %-8s %-10s %-9s \"%s\"%s"), *Entry.Id, Entry.Version,
 			Entry.Kind == EGolmokZoneKind::Interior ? TEXT("interior") : TEXT("exterior"), Save && Save->IsVisited(Entry.Id) ? TEXT("visited") : TEXT("new"),
 			*DistanceText(Entry.Id), *ResolveDisplayName(Entry.Id),
-			bOtherRegion ? TEXT("  [other region: not supported]") : (Entry.Kind == EGolmokZoneKind::Interior ? TEXT("  [-> parent spawn]") : TEXT("")));
+			bNoPlace ? TEXT("  [no geo origin: not supported]")
+					 : (bOtherRegion ? TEXT("  [other region: not supported]") : (Entry.Kind == EGolmokZoneKind::Interior ? TEXT("  [-> parent spawn]") : TEXT(""))));
 	}
 	// Level-placed zones the index does not list (dev levels).
 	for (TActorIterator<AGolmokZone> It(World); It; ++It)

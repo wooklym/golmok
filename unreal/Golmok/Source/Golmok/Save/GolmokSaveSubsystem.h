@@ -16,7 +16,9 @@ class UWorld;
  *
  * Triggers: travel arrival (UGolmokTravelSubsystem::OnTraveled), first visit (a loaded zone's footprint contains the
  * player for the first time; polled every VisitPollSeconds, never per frame), photo saved (WP-12 OnPhotoSaved hook),
- * every AutosaveIntervalSeconds when something changed, world end and FCoreDelegates::OnPreExit (synchronous).
+ * every AutosaveIntervalSeconds when something changed, world end and FCoreDelegates::OnPreExit (synchronous). The
+ * synchronous end saves write a snapshot refreshed at FWorldDelegates::OnWorldBeginTearDown (actors still valid), not the
+ * last poll.
  *
  * Restore (bRestoreOnBeginPlay; the command line switch -GolmokNoRestore turns it off for runbooks / automation): the
  * travel subsystem's OnWorldBeginPlay calls HandleWorldBeginPlay, which loads the visit / photo index and, one tick
@@ -78,8 +80,15 @@ public:
 	/** Apply the spec §3 rules to the slot now (golmok.load). False + message when nothing was restored. */
 	bool Restore(FString& OutMessage);
 
-	/** Delete the slot and clear the in-memory visit / photo index (golmok.save reset). */
+	/**
+	 * Delete the slot and clear the in-memory visit / photo index (golmok.save reset). No automatic write follows until a
+	 * new visit / photo / travel or golmok.save; the zones the player stands in at the reset are no "first visit" until
+	 * the player has left them (else the next poll would write the slot again at once).
+	 */
 	bool ResetSlot(FString& OutMessage);
+
+	/** Stop holding the slot's position (see HoldSlotPosition): golmok.save calls it, an explicit save means "here". */
+	void ReleaseHold(const TCHAR* Why);
 
 	bool HasSave() const;
 	/** Read the slot (nullptr when there is none or it is not a UGolmokSaveGame). */
@@ -103,6 +112,11 @@ public:
 	void SetAutomaticEnabled(bool bEnabled) { bAutomatic = bEnabled; }
 	bool IsAutomaticEnabled() const { return bAutomatic; }
 
+	/** Test hook (Golmok.Save.RoundTrip): run one first-visit / periodic-autosave poll now instead of waiting for the timer. */
+	void PollVisitsNow() { OnVisitPoll(); }
+	/** Zones the player stood in at the last golmok.save reset and has not left yet (no first visit for them). */
+	const TSet<FString>& GetResetPresentZoneIds() const { return ResetPresentZoneIds; }
+
 	FString DescribeStatus() const;
 
 	static UGolmokSaveSubsystem* Get(const UWorld* World);
@@ -125,11 +139,11 @@ private:
 		double YawUE = 0.0;
 	};
 
-	bool TakeSnapshot(UWorld& InWorld);
+	/** bForce: also while the world is tearing down (OnWorldBeginTearDown, before EndPlay: actors are still valid). */
+	bool TakeSnapshot(UWorld& InWorld, bool bForce = false);
 	/** The slot's position / zone become the snapshot and are held (not overwritten by the pawn at the PlayerStart) until a
 	 *  travel arrives or the pawn walks more than HoldReleaseCm from where it stood: a failed / pending restore never loses the save. */
 	void HoldSlotPosition(const UGolmokSaveGame& Save);
-	void ReleaseHold(const TCHAR* Why);
 	static FString LevelNameOf(const UWorld& InWorld);
 	void LoadIndexFromSlot();
 	void OnTraveled(const FString& ZoneId);
@@ -137,6 +151,7 @@ private:
 	void OnVisitPoll();
 	void OnRestoreTick();
 	void OnPreExit();
+	void OnWorldBeginTearDown(UWorld* InWorld);
 	void OnAsyncSaved(const FString& InSlotName, const int32 InUserIndex, bool bSuccess);
 	void MarkDirty() { bDirty = true; }
 
@@ -146,6 +161,7 @@ private:
 	FDelegateHandle TraveledHandle;
 	FDelegateHandle PhotoHandle;
 	FDelegateHandle PreExitHandle;
+	FDelegateHandle TearDownHandle;
 
 	TArray<FGolmokSaveVisit> Visited;
 	TArray<FString> Photos;
@@ -168,6 +184,7 @@ private:
 	bool bHoldAnchorSet = false;
 	bool bRestorePending = false; // restore scheduled, not run yet: no visit saves / autosaves before it
 	bool bSuppressWrites = false; // after golmok.save reset: no automatic write until a new visit / photo / travel or golmok.save
+	TSet<FString> ResetPresentZoneIds; // zones the player stood in at golmok.save reset: no first visit until left (transient)
 	bool bSyncAfterAsync = false; // a sync write happened while an async one was in flight: rewrite once it completes
 	static constexpr double HoldReleaseCm = 200.0;
 };

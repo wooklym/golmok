@@ -43,7 +43,7 @@
 ```
 - [ ] `Golmok.Zone.ManifestV2` `Success`. 의도된 Warning 1줄: `Zone manifest z_synthetic_001: unknown top-level key 'spawn' (schema error for golmok-zone validate).`(v1 + spawn 케이스). 픽스처가 없으면 `[Info] skipped: fixture manifest … missing`(전제 위반).
 - [ ] `Golmok.Travel.Teleport` `Success`. 기대 `[Info]`: `traveling to z_synthetic_001 (zone z_synthetic_001 loaded (pinned)); z_synthetic_001_interior is an interior: going to its parent z_synthetic_001's spawn`, `golmok.travel status: idle; arrivals 1, last z_synthetic_001; …`, `golmok.travel list: 3 index zones` 블록, `traveling to z_synthetic_002 (…)`. 포토 모드 `Enter()`가 거부되면 `[Info] photo refusal not checked: …`(통과는 하지만 §10에 기록). 002는 에셋이 없어 `Zone z_synthetic_002 v1 loaded in x ms: chunks 0/2 (2 wire boxes)…` Warning이 나올 수 있다(V-07과 동일). 타임아웃 케이스의 Warning `GolmokTravel: travel to z_synthetic_001 failed: timeout: z_synthetic_001 not loaded after 0.3 s (state loaded)` 1줄은 의도된 것.
-- [ ] `Golmok.Save.RoundTrip` `Success`. 기대 `[Info]`: `golmok.save: slot golmok_test_wp15a (exists), automatic off, …` 블록, `restore saved position from slot golmok_test_wp15a (…)`, `restore saved zone spawn (version changed) …`, `restore home zone spawn …`. `L_ZoneTest`에 GeoOrigin이 없으면 `[Info] skipped: …`(전제 위반).
+- [ ] `Golmok.Save.RoundTrip` `Success`. 기대 `[Info]`: `golmok.save: slot golmok_test_wp15a (exists), automatic off, …` 블록, `restore saved position from slot golmok_test_wp15a (…)`, `restore saved zone spawn (version changed) …`, `restore home zone spawn …`, 그리고 리셋 단계(R49-1) `slot golmok_test_wp15a deleted; visit / photo index cleared; no first visit for z_synthetic_002 until you leave`(이 단계만 자동 저장을 켜고, 리셋 뒤 방문 폴링이 슬롯을 되살리지 않는지·zone을 나갔다 들어오면 다시 첫 방문·저장되는지 단언). `L_ZoneTest`에 GeoOrigin이 없으면 `[Info] skipped: …`(전제 위반). `[Info] reset / visit poll step skipped: …`가 나오면 002 스폰이 로드된 zone 밖이라는 뜻이므로 §10에 기록.
 - [ ] 네 번째 명령: **31개**(기존 28 + 위 3) 전부 `Success`. `test.ps1`의 `Succeeded:`는 Warning 있는 테스트를 따로 세므로 상태 열로 판정(V-03).
 - [ ] 끝난 뒤 `<Project>\Saved\SaveGames\`에 `golmok_test_wp15a.sav`가 **없고**, 원래 있던 `golmok_auto.sav`의 수정 시각이 바뀌지 않았다.
 
@@ -75,11 +75,17 @@
 
 ## 4. PIE — 세이브·복원(`golmok.load`)
 - [ ] `golmok.save status` → `golmok.save: slot golmok_auto (exists), automatic on, restore on, home '', autosave 60 s, …` + `slot:` 줄(zone·lat/lon·tod·character·visited·photos).
-- [ ] 시간대 `2`(다른 프리셋)로 바꾸고 조금 걸은 뒤 `golmok.save` → `golmok.save: saved golmok_auto (sync, console): zone …, visited …, photos …, position yes`. 위치·방향을 기억(HUD `pos` 줄).
+- [ ] 시간대 `2`(다른 프리셋)로 바꾸고 조금 걸은 뒤 `golmok.save` → 로그 두 줄(서브시스템 로그가 먼저, 콘솔 결과가 뒤):
+  ```
+  GolmokSave: saved golmok_auto (sync, console): zone …, visited …, photos …, position yes
+  golmok.save: saved golmok_auto (sync, console)
+  ```
+  위치·방향을 기억(HUD `pos` 줄). `golmok.save`는 복원 보류(hold)를 먼저 푼다 — 보류 중이었으면 그 앞에 `GolmokSave: saved position no longer held (console save)`가 나오고, 보류 위치가 아니라 **지금 선 자리**가 저장된다(R49-3).
 - [ ] 50 m쯤 걸어가 방향을 돌리고 시간대 `1`로 바꾼 뒤 `golmok.load` → `golmok.load: restore saved position from slot golmok_auto (…): traveling to … [또는 placed at the saved position (no zone) …], tod <프리셋>…` → 저장한 자리·방향(±1 cm·±0.1°)으로 돌아오고 시간대가 저장 때 프리셋으로 즉시 바뀐다.
 - [ ] 캐릭터: `golmok.character <다른 id>` → `golmok.save` → 원래 id로 바꾸고 `golmok.load` → 저장 때 캐릭터로 바뀐다(WP-18 공개 API `SelectCharacter`).
 - [ ] 주기 저장: 가만히 60 s 이상 → 저장 로그 없음. 1 m 넘게 걷고 60 s가 지나면 `saving golmok_auto (async, periodic)` 1회.
 - [ ] PIE 종료 → `GolmokSave: saved golmok_auto (sync, world end): …` 1줄(동기).
+- [ ] 종료 순간 위치(R49-2): 다시 PIE, 몇 m 걸은 뒤 **멈추자마자(1초 안에)** PIE 종료 → 다음 PIE에서 `golmok.load` → 멈춘 그 자리(±1 cm)로 돌아온다(1초 폴링 전 위치가 아님). 종료 저장은 `FWorldDelegates::OnWorldBeginTearDown`(액터가 아직 유효)에서 갱신한 스냅샷을 쓴다. 틀리면 §9 #11.
 
 ## 5. PIE — 사진 색인
 - [ ] P → 촬영(`golmok.photo.shoot`) → 창이 닫히면 `GolmokSave: saving golmok_auto (async, photo): … photos N+1 …`. `golmok.save status`의 `slot:` 줄 photos가 1 늘었다.
@@ -96,17 +102,19 @@
 - [ ] 폴백 ②: `golmok.save status`로 zone을 확인하고, 텍스트 편집 대신 콘솔로 확인하기 어려우면 생략 가능(자동화 `Save.RoundTrip`이 version 99·zone 없음·HomeZoneId를 이미 검증). (선택) `Config/DefaultGame.ini`를 **커밋하지 않는 로컬 수정**으로 `[/Script/Golmok.GolmokSaveSubsystem] HomeZoneId=z_synthetic_001` 넣고, 저장을 `L_Dev`에서 만든 뒤 `L_ZoneTest`로 실행 → `slot golmok_auto was saved in /Game/Golmok/Maps/L_Dev, this level is /Game/Golmok/Maps/L_ZoneTest: position not restored`.
 
 ## 7. 리셋
-- [ ] `golmok.save reset` → `golmok.save reset: slot golmok_auto deleted; visit / photo index cleared`. 곧바로 창을 닫아도 `.sav`가 **다시 생기지 않는다**(리셋 뒤 새 방문·사진·이동·`golmok.save` 전까지 자동 쓰기 억제). 다음 실행 → `restore on begin play: no save in slot golmok_auto: nothing restored (PlayerStart kept)`.
+- [ ] `golmok.save reset` → `golmok.save reset: slot golmok_auto deleted; visit / photo index cleared; no first visit for <지금 선 zone> until you leave`. 곧바로 창을 닫아도 `.sav`가 **다시 생기지 않는다**(리셋 뒤 새 방문·사진·이동·`golmok.save` 전까지 자동 쓰기 억제). 다음 실행 → `restore on begin play: no save in slot golmok_auto: nothing restored (PlayerStart kept)`.
+- [ ] 리셋 뒤 zone 안에 머무르기(R49-1): 다시 실행해 zone 안에서 `golmok.save reset` → 5 s 이상 그 zone 안에서 걷고(`first visit`·`saving golmok_auto` 로그 **없음**, `golmok.save status`에 `reset: no automatic write until …; no first visit for <zone> until you leave` 줄, 탐색기에 `.sav` 없음) → 그 zone footprint 밖으로 나갔다가 다시 들어오면 `GolmokSave: first visit <zone> v1 (entered)` + `saving golmok_auto (async, first visit)`로 평소대로 돌아온다.
 
 ## 8. 기존 런북 불변 확인(샘플)
 - [ ] `L_Dev` PIE: 시작 위치 PlayerStart, `Golmok.Player.Movement` 등 기존 자동화 통과(§2). V-07 §4(발견 로그)·V-03 포털 왕복을 한 번 따라 해 로그가 같다(추가 줄은 `GolmokSave: first visit …`·`saving golmok_auto (async, …)`뿐).
+- [ ] GeoOrigin 없는 레벨(R49-8): `L_Dev` PIE에서 `golmok.travel list` → index zone 행 끝에 `[no geo origin: not supported]`(실내 행은 `[-> parent spawn]`). `golmok.travel z_synthetic_002` → `golmok.travel: ERROR travel to z_synthetic_002 refused: this level has no geo origin (AGolmokGeoOrigin), so a Zone Index zone cannot be placed; only zones placed in the level` — 레벨 원점에 zone이 생기거나 그리로 이동하지 **않는다**(`golmok.zone.list`에 002 `[index]` 행 없음).
 
 ## 9. 컴파일 에러가 나면 — 불확실한 UE 5.8 API와 대안
 | # | 파일 | API | 불확실한 점 | 대안 | PC 결과 |
 |---|---|---|---|---|---|
 | 1 | GolmokTravelSubsystem | `APlayerCameraManager::StartCameraFade(From, To, Duration, Color, bShouldFadeAudio, bHoldWhenFinished)`, `StopCameraFade()` | 인자 순서·`bHoldWhenFinished` 동작(페이드 아웃 뒤 검정 유지) | 페이드 없이 `FadeSeconds=0` 동작(텔레포트만) 또는 `SetManualCameraFade(1.f, FLinearColor::Black, false)` / `(0.f, …)` | |
-| 2 | GolmokSaveSubsystem | `UGameplayStatics::AsyncSaveGameToSlot(USaveGame*, const FString&, int32, FAsyncSaveGameToSlotDelegate)` 콜백 스레드 | 콜백이 게임 스레드에서 오는지(엔진은 게임 스레드로 되돌림으로 알려짐) | 콜백에서 UObject 접근을 `AsyncTask(ENamedThreads::GameThread, …)`로 감싼다 | |
-| 3 | GolmokSaveSubsystem | `FCoreDelegates::OnPreExit` 시점 | 월드·폰이 이미 없을 수 있음 → 스냅샷 캐시로 저장(월드 없음 가정) | 로그 `(sync, pre-exit)` 유무만 기록 | |
+| 2 | GolmokSaveSubsystem | `UGameplayStatics::AsyncSaveGameToSlot(USaveGame*, const FString&, int32, FAsyncSaveGameToSlotDelegate)` 콜백 스레드 | 콜백이 게임 스레드에서 오는지(엔진은 게임 스레드로 되돌림으로 알려짐). **알려진 한계(R49-9)**: 완료 델리게이트는 `CreateUObject`(약한 바인딩)라 PIE 종료로 GameInstance가 해제된 뒤 끝나는 async 쓰기는 `bSyncAfterAsync` 재기록을 못 해, 종료 동기 저장보다 **약 1 s 이내 오래된** async 데이터가 슬롯에 남을 수 있다(종료 직전 이동·방문·사진 저장이 비행 중일 때만) | 콜백에서 UObject 접근을 `AsyncTask(ENamedThreads::GameThread, …)`로 감싼다. 한계가 문제면 `HandleWorldEnd`에서 `PendingAsync > 0`일 때 짧게 대기하는 후속으로(15a 범위 밖) | |
+| 3 | GolmokSaveSubsystem | `FCoreDelegates::OnPreExit` 시점 | 월드·폰이 이미 없을 수 있음 → 스냅샷 캐시로 저장(월드 없음 가정; 캐시는 월드 teardown 시작 때 갱신된 것, #11) | 로그 `(sync, pre-exit)` 유무만 기록 | |
 | 4 | GolmokSaveSubsystem | `GIsAutomationTesting`(`CoreGlobals.h`) | Launcher 빌드에서 에디터 자동화 중 true인지 | 거짓이면 기존 자동화가 개발자 슬롯을 복원·기록 → `test.ps1`에 `-GolmokNoRestore` 추가는 hot-spot 아님(`tools/ue`)이나 PIE 복원은 이미 꺼져 있어 영향은 저장뿐 | |
 | 5 | GolmokSaveSubsystem | `UWorld::RemovePIEPrefix(const FString&)`, `UObject::GetPackage()` | 5.x 정적 함수·접근자 | `World->GetOutermost()->GetName()` + `FString::Replace(TEXT("UEDPIE_0_"), TEXT(""))` | |
 | 6 | GolmokSaveGame | `UPROPERTY(SaveGame, …)`와 `static constexpr int32 CurrentSchemaVersion` in `UCLASS` | UHT 허용 여부 | `SaveGame` 지정자 삭제(필드는 그대로 직렬화), 상수는 `.cpp`의 `namespace` 상수로 | |
@@ -114,6 +122,7 @@
 | 8 | GolmokTravelSubsystem | `APlayerController::SetIgnoreMoveInput(bool)`(카운터) | 짝이 맞지 않으면 이동 불가로 남음 | 로딩 중 입력 차단 줄 2곳 삭제 | |
 | 9 | GolmokPhotoModeSubsystem 훅 | `UCLASS` 끝의 `public:` 뒤 `FGolmokOnPhotoSaved OnPhotoSaved;`(비동적 멀티캐스트) | UHT가 UPROPERTY 없는 델리게이트 멤버를 허용(WP-13 훅과 같은 패턴) | 멤버를 `public` 구역 맨 앞으로 옮기는 것은 hot-spot 규칙상 훅 블록 안에서만 | |
 | 10 | Tests | `FFileHelper::SaveArrayToFile(TArray<uint8>, …)`, `FRotator + FRotator`, `TestNotNull(const T*)` | 오버로드 | `SaveStringToFile(TEXT("png"), …)` | |
+| 11 | GolmokSaveSubsystem | `FWorldDelegates::OnWorldBeginTearDown`(`FWorldEvent`, 인자 `UWorld*`; `UWorld::BeginTearingDown`이 `bIsTearingDown = true` 직후·EndPlay 전에 방송), `TSet::Intersect`·`TSet::Array` | 시그니처·방송 시점(PIE `TeardownPlaySession`·`LoadMap`·`UGameEngine::PreExit`) | 핸들러를 지우면 종료 저장이 마지막 폴링(≤ 1 s) 스냅샷을 쓴다 — 그 경우 §4의 R49-2 확인을 "≤ 1 s 오차"로 기록 | |
 
 ## 10. 결과 기록
 (PC 세션이 채운다: 빌드·자동화 31개·§3~§8 체크, 히치 표, 고친 API 번호·커밋, 설계와 다른 동작.)

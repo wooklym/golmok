@@ -65,7 +65,7 @@
 - 세션 운영: Opus ultracode(구현 → 적대적 검증 1라운드), Workflow 2시간 상한, 브랜치 `claude/wp15a-travel-save`(WP-14a와 병렬), PR draft, 병합은 오케스트레이터(WP-14a 병합 뒤 §4 시간대 API 연결 커밋 추가).
 
 ## 결과
-**15a 🟡 코드 완료·PC V-14 대기**(2026-09-28, 세션 https://claude.ai/code/session_018Tn23KryyZ9XmYXMAa91Mb, 브랜치 `claude/wp15a-travel-save`, PR [#49](https://github.com/wooklym/golmok/pull/49); Opus ultracode — 구현 → 적대적 검증 1라운드(검토 2: 컴파일/API, 스펙/로직) → 확정·유력 결함 반영). 클라우드 게이트: ruff·format OK, pytest **950 passed / 3 skipped**(기준 864 → +86: `test_zone_manifest_v2.py` 63, `test_ue_travel_math.py` 15, 기타), `check_repo.py` OK, `git diff --check` OK. UE 빌드·자동화는 PC(V-14, `runbooks/pc-verify-wp15a.md`).
+**15a 🟡 코드 완료·PC V-14 대기**(2026-09-28, 세션 https://claude.ai/code/session_018Tn23KryyZ9XmYXMAa91Mb, 브랜치 `claude/wp15a-travel-save`, PR [#49](https://github.com/wooklym/golmok/pull/49); Opus ultracode — 구현 → 적대적 검증 1라운드(검토 2: 컴파일/API, 스펙/로직) → 확정·유력 결함 반영). 클라우드 게이트: ruff·format OK, pytest **950 passed / 3 skipped**(기준 864 → +86: `test_zone_manifest_v2.py` 63, `test_ue_travel_math.py` 15, 기타), `check_repo.py` OK, `git diff --check` OK. **리뷰 반영 뒤**(아래 "리뷰 반영", main 4f91133 병합 상태): ruff·format OK, pytest **978 passed / 3 skipped**(main 병합분 +28, 반영 자체는 pytest 추가 없음 — 교차검증할 순수 로직이 없는 UE 수명주기 수정), `check_repo.py` OK, `git diff --check` OK. UE 빌드·자동화는 PC(V-14, `runbooks/pc-verify-wp15a.md`).
 
 ### 구현 요약(스펙 산출물 1~8)
 | # | 산출물 | 구현 |
@@ -82,11 +82,11 @@
 hot-spot·레인: `Build.cs`·`Default*.ini`·GameMode·PlayerController·Character·pyproject·CI·check_repo **미변경**. 훅은 별도 커밋(`[WP-15 hook]` 블록: Photo `OnPhotoSaved`, Debug HUD 줄; 등록부 `CONSOLE_COMMANDS` 3줄·`CONVENTION_FOLDERS += ("Map", "Save")`). Audio/·Characters/·Lighting/ 수정 없음(Characters·Lighting은 공개 API 읽기만). Slate/UMG 없음. `pc-verify-wp12.md` 자동화 총수 28 → 31(등록부 테스트가 요구).
 
 ### 판단(스펙 빈틈, 원칙: v1 호환·기존 자동화/런북 불변·UE 좌표 저장 금지·hot-spot 훅만)
-1. **PIE 자동 복원 끔**(`bRestoreInPIE=False`, Config): 켜 두면 한 번 플레이한 뒤 모든 PIE가 PlayerStart가 아닌 곳에서 시작해 V-03/V-07/V-09/V-10 런북 동작이 바뀐다. 게임(`-game`·패키지)은 스펙대로 복원, PIE는 `golmok.load`. 저장은 PIE에서도 한다.
+1. **PIE 자동 복원 끔**(`bRestoreInPIE=False`, Config): 켜 두면 한 번 플레이한 뒤 모든 PIE가 PlayerStart가 아닌 곳에서 시작해 V-03/V-07/V-09/V-10 런북 동작이 바뀐다. 게임(`-game`·패키지)은 스펙대로 복원, PIE는 `golmok.load`. 저장은 PIE에서도 한다. **Fable 설계 리뷰(R49-6)가 채택**: 기존 PIE 런북의 PlayerStart 결정성 유지, 제품 복원은 standalone/패키지에서 V-14가 확인.
 2. **자동화 중 자동 저장·복원 끔**(`GIsAutomationTesting`): 테스트가 개발자 슬롯을 덮지도, 개발자 슬롯이 테스트를 바꾸지도 않는다. 테스트는 `golmok_test_wp15a` 슬롯.
 3. **세이브에 `LevelName`**(맵 패키지, 좌표 아님) 추가: 슬롯이 하나라 다른 레벨(L_Dev·스파이크 맵)에 위치를 적용하지 않기 위해. 스키마 1 유지(필드 추가·기본값).
 4. **보류(hold)**: 복원 대기·거부·타임아웃 동안 스냅샷의 위치/zone은 슬롯 값을 유지(이동 도착 또는 2 m 넘게 걸으면 해제) — 실패한 복원 뒤 종료 저장이 PlayerStart로 세이브를 덮지 않는다.
-5. **리셋 억제**: `golmok.save reset` 뒤 새 방문·사진·이동·`golmok.save` 전까지 자동 쓰기(종료·pre-exit·비행 중 async 포함) 안 함.
+5. **리셋 억제**: `golmok.save reset` 뒤 새 방문·사진·이동·`golmok.save` 전까지 자동 쓰기(종료·pre-exit·비행 중 async 포함) 안 함. 리셋 때 플레이어가 서 있던 zone(footprint 포함, 로드 여부 무관)은 **나갔다가 다시 들어올 때까지**(또는 다른 쓰기로 억제가 풀릴 때까지) 첫 방문이 아니다 — 그러지 않으면 다음 1 s 폴링이 그 zone을 첫 방문으로 기록하며 억제를 풀고 슬롯을 되살린다(R49-1).
 6. **저장 위치 = 캡슐 중심**, yaw = 영역 ENU 기준(−UE Yaw). 복원은 `TravelToLocation`(같은 선로드·페이드; zone이 비었으면(베이스맵) 즉시 배치).
 7. **실내 저장 위치는 부모 스폰으로**: 실내는 포털이 서브레벨·조명 오버레이를 소유하므로 위치 복원 대상이 아니다(이동과 같은 규칙).
 8. **폴백 yaw 0 = zone-local yaw_deg 0**(zone +x 방향, UE Yaw = 루트 yaw). 스폰 위치 = 발, 도착 = 발 + 캡슐 반높이 + 2 cm(sweep 없음).
@@ -99,6 +99,7 @@ hot-spot·레인: `Build.cs`·`Default*.ini`·GameMode·PlayerController·Charac
 15. **시간대**: WP-14a 전이라 `PresetName`만(`ApplyPreset(Name, true)`). **WP-14a 병합 뒤 `{Minutes, Mode}` 연결 커밋 필요**(필드 추가, 스키마 1 유지).
 16. **z_synthetic_002 스폰을 파사드 B 창 앞(x −8)** 으로: 002는 충돌 에셋이 없어 L_ZoneTest `Zone_Ground`(001 중심 ±200 m)가 받쳐야 하는데 문 앞(x +5)은 205 m로 평면 밖.
 17. z_synthetic_001 매니페스트는 생성기가 없는 WP-02 픽스처라 `zm.load → zm.save`로 v2 키를 넣었다(원본 바이트 왕복 확인).
+18. **GeoOrigin 없는 레벨에서 Zone Index zone 이동 거절**(R49-8): '다른 지역' 규칙은 **레벨 원점 기준 반경 `MaxRegionDistanceKm` 30 km의 휴리스틱**(index bbox 중심까지의 수평 거리)이지 실제 지역 경계가 아니다. `AGolmokGeoOrigin`이 없는 레벨(`L_Dev`)에서는 그 거리도 잴 수 없고, index zone을 스폰하면 geo 폴백이 zone을 레벨 원점에 세워 엉뚱한 곳으로 이동하므로, 레벨에 배치되지 않은(index에서만 아는) zone은 `travel to <id> refused: this level has no geo origin (AGolmokGeoOrigin), …`로 거절한다(`LastError`·HUD·콘솔). 레벨에 배치된 zone은 원점 없이도 이동 가능(종전 동작). `golmok.travel list`는 그 행에 `[no geo origin: not supported]`. 순수 헤더 `CheckTravel`은 바꾸지 않고 서브시스템에서 거절(g++ 교차검증 대상 불변).
 
 ### 적대적 검증(1라운드, 검토 에이전트 2)
 | # | 지적 | 판정 | 조치 |
@@ -114,6 +115,19 @@ hot-spot·레인: `Build.cs`·`Default*.ini`·GameMode·PlayerController·Charac
 | A9 | 헤더의 `FTimerHandle`이 PCH에만 기대 | 유력(빌드) | 두 헤더에 `TimerManager.h` |
 | A10 | `UEToEnu(const Vec3& UE)`가 전역 네임스페이스 `UE`를 가림 | 유력(낮음) | 인자 이름 `PointUE` |
 | — | API 시그니처(카메라 페이드·Async 저장·타이머·JSON·Printf 형식), UHT, C4458, unity 이름, 전치·부호·경위도 인자 순서, v1 호환, hot-spot/레인, 개인정보 | 확인(문제 없음) | — |
+
+### 리뷰 반영 (PR #49 R49-1~9, 2026-09-28)
+오케스트레이터가 브랜치를 인수해 클라우드 Opus 5.5 세션(https://claude.ai/code/session_01NM6uvZaVMgq5SUSaduHD1Z)에서 반영. UE 컴파일은 PC(V-14).
+- **R49-1 (A)** `Save/GolmokSaveSubsystem.cpp` `ResetSlot`·`OnVisitPoll`: 리셋 때 플레이어를 포함하는 zone id를 `ResetPresentZoneIds`(transient)에 기록하고, 억제 중에는 그 zone을 첫 방문으로 기록하지 않으며(억제 해제·저장 없음) 플레이어가 footprint를 벗어나면 집합에서 뺀다(다른 쓰기로 억제가 풀리면 비움) → 판단 5. `golmok.save reset`·`status` 메시지에 `no first visit for <zone> until you leave`. 자동화 `Golmok.Save.RoundTrip`에 단계 추가(자동 저장 켠 리셋 → 직접·타이머 폴링 → `HasSave()` false, 나갔다 들어오면 첫 방문·재저장; 테스트 훅 `PollVisitsNow()`·`GetResetPresentZoneIds()`), 런북 §2·§7. 곁들여 `OnAsyncSaved`가 리셋 뒤 비행 중이던 쓰기를 `SlotName`이 아니라 그 쓰기의 `InSlotName`으로 지운다(테스트 정리가 슬롯 이름을 되돌린 뒤에도 개발자 슬롯을 지우지 않게).
+- **R49-2 (B)** `OnWorldBeginTearDown`·`TakeSnapshot(bForce)`: `FWorldDelegates::OnWorldBeginTearDown`(EndPlay 전, 액터 유효)에서 `bIsTearingDown` 게이트를 우회해 스냅샷을 갱신 → 월드 종료·pre-exit 동기 저장이 최대 1 s 묵은 폴링 스냅샷이 아니라 종료 순간 위치를 쓴다. 런북 §4 확인 줄, §9 #11(API 불확실·대안).
+- **R49-3 (B)** `GolmokSaveConsole::CmdSave`: `SaveNow` 전에 `ReleaseHold("console save")`(명시 저장은 "여기"). `ReleaseHold`를 public으로. 런북 §4.
+- **R49-4 (B)** `docs/spec/zone-manifest.md` §3.3: `z_synthetic_002` 스폰을 픽스처·생성기·런북과 같은 `[−8, 3, −0.16]` yaw 90(파사드 B 유리창 앞)으로 정정.
+- **R49-5 (B)** 런북 §4: `golmok.save` 기대 로그를 두 줄(`GolmokSave: saved … : zone …`, `golmok.save: saved golmok_auto (sync, console)`)로.
+- **R49-6 (설계)** 판단 1 `bRestoreInPIE=False` — Fable 설계 리뷰 채택(판단 1에 기록; DECISIONS 기록은 병합 때 오케스트레이터).
+- **R49-7 (병합)** WP-14a(#51) 병합 뒤 main 병합·자동화 수 32·시간대 `{Minutes, Mode}` 연결 커밋 — 이 반영 범위 밖(오케스트레이터).
+- **R49-8 (note)** `Map/GolmokTravelSubsystem.cpp` `StartTravel`·`DescribeList`: GeoOrigin 없는 레벨에서 index zone 이동 거절 → 판단 18, 런북 §8.
+- **R49-9 (note)** 런북 §9 #2: PIE GameInstance 해제 뒤 끝나는 async 쓰기는 완료 델리게이트가 약한 바인딩이라 재기록되지 않아, 종료 동기 저장보다 약 1 s 이내 오래된 데이터가 남을 수 있음(알려진 한계).
+- R49-10 (note, 디스크 v1 경로는 `ManifestV2` 텍스트 변형으로만 커버): 허용, 조치 없음.
 
 ### 병합 시 반영(오케스트레이터)
 - STATUS WP-15a 행: `🟡 코드 완료·PC V-14 대기(2026-09-28, PR #49): manifest schema 2(spawn·display_name, v1 호환)·GolmokTravelSubsystem(golmok.travel)·GolmokSaveSubsystem(golmok_auto, 복원 ①②③, PIE 자동 복원 끔)·순수 헤더 2(g++)·자동화 +3(31) · 런북 runbooks/pc-verify-wp15a.md · WP-14a 병합 뒤 시간대 {Minutes, Mode} 연결 커밋 필요` + V-14 행(대기).

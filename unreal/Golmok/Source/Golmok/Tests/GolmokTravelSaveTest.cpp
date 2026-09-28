@@ -13,7 +13,10 @@
 // 3); a synchronous save -> LoadSlot keeps lat / lon of the pawn exactly (1 mm after LonLatToLevelUE), the ENU yaw
 // (= -UE Yaw), the visit and both photo entries; Restore puts the pawn back within 1 mm / 0.01 deg and drops the photo
 // whose file is missing; a saved version 99 restores to the zone's spawn (rule 2); a zone that is gone restores
-// nothing without HomeZoneId and to HomeZoneId's spawn with it (rule 2). The slot and the test photo are deleted at the end.
+// nothing without HomeZoneId and to HomeZoneId's spawn with it (rule 2). Then, with automatic saves on for that step only,
+// golmok.save reset while standing in a zone (R49-1): direct and timer visit polls neither record that zone nor recreate
+// the slot; after leaving it and coming back it is a first visit again and the slot is written. The slot and the test
+// photo are deleted at the end.
 //
 // Headless: .\tools\ue\test.ps1 -Filter Golmok.Travel   /   -Filter Golmok.Save
 
@@ -550,6 +553,66 @@ namespace GolmokTravelSaveTest
 				}
 				Test->TestEqual(TEXT("home restore arrived at z_synthetic_002"), Travel->GetLastArrivedZoneId(), FString(SecondZoneId));
 				CheckArrival(Travel, Zones->FindZone(SecondZoneId), Pawn, TEXT("home spawn"));
+				return Next(4);
+			}
+
+			case 4: // R49-1: golmok.save reset while standing in a zone, automatic saves on: the visit poll must not recreate the slot
+			{
+				const FVector Here = Pawn ? Pawn->GetActorLocation() : FVector::ZeroVector;
+				const AGolmokZone* Present = Pawn ? Zones->FindLoadedZoneAt(FVector2D(Here.X, Here.Y)) : nullptr;
+				if (!Present)
+				{
+					Test->AddInfo(TEXT("reset / visit poll step skipped: the pawn stands in no loaded zone"));
+					return Cleanup(Save);
+				}
+				PresentZoneId = Present->ZoneId;
+				PresentLocation = Here;
+				Save->SetAutomaticEnabled(true); // this step only: Cleanup puts back the original (off under automation)
+				FString Message;
+				Save->ResetSlot(Message);
+				Test->AddInfo(Message);
+				Test->TestFalse(TEXT("reset: slot deleted"), Save->HasSave());
+				Test->TestTrue(FString::Printf(TEXT("reset: %s held as the zone the player stands in"), *PresentZoneId),
+					Save->GetResetPresentZoneIds().Contains(PresentZoneId));
+				Save->PollVisitsNow();
+				Save->PollVisitsNow();
+				Test->TestFalse(FString::Printf(TEXT("reset: %s is no first visit while the player stays"), *PresentZoneId), Save->IsVisited(PresentZoneId));
+				Test->TestEqual(TEXT("reset: the visit poll started no write"), Save->GetPendingAsyncSaves(), 0);
+				Test->TestFalse(TEXT("reset: the visit poll did not recreate the slot"), Save->HasSave());
+				return Next(5);
+			}
+
+			case 5: // the timer polls too; then leave the zone and come back: a normal first visit again
+			{
+				if (Elapsed < Save->VisitPollSeconds * 2.5)
+				{
+					return false;
+				}
+				Test->TestFalse(TEXT("reset: the timer visit polls did not recreate the slot"), Save->HasSave());
+				Test->TestFalse(FString::Printf(TEXT("reset: %s still no first visit"), *PresentZoneId), Save->IsVisited(PresentZoneId));
+				if (!Pawn)
+				{
+					Test->AddError(TEXT("no player pawn for the leave / re-enter step"));
+					return Cleanup(Save);
+				}
+				Pawn->SetActorLocation(PresentLocation + FVector(1.0e6, 0.0, 0.0), false, nullptr, ETeleportType::TeleportPhysics); // 10 km away
+				Save->PollVisitsNow();
+				Test->TestFalse(TEXT("left the zone: no longer held"), Save->GetResetPresentZoneIds().Contains(PresentZoneId));
+				Test->TestFalse(TEXT("left the zone: still no slot"), Save->HasSave() || Save->GetPendingAsyncSaves() > 0);
+				Pawn->SetActorLocation(PresentLocation, false, nullptr, ETeleportType::TeleportPhysics);
+				Save->PollVisitsNow();
+				Test->TestTrue(FString::Printf(TEXT("re-entered: %s is a first visit"), *PresentZoneId), Save->IsVisited(PresentZoneId));
+				Test->TestTrue(TEXT("re-entered: the slot is written again"), Save->GetPendingAsyncSaves() > 0 || Save->HasSave());
+				return Next(6);
+			}
+
+			case 6: // the re-entry's async write completes
+			{
+				if (Save->GetPendingAsyncSaves() > 0)
+				{
+					return Fail(TEXT("async save after the re-entry did not complete"), 10.0, Elapsed) ? Cleanup(Save) : false;
+				}
+				Test->TestTrue(TEXT("re-entered: slot exists"), Save->HasSave());
 				return Cleanup(Save);
 			}
 
@@ -576,7 +639,9 @@ namespace GolmokTravelSaveTest
 
 		FString OriginalSlot;
 		FString OriginalHome;
+		FString PresentZoneId;
 		FVector SavedLocation = FVector::ZeroVector;
+		FVector PresentLocation = FVector::ZeroVector;
 		bool bOriginalAutomatic = false;
 		bool bArmed = false;
 	};

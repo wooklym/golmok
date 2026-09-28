@@ -46,6 +46,33 @@ namespace GolmokSavePrivate
 	}
 
 	APawn* PlayerPawn(UWorld* World) { return World ? UGameplayStatics::GetPlayerPawn(World, 0) : nullptr; }
+
+	/** Ids of the zones whose footprint contains the level XY point, loaded or not (the manifest footprint is enough). */
+	TSet<FString> ZonesContaining(UWorld& World, const FVector2D& PointUE)
+	{
+		TSet<FString> Out;
+		for (TActorIterator<AGolmokZone> It(&World); It; ++It)
+		{
+			AGolmokZone* Zone = *It;
+			if (Zone && !Zone->ZoneId.IsEmpty() && Zone->FootprintContains(PointUE))
+			{
+				Out.Add(Zone->ZoneId);
+			}
+		}
+		return Out;
+	}
+
+	/** "; no first visit for a, b until you leave" (sorted) or empty: golmok.save reset / status. */
+	FString ResetPresentNote(const TSet<FString>& ZoneIds)
+	{
+		if (ZoneIds.Num() == 0)
+		{
+			return FString();
+		}
+		TArray<FString> Sorted = ZoneIds.Array();
+		Sorted.Sort();
+		return FString::Printf(TEXT("; no first visit for %s until you leave"), *FString::Join(Sorted, TEXT(", ")));
+	}
 } // namespace GolmokSavePrivate
 
 // ---- lifecycle ------------------------------------------------------------------------------------------------
@@ -58,12 +85,15 @@ void UGolmokSaveSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	AutosaveIntervalSeconds = FMath::Max(0.f, AutosaveIntervalSeconds);
 	VisitPollSeconds = FMath::Max(0.1f, VisitPollSeconds);
 	PreExitHandle = FCoreDelegates::OnPreExit.AddUObject(this, &UGolmokSaveSubsystem::OnPreExit);
+	TearDownHandle = FWorldDelegates::OnWorldBeginTearDown.AddUObject(this, &UGolmokSaveSubsystem::OnWorldBeginTearDown);
 }
 
 void UGolmokSaveSubsystem::Deinitialize()
 {
 	FCoreDelegates::OnPreExit.Remove(PreExitHandle);
 	PreExitHandle.Reset();
+	FWorldDelegates::OnWorldBeginTearDown.Remove(TearDownHandle);
+	TearDownHandle.Reset();
 	HandleWorldEnd(ActiveWorld.Get());
 	Super::Deinitialize();
 }
@@ -91,6 +121,7 @@ void UGolmokSaveSubsystem::HandleWorldBeginPlay(UWorld& InWorld)
 	LastSaveSeconds = FPlatformTime::Seconds(); // the periodic autosave never fires before an interval has passed
 	bHoldSlotPosition = false;
 	bRestorePending = false;
+	ResetPresentZoneIds.Reset(); // a golmok.save reset in another world: that world's zones say nothing about this one
 	LoadIndexFromSlot();
 
 	if (UGolmokTravelSubsystem* Travel = UGolmokTravelSubsystem::Get(&InWorld))
@@ -176,7 +207,8 @@ void UGolmokSaveSubsystem::HandleWorldEnd(UWorld* InWorld)
 	{
 		return;
 	}
-	// Synchronous: an async write during shutdown can be lost (spec §3). The snapshot is refreshed while actors exist.
+	// Synchronous: an async write during shutdown can be lost (spec §3). The snapshot was refreshed at OnWorldBeginTearDown
+	// (actors still valid; TakeSnapshot keeps it once bIsTearingDown is set) or is taken now when the world is not tearing down.
 	if (bAutomatic && Snapshot.bValid && !bSuppressWrites)
 	{
 		SaveNow(/*bSync*/ true, TEXT("world end"));
@@ -206,13 +238,24 @@ void UGolmokSaveSubsystem::OnPreExit()
 	}
 }
 
+void UGolmokSaveSubsystem::OnWorldBeginTearDown(UWorld* InWorld)
+{
+	// PIE stop, map change and game exit set bIsTearingDown here, before EndPlay and before the game instance shuts down:
+	// the pawn is still valid, so the world-end / pre-exit sync save writes where the player is now, not the last poll
+	// (up to VisitPollSeconds old).
+	if (InWorld && InWorld == ActiveWorld.Get())
+	{
+		TakeSnapshot(*InWorld, /*bForce*/ true);
+	}
+}
+
 // ---- snapshot / index -----------------------------------------------------------------------------------------
 
-bool UGolmokSaveSubsystem::TakeSnapshot(UWorld& InWorld)
+bool UGolmokSaveSubsystem::TakeSnapshot(UWorld& InWorld, bool bForce)
 {
-	if (InWorld.bIsTearingDown)
+	if (InWorld.bIsTearingDown && !bForce)
 	{
-		return Snapshot.bValid; // keep the last one: actors are going away
+		return Snapshot.bValid; // keep the last one (refreshed at OnWorldBeginTearDown): actors are going away
 	}
 	APawn* Pawn = GolmokSavePrivate::PlayerPawn(&InWorld);
 	if (!Pawn)
@@ -421,8 +464,9 @@ void UGolmokSaveSubsystem::OnAsyncSaved(const FString& InSlotName, const int32 I
 	}
 	if (bSuppressWrites)
 	{
-		// golmok.save reset happened while this write was in flight: delete what it wrote.
-		UGameplayStatics::DeleteGameInSlot(SlotName, GolmokSavePrivate::UserIndex);
+		// golmok.save reset happened while this write was in flight: delete what it wrote (its own slot: SlotName may have
+		// been switched back since, e.g. by a test's cleanup, and must never lose the developer's slot).
+		UGameplayStatics::DeleteGameInSlot(InSlotName, InUserIndex);
 		bSaveQueued = false;
 		bSyncAfterAsync = false;
 		return;
@@ -521,11 +565,24 @@ void UGolmokSaveSubsystem::OnVisitPoll()
 	}
 	// First visit (spec §3): every loaded zone whose footprint contains the player, not only the winning one.
 	const FVector2D PlayerXY(Snapshot.LocationUE.X, Snapshot.LocationUE.Y);
+	// After golmok.save reset the zones the player stood in are no first visit (it would end the reset and write the slot
+	// again at once) until the player has left them, or until another event (photo / travel / golmok.save) wrote the slot.
+	if (ResetPresentZoneIds.Num() > 0)
+	{
+		if (bSuppressWrites)
+		{
+			ResetPresentZoneIds = ResetPresentZoneIds.Intersect(GolmokSavePrivate::ZonesContaining(*World, PlayerXY));
+		}
+		else
+		{
+			ResetPresentZoneIds.Reset();
+		}
+	}
 	TArray<TPair<FString, int32>> Entered;
 	for (TActorIterator<AGolmokZone> It(World); It; ++It)
 	{
 		AGolmokZone* Zone = *It;
-		if (Zone && Zone->IsLoaded() && !IsVisited(Zone->ZoneId) && Zone->FootprintContains(PlayerXY))
+		if (Zone && Zone->IsLoaded() && !IsVisited(Zone->ZoneId) && !ResetPresentZoneIds.Contains(Zone->ZoneId) && Zone->FootprintContains(PlayerXY))
 		{
 			Entered.Emplace(Zone->ZoneId, Zone->Version);
 		}
@@ -706,8 +763,19 @@ bool UGolmokSaveSubsystem::ResetSlot(FString& OutMessage)
 	bSyncAfterAsync = false;
 	bSuppressWrites = true; // world end / pre-exit / in-flight async must not recreate the slot
 	ReleaseHold(TEXT("slot reset"));
-	OutMessage = FString::Printf(TEXT("slot %s %s; visit / photo index cleared"), *SlotName,
-		!bHad ? TEXT("was empty") : (bDeleted ? TEXT("deleted") : TEXT("could NOT be deleted")));
+	// The zones the player stands in now: the next visit poll must not record them as a first visit (that ends the reset
+	// and writes the slot again); OnVisitPoll drops each one once the player has left it.
+	ResetPresentZoneIds.Reset();
+	if (UWorld* World = ActiveWorld.Get())
+	{
+		if (const APawn* Pawn = GolmokSavePrivate::PlayerPawn(World))
+		{
+			const FVector PawnAt = Pawn->GetActorLocation();
+			ResetPresentZoneIds = GolmokSavePrivate::ZonesContaining(*World, FVector2D(PawnAt.X, PawnAt.Y));
+		}
+	}
+	OutMessage = FString::Printf(TEXT("slot %s %s; visit / photo index cleared%s"), *SlotName,
+		!bHad ? TEXT("was empty") : (bDeleted ? TEXT("deleted") : TEXT("could NOT be deleted")), *GolmokSavePrivate::ResetPresentNote(ResetPresentZoneIds));
 	LastMessage = OutMessage;
 	return bDeleted;
 }
@@ -720,6 +788,11 @@ FString UGolmokSaveSubsystem::DescribeStatus() const
 		AutosaveIntervalSeconds, PendingAsync, CompletedSaves);
 	Out += FString::Printf(TEXT("\n  memory: visited %d, photos %d, dirty %s, last restore: %s"), Visited.Num(), Photos.Num(),
 		bDirty ? TEXT("yes") : TEXT("no"), ANSI_TO_TCHAR(GolmokTravelMath::RestoreName(LastRestoreDecision)));
+	if (bSuppressWrites)
+	{
+		Out += FString::Printf(TEXT("\n  reset: no automatic write until a new visit / photo / travel / golmok.save%s"),
+			*GolmokSavePrivate::ResetPresentNote(ResetPresentZoneIds));
+	}
 	if (const UGolmokSaveGame* Save = LoadSlot())
 	{
 		Out += FString::Printf(TEXT("\n  slot: schema %d, saved %s, zone %s v%d, position %s (lat %.7f lon %.7f h %.2f, yaw %.1f), tod %s, character %s, visited %d, photos %d"),
@@ -760,6 +833,7 @@ namespace GolmokSaveConsole
 		if (Sub.IsEmpty())
 		{
 			FString Message;
+			Save->ReleaseHold(TEXT("console save")); // an explicit save means "here", not the held slot position
 			const bool bOk = Save->SaveNow(/*bSync*/ true, TEXT("console"), &Message);
 			UE_LOG(LogGolmok, Log, TEXT("golmok.save: %s%s"), bOk ? TEXT("") : TEXT("ERROR "), *Message);
 		}

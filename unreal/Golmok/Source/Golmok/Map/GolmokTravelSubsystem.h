@@ -26,13 +26,15 @@ enum class EGolmokTravelState : uint8
  * Zone travel (WP-15a, D-014; docs/plan/WP-15-zone-travel-save.md §2). World subsystem, game and PIE worlds only.
  *
  * TravelToZone(ZoneId): ① refused while photo mode is active, while any portal is not Idle (transition / interior), while
- * a travel runs, for a zone neither in the level nor in the Zone Index, and for a zone farther than MaxRegionDistanceKm
- * from the level origin ("another region", not supported in 15a). An interior zone is redirected to its parent
- * exterior's spawn. ② RequestLoad(ZoneId, pinned, Travel) (spawns the actor from the index when needed) ③ camera fade
- * out (APlayerCameraManager::StartCameraFade, no asset) ④ poll IsLoaded() every PollSeconds, at most
- * TravelTimeoutSeconds (failure: pin released, fade in, LastError) ⑤ AGolmokZone::GetSpawnUE (manifest spawn or the
- * spec §1 fallback) ⑥ SetActorLocation without sweep (+ capsule half height) and the controller yaw ⑦ next tick the
- * pin is released (distance rules take over, never RequestUnload) ⑧ fade in, OnTraveled(ZoneId).
+ * a travel runs, for a zone neither in the level nor in the Zone Index, for a zone farther than MaxRegionDistanceKm
+ * from the level origin ("another region", not supported in 15a; a radius heuristic around the level origin) and for a
+ * Zone Index zone (not placed in the level) when the level has no AGolmokGeoOrigin (nowhere to put it, no region test).
+ * An interior zone is redirected to its parent exterior's spawn. ② RequestLoad(ZoneId, pinned, Travel) (spawns the
+ * actor from the index when needed) ③ camera fade out (APlayerCameraManager::StartCameraFade, no asset) ④ poll
+ * IsLoaded() every PollSeconds, at most TravelTimeoutSeconds (failure: pin released, fade in, LastError)
+ * ⑤ AGolmokZone::GetSpawnUE (manifest spawn or the spec §1 fallback) ⑥ SetActorLocation without sweep (+ capsule half
+ * height) and the controller yaw ⑦ next tick the pin is released (distance rules take over, never RequestUnload)
+ * ⑧ fade in, OnTraveled(ZoneId).
  *
  * The save subsystem restores through TravelToLocation() (same preload / fade, a saved destination instead of the spawn).
  * Console: golmok.travel <zone_id> | golmok.travel list | golmok.travel status. HUD line "travel: ..." (debug HUD).

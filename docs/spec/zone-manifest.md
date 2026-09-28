@@ -119,7 +119,7 @@ v2는 v1에 **선택** 최상위 키 두 개만 더한다. 나머지 규칙은 v
 - **호환**: 파서(UE C++·Python)는 **v1과 v2를 모두** 읽는다. `golmok-zone init`은 v2를 쓰고(`--display-name`·`--spawn`을 주지 않으면 그 키는 없다), `golmok-zone bump`는 원본의 `schema_version`·`spawn`·`display_name`을 **그대로** 둔다. 버전 폴더는 불변이므로 **모든 zone을 일괄로 v2로 올리지 않는다** — v2 필드가 필요한 zone만 새 version을 만들 때 손으로 올린다.
 - **v2 예약 없음**: WP-17 `sounds[]`는 v2에 넣지 않는다(채택되면 v3).
 - Zone Index는 **schema_version 1 그대로**다(§6). index 항목에는 `display_name`·`spawn`이 없고, 지도·이동은 index의 `id`·`bbox_wgs84`·`version`으로 목록을 만든 뒤 그 zone의 manifest를 읽어 얻는다.
-- 합성 픽스처(`Content/Golmok/Zones/`, `tools/tests/fixtures/zones/`)는 v2다: `z_synthetic_001` spawn `[5, 4, 0]` yaw 90 "합성 골목 1", `z_synthetic_001_interior` `[0, −1.5, 0]` yaw 90 "합성 골목 1 실내", `z_synthetic_002` `[5, 3, 0.1]` yaw 90 "합성 골목 2"(모두 문·파사드를 바라본다).
+- 합성 픽스처(`Content/Golmok/Zones/`, `tools/tests/fixtures/zones/`)는 v2다: `z_synthetic_001` spawn `[5, 4, 0]` yaw 90 "합성 골목 1", `z_synthetic_001_interior` `[0, −1.5, 0]` yaw 90 "합성 골목 1 실내", `z_synthetic_002` `[−8, 3, −0.16]` yaw 90 "합성 골목 2"(파사드 B 유리창 남쪽 2 m: 002는 충돌 에셋이 없어 `L_ZoneTest`의 `Zone_Ground`(001 중심 ±200 m)가 받치는 곳이어야 해서 문 앞이 아니다). 모두 문·파사드를 바라본다.
 
 ## 4. 좌표 변환 수치 예제 (WP-04 C++ 단위테스트 기준값)
 
