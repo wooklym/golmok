@@ -1,10 +1,10 @@
 # V-11 — WP-18a 캐릭터 로스터 PC 검증
 
 2026-09-27 갱신 · 작성/헤드리스·standalone GUI 기초 검증 ChatGPT Astra · 지속 보행/품질 후속 Fable PC. 이번 #22/#23은 사용자 지시로 Astra 자체 리뷰·병합.
-**코드·UE 헤드리스/4종 지속 이동·지형 통과, GUI 교체·점프 확인. 보행 영상·WP-12 통합/룩 검증 대기.** D-018 ①은 승인됐으며 설계 PR → 구현 PR 병합 뒤 아래 남은 항목을 진행한다. V-12 채점과 대조군/야간 실패의 판정은 [WP-18](../plan/WP-18-characters.md)의 최신 절차를 따른다.
+**코드·UE 헤드리스/4종 지속 이동·지형 통과, GUI 교체·점프 확인. WP-12 통합 T1 직접 실행 완료(EXECUTED 6/6, 경고 0). T2는 GUI·시각 항목만 대기.** D-018 ①은 승인됐으며 설계 PR → 구현 PR 병합 뒤 아래 남은 항목을 진행한다. V-12 채점과 대조군/야간 실패의 판정은 [WP-18](../plan/WP-18-characters.md)의 최신 절차를 따른다.
 계약과 D-018은 [WP-18](../plan/WP-18-characters.md), 아트 판단은 [컨셉](../design/character-concept.md), 예산은 [제작 사양](../research/11-character-pipeline.md).
 
-병합 후 최신 진행: [WP-18 후속 기록](../plan/WP-18-followup.md). **2026-09-28 T1 기준 WP-12는 main에 병합돼 컴파일 차단이 해소됐고 PhotoIntegration 6조합을 실행할 수 있다.** 아래 초기 결과표는 당시 기록이며 후속 기록을 우선한다. [V-09 PR #27](https://github.com/wooklym/golmok/pull/27)의 26/26·6조합 통과 보고는 [2차]이며 Astra T2 직접 검증 결과와 구분한다.
+병합 후 최신 진행: [WP-18 후속 기록](../plan/WP-18-followup.md). **2026-09-28 T1 기준 WP-12는 main에 병합돼 컴파일 차단이 해소됐고 PhotoIntegration 6조합을 T1에서 직접 실행 완료했다(EXECUTED 6/6, 경고 0). T2는 GUI·시각 항목만 남았다.** 아래 초기 결과표는 당시 기록이며 후속 기록을 우선한다. [V-09 PR #27](https://github.com/wooklym/golmok/pull/27)의 26/26·6조합 통과 보고는 [2차]이며 Astra T1 직접 검증 결과는 후속 기록의 T1 절에 있다.
 
 ## 1. 안전한 별도 PC 작업 폴더
 
@@ -101,7 +101,7 @@ V-12는 실제 Zone, 없으면 L_Basemap_Yeonnam에서 **프록시2종 × PBR/5.
 | `UAnimBlueprintGeneratedClass::TargetSkeleton` 및 Quinn 같은 ABP | 확인(로드·설정) | Runtime 실제 Quinn mesh/ABP 경로 성공. 시각 애니메이션 품질은 GUI 대기 |
 | `FScopedMovementUpdate`, `CacheInitialMeshOffset` | 확인 | include는 `Engine/ScopedMovementUpdate.h`. 메시를 부모 캡슐 이동 전에 갱신한 뒤 proxy offsetZ−69와 고정 발밑 단언 성공 |
 | `OverlapBlockingTestByChannel`+capsule response | 확인(자동화) | 인공 천장과 합성 실내 표식 아래 확대 거절, 여유 지점 성공. 실제 포털과 교체3회 왕복 통과. GUI는 §4 대기 |
-| WP-12 실제 포토 actor/time dilation·앵커 | main API 확인, T2 직접 재실행 대기 | `Enter()`에서 PauseMode 래치, `FGolmokPhotoRestoreState::PauseMode` 읽기 가능. Enter 전에 모드를 쓰는 기존 테스트 유지. V-09 PR #27 6조합 성공은 [2차] |
+| WP-12 실제 포토 actor/time dilation·앵커 | T1 직접 실행 완료(EXECUTED 6/6, 경고 0), T2는 GUI·시각 항목만 | `Enter()`에서 PauseMode 래치, `FGolmokPhotoRestoreState::PauseMode` 읽기 가능. Enter 전에 모드를 쓰는 기존 테스트 유지. T1 main d37720e에서 6조합 직접 실행 성공 |
 | `FScreenshotRequest::RequestScreenshot(..., FIntRect(), true)` | 5.8.3 헤더 확인·기존 D3D12 실행 확인 | 설치 `Engine/Source/Runtime/Engine/Public/UnrealClient.h:219`, 6번째 인자는 `bInRestrictToGameViewport`. §8 후속 렌더 12장 저장 기록. 실제 PNG 크기 확인은 매 실행 필요 |
 | `USpringArmComponent::IsCollisionFixApplied()` | 5.8.3 헤더 확인·기존 Locomotion 실행 확인 | `Engine/Source/Runtime/Engine/Classes/GameFramework/SpringArmComponent.h:132`, const 공개 API. 벽 앞 true/열린 방향 false를 검사함. 애니메이션 품질 판단과 별개 |
 | `FApp::CanEverRender()` | 5.8.3 헤더 확인 | `Engine/Source/Runtime/Core/Public/Misc/App.h:400`. 명시적 렌더 요청에 nullrhi를 같이 주면 RenderEvidence가 오류로 거절함. true가 캡처 성공을 보장하지 않으므로 파일 저장·디코딩을 따로 확인 |
@@ -150,7 +150,8 @@ V-12는 실제 Zone, 없으면 L_Basemap_Yeonnam에서 **프록시2종 × PBR/5.
 # test.ps1 예외 후 진단용(통과 판정을 자동으로 덮어쓰지 않음)
 $wp18Result = Get-Content unreal/Golmok/Saved/Automation/Report/index.json -Raw -Encoding UTF8 | ConvertFrom-Json
 $wp18Result | Select-Object succeeded,succeededWithWarnings,failed,notRun,totalDuration
-$wp18Result.tests | Select-Object fullTestPath,state,entries
+$wp18Result.tests | Select-Object fullTestPath,state
+$wp18Result.tests | ForEach-Object { $_.entries.event.message } | Select-String '^(EXECUTED|NOT EXECUTED)'
 ```
 
 ```powershell
@@ -170,7 +171,7 @@ $wp18Result.tests | Select-Object fullTestPath,state,entries
 
 2026-09-27 Astra가 사용자 보안 창 처리 후 L_Dev의1280×720 게임 창에서4종 목록, Quinn→proxy135→proxy110→Manny 교체, 각4종 Space 점프·착지, 잘못된 ID 거절을 확인했다. 엔진 캡처4장(2560×1440)과 로그·검증 범위는 [후속 기록의 GUI 절](../plan/WP-18-followup.md#보안-창-처리-뒤-gui-검증)에 있다. 두 프록시의 기본 구도에서는 발끝이 하단에 잘렸다.
 
-이 결과는 §7 초기 표의 GUI 전부 미실행 상태를 **기초 동작 부분 확인**으로 갱신한다. 이후 §8 Locomotion에서 지속 키 입력·달리기 중 교체·턱/계단/붐 충돌은 물리 자동화로 확인했다. 보행 주기/관절/발 미끄러짐의 시각 검수, 포털 GUI 영상, PIE 재시작, 초기 메시 실패 후 GUI 복구는 아직 실행하지 않았다. 현재 WP-12 컴파일 차단은 해소됐으며 T2에서 사진 통합6조합을 직접 재실행한다. 품질 채점은 V-12에서 별도로 한다.
+이 결과는 §7 초기 표의 GUI 전부 미실행 상태를 **기초 동작 부분 확인**으로 갱신한다. 이후 §8 Locomotion에서 지속 키 입력·달리기 중 교체·턱/계단/붐 충돌은 물리 자동화로 확인했다. 보행 주기/관절/발 미끄러짐의 시각 검수, 포털 GUI 영상, PIE 재시작, 초기 메시 실패 후 GUI 복구는 아직 실행하지 않았다. 현재 WP-12 컴파일 차단은 해소됐으며 사진 통합6조합은 T1 직접 실행 완료(EXECUTED 6/6, 경고 0)다. T2는 GUI·시각 항목만 남았다. 품질 채점은 V-12에서 별도로 한다.
 
 ## 10. 자동 재적용 실패와 Controller 바인딩 (B7 검토)
 

@@ -20,7 +20,7 @@
 
 namespace GolmokCharacterRosterMovementTest
 {
-	// L_Dev floor, alley walls and stairs coordinates depend on golmok/setup_dev_level.py.
+	// L_Dev floor, alley walls and stairs coordinates depend on _build_course() in golmok/setup_dev_level.py.
 	// Regenerate the map and review these course positions when that fixture changes.
 	const TCHAR* Map = TEXT("/Game/Golmok/Maps/L_Dev");
 	const TCHAR* Ids[] = {TEXT("manny"), TEXT("quinn"), TEXT("proxy135"), TEXT("proxy110")};

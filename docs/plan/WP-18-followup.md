@@ -136,3 +136,24 @@ Python 게이트: ruff check·format(98파일), pytest **694 passed / 63 skipped
 ### 병합 시 반영 (T1, 완성 문안)
 
 > WP-18 T1: PR #24 리뷰 B1·B2·B4·B5·B6·B7 보완. PathRoundTrip XY 복귀 단언과 fixture 의존성, 필터 경고 판정·엔진 API·CurrentId 잔류/Controller 폴링 한계를 기록했다. main d37720e 기준 UE5.8.3 빌드 및 전체 26 Success(경고7, failed0/notRun0); RenderEvidence NOT EXECUTED 1개를 제외한 실제 실행25개. Character.PhotoIntegration 6조합 직접 실행 성공. V-11 GUI 잔여·시각 품질과 V-12는 대기. T2 GUI는 V-09 §7 세션 종료·PC 가용성·GUI 잠금 확인 후 진행한다.
+
+
+### PR #32 리뷰 수정 — STATUS 칸별 완성 문안
+
+대상은 main `c7fa296`의 `docs/plan/STATUS.md` 병행 트랙 WP-18·V-11 행이다. 공유 파일은 직접 수정하지 않는다.
+
+1. **WP-18 / 인계 메모**, 아래 문장을 교체한다.
+   - 원문: 전체 UE 실행 23(실행 21 Success + 설계상 NOT EXECUTED 2: `PhotoIntegration`·`RenderEvidence`).
+   - 대체: 전체 UE 26(실행 25 Success + NOT EXECUTED 1: `RenderEvidence`, main d37720e 기준 T1 [#32](https://github.com/wooklym/golmok/pull/32)).
+2. **WP-18 / 인계 메모**, 아래 문구를 교체한다.
+   - 원문: 비블로킹 B1~B8은 Astra T1(`astra-tasks.md`).
+   - 대체: B1·B2·B4~B7은 T1 [#32](https://github.com/wooklym/golmok/pull/32) 반영, B3·B8은 #24 병합 세션 처리.
+3. **V-11 / 인계 메모**, 대기 문장을 교체하고 통과 목록 끝에 한 문장을 추가한다.
+   - 원문: 대기: GUI 보행·계단·포털 영상, PIE 재시작, 포토 통합(`PhotoIntegration` 6조합 — WP-12 병합됐으므로 V-09 전체 실행에서 함께), hitch/VRAM.
+   - 대체: 대기: GUI 보행·계단·포털 영상, PIE 재시작, hitch/VRAM.
+   - 통과 목록 추가: `PhotoIntegration` 6조합(proxy135/proxy110/quinn × GamePause/TimeDilation) T1 직접 실행 EXECUTED·경고 0([#32](https://github.com/wooklym/golmok/pull/32)).
+4. **상태 칸 유지**: WP-18 `🟡 설계·코드·후속 자동화 완료·PC GUI 영상 대기`, V-11 `🟡 헤드리스·물리/입력 자동화 통과·GUI 영상 대기`. GUI·시각 품질이 남아 있으므로 🟢로 바꾸지 않는다.
+
+리뷰 A1은 합성 경로 Y를 300cm로 옮겨 원래 폰의 Y=0과 전 구간 분리했다. 따라서 경로 마지막 위치에 폰을 방치하는 회귀가 XY 복원 단언에 걸린다. B-D2의 런북 네 곳은 T1 EXECUTED 6/6·경고0, T2 GUI·시각 대기로 통일했고, B-D4는 entries 배열의 메시지를 펼쳐 EXECUTED/NOT EXECUTED를 출력한다. 비블로킹 A2 자연 종료/Restart 주석, A3 `_build_course()` 위치도 반영했다.
+
+수정 뒤 검증(main c7fa296): ruff check/format98·pytest **694 passed/63 skipped**(42.21s)·check_repo·diff --check 통과. UE5.8.3 빌드 성공(20.82s), 전체 **26 Success(19+경고7), failed0/notRun0**, 165.38s. 경로 XY 분리 후 PathRoundTrip 통과, PhotoIntegration EXECUTED6/6 유지, RenderEvidence NOT EXECUTED1은 실제 실행 수에서 제외. 증거 `Saved/Automation/T1/review-report.json`, `review-build.txt`(ignored).
