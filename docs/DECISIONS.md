@@ -190,6 +190,7 @@
 - 규모: C++ 1~2 WP + 지도 텍스처 도구 + manifest `spawn` 필드(스키마 변경). 의존: WP-09(V-07), D-008, D-012.
 - 리스크: 정사영상 파생물의 공개 배포 조건, 위치기반서비스 해당 여부 → 공개 전 자문 [확인 필요].
 - **결정(2026-09-25, 사용자)**: 승인. 시점은 제안대로 Phase 2 초반(Zone 2곳 이상·V-07 통과 뒤), D-017과 묶어 **WP-15**로 등록(착수 조건 충족 시 스펙 작성).
+- **오케스트레이터 결정(D-019, 2026-09-28)**: WP-15를 **15a**(manifest schema 2 `spawn`/`display_name`, `Map/GolmokTravelSubsystem` 이동, `Save/` 자동 세이브·복원 — 표현 방식·실제 zone 수와 무관, 합성 zone 2곳으로 테스트, 클라우드 Opus ultracode, PC 검증 V-14)와 **15b**(정사영상 지도 텍스처·Slate 지도 UI·미니맵 — D-009 정사영상 파생물 배포 조건 자문·실제 zone 뒤 PC)로 나누어 15a를 WP-14a와 병렬로 시작한다. 근거: V-07 통과, 클라우드 유휴 방지(소유자 지적 2026-09-28), 15a는 브랜치로 되돌릴 수 있음. 스펙 [`plan/WP-15-zone-travel-save.md`](plan/WP-15-zone-travel-save.md). WP-17 `sounds[]`는 v2에 넣지 않는다(V-10·첫 현장 녹음 뒤 결정).
 
 ### D-015 | 승인 | 2026-09-25 — 시간대 폴리시·날씨
 - 제안: 시간대 폴리시(night look-dev, [`design/lighting-night-lookdev.md`](design/lighting-night-lookdev.md))는 **Phase 1 M7**, 날씨(비)는 **Phase 2 중반, D-010 결과를 본 뒤**. 눈은 제외.
@@ -227,4 +228,5 @@
 - **기존 대기 항목 재분류(2026-09-27)**: PR #28·#32 병합 승인 → 불필요(#28은 승인과 함께 병합, #32는 (A) 수정 확인 뒤 바로 병합) · WP-13 CC0 7개 청취 후보 → **오케스트레이터 결정: 채택**(무료·되돌릴 수 있음; 13b에서 반입해 V-10 청취, 소유자가 청취 뒤 교체 가능), BOOM 등 유료 구매 → 소유자(보류) · D-010 환경 표현 방식 → 스파이크 결과로 오케스트레이터(Fable)가 결정·기록, 유료 도구·데이터 구매가 얽힌 부분만 소유자 · night look-dev 조합(D-010 뒤) → 오케스트레이터 · V-08 §5 채점 → Fable이 PC 결과로 채점·기록하되 소유자 채점이 있으면 그것이 우선; GASP·Fab EULA·UE EULA 원문 확인은 소유자 사실 확인 항목 유지 · D-018 ②(예산·계약·권리·출시 표시)·사운드 라이브러리·모션 팩 구매·저장소 공개 범위·라이선스 → 소유자 유지.
 - **오케스트레이터 결정(D-019, 2026-09-28)**: WP-13 Audio↔Lighting/Debug 레인 간 연결은 **이벤트 방식**(Tick 관측 아님) — `AGolmokTimeOfDay`에 네이티브 멀티캐스트 델리게이트 `OnPresetChanged(FName, bool)`·`OnInteriorChanged(bool)`, `UGolmokDebugSubsystem`에 HUD 줄 공급자 `ExtraHudLineProviders`를 Astra가 `[WP-13 hook]` 블록으로 추가하도록 허용(Lighting/·Debug/ 4파일 한정, 별도 커밋, 추가만). 근거: 크로스페이드가 프리셋 전환과 같은 프레임에 시작해야 하고 WP-13 스펙 5번이 델리게이트 구독을 요구하며, Debug/가 Audio/를 include하지 않게 하려면 등록 방식이 맞다. Freesound 계정 가입은 약관 동의라 소유자 항목으로 남기고 13b는 플레이스홀더로 진행(이슈 #30 2026-09-28 00:13Z).
 - **오케스트레이터 결정(D-019, 2026-09-28)**: WP-14 분할(14a 먼저, 14b는 D-010 뒤) — D-015 항목 참조.
+- **오케스트레이터 결정(D-019, 2026-09-28)**: WP-15 분할(15a 이동·세이브·스키마 먼저, 15b 지도 UI는 D-009 자문·실제 zone 뒤) — D-014 항목 참조.
 - 반영: CLAUDE.md 소유자 규칙, DEVELOPMENT-PLAN §2·§7.6, AGENTS.md 소유자 원칙·§10, STATUS 결정 필요, astra-tasks.md.
