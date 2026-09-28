@@ -157,3 +157,5 @@ Python 게이트: ruff check·format(98파일), pytest **694 passed / 63 skipped
 리뷰 A1은 합성 경로 Y를 300cm로 옮겨 원래 폰의 Y=0과 전 구간 분리했다. 따라서 경로 마지막 위치에 폰을 방치하는 회귀가 XY 복원 단언에 걸린다. B-D2의 런북 네 곳은 T1 EXECUTED 6/6·경고0, T2 GUI·시각 대기로 통일했고, B-D4는 entries 배열의 메시지를 펼쳐 EXECUTED/NOT EXECUTED를 출력한다. 비블로킹 A2 자연 종료/Restart 주석, A3 `_build_course()` 위치도 반영했다.
 
 수정 뒤 검증(main c7fa296): ruff check/format98·pytest **694 passed/63 skipped**(42.21s)·check_repo·diff --check 통과. UE5.8.3 빌드 성공(20.82s), 전체 **26 Success(19+경고7), failed0/notRun0**, 165.38s. 경로 XY 분리 후 PathRoundTrip 통과, PhotoIntegration EXECUTED6/6 유지, RenderEvidence NOT EXECUTED1은 실제 실행 수에서 제외. 증거 `Saved/Automation/T1/review-report.json`, `review-build.txt`(ignored).
+
+반영 기록(2026-09-28, 병합 세션 Fable, §7.6 4단계): 위 칸별 문안 1~4는 `WP-18: 병합 시 반영 (Fable)` 커밋으로 STATUS 병행 트랙 WP-18·V-11 행, ROADMAP 1.3 캐릭터 행, `astra-tasks.md` T1, `WP-18-characters.md` 리뷰 절에 옮겼다. D-019(2026-09-27)에 따라 소유자 승인 없이 병합했다.
