@@ -270,4 +270,8 @@ private:
 	TObjectPtr<UMaterialInterface> WireMaterial;
 
 	FTimerHandle CollisionTimer;
+	// [WP-13 hook] World-local extension providers, registered by Audio.
+public:
+	TArray<TFunction<FString()>> ExtraHudLineProviders;
+	// [/WP-13 hook]
 };

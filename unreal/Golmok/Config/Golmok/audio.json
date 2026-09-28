@@ -1,0 +1,164 @@
+{
+  "schema_version": 1,
+  "master_volume": 0.7,
+  "crossfade_seconds": 2.0,
+  "crossfade_seconds_by_state": {
+    "outdoor_day": 2.0,
+    "outdoor_night": 2.0,
+    "interior": 2.0
+  },
+  "pause_policy": "mute",
+  "assets": {
+    "outdoor_day": {
+      "source": "src/ambience/outdoor_day.wav",
+      "asset": "/Game/Golmok/Audio/ambience/SW_outdoor_day.SW_outdoor_day",
+      "title": "outdoor_day synthetic placeholder",
+      "author": "Golmok procedural generator",
+      "license": "project-generated",
+      "license_url": "",
+      "source_url": "https://github.com/wooklym/golmok/blob/main/tools/scripts/make_placeholder_audio.py",
+      "changes": "Deterministic filtered noise/tone; not a field recording.",
+      "placeholder": true,
+      "loop": true,
+      "gain": 0.25,
+      "seed": 1300,
+      "verified": "2026-09-28"
+    },
+    "outdoor_night": {
+      "source": "src/ambience/outdoor_night.wav",
+      "asset": "/Game/Golmok/Audio/ambience/SW_outdoor_night.SW_outdoor_night",
+      "title": "outdoor_night synthetic placeholder",
+      "author": "Golmok procedural generator",
+      "license": "project-generated",
+      "license_url": "",
+      "source_url": "https://github.com/wooklym/golmok/blob/main/tools/scripts/make_placeholder_audio.py",
+      "changes": "Deterministic filtered noise/tone; not a field recording.",
+      "placeholder": true,
+      "loop": true,
+      "gain": 0.18,
+      "seed": 1301,
+      "verified": "2026-09-28"
+    },
+    "interior": {
+      "source": "src/ambience/interior.wav",
+      "asset": "/Game/Golmok/Audio/ambience/SW_interior.SW_interior",
+      "title": "interior synthetic placeholder",
+      "author": "Golmok procedural generator",
+      "license": "project-generated",
+      "license_url": "",
+      "source_url": "https://github.com/wooklym/golmok/blob/main/tools/scripts/make_placeholder_audio.py",
+      "changes": "Deterministic filtered noise/tone; not a field recording.",
+      "placeholder": true,
+      "loop": true,
+      "gain": 0.15,
+      "seed": 1302,
+      "verified": "2026-09-28"
+    },
+    "asphalt": {
+      "source": "src/footsteps/asphalt.wav",
+      "asset": "/Game/Golmok/Audio/footsteps/SW_asphalt.SW_asphalt",
+      "title": "asphalt synthetic placeholder",
+      "author": "Golmok procedural generator",
+      "license": "project-generated",
+      "license_url": "",
+      "source_url": "https://github.com/wooklym/golmok/blob/main/tools/scripts/make_placeholder_audio.py",
+      "changes": "Deterministic filtered noise/tone; not a field recording.",
+      "placeholder": true,
+      "loop": false,
+      "gain": 0.5,
+      "seed": 1303,
+      "verified": "2026-09-28"
+    },
+    "tile": {
+      "source": "src/footsteps/tile.wav",
+      "asset": "/Game/Golmok/Audio/footsteps/SW_tile.SW_tile",
+      "title": "tile synthetic placeholder",
+      "author": "Golmok procedural generator",
+      "license": "project-generated",
+      "license_url": "",
+      "source_url": "https://github.com/wooklym/golmok/blob/main/tools/scripts/make_placeholder_audio.py",
+      "changes": "Deterministic filtered noise/tone; not a field recording.",
+      "placeholder": true,
+      "loop": false,
+      "gain": 0.5,
+      "seed": 1304,
+      "verified": "2026-09-28"
+    },
+    "stairs": {
+      "source": "src/footsteps/stairs.wav",
+      "asset": "/Game/Golmok/Audio/footsteps/SW_stairs.SW_stairs",
+      "title": "stairs synthetic placeholder",
+      "author": "Golmok procedural generator",
+      "license": "project-generated",
+      "license_url": "",
+      "source_url": "https://github.com/wooklym/golmok/blob/main/tools/scripts/make_placeholder_audio.py",
+      "changes": "Deterministic filtered noise/tone; not a field recording.",
+      "placeholder": true,
+      "loop": false,
+      "gain": 0.5,
+      "seed": 1305,
+      "verified": "2026-09-28"
+    },
+    "landing": {
+      "source": "src/footsteps/landing.wav",
+      "asset": "/Game/Golmok/Audio/footsteps/SW_landing.SW_landing",
+      "title": "landing synthetic placeholder",
+      "author": "Golmok procedural generator",
+      "license": "project-generated",
+      "license_url": "",
+      "source_url": "https://github.com/wooklym/golmok/blob/main/tools/scripts/make_placeholder_audio.py",
+      "changes": "Deterministic filtered noise/tone; not a field recording.",
+      "placeholder": true,
+      "loop": false,
+      "gain": 0.6,
+      "seed": 1306,
+      "verified": "2026-09-28"
+    }
+  },
+  "ambience": {
+    "outdoor_day": "outdoor_day",
+    "outdoor_night": "outdoor_night",
+    "interior": "interior"
+  },
+  "preset_states": {
+    "overcast_morning": "outdoor_day",
+    "clear_noon": "outdoor_day",
+    "golden_evening": "outdoor_day",
+    "night": "outdoor_night"
+  },
+  "footsteps": {
+    "walk_stride_cm": 70.0,
+    "run_stride_cm": 110.0,
+    "run_threshold_cm_s": 250.0,
+    "teleport_threshold_cm": 300.0,
+    "pitch_range": [
+      0.95,
+      1.05
+    ],
+    "volume_range": [
+      0.9,
+      1.0
+    ],
+    "sets": {
+      "default": [
+        "asphalt"
+      ],
+      "asphalt": [
+        "asphalt"
+      ],
+      "tile": [
+        "tile"
+      ],
+      "stairs": [
+        "stairs"
+      ]
+    },
+    "surface_sets": {
+      "0": "default",
+      "1": "asphalt",
+      "2": "tile",
+      "3": "stairs"
+    },
+    "landing": "landing"
+  }
+}
