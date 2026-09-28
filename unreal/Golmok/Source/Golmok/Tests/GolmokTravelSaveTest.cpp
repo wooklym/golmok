@@ -13,7 +13,11 @@
 // 3); a synchronous save -> LoadSlot keeps lat / lon of the pawn exactly (1 mm after LonLatToLevelUE), the ENU yaw
 // (= -UE Yaw), the visit and both photo entries; Restore puts the pawn back within 1 mm / 0.01 deg and drops the photo
 // whose file is missing; a saved version 99 restores to the zone's spawn (rule 2); a zone that is gone restores
-// nothing without HomeZoneId and to HomeZoneId's spawn with it (rule 2). Then, with automatic saves on for that step only,
+// nothing without HomeZoneId and to HomeZoneId's spawn with it (rule 2). Time of day (WP-14a, skipped with an Info line
+// without an AGolmokTimeOfDay with keyframes): Clock mode at 13:07 is saved as {Minutes 787, Mode Clock} and restored
+// instantly after changing both (minutes within 0.01, mode Clock); a saved Realtime restores the mode only (the clock is
+// the PC's local time, not the saved minutes); a saved Fixed 16:40 restores time and mode; a save from before WP-14a
+// (Minutes -1) falls back to ApplyPreset(PresetName). Then, with automatic saves on for that step only,
 // golmok.save reset while standing in a zone (R49-1): direct and timer visit polls neither record that zone nor recreate
 // the slot; after leaving it and coming back it is a first visit again and the slot is written. The slot and the test
 // photo are deleted at the end.
@@ -36,6 +40,8 @@
 #include "Geo/GolmokGeoSubsystem.h"
 #include "HAL/FileManager.h"
 #include "Kismet/GameplayStatics.h"
+#include "Lighting/GolmokClockMath.h"
+#include "Lighting/GolmokTimeOfDay.h"
 #include "Map/GolmokTravelMath.h"
 #include "Map/GolmokTravelSubsystem.h"
 #include "Misc/FileHelper.h"
@@ -60,6 +66,9 @@ namespace GolmokTravelSaveTest
 	const TCHAR* MissingPhotoRel = TEXT("Screenshots/Golmok/photo/wp15a_missing.png");
 	constexpr double TravelWaitSeconds = 25.0; // TravelTimeoutSeconds (20) + margin
 	constexpr double ToleranceCm = 0.1;        // 1 mm
+	constexpr float TodClockMinutes = 787.f;   // 13:07, saved in Clock mode
+	constexpr float TodFixedMinutes = 1000.f;  // 16:40, saved in Fixed mode
+	constexpr float TodMinutesTolerance = 0.01f;
 
 	/** Expected standing location / yaw for a zone's spawn (what UGolmokTravelSubsystem::Arrive computes). */
 	bool ExpectedArrival(AGolmokZone& Zone, APawn* Pawn, FVector& OutLocation, float& OutYaw)
@@ -446,6 +455,19 @@ namespace GolmokTravelSaveTest
 				Save->NotePhoto(MissingPhotoRel);
 				Save->NoteVisit(SecondZoneId, 1, TEXT("test"));
 
+				// WP-14a time of day: Clock mode at 13:07 (instant) is what the save below must keep.
+				AGolmokTimeOfDay* Tod = AGolmokTimeOfDay::Find(World);
+				bTodReady = Tod && Tod->EnsurePresets() && Tod->GetCycleTimes().Num() > 0;
+				if (bTodReady)
+				{
+					Tod->SetClockMode(EGolmokClockMode::Clock);
+					Tod->SetTimeOfDay(TodClockMinutes, /*bInstant*/ true);
+				}
+				else
+				{
+					Test->AddInfo(TEXT("time-of-day steps skipped: no AGolmokTimeOfDay with keyframes in the PIE world"));
+				}
+
 				PC->SetControlRotation(FRotator(0.0, 37.5, 0.0));
 				SavedLocation = Pawn->GetActorLocation();
 				if (!Test->TestTrue(TEXT("SaveNow(sync)"), Save->SaveNow(/*bSync*/ true, TEXT("test"), &Message)))
@@ -473,6 +495,16 @@ namespace GolmokTravelSaveTest
 				Test->TestNotNull(TEXT("visit kept"), Slot->FindVisit(SecondZoneId));
 				Test->TestTrue(TEXT("both photo entries kept"), Slot->Photos.Contains(TestPhotoRel) && Slot->Photos.Contains(MissingPhotoRel));
 				Test->TestFalse(TEXT("SavedAtUtc set"), Slot->SavedAtUtc.IsEmpty());
+				if (bTodReady)
+				{
+					Test->TestTrue(FString::Printf(TEXT("tod minutes %.3f saved (13:07)"), Slot->TimeOfDay.Minutes),
+						FMath::IsNearlyEqual(Slot->TimeOfDay.Minutes, TodClockMinutes, TodMinutesTolerance));
+					Test->TestEqual(TEXT("tod mode saved as Clock"), static_cast<int32>(Slot->TimeOfDay.Mode), static_cast<int32>(EGolmokClockMode::Clock));
+					Test->TestEqual(TEXT("tod preset name kept (nearest keyframe)"), Slot->TimeOfDay.PresetName, Tod->CurrentPreset.ToString());
+					// Change both before the restore: Fixed at 05:00.
+					Tod->SetClockMode(EGolmokClockMode::Fixed);
+					Tod->SetTimeOfDay(300.f, /*bInstant*/ true);
+				}
 				Test->AddInfo(Save->DescribeStatus());
 
 				// Move away and restore rule 1.
@@ -486,6 +518,14 @@ namespace GolmokTravelSaveTest
 				Test->AddInfo(Message);
 				Test->TestTrue(TEXT("rule 1: saved position"), Save->GetLastRestoreDecision() == GolmokTravelMath::ERestore::SavedPosition);
 				Test->TestEqual(TEXT("missing photo dropped"), Save->GetPhotos().Num(), 1);
+				if (bTodReady)
+				{
+					// Restored in the same frame (no clock tick in between) and instantly.
+					Test->TestEqual(TEXT("restore: tod mode Clock"), static_cast<int32>(Tod->GetClockMode()), static_cast<int32>(EGolmokClockMode::Clock));
+					Test->TestTrue(FString::Printf(TEXT("restore: tod minutes %.3f = 13:07"), Tod->GetTimeOfDayMinutes()),
+						FMath::IsNearlyEqual(Tod->GetTimeOfDayMinutes(), TodClockMinutes, TodMinutesTolerance));
+					Test->TestFalse(TEXT("restore: tod jump is instant (no transition)"), Tod->IsTransitioning());
+				}
 				return Next(1);
 			}
 
@@ -508,11 +548,25 @@ namespace GolmokTravelSaveTest
 				}
 				Slot->ZoneId = ExteriorZoneId;
 				Slot->ZoneVersion = 99;
+				if (bTodReady)
+				{
+					// Realtime: only the mode is restored; the clock is the PC's local time, not the saved 01:40.
+					Slot->TimeOfDay.Mode = static_cast<uint8>(EGolmokClockMode::Realtime);
+					Slot->TimeOfDay.Minutes = 100.f;
+				}
 				UGameplayStatics::SaveGameToSlot(Slot, Save->SlotName, 0);
 				FString Message;
 				Test->TestTrue(TEXT("restore (rule 2, version 99) starts"), Save->Restore(Message));
 				Test->AddInfo(Message);
 				Test->TestTrue(TEXT("rule 2: saved zone spawn"), Save->GetLastRestoreDecision() == GolmokTravelMath::ERestore::SavedZoneSpawn);
+				if (AGolmokTimeOfDay* Tod = bTodReady ? AGolmokTimeOfDay::Find(World) : nullptr)
+				{
+					Test->TestEqual(TEXT("restore: tod mode Realtime"), static_cast<int32>(Tod->GetClockMode()), static_cast<int32>(EGolmokClockMode::Realtime));
+					const double FromLocal = GolmokClockMath::CircularDistance(Tod->GetTimeOfDayMinutes(), Tod->RealtimeTargetMinutes());
+					Test->TestTrue(FString::Printf(TEXT("restore: realtime clock %.3f is the local time (%.3f min off), saved minutes ignored"),
+									   Tod->GetTimeOfDayMinutes(), FromLocal),
+						FromLocal < GolmokClockMath::ResyncMinutes);
+				}
 				return Next(2);
 			}
 
@@ -533,15 +587,46 @@ namespace GolmokTravelSaveTest
 				}
 				Slot->ZoneId = TEXT("z_gone_zone");
 				Slot->ZoneVersion = 1;
+				AGolmokTimeOfDay* Tod = bTodReady ? AGolmokTimeOfDay::Find(World) : nullptr;
+				if (Tod)
+				{
+					// Fixed 16:40 (the time of day is applied even when no position is restored).
+					Slot->TimeOfDay.Mode = static_cast<uint8>(EGolmokClockMode::Fixed);
+					Slot->TimeOfDay.Minutes = TodFixedMinutes;
+				}
 				UGameplayStatics::SaveGameToSlot(Slot, Save->SlotName, 0);
 				FString Message;
 				Save->HomeZoneId.Reset();
 				Test->TestFalse(TEXT("zone gone, no HomeZoneId: nothing restored"), Save->Restore(Message));
 				Test->TestTrue(TEXT("rule 3"), Save->GetLastRestoreDecision() == GolmokTravelMath::ERestore::None);
+				FName LegacyPreset;
+				if (Tod)
+				{
+					Test->TestEqual(TEXT("restore: tod mode Fixed"), static_cast<int32>(Tod->GetClockMode()), static_cast<int32>(EGolmokClockMode::Fixed));
+					Test->TestTrue(FString::Printf(TEXT("restore: tod minutes %.3f = 16:40"), Tod->GetTimeOfDayMinutes()),
+						FMath::IsNearlyEqual(Tod->GetTimeOfDayMinutes(), TodFixedMinutes, TodMinutesTolerance));
+					// A save from before WP-14a: default {Minutes -1, Mode 0} + a cycle preset other than the current one.
+					for (const FName& Name : Tod->GetCycle())
+					{
+						if (Name != Tod->CurrentPreset)
+						{
+							LegacyPreset = Name;
+							break;
+						}
+					}
+					Slot->TimeOfDay = FGolmokSaveTimeOfDay();
+					Slot->TimeOfDay.PresetName = LegacyPreset.ToString();
+					UGameplayStatics::SaveGameToSlot(Slot, Save->SlotName, 0);
+				}
 				Save->HomeZoneId = SecondZoneId;
 				Test->TestTrue(TEXT("zone gone, HomeZoneId set: restore starts"), Save->Restore(Message));
 				Test->AddInfo(Message);
 				Test->TestTrue(TEXT("rule 2: home zone spawn"), Save->GetLastRestoreDecision() == GolmokTravelMath::ERestore::HomeZoneSpawn);
+				if (Tod && !LegacyPreset.IsNone())
+				{
+					Test->TestEqual(TEXT("legacy save (Minutes -1): preset applied by name"), Tod->CurrentPreset.ToString(), LegacyPreset.ToString());
+					Test->TestEqual(TEXT("legacy save: mode stays Fixed"), static_cast<int32>(Tod->GetClockMode()), static_cast<int32>(EGolmokClockMode::Fixed));
+				}
 				return Next(3);
 			}
 
@@ -644,6 +729,7 @@ namespace GolmokTravelSaveTest
 		FVector PresentLocation = FVector::ZeroVector;
 		bool bOriginalAutomatic = false;
 		bool bArmed = false;
+		bool bTodReady = false; // an AGolmokTimeOfDay with keyframes: the WP-14a time-of-day steps run
 	};
 
 	bool SkipWithoutMap(FAutomationTestBase* Test)

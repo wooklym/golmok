@@ -13,6 +13,7 @@
 #include "HAL/IConsoleManager.h"
 #include "HAL/PlatformTime.h"
 #include "Kismet/GameplayStatics.h"
+#include "Lighting/GolmokClockMath.h"
 #include "Lighting/GolmokTimeOfDay.h"
 #include "Map/GolmokTravelSubsystem.h"
 #include "Misc/CommandLine.h"
@@ -72,6 +73,83 @@ namespace GolmokSavePrivate
 		TArray<FString> Sorted = ZoneIds.Array();
 		Sorted.Sort();
 		return FString::Printf(TEXT("; no first visit for %s until you leave"), *FString::Join(Sorted, TEXT(", ")));
+	}
+
+	// ---- time of day (WP-14a clock; only AGolmokTimeOfDay's public API) ----
+
+	/** The saved uint8 back to EGolmokClockMode; an unknown value restores as Fixed. */
+	EGolmokClockMode SavedClockMode(uint8 Raw)
+	{
+		return Raw <= static_cast<uint8>(EGolmokClockMode::Realtime) ? static_cast<EGolmokClockMode>(Raw) : EGolmokClockMode::Fixed;
+	}
+
+	FString HhmmText(double Minutes)
+	{
+		TCHAR Hhmm[6];
+		GolmokClockMath::FormatHHMM(Minutes, Hhmm);
+		return FString(Hhmm);
+	}
+
+	/**
+	 * Minutes to save (spec §3): the clock time, or -1 when there is no time to restore - the level's own lighting
+	 * (HasTimeOfDay() false) or, in Fixed mode, a base preset without a keyframe time (e.g. "interior" applied as a base).
+	 * Those restore by PresetName (ApplyPreset), as before WP-14a.
+	 */
+	float TodMinutesToSave(const AGolmokTimeOfDay& Tod)
+	{
+		if (!Tod.HasTimeOfDay())
+		{
+			return -1.f;
+		}
+		FGolmokLightingPreset Preset;
+		if (Tod.GetClockMode() == EGolmokClockMode::Fixed && !Tod.CurrentPreset.IsNone() && Tod.FindPreset(Tod.CurrentPreset, Preset) && !Preset.bHasTime)
+		{
+			return -1.f;
+		}
+		return Tod.GetTimeOfDayMinutes();
+	}
+
+	/** "13:07 clock (clear_noon)" | "night" (no minutes: restored by name) | "-": save log and golmok.save status. */
+	FString DescribeSavedTod(const FGolmokSaveTimeOfDay& Tod)
+	{
+		if (Tod.Minutes >= 0.f && FMath::IsFinite(Tod.Minutes))
+		{
+			const FString Preset = Tod.PresetName.IsEmpty() ? FString() : FString::Printf(TEXT(" (%s)"), *Tod.PresetName);
+			return FString::Printf(TEXT("%s %s%s"), *HhmmText(Tod.Minutes), AGolmokTimeOfDay::ClockModeName(SavedClockMode(Tod.Mode)), *Preset);
+		}
+		return Tod.PresetName.IsEmpty() ? FString(TEXT("-")) : Tod.PresetName;
+	}
+
+	/**
+	 * Applies a saved time of day instantly (spec §3 / §4) and returns ", tod ..." for the restore message.
+	 * Minutes >= 0: the clock is stopped first (SetClockMode(Fixed); SetClockMode(Clock) from a preset base and
+	 * SetClockMode(Realtime) would each start a transition, and SetTimeOfDay in Realtime falls back to Fixed), so
+	 * SetTimeOfDay(time, bInstant) is the one jump; then the saved mode: Fixed stays, Clock runs on from the saved minutes
+	 * (already on the clock: SetClockMode does not jump again), Realtime uses the PC's local time instead of the saved
+	 * minutes (SetClockMode(Realtime) re-syncs to that same time). Minutes < 0 (a save from before WP-14a) or no keyframes:
+	 * ApplyPreset(PresetName, true), the WP-15a path.
+	 */
+	FString RestoreTimeOfDay(AGolmokTimeOfDay& Tod, const FGolmokSaveTimeOfDay& Saved)
+	{
+		FString Note;
+		if (Saved.Minutes >= 0.f && FMath::IsFinite(Saved.Minutes))
+		{
+			const EGolmokClockMode Mode = SavedClockMode(Saved.Mode);
+			Tod.SetClockMode(EGolmokClockMode::Fixed);
+			const double Minutes = Mode == EGolmokClockMode::Realtime ? Tod.RealtimeTargetMinutes() : static_cast<double>(Saved.Minutes);
+			if (Tod.SetTimeOfDay(static_cast<float>(Minutes), /*bInstant*/ true) && (Mode == EGolmokClockMode::Fixed || Tod.SetClockMode(Mode)))
+			{
+				return FString::Printf(TEXT(", tod %s %s%s"), *HhmmText(Tod.GetTimeOfDayMinutes()), AGolmokTimeOfDay::ClockModeName(Tod.GetClockMode()),
+					Mode == EGolmokClockMode::Realtime ? TEXT(" (local time)") : TEXT(""));
+			}
+			Note = FString::Printf(TEXT(" (%s %s not applied: %s)"), *HhmmText(Saved.Minutes), AGolmokTimeOfDay::ClockModeName(Mode), *Tod.LastError);
+		}
+		if (Saved.PresetName.IsEmpty())
+		{
+			return Note.IsEmpty() ? FString() : FString::Printf(TEXT(", tod -%s"), *Note);
+		}
+		const bool bApplied = Tod.ApplyPreset(FName(*Saved.PresetName), /*bInstant*/ true);
+		return FString::Printf(TEXT(", tod %s%s%s"), *Saved.PresetName, bApplied ? TEXT("") : TEXT(" (unknown preset)"), *Note);
 	}
 } // namespace GolmokSavePrivate
 
@@ -188,6 +266,8 @@ void UGolmokSaveSubsystem::HoldSlotPosition(const UGolmokSaveGame& Save)
 		Snapshot.ZoneId = Held.ZoneId;
 		Snapshot.ZoneVersion = Held.ZoneVersion;
 		Snapshot.TodPreset = Save.TimeOfDay.PresetName;
+		Snapshot.TodMinutes = Save.TimeOfDay.Minutes;
+		Snapshot.TodMode = Save.TimeOfDay.Mode;
 		Snapshot.CharacterId = Save.CharacterId;
 	}
 }
@@ -284,6 +364,8 @@ bool UGolmokSaveSubsystem::TakeSnapshot(UWorld& InWorld, bool bForce)
 	if (const AGolmokTimeOfDay* Tod = AGolmokTimeOfDay::Find(&InWorld))
 	{
 		S.TodPreset = Tod->CurrentPreset.IsNone() ? FString() : Tod->CurrentPreset.ToString();
+		S.TodMinutes = GolmokSavePrivate::TodMinutesToSave(*Tod); // WP-14a clock
+		S.TodMode = static_cast<uint8>(Tod->GetClockMode());
 	}
 	if (const UGolmokCharacterSubsystem* Characters = InWorld.GetSubsystem<UGolmokCharacterSubsystem>())
 	{
@@ -346,6 +428,8 @@ UGolmokSaveGame* UGolmokSaveSubsystem::BuildSaveObject()
 	Out->ZoneId = Snapshot.ZoneId;
 	Out->ZoneVersion = Snapshot.ZoneId.IsEmpty() ? 0 : Snapshot.ZoneVersion;
 	Out->TimeOfDay.PresetName = Snapshot.TodPreset;
+	Out->TimeOfDay.Minutes = Snapshot.TodMinutes;
+	Out->TimeOfDay.Mode = Snapshot.TodMode;
 	Out->Visited = Visited;
 	Out->Photos = Photos;
 	Out->CharacterId = Snapshot.CharacterId;
@@ -436,8 +520,9 @@ bool UGolmokSaveSubsystem::SaveNow(bool bSync, const TCHAR* Reason, FString* Out
 			FAsyncSaveGameToSlotDelegate::CreateUObject(this, &UGolmokSaveSubsystem::OnAsyncSaved));
 		Message = FString::Printf(TEXT("saving %s (async, %s)"), *SlotName, Reason);
 	}
-	UE_LOG(LogGolmok, Log, TEXT("GolmokSave: %s: zone %s, visited %d, photos %d, position %s"), *Message,
-		Save->ZoneId.IsEmpty() ? TEXT("-") : *Save->ZoneId, Save->Visited.Num(), Save->Photos.Num(), Save->bHasPosition ? TEXT("yes") : TEXT("no"));
+	UE_LOG(LogGolmok, Log, TEXT("GolmokSave: %s: zone %s, visited %d, photos %d, position %s, tod %s"), *Message,
+		Save->ZoneId.IsEmpty() ? TEXT("-") : *Save->ZoneId, Save->Visited.Num(), Save->Photos.Num(), Save->bHasPosition ? TEXT("yes") : TEXT("no"),
+		*GolmokSavePrivate::DescribeSavedTod(Save->TimeOfDay));
 	LastMessage = Message;
 	if (OutMessage)
 	{
@@ -718,14 +803,14 @@ bool UGolmokSaveSubsystem::Restore(FString& OutMessage)
 		break;
 	}
 
-	// Time of day (spec §4: preset name until WP-14a) and character (WP-18 public API; Astra files unchanged).
+	// Time of day (spec §3 / §4: WP-14a {Minutes, Mode} per mode, instant; a save without minutes by its preset) and
+	// character (WP-18 public API; Astra files unchanged).
 	FString Extras;
-	if (!Save->TimeOfDay.PresetName.IsEmpty())
+	if (Save->TimeOfDay.Minutes >= 0.f || !Save->TimeOfDay.PresetName.IsEmpty())
 	{
 		if (AGolmokTimeOfDay* Tod = AGolmokTimeOfDay::Find(World))
 		{
-			const bool bApplied = Tod->ApplyPreset(FName(*Save->TimeOfDay.PresetName), /*bInstant*/ true);
-			Extras += FString::Printf(TEXT(", tod %s%s"), *Save->TimeOfDay.PresetName, bApplied ? TEXT("") : TEXT(" (unknown preset)"));
+			Extras += GolmokSavePrivate::RestoreTimeOfDay(*Tod, Save->TimeOfDay);
 		}
 	}
 	if (!Save->CharacterId.IsEmpty())
@@ -798,7 +883,7 @@ FString UGolmokSaveSubsystem::DescribeStatus() const
 		Out += FString::Printf(TEXT("\n  slot: schema %d, saved %s, zone %s v%d, position %s (lat %.7f lon %.7f h %.2f, yaw %.1f), tod %s, character %s, visited %d, photos %d"),
 			Save->SaveSchemaVersion, *Save->SavedAtUtc, Save->ZoneId.IsEmpty() ? TEXT("-") : *Save->ZoneId, Save->ZoneVersion,
 			Save->bHasPosition ? TEXT("yes") : TEXT("no"), Save->Lat, Save->Lon, Save->HeightEllipsoidal, Save->YawDeg,
-			Save->TimeOfDay.PresetName.IsEmpty() ? TEXT("-") : *Save->TimeOfDay.PresetName, Save->CharacterId.IsEmpty() ? TEXT("-") : *Save->CharacterId,
+			*GolmokSavePrivate::DescribeSavedTod(Save->TimeOfDay), Save->CharacterId.IsEmpty() ? TEXT("-") : *Save->CharacterId,
 			Save->Visited.Num(), Save->Photos.Num());
 	}
 	if (!LastMessage.IsEmpty())

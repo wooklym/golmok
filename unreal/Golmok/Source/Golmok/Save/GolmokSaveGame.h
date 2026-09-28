@@ -21,16 +21,28 @@ struct GOLMOK_API FGolmokSaveVisit
 };
 
 /**
- * Time of day (spec §4). Until WP-14a is merged only the base preset name is kept (AGolmokTimeOfDay::CurrentPreset,
- * restored with ApplyPreset(Name, true)); WP-14a adds Minutes / Mode here with defaults (save schema stays 1).
+ * Time of day (spec §3 / §4). WP-14a clock: Minutes (AGolmokTimeOfDay::GetTimeOfDayMinutes) and Mode
+ * (EGolmokClockMode as uint8, so the save format does not depend on the Lighting header) are restored first, per mode
+ * and instantly: Fixed / Clock -> that time (Clock runs on from it), Realtime -> the PC's local time (Minutes ignored).
+ * Minutes < 0 (a save from before WP-14a, the level's own lighting, or a base preset without a keyframe time) falls
+ * back to PresetName with ApplyPreset(Name, true) as before. Added fields default when missing: save schema stays 1.
  */
 USTRUCT(BlueprintType)
 struct GOLMOK_API FGolmokSaveTimeOfDay
 {
 	GENERATED_BODY()
 
+	/** AGolmokTimeOfDay::CurrentPreset (the nearest keyframe on the clock); the restore fallback when Minutes < 0. */
 	UPROPERTY(SaveGame, VisibleAnywhere, BlueprintReadOnly, Category = "Golmok|Save")
 	FString PresetName;
+
+	/** Minutes of the day [0, 1440) (WP-14a); -1 = not saved (restore by PresetName). */
+	UPROPERTY(SaveGame, VisibleAnywhere, BlueprintReadOnly, Category = "Golmok|Save")
+	float Minutes = -1.f;
+
+	/** EGolmokClockMode as uint8: 0 Fixed (default, also for old saves), 1 Clock, 2 Realtime; anything else restores as Fixed. */
+	UPROPERTY(SaveGame, VisibleAnywhere, BlueprintReadOnly, Category = "Golmok|Save")
+	uint8 Mode = 0;
 };
 
 /**

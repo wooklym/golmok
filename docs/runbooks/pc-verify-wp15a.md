@@ -9,6 +9,7 @@
 - 기대 로그는 코드(`Map/GolmokTravelSubsystem.cpp`, `Save/GolmokSaveSubsystem.cpp`, `Zones/GolmokZone.cpp`)의 `UE_LOG`/`Printf` 형식에 픽스처 값을 넣은 것이다. `x.xx`·`…`는 PC에서만 정해지는 값.
 - 세이브 파일: `<Project>\Saved\SaveGames\golmok_auto.sav`(`<Project>` = `unreal\Golmok`). 자동화는 `golmok_test_wp15a` 슬롯만 쓰고 끝에 지운다. **개발자 슬롯은 자동화가 절대 건드리지 않는다**(`GIsAutomationTesting` 동안 자동 저장·복원 꺼짐).
 - **PIE에서는 시작 시 자동 복원을 하지 않는다**(`bRestoreInPIE=False` 기본 — 기존 PIE 런북 V-03/V-07/V-09/V-10이 항상 PlayerStart에서 시작하도록). PIE의 복원은 `golmok.load`로, 시작 시 자동 복원은 §6의 standalone `-game` 실행으로 확인한다.
+- 시간대 복원 규칙(스펙 §3 "시간대 저장·복원", WP-14a 연결): 세이브의 `{Minutes, Mode}`를 **즉시** 적용 — Fixed는 그 시각에 멈춤, Clock은 그 시각부터 설정 속도로 계속, Realtime은 모드만(PC 현지 시각; 저장한 분은 무시). `Minutes`가 없는(−1) 세이브(WP-14a 이전 세이브, 레벨 조명, `interior` 같은 시각 없는 프리셋 기저)는 종전처럼 `ApplyPreset(프리셋, 즉시)`. 로그 표기 `tod HH:MM <fixed|clock|realtime> (<가장 가까운 키프레임>)`.
 - 픽스처 스폰(manifest v2, pytest가 값 고정): `z_synthetic_001` `spawn {position_enu [5, 4, 0], yaw_deg 90}`("합성 골목 1", 문 door_1 남쪽 5.5 m에서 북쪽=문을 봄), `z_synthetic_001_interior` `[0, -1.5, 0]` yaw 90(직접 이동 대상 아님 → 부모 스폰), `z_synthetic_002` `[-8, 3, -0.16]` yaw 90("합성 골목 2", 파사드 B 유리창 남쪽 2 m). 002는 001 동쪽 200 m → 스폰은 001 원점 동쪽 **192 m**로 `L_ZoneTest`의 `Zone_Ground`(001 중심 ±200 m) 안에 떨어진다 — 002는 충돌 에셋이 없으므로 이 평면이 캐릭터를 받친다. 폴백(스폰 없음): zone-local (0,0,0) 위 3 m에서 아래로 라인 트레이스, 맞으면 그 지면, 아니면 원점; 방향 yaw_deg 0(zone +x). 도착 위치 = 발 + 캡슐 반높이 + 2 cm, UE Yaw = 루트 yaw − yaw_deg(루트 yaw는 로그 `Zone z_synthetic_001 v1 root: … yaw x.xxxx deg`에서 읽는다).
 
 ## 0. 대상 파일
@@ -19,7 +20,7 @@
 | `Source/Golmok/Zones/GolmokZoneSubsystem.{h,cpp}` | `EGolmokZoneRequestSource::Travel`(액터가 없으면 인덱스에서 스폰), `ReleasePin`, `IsZonePinned` |
 | `Source/Golmok/Map/GolmokTravelSubsystem.{h,cpp}` | 이동(거부 → 선로드 → 페이드 → 폴링 → 텔레포트 → 다음 틱 pin 해제·페이드 인·`OnTraveled`), 콘솔 `golmok.travel` |
 | `Source/Golmok/Map/GolmokTravelMath.h`, `GolmokMapMath.h` | 순수 헤더(g++ 교차검증 `tools/tests/test_ue_travel_math.py`) |
-| `Source/Golmok/Save/GolmokSaveGame.{h,cpp}`, `GolmokSaveSubsystem.{h,cpp}` | 세이브(SaveSchemaVersion 1)·자동 저장·복원 규칙 ①②③, 콘솔 `golmok.save`·`golmok.load` |
+| `Source/Golmok/Save/GolmokSaveGame.{h,cpp}`, `GolmokSaveSubsystem.{h,cpp}` | 세이브(SaveSchemaVersion 1)·자동 저장·복원 규칙 ①②③, 콘솔 `golmok.save`·`golmok.load`. 시간대 `TimeOfDay{PresetName, Minutes, Mode}`(WP-14a 연결: `Minutes` −1 = 없음 → 프리셋 이름으로 복원, `Mode` = `EGolmokClockMode` uint8) — Lighting/ 코드는 무수정, 공개 API만 호출 |
 | `Source/Golmok/Photo/GolmokPhotoModeSubsystem.{h,cpp}` | `[WP-15 hook]` 블록만: `OnPhotoSaved(RelativePath)` |
 | `Source/Golmok/Debug/GolmokDebugSubsystem.cpp` | `[WP-15 hook]` 블록만: HUD `travel:` 줄 |
 | `Source/Golmok/Tests/GolmokZoneManifestV2Test.cpp`, `GolmokTravelSaveTest.cpp` | 자동화 `Golmok.Zone.ManifestV2`·`Golmok.Travel.Teleport`·`Golmok.Save.RoundTrip` |
@@ -43,8 +44,8 @@
 ```
 - [ ] `Golmok.Zone.ManifestV2` `Success`. 의도된 Warning 1줄: `Zone manifest z_synthetic_001: unknown top-level key 'spawn' (schema error for golmok-zone validate).`(v1 + spawn 케이스). 픽스처가 없으면 `[Info] skipped: fixture manifest … missing`(전제 위반).
 - [ ] `Golmok.Travel.Teleport` `Success`. 기대 `[Info]`: `traveling to z_synthetic_001 (zone z_synthetic_001 loaded (pinned)); z_synthetic_001_interior is an interior: going to its parent z_synthetic_001's spawn`, `golmok.travel status: idle; arrivals 1, last z_synthetic_001; …`, `golmok.travel list: 3 index zones` 블록, `traveling to z_synthetic_002 (…)`. 포토 모드 `Enter()`가 거부되면 `[Info] photo refusal not checked: …`(통과는 하지만 §10에 기록). 002는 에셋이 없어 `Zone z_synthetic_002 v1 loaded in x ms: chunks 0/2 (2 wire boxes)…` Warning이 나올 수 있다(V-07과 동일). 타임아웃 케이스의 Warning `GolmokTravel: travel to z_synthetic_001 failed: timeout: z_synthetic_001 not loaded after 0.3 s (state loaded)` 1줄은 의도된 것.
-- [ ] `Golmok.Save.RoundTrip` `Success`. 기대 `[Info]`: `golmok.save: slot golmok_test_wp15a (exists), automatic off, …` 블록, `restore saved position from slot golmok_test_wp15a (…)`, `restore saved zone spawn (version changed) …`, `restore home zone spawn …`, 그리고 리셋 단계(R49-1) `slot golmok_test_wp15a deleted; visit / photo index cleared; no first visit for z_synthetic_002 until you leave`(이 단계만 자동 저장을 켜고, 리셋 뒤 방문 폴링이 슬롯을 되살리지 않는지·zone을 나갔다 들어오면 다시 첫 방문·저장되는지 단언). `L_ZoneTest`에 GeoOrigin이 없으면 `[Info] skipped: …`(전제 위반). `[Info] reset / visit poll step skipped: …`가 나오면 002 스폰이 로드된 zone 밖이라는 뜻이므로 §10에 기록.
-- [ ] 네 번째 명령: **31개**(기존 28 + 위 3) 전부 `Success`. `test.ps1`의 `Succeeded:`는 Warning 있는 테스트를 따로 세므로 상태 열로 판정(V-03).
+- [ ] `Golmok.Save.RoundTrip` `Success`. 기대 `[Info]`: `golmok.save: slot golmok_test_wp15a (exists), automatic off, …` 블록(`slot:` 줄에 `tod 13:07 clock (<키프레임>)`), `restore saved position from slot golmok_test_wp15a (…): …, tod 13:07 clock; …`, `restore saved zone spawn (version changed) …, tod HH:MM realtime (local time); …`(HH:MM = PC 시각), `restore home zone spawn …, tod <프리셋>; …`(구 세이브 폴백), 그리고 리셋 단계(R49-1) `slot golmok_test_wp15a deleted; visit / photo index cleared; no first visit for z_synthetic_002 until you leave`(이 단계만 자동 저장을 켜고, 리셋 뒤 방문 폴링이 슬롯을 되살리지 않는지·zone을 나갔다 들어오면 다시 첫 방문·저장되는지 단언). `L_ZoneTest`에 GeoOrigin이 없으면 `[Info] skipped: …`(전제 위반). `[Info] reset / visit poll step skipped: …`가 나오면 002 스폰이 로드된 zone 밖이라는 뜻이므로 §10에 기록. 시간대 단계(WP-14a 연결)가 단언하는 것: Clock 13:07 저장 → `TimeOfDay.Minutes` 787(±0.01)·`Mode` Clock·`PresetName` = 가장 가까운 키프레임 → Fixed 05:00으로 바꾼 뒤 복원 → 분 787(±0.01)·모드 Clock·전환 없음(즉시); 세이브를 Realtime·01:40으로 고쳐 복원 → 모드 Realtime·시각은 PC 현지 시각(1분 안, 01:40 아님); Fixed 16:40 → 분 1000(±0.01)·모드 Fixed(위치 복원이 없는 규칙 ③에서도 적용); `TimeOfDay` 기본값(−1·0) + 프리셋 이름(구 세이브) → 그 프리셋이 이름으로 적용·모드 Fixed. `[Info] time-of-day steps skipped: no AGolmokTimeOfDay with keyframes in the PIE world`가 나오면 시간대 단계는 건너뛴 것이므로 §10에 기록(`lighting_presets.json` schema 2 로드 실패 — V-13 전제).
+- [ ] 네 번째 명령: **32개**(기존 29 = WP-14a `Golmok.Lighting.Clock` 포함 + 위 3) 전부 `Success`. `test.ps1`의 `Succeeded:`는 Warning 있는 테스트를 따로 세므로 상태 열로 판정(V-03).
 - [ ] 끝난 뒤 `<Project>\Saved\SaveGames\`에 `golmok_test_wp15a.sav`가 **없고**, 원래 있던 `golmok_auto.sav`의 수정 시각이 바뀌지 않았다.
 
 ## 3. PIE — 목록·이동
@@ -64,8 +65,9 @@
   GolmokTravel: traveling to z_synthetic_002 (zone z_synthetic_002 loaded (pinned))
   GolmokTravel: arrived at z_synthetic_002 (manifest spawn) UE (x, x, x) yaw x.xx after x.xx s
   GolmokSave: first visit z_synthetic_002 v1 (travel)
-  GolmokSave: saving golmok_auto (async, travel): zone z_synthetic_002, visited 2, photos N, position yes
+  GolmokSave: saving golmok_auto (async, travel): zone z_synthetic_002, visited 2, photos N, position yes, tod HH:MM fixed (<키프레임>)
   ```
+  (저장 로그 끝의 `tod …`는 WP-14a 연결 뒤 추가된 부분: 레벨 조명 그대로면 `tod -`, 시각 없는 프리셋 기저면 프리셋 이름만.)
   화면이 약 0.35 s 검게 페이드 아웃 → 파사드 B 유리창을 마주 보고(북쪽) 서 있음 → 페이드 인. 캐릭터가 떨어지지 않는다(`Zone_Ground`). 로딩 중 WASD가 먹지 않는다(이동 입력 차단).
 - [ ] **히치 기록**: `golmok.stats` 또는 `stat unit`으로 이동 순간 최대 프레임(ms)을 적고 `pc-verify-wp09.md` §6 표(비동기 로드 히치)와 비교. 001(에셋 있음, 비동기)로 돌아갈 때(`golmok.travel z_synthetic_001`)의 `arrived … after x.xx s`도 적는다.
 - [ ] `golmok.zone.list`: 도착한 zone 행에 ` pinned`가 **없다**(다음 틱 해제). 002 행 `loaded … [index]`.
@@ -74,14 +76,15 @@
 - [ ] `golmok.travel status`가 상태·마지막 도착·설정값(`timeout 20.0 s, fade 0.35 s, poll 0.05 s, region 30 km`)을 찍는다.
 
 ## 4. PIE — 세이브·복원(`golmok.load`)
-- [ ] `golmok.save status` → `golmok.save: slot golmok_auto (exists), automatic on, restore on, home '', autosave 60 s, …` + `slot:` 줄(zone·lat/lon·tod·character·visited·photos).
+- [ ] `golmok.save status` → `golmok.save: slot golmok_auto (exists), automatic on, restore on, home '', autosave 60 s, …` + `slot:` 줄(zone·lat/lon·`tod HH:MM <mode> (<키프레임>)`·character·visited·photos).
 - [ ] 시간대 `2`(다른 프리셋)로 바꾸고 조금 걸은 뒤 `golmok.save` → 로그 두 줄(서브시스템 로그가 먼저, 콘솔 결과가 뒤):
   ```
-  GolmokSave: saved golmok_auto (sync, console): zone …, visited …, photos …, position yes
+  GolmokSave: saved golmok_auto (sync, console): zone …, visited …, photos …, position yes, tod HH:MM fixed (<프리셋>)
   golmok.save: saved golmok_auto (sync, console)
   ```
   위치·방향을 기억(HUD `pos` 줄). `golmok.save`는 복원 보류(hold)를 먼저 푼다 — 보류 중이었으면 그 앞에 `GolmokSave: saved position no longer held (console save)`가 나오고, 보류 위치가 아니라 **지금 선 자리**가 저장된다(R49-3).
-- [ ] 50 m쯤 걸어가 방향을 돌리고 시간대 `1`로 바꾼 뒤 `golmok.load` → `golmok.load: restore saved position from slot golmok_auto (…): traveling to … [또는 placed at the saved position (no zone) …], tod <프리셋>…` → 저장한 자리·방향(±1 cm·±0.1°)으로 돌아오고 시간대가 저장 때 프리셋으로 즉시 바뀐다.
+- [ ] 50 m쯤 걸어가 방향을 돌리고 시간대 `1`로 바꾼 뒤 `golmok.load` → `golmok.load: restore saved position from slot golmok_auto (…): traveling to … [또는 placed at the saved position (no zone) …], tod HH:MM fixed…` → 저장한 자리·방향(±1 cm·±0.1°)으로 돌아오고 시간대가 저장 때 시각(= 그 프리셋의 키프레임 시각)으로 **전환 없이 즉시** 바뀐다. `golmok.tod status`의 시각·모드가 메시지의 `tod HH:MM fixed`와 같다.
+- [ ] **Clock 모드 분 복원(WP-14a 연결)**: `golmok.tod mode fixed` → `golmok.tod time 13:07` → `golmok.tod mode clock`(속도는 기본 0.5 min/s) → 몇 초 뒤 `golmok.save` → 저장 로그 끝 `tod 13:MM clock (clear_noon)`의 HH:MM를 적는다. `golmok.tod mode fixed` → `golmok.tod time 21:00`(밤) → `golmok.load` → 메시지 `…, tod <적은 HH:MM> clock` · 화면이 **전환 없이** 저장 때 낮 조명으로 · `golmok.tod status` 첫머리 `status <적은 HH:MM 또는 1~2분 뒤> clock` · HUD `tod:` 줄 시각이 다시 흐른다(적은 시각부터, 07:30/21:30 키프레임으로 튀지 않음). 이어서 `golmok.tod mode realtime` → `golmok.save` → `golmok.tod mode fixed` → `golmok.tod time 03:00` → `golmok.load` → `tod <PC 시각> realtime (local time)`(저장한 분이 아니라 PC 시계). 틀리면 §9 #12.
 - [ ] 캐릭터: `golmok.character <다른 id>` → `golmok.save` → 원래 id로 바꾸고 `golmok.load` → 저장 때 캐릭터로 바뀐다(WP-18 공개 API `SelectCharacter`).
 - [ ] 주기 저장: 가만히 60 s 이상 → 저장 로그 없음. 1 m 넘게 걷고 60 s가 지나면 `saving golmok_auto (async, periodic)` 1회.
 - [ ] PIE 종료 → `GolmokSave: saved golmok_auto (sync, world end): …` 1줄(동기).
@@ -96,8 +99,8 @@
 ```powershell
 & "<UE>\Engine\Binaries\Win64\UnrealEditor.exe" "<repo>\unreal\Golmok\Golmok.uproject" /Game/Golmok/Maps/L_ZoneTest -game -windowed -ResX=1280 -ResY=720 -log
 ```
-- [ ] 1회차: 002로 이동(`~` 콘솔 `golmok.travel z_synthetic_002`), 몇 걸음, 시간대 변경, 창 닫기(종료 동기 저장 `(sync, world end)` 또는 `(sync, pre-exit)`).
-- [ ] 2회차: 같은 명령 → 시작 로그 `GolmokSave: restore on begin play: restore saved position from slot golmok_auto (saved …, zone z_synthetic_002 v1, index v1): traveling to z_synthetic_002 …` → 페이드 뒤 저장한 자리·방향, 시간대 복원, `golmok.travel list`에 001·002 `visited`.
+- [ ] 1회차: 002로 이동(`~` 콘솔 `golmok.travel z_synthetic_002`), 몇 걸음, 시간대를 `golmok.tod time 18:40` → `golmok.tod mode clock`으로(시계 모드), 창 닫기(종료 동기 저장 `(sync, world end)` 또는 `(sync, pre-exit)` — 로그 끝 `tod 18:MM clock (golden_evening)`의 HH:MM를 적는다).
+- [ ] 2회차: 같은 명령 → 시작 로그 `GolmokSave: restore on begin play: restore saved position from slot golmok_auto (saved …, zone z_synthetic_002 v1, index v1): traveling to z_synthetic_002 …, tod <적은 HH:MM> clock; …` → 페이드 뒤 저장한 자리·방향, 시간대가 **적은 시각의 시계 모드로 즉시**(복원 순간 저녁 조명으로 바로 — 2 s 전환 없음) 이어서 흐른다(`golmok.tod status` `… clock`), `golmok.travel list`에 001·002 `visited`.
 - [ ] 3회차: `-GolmokNoRestore`를 붙여 실행 → `GolmokSave: restore skipped (-GolmokNoRestore)`, PlayerStart에서 시작. `golmok.travel list`의 visited는 **유지**(색인은 계속 이어짐).
 - [ ] 폴백 ②: `golmok.save status`로 zone을 확인하고, 텍스트 편집 대신 콘솔로 확인하기 어려우면 생략 가능(자동화 `Save.RoundTrip`이 version 99·zone 없음·HomeZoneId를 이미 검증). (선택) `Config/DefaultGame.ini`를 **커밋하지 않는 로컬 수정**으로 `[/Script/Golmok.GolmokSaveSubsystem] HomeZoneId=z_synthetic_001` 넣고, 저장을 `L_Dev`에서 만든 뒤 `L_ZoneTest`로 실행 → `slot golmok_auto was saved in /Game/Golmok/Maps/L_Dev, this level is /Game/Golmok/Maps/L_ZoneTest: position not restored`.
 
@@ -123,6 +126,7 @@
 | 9 | GolmokPhotoModeSubsystem 훅 | `UCLASS` 끝의 `public:` 뒤 `FGolmokOnPhotoSaved OnPhotoSaved;`(비동적 멀티캐스트) | UHT가 UPROPERTY 없는 델리게이트 멤버를 허용(WP-13 훅과 같은 패턴) | 멤버를 `public` 구역 맨 앞으로 옮기는 것은 hot-spot 규칙상 훅 블록 안에서만 | |
 | 10 | Tests | `FFileHelper::SaveArrayToFile(TArray<uint8>, …)`, `FRotator + FRotator`, `TestNotNull(const T*)` | 오버로드 | `SaveStringToFile(TEXT("png"), …)` | |
 | 11 | GolmokSaveSubsystem | `FWorldDelegates::OnWorldBeginTearDown`(`FWorldEvent`, 인자 `UWorld*`; `UWorld::BeginTearingDown`이 `bIsTearingDown = true` 직후·EndPlay 전에 방송), `TSet::Intersect`·`TSet::Array` | 시그니처·방송 시점(PIE `TeardownPlaySession`·`LoadMap`·`UGameEngine::PreExit`) | 핸들러를 지우면 종료 저장이 마지막 폴링(≤ 1 s) 스냅샷을 쓴다 — 그 경우 §4의 R49-2 확인을 "≤ 1 s 오차"로 기록 | |
+| 12 | GolmokSaveGame / GolmokSaveSubsystem | `FGolmokSaveTimeOfDay`의 `UPROPERTY(SaveGame) float Minutes = -1.f`·`uint8 Mode`(태그 직렬화: 필드가 없는 옛 `.sav`는 기본값 −1·0), WP-14a 공개 API `SetClockMode`/`SetTimeOfDay(float, bool)`/`GetTimeOfDayMinutes`/`GetClockMode`/`HasTimeOfDay`/`FindPreset`/`RealtimeTargetMinutes`, `GolmokClockMath::FormatHHMM(double, TCHAR(&)[6])` | 옛 세이브에서 기본값이 들어오는지(UE 태그 직렬화), 복원 순서(`SetClockMode(Fixed)` → `SetTimeOfDay(분, 즉시)` → 모드)에서 추가 전환·`OnPresetChanged`가 없는지 | 이 PR 이전 브랜치로 만든 `golmok_auto.sav`가 있으면 `golmok.save status`의 `slot:` 줄이 `tod <프리셋>`(시각 없음)이어야 한다 — `tod 00:00 fixed`로 읽히면 기본값 폴백이 깨진 것: PC fix로 `SaveSchemaVersion`은 1 그대로 두고 복원을 `Minutes <= 0 && Mode == 0`이면 프리셋 폴백으로 바꾼다. `uint8` UPROPERTY가 거부되면 `int32 Mode`로 | |
 
 ## 10. 결과 기록
-(PC 세션이 채운다: 빌드·자동화 31개·§3~§8 체크, 히치 표, 고친 API 번호·커밋, 설계와 다른 동작.)
+(PC 세션이 채운다: 빌드·자동화 32개·§3~§8 체크(§4 Clock 모드 분 복원·§6 재시작 시간대 포함), 히치 표, 고친 API 번호·커밋, 설계와 다른 동작.)

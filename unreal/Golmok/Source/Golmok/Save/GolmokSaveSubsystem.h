@@ -25,7 +25,8 @@ class UWorld;
  * later (retried until a pawn exists), applies the spec §3 rules through GolmokTravelMath::DecideRestore:
  * ① saved zone in the level / index with the same version -> the saved position (preloaded through
  * UGolmokTravelSubsystem::TravelToLocation) ② another version -> that zone's spawn; zone gone -> HomeZoneId's spawn
- * ③ otherwise nothing (PlayerStart). Then the time-of-day preset and the WP-18 character are applied.
+ * ③ otherwise nothing (PlayerStart). Then the time of day (WP-14a {Minutes, Mode} per mode, instant; a save without
+ * minutes -> its preset) and the WP-18 character are applied.
  * GameMode / PlayerController are not touched (hot-spot rule).
  *
  * While automation tests run (GIsAutomationTesting) nothing is written or restored automatically, so a developer's
@@ -134,6 +135,8 @@ private:
 		FString ZoneId;
 		int32 ZoneVersion = 0;
 		FString TodPreset;
+		float TodMinutes = -1.f; // WP-14a clock minutes; -1 = restore by TodPreset
+		uint8 TodMode = 0;       // EGolmokClockMode as uint8
 		FString CharacterId;
 		FVector LocationUE = FVector::ZeroVector;
 		double YawUE = 0.0;
