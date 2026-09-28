@@ -186,22 +186,22 @@ Python 게이트: ruff check·format(98파일), pytest **694 passed / 63 skipped
 | 캡처 | 3종×3코스, PNG 총577장 디코딩 성공. 실제1014×550(요청960×540와 다름), 인접 sim 간격0.1s±0.002 확인. 코스당6초 이상 |
 | 걷기→달리기 | W down부터3초 뒤 Shift down, 총6초. 시작 배치 뒤 실제 CharacterMovement로 이동 |
 | 계단·포털 | L_Dev 계단 상승/하강 도착 및 캡슐 바닥 높이 단언 통과, L_ZoneTest 포털 안/밖 상태 왕복 단언 통과. 이동 중 순간이동 없음 |
-| 초기 메시 실패 GUI | DefaultGame.ini 메시 경로를 임시 `/Game/Missing/T2Missing.T2Missing`로 바꾸고 L_Dev PIE 실행. `not found; showing capsule` 로그 재현. 첫 GUI 관찰에는 이미 Manny가 표시돼 캡슐 대체 화면은 **미관찰**. 콘솔 `golmok.character quinn` 입력·실행 뒤 Quinn 표시 확인. 캡슐 상태에서 수동 복구했다고 단정하지 않음 |
+| 초기 메시 실패 GUI | DefaultGame.ini 메시 경로를 임시 `/Game/Missing/T2Missing.T2Missing`로 바꾸고 L_Dev PIE 실행. `not found; showing capsule` 로그 재현. 로스터 기본 Manny가 BeginPlay(첫 프레임 전)에서 대체 캡슐을 덮고 숨기므로 ini만 바꾸는 절차로는 캡슐 화면이 재현되지 않는다. 콘솔 `golmok.character quinn` 입력·실행 뒤 Quinn 표시 확인. 오케스트레이터 D-019 결정(2026-09-28 #39 리뷰): 헤드리스 `Golmok.Character.Runtime` ApplyEntry 복구 검사와 T2 ini 실패 로그로 **대체·종결**, PC 카드로 넘기지 않음 |
 | 정리 | PIE·검증 에디터 정상 종료, ini를 바이트 백업으로 복원(diff 없음), Astra GUI 잠금 해제. 타 세션 변경 없음 |
 
 카메라는 진단용 붐1.5배·pitch−10, HUD off·clear_noon이다. 파일명의 sim은 코스 시작 기준 elapsed sim time이며 manifest에는 월드 sim과 elapsed를 함께 적었다. 첫 시도의 첫 구간0.0833초를 후처리 검사에서 발견해 첫 요청을0.1초로 고친 뒤 **전9코스를 재실행**했다. 아래는 재실행 결과만이다. 원본 PNG와 자동화 보고서는 로컬 `Saved/Automation/WP18T2Sequence/` 및 `WP18T2SequenceReport2/index.json`에 보관한다. GUI 로그는 `Saved/Automation/WP18T2/initial-mesh-gui.log`다.
 
-콘택트 시트는 코스별 4×3 프레임 2장(전체 구간 균등 샘플 / 초반 연속12프레임), 긴 변1600px·각300KB 이하 JPG다. 선택된 샘플이므로 전체 움직임의 연속 영상으로 읽지 않는다. `capture.txt`의 해상도와 디코딩/간격 확인 줄은 실제 PNG를 읽은 후처리 결과다.
+콘택트 시트는 코스별 4×3 프레임 2장(전체 구간 균등 샘플 / 연속 = elapsed 1.1~2.2s 12프레임(걷기 코스는 걷기 구간만; 전체 달리기·계단 하강 연속 프레임은 로컬 PNG)), 긴 변1600px·각300KB 이하 JPG다. 선택된 샘플이므로 전체 움직임의 연속 영상으로 읽지 않는다. `capture.txt`의 해상도와 디코딩/간격 확인 줄은 실제 PNG를 읽은 후처리 결과다.
 
 | 캐릭터·코스 | 길이/프레임 | 콘택트 시트 | 입력·프레임 기록 |
 |---|---|---|---|
 | proxy135 걷기/달리기 | 6.0000s / 60 | [전체](../images/characters/v11-sequence/proxy135_course0_1.jpg) · [연속](../images/characters/v11-sequence/proxy135_course0_2.jpg) | [capture.txt](../images/characters/v11-sequence/proxy135_course0-capture.txt) |
-| proxy135 계단 왕복 | 7.1667s / 71 | [전체](../images/characters/v11-sequence/proxy135_course1_1.jpg) · [연속](../images/characters/v11-sequence/proxy135_course1_2.jpg) | [capture.txt](../images/characters/v11-sequence/proxy135_course1-capture.txt) |
+| proxy135 계단 왕복 | 7.1667s / 71 | [전체](../images/characters/v11-sequence/proxy135_course1_1.jpg) · [연속](../images/characters/v11-sequence/proxy135_course1_2.jpg) · [하강4.1~5.2s](../images/characters/v11-sequence/proxy135_course1_3.jpg) | [capture.txt](../images/characters/v11-sequence/proxy135_course1-capture.txt) |
 | proxy135 포털 왕복 | 6.0000s / 60 | [전체](../images/characters/v11-sequence/proxy135_course2_1.jpg) · [연속](../images/characters/v11-sequence/proxy135_course2_2.jpg) | [capture.txt](../images/characters/v11-sequence/proxy135_course2-capture.txt) |
 | proxy110 걷기/달리기 | 6.0000s / 60 | [전체](../images/characters/v11-sequence/proxy110_course0_1.jpg) · [연속](../images/characters/v11-sequence/proxy110_course0_2.jpg) | [capture.txt](../images/characters/v11-sequence/proxy110_course0-capture.txt) |
 | proxy110 계단 왕복 | 8.6167s / 86 | [전체](../images/characters/v11-sequence/proxy110_course1_1.jpg) · [연속](../images/characters/v11-sequence/proxy110_course1_2.jpg) | [capture.txt](../images/characters/v11-sequence/proxy110_course1-capture.txt) |
 | proxy110 포털 왕복 | 6.0000s / 60 | [전체](../images/characters/v11-sequence/proxy110_course2_1.jpg) · [연속](../images/characters/v11-sequence/proxy110_course2_2.jpg) | [capture.txt](../images/characters/v11-sequence/proxy110_course2-capture.txt) |
-| quinn 걷기/달리기 | 6.0000s / 60 | [전체](../images/characters/v11-sequence/quinn_course0_1.jpg) · [연속](../images/characters/v11-sequence/quinn_course0_2.jpg) | [capture.txt](../images/characters/v11-sequence/quinn_course0-capture.txt) |
+| quinn 걷기/달리기 | 6.0000s / 60 | [전체](../images/characters/v11-sequence/quinn_course0_1.jpg) · [연속](../images/characters/v11-sequence/quinn_course0_2.jpg) · [달리기3.1~4.2s](../images/characters/v11-sequence/quinn_course0_3.jpg) | [capture.txt](../images/characters/v11-sequence/quinn_course0-capture.txt) |
 | quinn 계단 왕복 | 6.0000s / 60 | [전체](../images/characters/v11-sequence/quinn_course1_1.jpg) · [연속](../images/characters/v11-sequence/quinn_course1_2.jpg) | [capture.txt](../images/characters/v11-sequence/quinn_course1-capture.txt) |
 | quinn 포털 왕복 | 6.0000s / 60 | [전체](../images/characters/v11-sequence/quinn_course2_1.jpg) · [연속](../images/characters/v11-sequence/quinn_course2_2.jpg) | [capture.txt](../images/characters/v11-sequence/quinn_course2-capture.txt) |
 
@@ -210,6 +210,11 @@ Python 게이트: ruff check·format(98파일), pytest **694 passed / 63 skipped
 - **WP-18 / 상태**: 🟡 설계·코드·후속 자동화 완료·엔진 렌더 근거 확보·PC 영상/시각 판정 대기
 - **WP-18 / 인계 메모 추가**: T2에서 proxy135/proxy110/quinn의 걷기3초→달리기3초·계단 왕복·포털 왕복 D3D12 InputKey 렌더 시퀀스9코스(577프레임)를 확보했다. 실제 키보드 지속 입력·영상 아님. 코스별 시트와 입력 타임라인은 WP-18-followup T2 절. 최종 시각 판정은 Fable 대기.
 - **V-11 / 상태**: 🟡 헤드리스·물리/입력 자동화·엔진 렌더 근거 확인·PC 영상/시각 판정 대기
-- **V-11 / 인계 메모 추가**: T2 PhotoIntegration 6조합 EXECUTED·경고0, GUI PIE 재시작·Quinn 콘솔 선택 확인. 잘못된 초기 메시 로드 실패는 로그 재현됐으나 GUI 첫 관찰에 Manny가 이미 표시돼 캡슐 화면 및 캡슐→수동 복구는 미확인. 실제 키보드 지속 입력·영상·사람 눈 검수와 해당 캡슐 관찰은 PC 카드로 인계하며 hitch/VRAM은 미판정.
+- **V-11 / 인계 메모 추가**: T2 PhotoIntegration 6조합 EXECUTED·경고0, GUI PIE 재시작·Quinn 콘솔 선택 확인. 로스터 기본이 BeginPlay에서 캡슐을 덮으므로 ini만으로 GUI 캡슐 복구를 재현할 수 없다. D-019 결정으로 Runtime 헤드리스 복구 검사와 T2 ini 실패 로그로 대체·종결했다. 실제 키보드 지속 입력·영상·사람 눈 검수는 PC 카드로 인계하며 hitch/VRAM은 미판정.
 
 검증 게이트(T2 최종): UE5.8.3 증분 빌드 성공5.17s. `test.ps1 -SetupDevLevel` 전체 **28 Success(21+경고7), failed0/notRun0,166.99s**; opt-in 없는 RenderEvidence NOT EXECUTED1을 제외한 실제 실행27개. 별도 D3D12 시퀀스는 위와 같이 실제 실행 성공. PhotoIntegration은 전체에서도6조합 EXECUTED·경고0. Python ruff check/format103·pytest **736 passed/68 skipped/208 warnings,51.63s**·check_repo·diff --check 통과. 로컬 `Saved/Automation/WP18T2/full-report.json`에 보고서를 보관했다. 열린 pc/v08-animation #21과 변경 파일 겹침 없음, 신규 공유 훅 없음. PR CI와 Opus 코드/Fable 시각 리뷰는 별도다.
+
+
+PR #39 (A) 수정: D1 GUI 캡슐 복구를 Runtime+ini 실패 로그로 대체·종결, D5 상태·§9 표기 갱신, D3/C6 실제 명령·후처리 접두와 규칙 기록, D4/C7 연속 구간 명시, C2 Sequence 단독/nullrhi 오류 처리, Fable 요청 달리기·하강 연속 시트2장 추가. Fable은 기존18장을 🟡 근거로 채택했으며 타일당60~80px 한계로 발 접지·관절·발 미끄러짐은 사람 눈 검수 대기다. 비블로킹 C1/C3/C4/C5는 별도 후속으로 남긴다.
+
+수정 후 게이트: UE build 성공7.02s, Sequence 단독+nullrhi 및 두 플래그+nullrhi는 각각 failed1로 명시적 오류 확인. 전체28 Success(21+경고7), failed0/notRun0, 167.06s; RenderEvidence NOT EXECUTED1 제외실제27, Runtime 복구 검사 통과. pytest736 passed/68 skipped(45.03s), ruff check/format103·check_repo·diff check 통과. 추가 JPG2장195866/201429bytes, post-processed 접두9개 확인.

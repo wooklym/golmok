@@ -74,4 +74,4 @@ input sim=9.6249 key=S up
 input sim=9.6249 key=LeftShift up
 COMPLETE frames=60 duration=6.0000
 
-verified_resolution=1014x550; PNG decoded=60; cadence 0.1000s checked; JPG sheets are selected samples, not all frames.
+post-processed: verified_resolution=1014x550; PNG decoded=60; cadence 0.1000s checked; JPG sheets are selected samples, not all frames.
