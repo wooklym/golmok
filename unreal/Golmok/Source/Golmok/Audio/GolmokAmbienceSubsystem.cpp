@@ -153,17 +153,17 @@ void UGolmokAmbienceSubsystem::SetState(const FString& InState, bool bInstant)
 	{
 		if (SlotIds[Slot] == AssetId)
 		{
-			Gains[Slot].Set(1, bInstant ? 0 : Config.CrossfadeSeconds);
-			Gains[1 - Slot].Set(0, bInstant ? 0 : Config.CrossfadeSeconds);
+			Gains[Slot].Set(1, bInstant ? 0 : Config.FadeSeconds(State));
+			Gains[1 - Slot].Set(0, bInstant ? 0 : Config.FadeSeconds(State));
 			return;
 		}
 	}
 	const int32 Slot = Gains[0].Value <= Gains[1].Value ? 0 : 1;
-	if (!bInstant && Gains[Slot].Value > 0.0001 && Config.CrossfadeSeconds > 0)
+	if (!bInstant && Gains[Slot].Value > 0.0001 && Config.FadeSeconds(State) > 0)
 	{
 		// Two channels cannot keep three clips alive. Ramp the quieter slot to zero before replacement.
 		PendingSlot = Slot; PendingAsset = AssetId;
-		Gains[Slot].Set(0, FMath::Min(.05, Config.CrossfadeSeconds));
+		Gains[Slot].Set(0, FMath::Min(.05, Config.FadeSeconds(State)));
 		Gains[1 - Slot].Set(Gains[1 - Slot].Value, 0);
 	}
 	else StartSlot(Slot, AssetId, bInstant);
@@ -174,8 +174,8 @@ void UGolmokAmbienceSubsystem::StartSlot(int32 Slot, const FString& AssetId, boo
 	if (IsValid(Channels[Slot])) { Channels[Slot]->Stop(); Channels[Slot]->DestroyComponent(); Channels[Slot] = nullptr; }
 	SlotIds[Slot] = AssetId;
 	Gains[Slot].Value = 0;
-	Gains[Slot].Set(1, bInstant ? 0 : Config.CrossfadeSeconds);
-	Gains[1 - Slot].Set(0, bInstant ? 0 : Config.CrossfadeSeconds);
+	Gains[Slot].Set(1, bInstant ? 0 : Config.FadeSeconds(State));
+	Gains[1 - Slot].Set(0, bInstant ? 0 : Config.FadeSeconds(State));
 	if (USoundWave* Sound = Sounds.FindRef(AssetId))
 	{
 		Channels[Slot] = UGameplayStatics::SpawnSound2D(this, Sound, 0.f, 1.f, 0.f, nullptr, false, false);

@@ -2,6 +2,7 @@
   "schema_version": 1,
   "master_volume": 0.7,
   "crossfade_seconds": 2.0,
+  "crossfade_seconds_by_state": {"outdoor_day": 2.0, "outdoor_night": 2.0, "interior": 2.0},
   "pause_policy": "mute",
   "assets": {
     "outdoor_day": {

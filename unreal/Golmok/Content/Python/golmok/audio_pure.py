@@ -37,6 +37,13 @@ def parse_config(data):
         raise ValueError("unsupported audio schema_version")
     number(data["master_volume"], 0, 1)
     number(data["crossfade_seconds"], 0, 30)
+    durations = data.get("crossfade_seconds_by_state", {})
+    if not isinstance(durations, dict):
+        raise ValueError("crossfade_seconds_by_state must be an object")
+    for state, duration in durations.items():
+        if state not in ("outdoor_day", "outdoor_night", "interior"):
+            raise ValueError("unknown crossfade destination state")
+        number(duration, 0, 30)
     if data["pause_policy"] not in ("mute", "maintain"):
         raise ValueError("pause_policy must be mute or maintain")
     assets = data["assets"]

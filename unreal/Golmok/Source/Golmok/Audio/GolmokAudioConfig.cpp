@@ -42,6 +42,19 @@ namespace GolmokAudio
 			|| !Number(Root, TEXT("crossfade_seconds"), Next.CrossfadeSeconds, 0, 30)
 			|| !String(Root, TEXT("pause_policy"), Pause) || (Pause != TEXT("mute") && Pause != TEXT("maintain"))) return false;
 		Next.bMuteInPhoto = Pause == TEXT("mute");
+		if (Root->HasField(TEXT("crossfade_seconds_by_state")))
+		{
+			const FObject Durations = Object(Root, TEXT("crossfade_seconds_by_state"));
+			if (!Durations.IsValid()) return false;
+			for (const auto& Pair : Durations->Values)
+			{
+				const FString Key(*Pair.Key);
+				double Seconds = 0;
+				if ((Key != TEXT("outdoor_day") && Key != TEXT("outdoor_night") && Key != TEXT("interior"))
+					|| !Number(Durations, *Key, Seconds, 0, 30)) return false;
+				Next.StateCrossfadeSeconds.Add(Key, Seconds);
+			}
+		}
 		const FObject Assets = Object(Root, TEXT("assets"));
 		if (!Assets.IsValid() || Assets->Values.IsEmpty()) return false;
 		TSet<FString> Paths;

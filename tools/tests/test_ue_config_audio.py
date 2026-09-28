@@ -84,3 +84,21 @@ def test_source_symlink_cannot_escape(tmp_path):
         pytest.skip("symlink creation unavailable")
     with pytest.raises(ValueError):
         audio.source_path(root, "escape.wav")
+
+
+@pytest.mark.parametrize(
+    "value", [None, [], {"missing": 1}, {"interior": -1}, {"interior": True}, {"interior": float("nan")}]
+)
+def test_invalid_state_fade(value):
+    data = audio.load_config()
+    data["crossfade_seconds_by_state"] = value
+    with pytest.raises(ValueError):
+        audio.parse_config(data)
+
+
+def test_partial_state_fade_and_legacy_default():
+    data = audio.load_config()
+    data["crossfade_seconds_by_state"] = {"interior": 1.0}
+    audio.parse_config(data)
+    del data["crossfade_seconds_by_state"]
+    audio.parse_config(data)

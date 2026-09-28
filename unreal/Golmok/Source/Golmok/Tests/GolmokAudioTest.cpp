@@ -95,6 +95,10 @@ bool FGolmokAudioFootstepTest::RunTest(const FString& Parameters)
 	Gain.Advance(10); TestEqual(TEXT("fade clamps at target"), Gain.Value, 0.0);
 	FGolmokAudioConfig Config; FString Error;
 	TestTrue(TEXT("production audio config"), GolmokAudio::LoadConfig(Config, Error));
+	Config.StateCrossfadeSeconds.Add(TEXT("interior"), 1.0);
+	TestEqual(TEXT("destination fade override"), Config.FadeSeconds(TEXT("interior")), 1.0);
+	Config.StateCrossfadeSeconds.Remove(TEXT("outdoor_day"));
+	TestEqual(TEXT("unspecified destination uses global duration"), Config.FadeSeconds(TEXT("outdoor_day")), 2.0);
 	TestEqual(TEXT("default physical surface"), Config.Surfaces.FindRef(0), FString(TEXT("default")));
 	TestFalse(TEXT("invalid config fails atomically"), GolmokAudio::ParseConfig(TEXT("{}"), Config, Error));
 	TestTrue(TEXT("failed parse preserves prior config"), Config.Sets.Contains(TEXT("asphalt")));

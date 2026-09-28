@@ -13,6 +13,12 @@ struct FGolmokAudioConfig
 	double WalkStride = 70.0, RunStride = 110.0, RunThreshold = 250.0, TeleportLimit = 300.0;
 	double PitchMin = 0.95, PitchMax = 1.05, VolumeMin = 0.9, VolumeMax = 1.0;
 	bool bMuteInPhoto = true;
+	TMap<FString, double> StateCrossfadeSeconds;
+	double FadeSeconds(const FString& Destination) const
+	{
+		const double* Override = StateCrossfadeSeconds.Find(Destination);
+		return Override ? *Override : CrossfadeSeconds;
+	}
 	TMap<FString, FGolmokAudioAsset> Assets;
 	TMap<FString, FString> Ambience, Presets;
 	TMap<FString, TArray<FString>> Sets;
