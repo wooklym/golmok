@@ -65,7 +65,7 @@ namespace GolmokCharacterRosterPathTest
 					GolmokStatsMath::PoseSample Sample;
 					Sample.T = Index * 0.1;
 					Sample.P[0] = -600.0 + Index * 5.0;
-					Sample.P[1] = 0.0;
+					Sample.P[1] = 300.0; // Keep every path sample away from the parked character XY.
 					Sample.P[2] = 1000.0;
 					Path.Samples.push_back(Sample);
 				}
@@ -89,7 +89,8 @@ namespace GolmokCharacterRosterPathTest
 			{
 				Test->TestFalse(TEXT("original character visible after playback"), Character->IsHidden());
 				Test->TestEqual(TEXT("selection survives actual re-possession"), Roster->GetCurrentId(), FString(TEXT("proxy135")));
-				Test->TestTrue(TEXT("position survives actual re-possession"), Character->GetActorLocation().Equals(Position, 0.01));
+				// EndPlayback re-possesses the character; Restart restores movement and gravity may advance Z.
+				Test->TestTrue(TEXT("XY survives actual re-possession"), FVector::Dist2D(Character->GetActorLocation(), Position) < 0.01);
 				Test->TestTrue(TEXT("mesh transform survives actual re-possession"), Character->GetMesh()->GetRelativeTransform().Equals(MeshTransform));
 				Test->TestEqual(TEXT("capsule survives actual re-possession"), Character->GetCapsuleComponent()->GetUnscaledCapsuleHalfHeight(), 69.f);
 				Test->TestEqual(TEXT("camera survives actual re-possession"), Character->GetFollowCamera()->FieldOfView, 75.f);
