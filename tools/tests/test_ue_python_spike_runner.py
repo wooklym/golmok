@@ -876,6 +876,11 @@ def test_viewpoints_on_done_is_optional(fake, unreal):
 # ---- PIE perf, -game scripts -------------------------------------------------------------------------------
 
 
+# WAIT_CSV looks at the CSV folders every CSV_POLL_S (review F3), i.e. every third 0.1 s test tick: a change
+# is seen up to 0.2 s late and the settle time and the timeout are judged at looks only.
+POLL_TICK_S = 0.3
+
+
 def _csv(fake, n=1):
     return os.path.normpath(os.path.join(fake.saved_dir, "Profiling", "CSV", f"Profile({n}).csv"))
 
@@ -963,7 +968,7 @@ def test_pie_perf_csv_still_written_at_timeout(monkeypatch, tmp_path):
     perf = _perf_in_wait_csv(fake, monkeypatch)
     play_at, csv = perf.play_at, _csv(fake)
     done = _until(fake, lambda: perf.state != "WAIT_CSV")
-    assert done == pytest.approx(play_at + 5.0 + sr.CSV_GRACE_S, abs=0.11)
+    assert play_at + 5.0 + sr.CSV_GRACE_S - 1e-6 <= done <= play_at + 5.0 + sr.CSV_GRACE_S + POLL_TICK_S
     assert perf.saved == [] and perf.missing == ["a_clear_noon_walk_01"] and os.path.getsize(csv) > 60
     pattern = os.path.normpath(os.path.join(fake.saved_dir, "Profiling", "CSV", "Profile*.csv"))
     warning = fake.logged("warning")[0]
@@ -971,7 +976,7 @@ def test_pie_perf_csv_still_written_at_timeout(monkeypatch, tmp_path):
         f"spike_runner: missing {pattern} (timeout, a_clear_noon_walk_01; {csv} not complete: last change "
     ) and warning.endswith(" s after play, path 5.0 s)")
     last = float(re.search(r"last change (\d+\.\d) s after play", warning).group(1))
-    assert 5.0 + sr.CSV_GRACE_S - 1.0 - 0.15 <= last <= 5.0 + sr.CSV_GRACE_S  # written every csv_flush_s
+    assert 5.0 + sr.CSV_GRACE_S - 1.0 - 0.15 <= last <= done - play_at + 0.05  # written every csv_flush_s
     assert not any(line[1].startswith("spike_runner: csv ") for line in fake.logs)
 
 
@@ -987,8 +992,112 @@ def test_pie_perf_quiet_capture(monkeypatch, tmp_path, length_s, expect_done):
     assert perf.lengths == {"walk_01": length_s}
     play_at = perf.play_at
     done = _until(fake, lambda: perf.saved)
-    assert play_at + expect_done - 1e-6 <= done <= play_at + expect_done + 0.15
+    assert play_at + expect_done - 1e-6 <= done <= play_at + expect_done + POLL_TICK_S + 0.15
     assert perf.saved == [_csv(fake)] and _csv_line(_csv(fake)) in fake.logs
+    assert perf.csv_max_gap == 0.0  # the file's appearance is not a writer flush: one change, no gap
+
+
+def _stop_logged(fake):
+    return any(t.startswith("GolmokDebugSubsystem: csv:") for t in fake.logged())
+
+
+@pytest.mark.parametrize(
+    ("flush_s", "lag_s", "length_s", "settle_s"),
+    [
+        (1.0, 0.0, 5.0, 2.0),  # the fake's default writer: 1.5 x 1 s < CSV_SETTLE_S, timing as before
+        (3.0, 8.0, 5.0, 4.5),  # PR #44 review F1: taken at play + 8.6 s with the fixed 2 s, stop at + 13.2 s
+        (20.0, 0.0, 45.0, 10.0),  # 1.5 x 20 s = 30 s, capped at CSV_SETTLE_MAX_S
+    ],
+)
+def test_pie_perf_adaptive_settle(monkeypatch, tmp_path, flush_s, lag_s, length_s, settle_s):
+    """Follow-up #29 (review F1): a writer that flushes every flush_s while hitches make the playback outlast
+    the path's JSON length by lag_s. WAIT_CSV waits 1.5 x the largest gap seen between two changes of the
+    file (at least CSV_SETTLE_S, at most CSV_SETTLE_MAX_S), so the file is taken only after its Stop flush."""
+    fake = fake_unreal.install(monkeypatch, tmp_path, csv_flush_s=flush_s, csv_lag_s=lag_s)
+    perf = _perf_in_wait_csv(fake, monkeypatch, length_s=length_s)
+    play_at, csv = perf.play_at, _csv(fake)
+    stop_at = fake.csv_captures[0]["stop_at"]
+    assert stop_at == pytest.approx(play_at + length_s + lag_s + 0.2)  # + the fake's csv_stop_s
+    _until(fake, lambda: _stop_logged(fake))
+    assert perf.state == "WAIT_CSV" and perf.saved == []  # never taken before the Stop flush
+    size = os.path.getsize(csv)
+    done = _until(fake, lambda: perf.saved)
+    assert perf.saved == [csv] and _csv_line(csv) in fake.logs and os.path.getsize(csv) == size
+    assert perf.csv_max_gap == pytest.approx(flush_s, abs=POLL_TICK_S)  # changes seen at looks
+    settle = pure.csv_settle_s(perf.csv_max_gap, sr.CSV_SETTLE_S, sr.CSV_SETTLE_MAX_S)
+    assert settle == pytest.approx(settle_s, abs=1.5 * POLL_TICK_S)
+    assert sr.CSV_SETTLE_S <= settle <= sr.CSV_SETTLE_MAX_S
+    assert stop_at - 1e-6 <= perf.csv_changed_at < stop_at + POLL_TICK_S  # the Stop flush, seen at a look
+    assert perf.csv_changed_at + settle - 1e-6 <= done < perf.csv_changed_at + settle + POLL_TICK_S
+    assert stop_at + settle_s - 1.5 * POLL_TICK_S <= done <= stop_at + settle_s + 2 * POLL_TICK_S
+
+
+def test_pie_perf_fixed_settle_takes_a_lagging_csv_early(monkeypatch, tmp_path):
+    """The review F1 reproduction with the settle held at CSV_SETTLE_S (the rule before follow-up #29): a 3 s
+    writer whose playback outlasts the path by 8 s is taken while it is still being written."""
+    monkeypatch.setattr(sr, "CSV_SETTLE_MAX_S", sr.CSV_SETTLE_S)
+    fake = fake_unreal.install(monkeypatch, tmp_path, csv_flush_s=3.0, csv_lag_s=8.0)
+    perf = _perf_in_wait_csv(fake, monkeypatch)
+    play_at, stop_at = perf.play_at, fake.csv_captures[0]["stop_at"]
+    done = _until(fake, lambda: perf.saved or _stop_logged(fake))
+    assert perf.saved == [_csv(fake)] and not _stop_logged(fake)
+    assert play_at + 8.5 - 1e-6 <= done <= play_at + 8.5 + 2 * POLL_TICK_S < stop_at  # write at 6.5 s + 2 s
+
+
+def test_pie_perf_settle_cap_then_timeout(monkeypatch, tmp_path):
+    """A writer that flushes every 9 s through the timeout: the settle is min(1.5 x 9 s, CSV_SETTLE_MAX_S) =
+    10 s, which a file changing every 9 s never reaches, so the timeout (path length + CSV_GRACE_S) rules as
+    before - missing, naming the file and its last change."""
+    fake = fake_unreal.install(monkeypatch, tmp_path, csv_flush_s=9.0, csv_lag_s=100.0)
+    perf = _perf_in_wait_csv(fake, monkeypatch, length_s=20.0)
+    play_at, csv = perf.play_at, _csv(fake)
+    done = _until(fake, lambda: perf.state != "WAIT_CSV")
+    assert play_at + 20.0 + sr.CSV_GRACE_S - 1e-6 <= done <= play_at + 20.0 + sr.CSV_GRACE_S + POLL_TICK_S
+    assert perf.saved == [] and perf.missing == ["a_clear_noon_walk_01"] and not _stop_logged(fake)
+    assert perf.csv_max_gap == pytest.approx(9.0, abs=POLL_TICK_S)
+    assert pure.csv_settle_s(perf.csv_max_gap, sr.CSV_SETTLE_S, sr.CSV_SETTLE_MAX_S) == sr.CSV_SETTLE_MAX_S
+    warning = fake.logged("warning")[0]
+    assert f"(timeout, a_clear_noon_walk_01; {csv} not complete: last change " in warning
+    last = float(re.search(r"last change (\d+\.\d) s after play", warning).group(1))
+    assert last == pytest.approx(0.5 + 8 * 9.0, abs=POLL_TICK_S)  # created at 0.5 s, a row every 9 s
+
+
+def test_pie_perf_polls_every_csv_poll_s(fake, unreal, monkeypatch, tmp_path):
+    """Review F3: WAIT_CSV lists (glob) and stats both CSV folders at most every CSV_POLL_S of the state
+    machine clock; the ticks in between touch no file."""
+    local = tmp_path / "LocalAppData"
+    monkeypatch.setenv("LOCALAPPDATA", str(local))
+    _write_walk(fake, "walk_01", length_s=5.0)
+    perf = sr.perf_all(paths=("walk_01",), tags=("a",), presets=("clear_noon",))
+    assert len(perf.csv_dirs) == 2
+    globs, stats = [], []
+    real_glob, real_stat = sr.glob.glob, sr.os.stat
+
+    def counting_glob(pattern, *args, **kwargs):
+        if pattern.endswith("Profile*.csv"):
+            globs.append((fake.clock, pattern))
+        return real_glob(pattern, *args, **kwargs)
+
+    def counting_stat(path, *args, **kwargs):
+        if isinstance(path, str) and re.fullmatch(r"Profile.*\.csv", os.path.basename(path)):
+            stats.append(fake.clock)
+        return real_stat(path, *args, **kwargs)
+
+    monkeypatch.setattr(sr.glob, "glob", counting_glob)
+    monkeypatch.setattr(sr.os, "stat", counting_stat)
+    _until(fake, lambda: perf.state == "WAIT_CSV")
+    play_at = perf.play_at
+    ticks = 0
+    while not perf.saved:
+        fake_unreal.tick(fake, 1)
+        ticks += 1
+    looks = sorted({at for at, _ in globs})
+    assert all(at >= play_at for at in looks)
+    assert all(b - a >= sr.CSV_POLL_S for a, b in zip(looks, looks[1:], strict=False))
+    assert len(globs) == 2 * len(looks)  # both candidate folders at every look
+    assert stats and set(stats) <= set(looks)  # isfile / getmtime / stat of the newest file only at looks
+    assert ticks > 2 * len(looks)  # every third 0.1 s tick
+    assert len(looks) >= (fake.clock - play_at) / POLL_TICK_S - 2
 
 
 def test_pie_perf_two_candidate_folders(fake, unreal, monkeypatch, tmp_path):
@@ -1221,6 +1330,13 @@ def test_layer_level_log_block_matches_runbook(fake, unreal):
     fake.logs.clear()
     sr.save_layer_levels()
     assert _spike_lines(fake) == _runbook_block("spike_runner: layer level /Game/Golmok/Maps/L_Spike_b saved")
+
+
+def test_csv_wait_constants_match_runbook():
+    """Runbook §9 states the WAIT_CSV settle range: CSV_SETTLE_S 2 s, up to CSV_SETTLE_MAX_S 10 s."""
+    assert (sr.CSV_SETTLE_S, sr.CSV_SETTLE_MAX_S, sr.CSV_POLL_S) == (2.0, 10.0, 0.25)
+    lines = [line for line in RUNBOOK_WP06.read_text("utf-8").splitlines() if "`CSV_SETTLE_S` 2 s" in line]
+    assert len(lines) == 1 and "`CSV_SETTLE_MAX_S` 10 s" in lines[0]
 
 
 def test_pie_perf_log_block_matches_runbook(fake, unreal):

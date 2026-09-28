@@ -1648,6 +1648,12 @@ CSV_COMPLETE_CASES = [
     (0.5, 2.5, 0.0, -3.0, 2.0, True),         # negative = unknown
     (0.5, 2.5, 0.0, float("nan"), 2.0, True),  # not finite = unknown
     (0.5, 2.5, 0.0, float("inf"), 2.0, True),
+    # follow-up #29: the caller's adaptive settle (csv_settle_s) - PR #44 review F1, 3 s writer, playback late
+    (78.0, 82.5, 0.0, 73.0, 4.5, True),       # 1.5 x 3 s gap: quiet exactly 4.5 s
+    (78.0, 82.25, 0.0, 73.0, 4.5, False),     # quiet 4.25 s (the fixed 2 s took it at 80.0)
+    (78.0, 88.0, 0.0, 73.0, 10.0, True),      # capped settle: quiet exactly 10 s
+    (78.0, 87.75, 0.0, 73.0, 10.0, False),
+    (0.5, 10.5, 0.0, 0.0, 10.0, True),        # length 0 still has no path condition
 ]
 # fmt: on
 
@@ -1655,6 +1661,37 @@ CSV_COMPLETE_CASES = [
 @pytest.mark.parametrize(("changed_at", "now", "play", "length", "settle", "expected"), CSV_COMPLETE_CASES)
 def test_csv_complete(mods, changed_at, now, play, length, settle, expected):
     assert mods.pure.csv_complete(changed_at, now, play, length, settle, 1.0) is expected
+
+
+# fmt: off
+CSV_SETTLE_CASES = [
+    # max_gap, expected  (base 2.0 = CSV_SETTLE_S, cap 10.0 = CSV_SETTLE_MAX_S, 1.5 x gap)
+    (None, 2.0),            # no change seen yet
+    (0.0, 2.0),             # the file appeared and changed at most once (quiet capture)
+    (1.0, 2.0),             # a 1 s writer: 1.5 s < base
+    (4.0 / 3.0, 2.0),       # 1.5 x gap == base
+    (1.5, 2.25),            # just above base
+    (3.0, 4.5),             # PR #44 review F1 reproduction: flush 3 s
+    (6.0, 9.0),
+    (20.0 / 3.0, 10.0),     # 1.5 x gap == cap
+    (7.0, 10.0),            # above the cap
+    (20.0, 10.0),           # a 20 s writer: capped at 10 s, then the timeout rules
+    (-1.0, 2.0),            # negative = no gap
+    (float("nan"), 2.0),    # not finite = no gap
+    (float("inf"), 2.0),
+]
+# fmt: on
+
+
+@pytest.mark.parametrize(("max_gap", "expected"), CSV_SETTLE_CASES)
+def test_csv_settle_s(mods, max_gap, expected):
+    assert mods.pure.csv_settle_s(max_gap, 2.0, 10.0) == pytest.approx(expected)
+
+
+def test_csv_settle_s_factor(mods):
+    assert mods.pure.csv_settle_s(0.0, 2.0, 10.0, factor=3.0) == 2.0
+    assert mods.pure.csv_settle_s(3.0, 2.0, 10.0, factor=3.0) == 9.0
+    assert mods.pure.csv_settle_s(3.0, 2.0, 1.0) == 1.0  # the cap wins over the base (min of max)
 
 
 def test_screenshot_paths(mods):
