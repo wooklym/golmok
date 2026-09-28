@@ -90,7 +90,8 @@ struct FGolmokPhotoRestoreState
 	/** UGolmokGameViewportClient::IsTransitionMessageSuppressed() at entry (false when that class is not configured). */
 	bool bTransitionMessageSuppressed = false;
 	bool bDebugKeysActive = false;
-	/** UWorld::bIsCameraMoveableWhenPaused at entry (V-09 #57: Enter sets it to true after the pause, RestoreAll puts this back). */
+	/** UWorld::bIsCameraMoveableWhenPaused at entry (V-09 #57: Enter sets it to true after the pause, RestoreAll puts this back;
+	 *  when the world stays paused after Exit, at the first end of frame after the unpause - runbook section 12 #67). */
 	bool bCameraMoveableWhenPaused = false;
 	float TimeDilation = 1.f;
 	float PawnTimeDilation = 1.f;
@@ -327,6 +328,14 @@ private:
 	FString NextStemPath() const;
 	/** Section 4-3 (live world). */
 	void RestoreAll();
+	/**
+	 * Runbook section 12 #67 (PR #40 review R1): an exit that leaves the world paused (a pause from before Enter) keeps
+	 * UWorld::bIsCameraMoveableWhenPaused at true; the first end of frame that sees the world unpaused puts
+	 * bSavedCameraMoveableWhenPaused back and unbinds itself.
+	 */
+	void OnEndFrameCameraMoveableRestore();
+	/** Drops a pending #67 restore (unbinds, clears the flag); the world's flag is left as it is. */
+	void CancelCameraMoveableRestore();
 	/** Section 4-3 (EndPlayInEditor / Quit / bIsTearingDown). */
 	void TeardownForDeadWorld();
 	/** AGolmokTimeOfDay::CaptureState().ExposureBias or DefaultAutoExposureBias(). */
@@ -372,6 +381,9 @@ private:
 	bool bSavedPawnHidden = false;
 	bool bSavedSuppressTransition = false;
 	bool bSavedCameraMoveableWhenPaused = false; // V-09 PC fix (runbook section 12 #57): UWorld::bIsCameraMoveableWhenPaused
+	/** Section 12 #67: RestoreAll left the world paused with the flag still true; OnEndFrameCameraMoveableRestore restores it. */
+	bool bRestoreCameraMoveableOnUnpause = false;
+	FDelegateHandle CameraMoveableRestoreHandle;
 	bool bDebugKeysWereActive = false;
 	bool bWarnedViewportClass = false;
 	float SavedTimeDilation = 1.f;

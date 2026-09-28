@@ -26,6 +26,7 @@
 //                                                        one "code x y z" line per tick: the pawn loop of
 //                                                        MoveConstrained without the sweep (Current = P, Desired = P + v,
 //                                                        P = Out unless the code is -1)
+//   constrainh / walkh                                   the same with Constraint::bKeepHeight (D-013 decision 3)
 //   meta       key=value lines                           FormatPhotoMetaJson text as is. Keys: version time_utc
 //                                                        preset (or "preset=-" -> null) zone_id zone_version
 //                                                        ("zone=-" -> both null) lon lat height_m ("geo=-" -> all
@@ -495,9 +496,10 @@ int main(int argc, char** argv)
 			return 3;
 		}
 	}
-	else if (!std::strcmp(Cmd, "constrain"))
+	else if (!std::strcmp(Cmd, "constrain") || !std::strcmp(Cmd, "constrainh"))
 	{
 		Constraint C;
+		C.bKeepHeight = Cmd[9] == 'h';
 		for (std::size_t i = 0; i < 3; ++i)
 		{
 			C.Anchor[i] = R.Number("anchor");
@@ -534,9 +536,10 @@ int main(int argc, char** argv)
 			return 3;
 		}
 	}
-	else if (!std::strcmp(Cmd, "walk"))
+	else if (!std::strcmp(Cmd, "walk") || !std::strcmp(Cmd, "walkh"))
 	{
 		Constraint C;
+		C.bKeepHeight = Cmd[4] == 'h';
 		for (std::size_t i = 0; i < 3; ++i)
 		{
 			C.Anchor[i] = R.Number("anchor");

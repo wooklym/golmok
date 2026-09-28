@@ -191,6 +191,39 @@ namespace GolmokPhotoMath
 		return true;
 	}
 
+	/**
+	 * Keep-height variant of ClampToSphere (D-013 decision 3): P's XY clamped into the ball's horizontal slice at P's own
+	 * height (the nearest point of that disk), Z untouched. Returns true when it moved. The caller guarantees
+	 * |P.z - Center.z| <= RadiusCm; a height beyond that collapses XY onto the center (the slice is empty).
+	 */
+	inline bool ClampToSphereXY(const Vec3& Center, double RadiusCm, Vec3& P)
+	{
+		const double Radius = (RadiusCm > 0.0) ? RadiusCm : 0.0;
+		if (Distance3(P, Center) <= Radius)
+		{
+			return false;
+		}
+		const double Dz = P[2] - Center[2];
+		const double Slice = std::sqrt(PhotoMax(Radius * Radius - Dz * Dz, 0.0));
+		const double Dx = P[0] - Center[0];
+		const double Dy = P[1] - Center[1];
+		const double Dxy = std::sqrt(Dx * Dx + Dy * Dy);
+		if (!(Dxy > Slice) || !std::isfinite(Dxy))
+		{
+			if (std::isfinite(Dxy))
+			{
+				return false; // outside only through the height (rounding at the slab's edge): nothing to do in the plane
+			}
+			P[0] = Center[0];
+			P[1] = Center[1];
+			return true;
+		}
+		const double Scale = Slice / Dxy;
+		P[0] = Center[0] + Dx * Scale;
+		P[1] = Center[1] + Dy * Scale;
+		return true;
+	}
+
 	/** Nearest point of the ring boundary (parallel arrays, N >= 3) to (X, Y); returns its distance, OutEdge = segment j (j -> j+1), ties: lowest j. */
 	inline double NearestBoundaryPoint(const double* Xs, const double* Ys, std::size_t N, double X, double Y, double& OutX, double& OutY, std::size_t& OutEdge)
 	{
@@ -569,6 +602,7 @@ namespace GolmokPhotoMath
 		std::size_t N = 0;
 		bool bHasCurrent = false;          // Current = the pawn's position before this move (MoveConstrained sets it)
 		Vec3 Current{};
+		bool bKeepHeight = false;          // no vertical input (D-013 decision 3): the constraint never changes Z, see Constrain
 	};
 
 	/**
@@ -620,6 +654,11 @@ namespace GolmokPhotoMath
 	 * sliding into the junction instead of freezing. Returns 0 = accepted unchanged (Out written), 1 = accepted after a
 	 * sphere clamp, 2 = after a polygon clamp, 3 = both, -1 = rejected (Out untouched; the pawn keeps its previous
 	 * position). The pawn calls this before each of its (at most two) sweeps.
+	 * C.bKeepHeight (D-013 decision 3, no Q/E input): every clamp works in the horizontal plane at the desired height, so
+	 * the result's Z is Desired.z (or, when that height lies outside the sphere's slab, C.Current.z: the move goes on in
+	 * the plane it starts in) - a push along the sphere or into the sphere/footprint junction slides or stops in that
+	 * plane instead of following the sphere toward the anchor's height. The bisection fallback keeps Z between
+	 * C.Current.z and that height.
 	 */
 	inline int Constrain(const Constraint& C, const Vec3& Desired, Vec3& Out)
 	{
@@ -628,9 +667,21 @@ namespace GolmokPhotoMath
 		const bool bPolygon = (C.N >= 3) && C.Xs != nullptr && C.Ys != nullptr;
 		const double Inset = MoveInsetCm(C);
 		const double Radius = (C.RadiusCm > 0.0) ? C.RadiusCm : 0.0;
+		// Same slack as the sphere test in MeetsConstraint: a pawn left on the sphere's pole by a vertical move stays movable.
+		const double SlabCm = Radius * (1.0 + 1e-12) + 1e-9;
+		if (C.bKeepHeight && !(std::fabs(P[2] - C.Anchor[2]) <= SlabCm))
+		{
+			// No point of the sphere at the desired height: stay in the current plane (never a height the sphere clamp picked).
+			if (!C.bHasCurrent || !(std::fabs(C.Current[2] - C.Anchor[2]) <= SlabCm))
+			{
+				return -1;
+			}
+			P[2] = C.Current[2];
+			Code |= 1;
+		}
 		for (int Round = 0; Round < ConstrainMaxRounds; ++Round)
 		{
-			if (ClampToSphere(C.Anchor, C.RadiusCm, P))
+			if (C.bKeepHeight ? ClampToSphereXY(C.Anchor, C.RadiusCm, P) : ClampToSphere(C.Anchor, C.RadiusCm, P))
 			{
 				Code |= 1;
 			}

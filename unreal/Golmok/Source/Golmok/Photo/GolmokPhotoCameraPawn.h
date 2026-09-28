@@ -54,8 +54,14 @@ public:
 	FRotator GetLook() const { return Look; }
 	void SetRoll(float InRollDeg);
 
-	/** Constrain + sweep toward InDesired, then at most one constrained slide sweep along the hit plane (public test hook; Tick calls it with Location + Velocity * dt). */
-	void MoveConstrained(const FVector& InDesired);
+	/**
+	 * Constrain + sweep toward InDesired, then at most one constrained slide sweep along the hit plane (public test hook; Tick
+	 * calls it with Location + Velocity * dt). bKeepHeight (Tick: no Q/E input, D-013 decision 3): the constraint clamps in the
+	 * horizontal plane and the slide is flattened, so only the desired move itself changes Z (Tick's is horizontal then:
+	 * W/S/A/D are yaw only, decision 3 final). bKeepHeight assumes a horizontal desired move (Desired.z == Current.z): a
+	 * pitched desired move would ride the sphere toward its pole in that mode (PR #40 review M1), so no caller passes one.
+	 */
+	void MoveConstrained(const FVector& InDesired, bool bKeepHeight = false);
 	int32 GetTickCount() const { return TickCount; }
 	/** dt = clamp(FApp::GetDeltaTime(), 0, 0.1) (design section 10 #2): DeltaSeconds may be 0 while paused. */
 	virtual void Tick(float DeltaSeconds) override;
