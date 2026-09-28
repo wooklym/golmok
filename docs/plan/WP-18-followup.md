@@ -247,3 +247,13 @@ main4826929 기준 별도 astra/wp-18-sequence-diagnostics. T5는 #41 맵 복제
 검증(2026-09-28): UE5.8.3 빌드5.38s 성공. 자체 worktree의 생성 실내 .umap을 잠시 별도 이름으로 옮겨 missing fixture 오류를 재현(0.07s, failed1, PIE 큐 시작 전), finally에서 원래 경로로 복원했다. D3D12 정상9코스 **1 Success·경고/실패/notRun0,77.54s**, PNG577장1014×550 디코딩·0.1s 간격·프레임별 state577줄·PASS 단언12개·포털 inside1→복귀0 기록 확인. 각 manifest에 D3D12/preset applied=true/붐 길이/실제 명령줄 존재. 타임아웃300초 자체의 만료를 기다리는 실험은 하지 않았으며 첫 Update 초기화와 코스별 인스턴스로 범위를 확인했다.
 
 Python ruff check/format103·pytest740 passed/77 skipped(33.05s)·check_repo·diff check 통과. 바로 앞 main4826929 전체 UE 기준선은28 Success(21+경고7), 실패0/notRun0,167.53s(RenderEvidence NOT EXECUTED1 제외실제27); 후속 변경 검증은 위 실제 RHI opt-in 실행이며 전체 회귀를 재실행한 것으로 중복 집계하지 않는다. 증거는 로컬 Saved/Automation/SequenceDiagnostics/index.json·SequenceMissingFixture/index.json·WP18T2Sequence의 최신9개 폴더에 보관. 기존 PR39 시트·manifest는 변경하지 않음. GUI 잠금 해제·생성 에셋 복원 완료.
+
+## 병합 기록 — PR #42 (2026-09-28, 오케스트레이터 세션)
+
+대상: [PR #42](https://github.com/wooklym/golmok/pull/42) `astra/wp-18-sequence-diagnostics` 459fe03 — PR #39 리뷰 (B) C1/C3/C4/C5 후속. 절차: DEVELOPMENT-PLAN §7.6 — Opus 5.5 코드 리뷰(단일 관점, 지적 6건 중 major 없음) → PR 코멘트(2026-09-28 08:52Z) → D-019에 따라 (A) 없이 이 커밋(`WP-18: 병합 시 반영 (Fable)`) → merge commit.
+
+- **BLOCKING/major 없음.** 변경 3파일 모두 Astra 레인(Tests/GolmokCharacterRosterSequence.cpp +39/−10, WP-18-followup, 런북 wp18a), 핫스팟·공유 문서 무변경, 등록 테스트 28 = 28. include 해석(RHI는 Build.cs 기존 private 의존성, PackageName.h/CommandLine.h는 Core/CoreUObject), `GDynamicRHI` null 가드·`GetName()` const TCHAR*, `ApplyPreset` bool 반환·PIE에서 TimeOfDay는 FindOrSpawn으로 존재, `GetCameraBoom()` 존재·Phase 0에서 non-null, 멤버 초기화 순서·섀도잉 없음. C1 코스별 첫 Update 기준 300 s·경과 시간 메시지(FSequence는 코스마다 새로 생성), C3 fixture 검사가 첫 latent command보다 앞·AddError로 실패 확정(Astra 재현 failed 1·0.07 s), C4 `Check()` 실패 표시·집계·assert 줄, state 줄의 null Portal 안전(course 0/1), 단언 12개 = 3×(2+2), C5 environment 줄이 프리셋 적용 뒤·첫 캡처 전, 실패 시 applied=false manifest 저장 뒤 Fail, `Save()` 빈 Folder 가드(예전엔 CWD에 capture.txt가 생길 수 있었음). 문서와 코드 일치, 과장 없음(🟡 유지, 300 s 만료 실험 미실행 명시), 수치 일관(577 = T2 프레임 합).
+- **(A) 없음.** minor S1(병합 시 반영 문안이 세 문장·T5 문장 포함·대상 칸 미지정)은 이 커밋에서 병합 세션이 한 문장 WP-18 메모로 조립.
+- **(B) 후속(다음 Astra push에 실으면 됨)**: S2 런북 "매 프레임" → "캡처 프레임마다(0.1 s sim)"; S3 300 s에 PIE 기동·정착 대기가 포함됨을 반 문장; S4 fixture 루프는 첫 누락만 보고(모아서 보고하거나 문서 정정); S5 course 0은 단언 없음 → `assertions=none` 또는 개수 표기; S6 capture.txt의 command_line에 절대 경로가 들어가니 저장소에 넣을 때도 확인/마스킹 문구.
+- **(C) 옮긴 것**: STATUS 마지막 갱신·WP-18 행 메모 한 문장, 이 절. ROADMAP/astra-tasks/DECISIONS 무변경(상태 변화 없음).
+- 판정: **병합**. WP-18·V-11 🟡 유지, 시각 판정 범위 변경 없음.
