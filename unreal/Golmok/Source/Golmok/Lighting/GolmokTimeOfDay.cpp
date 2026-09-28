@@ -548,6 +548,9 @@ bool AGolmokTimeOfDay::ApplyPreset(FName Name, bool bInstant)
 	CurrentPreset = Name;
 	TargetPreset = Name;
 	StartTransition(ComposeTarget(), bInstant);
+	// [WP-13 hook]
+	OnPresetChanged.Broadcast(Name, bInstant);
+	// [/WP-13 hook]
 	return true;
 }
 
@@ -572,6 +575,9 @@ void AGolmokTimeOfDay::EnterInterior(FName Source)
 		FromPreset = CurrentPreset;
 		TargetPreset = CurrentPreset;
 		StartTransition(ComposeTarget(), /*bInstant*/ false);
+		// [WP-13 hook]
+		OnInteriorChanged.Broadcast(true);
+		// [/WP-13 hook]
 	}
 }
 
@@ -585,6 +591,9 @@ void AGolmokTimeOfDay::ExitInterior(FName Source)
 		FromPreset = CurrentPreset;
 		TargetPreset = CurrentPreset;
 		StartTransition(ComposeTarget(), /*bInstant*/ false);
+		// [WP-13 hook]
+		OnInteriorChanged.Broadcast(false);
+		// [/WP-13 hook]
 	}
 }
 

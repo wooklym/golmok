@@ -121,7 +121,8 @@ def test_default_game_ini_packaging_lines():
     assert text.count("+DirectoriesToAlwaysStageAsUFS=") == 2
     assert '+DirectoriesToAlwaysStageAsUFS=(Path="Golmok/Zones")' in text
     assert '+DirectoriesToAlwaysStageAsUFS=(Path="../Config/Golmok")' in text
-    assert text.count("+DirectoriesToAlwaysCook=") == 1
+    assert text.count("+DirectoriesToAlwaysCook=") == 2  # [WP-13 hook] + /Game/Golmok/Audio
+    assert '+DirectoriesToAlwaysCook=(Path="/Game/Golmok/Audio")' in text  # [WP-13 hook]
     assert '+DirectoriesToAlwaysCook=(Path="/Game/Golmok/Zones")' in text
 
 
