@@ -1,6 +1,6 @@
 # WP-13 — 환경음 기본: 앰비언스·발소리·실내 전환 (D-016 (a))
 
-상태: 🔵 **진행 중 — 13a 병합·13b 데이터/임포트 기반 구현, 런타임 연동 대기** (2026-09-28; 등록 2026-09-25) · 담당: **ChatGPT Astra**(2026-09-27 오디오 레인 배정, `plan/astra-tasks.md` T3; 코드 리뷰 Opus ultracode, 설계·최종 품질 Fable, 병합 오케스트레이터, DEVELOPMENT-PLAN §7.6) · 의존: WP-05(포털·시간대), WP-04(Zone), V-08 결과는 **불필요**(발소리는 이동 거리 기반으로 시작, 애니메이션 노티파이 연동은 채택안 뒤) · 검증: G2(`runbooks/pc-verify-wp13.md`, V-10)
+상태: 🔵 **진행 중 — 13b 런타임 구현·공유 검증 계약/패키징·청취 대기** (2026-09-28; 등록 2026-09-25) · 담당: **ChatGPT Astra**(2026-09-27 오디오 레인 배정, `plan/astra-tasks.md` T3; 코드 리뷰 Opus ultracode, 설계·최종 품질 Fable, 병합 오케스트레이터, DEVELOPMENT-PLAN §7.6) · 의존: WP-05(포털·시간대), WP-04(Zone), V-08 결과는 **불필요**(발소리는 이동 거리 기반으로 시작, 애니메이션 노티파이 연동은 채택안 뒤) · 검증: G2(`runbooks/pc-verify-wp13.md`, V-10)
 
 ## 목표
 소리 없는 골목을 "장소"로 만든다(D-016 (a), 사용자 승인 2026-09-25): 전역 앰비언스(도시 원경, 낮/밤), 발소리(바닥 재질 2~3종), 실내 진입 시 앰비언스 전환, 시간대별 전환. 현재 코드에는 오디오가 전혀 없다. 근거: [`design/game-features-proposal.md`](../design/game-features-proposal.md) D-016.
@@ -114,7 +114,7 @@ UE5.8.3 에디터 빌드 **성공(116.60s)**. Python commandlet(nullrhi·nosound
 
 Fable 검토용 구체안: Audio WorldSubsystem이 초기 TimeOfDay 상태를 읽고 변경 이벤트를 구독한다. 실내 소스가 하나 이상이면 interior를 우선하고, 마지막 실내 소스가 빠지면 현재 프리셋의 outdoor 상태로 돌아간다. A/B 두 컴포넌트로 2초 페이드하며 빠른 재전환 때 현재 gain에서 다음 목표로 이동한다. Controller 교체 탐색과 PawnChanged 델리게이트로 Character에 거리 기반 FootstepComponent를 붙이고, 공중·경로/포토 폰에는 발소리를 내지 않는다. 표면 미지정은 default, 근거 없는 계단 경사 추정은 하지 않고 L_Dev Course/Stairs 태그 및 PhysicalMaterial만 사용한다. pause mute 기본/maintain 옵션은 Photo API로 상태를 읽어 적용한다. 이벤트 제공 전의 대안인 상태 폴링은 스펙과 다르므로 오케스트레이터에 선택을 요청했다.
 
-아직 **미구현**: Audio C++/순수 수학 교차검증/UE StateMachine·Footstep/콘솔/실시간 전환·착지·HUD·게임 내 크레딧 노출. **미검증**: 패키징에 실제 사운드·크레딧 포함, 재생/청취/최종 음질. 이번 초안은 WP-13 완료·🟡로 표시하거나 최종 병합하지 않는다. 레인 간 설계 응답을 받아 같은 브랜치에서 이어간다.
+데이터 기반 단계 당시 **미구현**: Audio C++/순수 수학 교차검증/UE StateMachine·Footstep/콘솔/실시간 전환·착지·HUD·게임 내 크레딧 노출. **미검증**: 패키징에 실제 사운드·크레딧 포함, 재생/청취/최종 음질. 이번 초안은 WP-13 완료·🟡로 표시하거나 최종 병합하지 않는다. 레인 간 설계 응답을 받아 같은 브랜치에서 이어간다.
 
 ### 병합 시 반영 (13b 진행, 아직 최종 병합 대상 아님)
 
@@ -123,3 +123,31 @@ Fable 검토용 구체안: Audio WorldSubsystem이 초기 TimeOfDay 상태를 �
 패키징 추가 요청: `tools/tests/test_ue_wp05_fixture.py::test_default_game_ini_packaging_lines`가 cook 등록을 정확히1개로 고정한다. Audio 폴더 추가를 허용하는 타 레인 계약 갱신/훅 권한을 이슈 #30에서 요청한다. 계약 반영 전에는 패키징을 완료 표시하지 않는다.
 
 훅 철회·표기 공백 수정 뒤 최종 로컬 게이트: **716 passed/64 skipped/208 warnings,37.13s**, ruff check/format102·check_repo·main 대비 diff --check 통과. Audio WAV7개 합계1,280,308바이트.
+
+
+## 13b 런타임 진행 (2026-09-28, 위 데이터 단계 이후)
+
+오케스트레이터의 [00:13Z Fable 설계 결정·최소 훅 허용](https://github.com/wooklym/golmok/issues/30#issuecomment-5861126977)을 받아 이벤트 방식을 구현했다. main `4a31718`까지 충돌 없이 병합했고, 병합된 PR #32 브랜치에는 push하지 않는다.
+
+- Audio WorldSubsystem: JSON 로딩, 월드별 A/B 컴포넌트, 실제 TimeOfDay 프리셋/실내 이벤트 구독, 초기 상태·지연 생성 바인딩, 강제/auto 상태, mute/maintain Photo 정책, 부드러운 볼륨 전환. 늦은 Controller 발견만0.25s 간격이고 상태 변경은 이벤트다. PawnChanged에서 기존 Player 파일 수정 없이 FootstepComponent를 붙인다.
+- FootstepComponent: 수평 거리 누적·걷기/달리기 보폭, 공중 무음·착지1회, 텔레포트/폰 변경/포토/경로 누적 초기화, 재질 트레이스→JSON 세트·default, 명시적 계단 태그. L_Dev 폴더가 런타임 태그라는 가정은 하지 않는다.
+- 재생: SoundWave·코드 생성 attenuation/concurrency(최대8 voice), 피치/볼륨 범위, import된 SoundWave gain×master×랜덤(원본 gain 중복 곱하지 않음). 소스 교체는 JSON+임포트만으로 한다.
+- `golmok.audio` / `.mute` / `.state`, `golmok.audio credits`가 런타임 JSON의 전체 출처를 출력한다. HUD는 Debug 공급자 등록이며 Debug가 Audio를 include하지 않는다. 현재 확장 공급자는 Audio 하나다.
+- 승인된 훅: Lighting/GolmokTimeOfDay.h/.cpp 네이티브 델리게이트2개·성공 경로 broadcast3곳, Debug/GolmokDebugSubsystem.h/.cpp 공급자 배열/캐시 출력. 기존 줄은 변경하지 않고 WP-13 블록으로 추가한다. Audio 폴더·콘솔3개 등록도 훅 줄로 추가한다.
+- 순수 GolmokAudioMath.h: 보폭/착지·보간 재타깃·표면 우선순위. g++ 드라이버는 stdin으로1000프레임 거리 누적을 독립 기준과 비교하고 공중/착지/텔레포트/보간 연속성/표면 우선순위를 검사한다.
+
+### 검증과 남은 계약
+
+Audio 단독 자동화 **2 Success, 경고0/실패0/notRun0,0.76s**. StateMachine은 실제 TimeOfDay 이벤트·복수 실내 소스·force/auto·잘못된 상태 거절·mute·크레딧·컴포넌트 부착을 검사한다. Footstep은 거리/공중/착지/텔레포트/재빙의·보간 계산을 검사한다. 실제 음색/청취를 테스트했다는 뜻은 아니다.
+
+첫 전체 UE 회귀 **28 Success(21+경고7), failed0/notRun0,166.33s**. RenderEvidence NOT EXECUTED1 제외 실제 실행27개. PhotoIntegration6조합·Locomotion4종 등 기존 검사도 실행 성공. 이후 초기 BeginPlay 전 Tick 차단·표면 우선순위/메타데이터 검증 보완 후 최종 빌드/회귀를 다시 수행한다. 로그와 JSON은 Saved/Automation/WP13 및 tools/.venv 아래이며 생성 레벨/에셋/로그는 커밋하지 않는다.
+
+Python에서 런타임 추가 뒤 **1 failed,722 passed,67 skipped**(37.34s)를 확인했다. 실패는 WP-12 런북 고정 총계26개가 코드28개와 다른 `test_runbook_automation_total_matches_the_code`다. [PR #34 요청](https://github.com/wooklym/golmok/pull/34#issuecomment-5861292679)으로 WP-12 런북의 현재 총계28·기존25 및 두 번째 명령 목록 Audio.StateMachine/Footstep 갱신 권한을 요청했다. 기존26개 PC 검증 이력은 보존한다. 앞의 WP-05 cook 고정 목록 계약 요청도 아직 대기다. 타 레인 파일을 임의 수정하거나 테스트를 숨겨 통과시키지 않는다.
+
+### Fable 검토 항목
+
+빠른 제3상태 요청은 조용한 슬롯을 최대50ms 감쇠한 뒤 교체한다(두 슬롯에서 세 소리를 동시에 유지할 수 없음). 이때 요청 상태는 같은 프레임에 바뀌고 새 파일 시작은 최대50ms 지연된다. 현재 값부터 페이드해 파형을 즉시 끊지 않는 방식이며 청취/설계 승인 전 품질 합격으로 기록하지 않는다. PhysicalMaterial 없는 실제 메시의 재질 구분은 default이고, 최종 바닥 세트는 명시적 재질 부여 후 V-10에서 확인한다.
+
+최종 런타임 빌드 **성공10.82s**, 음소거 시 이미 재생 중인 발소리 정지까지 보완한 Audio 필터 **2 Success, 경고0/실패0/notRun0,0.92s**. 직전 전체 회귀 **28 Success(21+경고7),167.19s**, RenderEvidence 제외 실제27개. 최종 Python **1 failed/722 passed/68 skipped/208 warnings,38.15s**이며 실패는 위 WP-12 런북 총계 계약1개뿐이다. ruff check/format103·check_repo·diff --check 통과. CI를 초록 또는 WP-13 완료로 보고하지 않는다.
+
+소유 레인에 제안하는 최소 반영 문안: WP-12 런북 §1 두 번째 명령의 현재 총계 `**26개**`를 `**28개**`로 갱신하고 열거 끝에 `+ WP-13 2개(`Audio.StateMachine/Footstep`)`를 추가한다. 같은 §1에 `현재 코드 기준 헤드리스 자동화 28개(Photo 3 + 기존 25). 아래 §13의26개는 당시 PC 실행 이력이다.`를 추가해 기존 결과표를 보존한다. WP-05 fixture의 cook 등록 검사는 기존 Zones와 새 Audio2개를 확인하도록 확장한다. 이 수정은 권한 응답 뒤만 반영한다.

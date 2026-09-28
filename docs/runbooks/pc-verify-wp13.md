@@ -1,6 +1,6 @@
 # V-10 — WP-13 환경음 검증
 
-상태: 🔵 13b 데이터/임포트 기반 구현 중. 런타임 전환·발소리·청취 검증은 아직 완료하지 않았다.
+상태: 🔵 13b 런타임·임포트 구현 및 헤드리스 Audio 자동화 통과. 공유 테스트/패키징 계약 갱신과 V-10 청취 대기. 최신 실행 결과는 WP-13 문서의 런타임 절을 우선한다.
 
 ## 1. 데이터와 임포트
 
@@ -32,7 +32,19 @@ audio.run()
 
 ## 3. 남은 런타임·청취 항목
 
-`Golmok.Audio.StateMachine`·`Golmok.Audio.Footstep` 및 콘솔/서브시스템은 후속 구현 대상이다. 구현 뒤 빌드와 전체 회귀, Audio 필터를 실행한다. Photo 유지/뮤트 양쪽, 빠른 낮→밤→실내 재전환, 복수 포털 소스, 폰 교체/경로 재생, 걷기/달리기/공중/착지/텔레포트, 미지정 물리 재질 fallback을 확인한다.
+`UGolmokAmbienceSubsystem`과 `UGolmokFootstepComponent` 구현 뒤 `Golmok.Audio.StateMachine`·`Golmok.Audio.Footstep` 헤드리스 검사를 추가했다. 아래 명령은 사전 임포트 및 L_Dev/합성 zone 준비 후 수행한다.
+
+```powershell
+.\tools\ue\build.ps1
+.\tools\ue\test.ps1 -SetupDevLevel -Filter Golmok.Audio
+.\tools\ue\test.ps1 -SetupDevLevel
+```
+
+콘솔: `golmok.audio` 상태·슬롯·볼륨, `golmok.audio credits` JSON 출처/저자/라이선스/수정 내역, `golmok.audio.mute 1` / `0`, `golmok.audio.state outdoor_night` / `interior` / `outdoor_day` / `auto`. `auto`로 돌아와야 실제 Lighting 이벤트를 다시 따른다. HUD의 `audio:`는 Debug 공급자를 통해 갱신된다.
+
+`golmok.tod night`와 `clear_noon`, 포털 진입/퇴장으로 이벤트 연동을 검증한다. 실내 소스가 여러 개면 마지막 소스가 빠질 때까지 interior다. PhysicalMaterial surface0=default, 1=asphalt, 2=tile, 3=stairs 매핑은 audio.json에 있다. L_Dev의 Course/Stairs는 **에디터 폴더이며 런타임 태그가 아니다**. 기본 L_Dev 계단은 지정 재질이 없으면 default 소리가 맞다. 재질 비교 시 별도 테스트 복사 맵에서 해당 물리 재질 또는 명시적 actor tag `Course/Stairs`를 설정한다. 원본 setup_dev_level.py는 수정하지 않는다.
+
+보폭은 걷기70/달리기110cm, 속도 기준250cm/s다. 실제 소리 재생은 한 프레임 최대1발이며 긴 프레임의 나머지 거리는 소비한다. 공중은 무음, 공중→지면 전환은 착지1회, 폰 변경/경로/포토 진입 뒤에는 누적거리를 초기화한다. pause_policy의 `mute`/`maintain`은 JSON을 바꾸고 PIE를 재시작해 각각 확인한다. 사용자 mute는 두 정책보다 우선한다. Photo 유지/뮤트 양쪽, 빠른 낮→밤→실내 재전환, 복수 포털 소스, 폰 교체/경로 재생, 걷기/달리기/공중/착지/텔레포트, 미지정 물리 재질 fallback을 확인한다.
 
 V-10 GUI는 다른 UE 세션 종료와 GUI 잠금 확인 뒤 수행한다. 낮/밤·실내 전환 각3회, 재질별 걷기/달리기 각각10보, 점프/착지5회를 청취하고 clipping·루프 이음·발소리 중복·pause 뒤 복귀를 기록한다. 실제 청취와 자동화 로직 성공은 구분한다. 최종 야외 음원은 WP-17 현장 녹음 교체 대상이다.
 
@@ -40,9 +52,14 @@ V-10 GUI는 다른 UE 세션 종료와 GUI 잠금 확인 뒤 수행한다. 낮/�
 
 | 항목 | 상태 |
 |---|---|
-| AssetImportTask / imported_object_paths | fake unreal 계약 테스트; 실제 에디터 검증 결과는 WP-13 결과 절 |
-| SoundWave looping·volume / save_loaded_asset | 동일, 볼륨은 파형 정규화가 아님 |
-| Lighting 프리셋/실내 변경 이벤트 | 현행 공개 상태는 있으나 델리게이트 없음. 이슈 #30에 타 레인 API 요청 |
-| HUD audio: 줄 | Debug 레인 연동 권한/훅 요청, 미구현 |
+| AssetImportTask / imported_object_paths | fake unreal 계약 및 UE5.8.3 실제7개 임포트·재임포트 확인 |
+| SoundWave looping·volume / save_loaded_asset | 실제7개 값 검증, 볼륨은 파형 정규화가 아님 |
+| Lighting 프리셋/실내 변경 이벤트 | 00:13Z Fable 승인 최소 훅 구현, 실제 이벤트→상태 자동화 통과 |
+| HUD audio: 줄 | 승인된 ExtraHudLineProviders 훅 구현; 바인딩/해제는 Audio 소유. 현재 공급자1개이며 추후 공급자를 추가할 때 배열 수명 계약 재검토 |
 | audio.json UFS | 기존 DefaultGame.ini의 ../Config/Golmok 스테이징 사용 |
 | 배포 크레딧·SoundWave cook | Audio cook 등록은 WP-05 고정 목록 테스트의 타 레인 계약 확장 후 추가. 크레딧 원본 메타데이터는 기존 UFS의 audio.json에 포함되며 게임 내 표시가 이를 읽도록 후속 구현. 독립 txt는 배포 문서용 생성물이고 별도 UFS에 넣지 않음. 패키징/게임 내 노출 미검증 |
+
+
+## 5. 크로스페이드와 품질 확인
+
+A/B 볼륨은 현재 값에서 선형 보간한다. 제3의 상태가 빠르게 들어오면 두 슬롯만으로 세 파일을 유지할 수 없으므로 더 조용한 슬롯을 최대50ms 동안0으로 낮춘 뒤 교체하고 설정된2초 전환을 시작한다. 요청 상태 변경은 이벤트와 같은 프레임이고 새 파일 시작은 이 경우 최대50ms 뒤다. 이 짧은 지연·음량 변화는 Fable 설계/청취 검토 대상이다. Photo 유지 정책은 UI sound로 월드 pause와 분리하고, mute는 컴포넌트 볼륨을0으로 만든다. 헤드리스 자동화는 청취 증거가 아니며 출력 장치·음색·최종 밸런스를 판정하지 않는다.
