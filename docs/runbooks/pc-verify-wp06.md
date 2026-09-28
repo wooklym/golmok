@@ -30,14 +30,21 @@
 - [ ] 에디터 `.\tools\ue\open-editor.ps1` → **검증용 맵 사본 `L_ZoneTest06`**을 만든다. WP-04/05 픽스처 `z_synthetic_001`은 합성 zone과 **같은 원점·겹치는 footprint**라 한 맵에 두면 겹침 해소 규칙(우선순위·버전 동률 → zone id 순, `z_synthetic_001` < `z_synthetic_scan_001`)으로 WP-06 zone의 시각 레이어가 숨겨지고 WP-04 벽·포털이 §3/§5/§7에 섞인다. 원본 `L_ZoneTest`는 WP-05 `Golmok.Portal.*` 자동화 테스트가 계속 쓰므로 건드리지 않는다. Output Log → Python:
   ```python
   import unreal
-  unreal.EditorAssetLibrary.duplicate_asset("/Game/Golmok/Maps/L_ZoneTest", "/Game/Golmok/Maps/L_ZoneTest06")
-  les = unreal.get_editor_subsystem(unreal.LevelEditorSubsystem); les.load_level("/Game/Golmok/Maps/L_ZoneTest06")
+  les = unreal.get_editor_subsystem(unreal.LevelEditorSubsystem)
+  assert les.load_level('/Game/Golmok/Maps/L_ZoneTest')
+  ues = unreal.get_editor_subsystem(unreal.UnrealEditorSubsystem)
+  world = ues.get_editor_world()
+  assert unreal.EditorLoadingAndSavingUtils.save_map(world, '/Game/Golmok/Maps/L_ZoneTest06')
+  world = ues.get_editor_world()
+  if not world.get_path_name().startswith('/Game/Golmok/Maps/L_ZoneTest06'):
+      assert les.load_level('/Game/Golmok/Maps/L_ZoneTest06')
+      world = ues.get_editor_world()
+  assert world.get_path_name().startswith('/Game/Golmok/Maps/L_ZoneTest06'), world.get_path_name()
   eas = unreal.get_editor_subsystem(unreal.EditorActorSubsystem)
   for a in eas.get_all_level_actors():
-      if a.get_actor_label() in ("Zone_z_synthetic_001", "Zone_z_synthetic_001_interior"):
+      if a.get_actor_label() in ('Zone_z_synthetic_001','Zone_z_synthetic_001_interior'):
           eas.destroy_actor(a)
-  world = unreal.get_editor_subsystem(unreal.UnrealEditorSubsystem).get_editor_world()
-  unreal.EditorLoadingAndSavingUtils.save_map(world, "/Game/Golmok/Maps/L_ZoneTest06")
+  assert unreal.EditorLoadingAndSavingUtils.save_map(world, '/Game/Golmok/Maps/L_ZoneTest06')
   ```
   기대: `L_ZoneTest06`에 `GeoOrigin`·`Zone_Ground`·`PlayerStart`·조명만 남고 `AGolmokZone`은 0개(§4 뒤에는 실외+실내 방 = 2개; `spike_runner` 로그의 `actors N`이 그 수). 이후 이 런북의 `level=` 인자와 `-game` 맵은 전부 `/Game/Golmok/Maps/L_ZoneTest06`(생성기 `next:` 안내도 같다). `.gitignore`에 사본·시점 파일이 있다(커밋되지 않음). V-03에서 경로 B 등록을 했다면 사본에도 `L_z_synthetic_001_interior` 스트리밍 항목이 남지만 부모 zone 액터가 없어 무해하다.
 - [ ] 디스크 여유: OBJ 사본(`<Saved>\Golmok\zone_import\…`)은 원본 텍스트 크기와 같다(합성 zone은 수백 KB; 실 zone은 원본의 2배 확보).
@@ -371,42 +378,60 @@ basemap_import: GeoOrigin lat=… lon=… h=… (basemap origin; ellipsoidal = D
 - [ ] `--exclude`는 에디터에서 할 일이 없다(빌드 시 타일에서 제외됨; docstring 확인만).
 
 ## 11. 결과 기록
+
+2026-09-28 Astra T5, 별도 worktree, main `1d68316` 반영. **부분 검증 — V-04 완료 아님.** §0 Save As로 선행 차단은 해소했으나 §8 레이어 맵 생성에서 같은 종류의 GC fatal을 재현했다. 제품 코드 수정 없음.
+
 | 항목 | 결과 | 메모·실측 |
 |---|---|---|
-| 전제(pytest·`L_ZoneTest06` 사본) | **차단(2026-09-28 Astra T5)** | §0 오타 정정: 이슈 #30 06:33Z 결정대로 원본 인자를 L_ZoneTest로 수정. UE5.8.3 빌드5.66s 성공. 에디터에서 duplicate_asset 뒤 load_level(copy)가 `World Memory Leaks: 2 leaks objects and packages`(EditorServer.cpp:2544)로 종료. L_ZoneTest06 저장 전, §2 미도달. 상세 재현은 아래 |
-| §1 생성(파일 27개·PNG·validate OK) | **통과** | --interior로 파일27개 생성. PNG5개256×256 디코딩·색/숫자/흰 사각형 확인. 실외·실내 manifest --strict --check-files 오류0·경고0. 자체 worktree Saved/T5Synthetic 사용(D: 대체), 소스/생성 에셋 커밋 없음 |
-| §2 route / obj mapping / glb mapping | | `import_result.json`의 `route`, `scale`·`m`·`err` 그대로 |
-| §2 텍스처(`size=` 표기, `merged by importer`/`packed`/`tile 1001 only`, VT, 숫자 방향) | | |
-| §2 청크(Nanite·슬롯·bounds 오차)·충돌 | | `deleted importer-created asset` 개수 |
-| §2 GeoOrigin·Zone 액터·뷰포트 | | |
-| §3 PIE 걷기(유리·문·블록·경사) | | |
-| §4 실내(포털 왕복 검사·서브레벨·PointLight) | | |
-| §5 포털 왕복(로그 순서) | | |
-| §6 재실행(덮어쓰기·`ManualProp` 보존·`removed 1`) | | |
-| §7 시점 10개·스크린샷 해상도(2560×1440?)·무인 `quit_editor=True` 종료 | | 백그라운드: 레벨 뷰포트 PIE가 계속 그렸나·걸린 시간 |
-| §7 컨택트 시트·리포트 템플릿 | | |
-| §8 `-game` CSV 위치·프레임 수·`golmok-perf` 표 | | 표를 붙인다 |
-| §9 PIE 참고치 | | |
-| §10 basemap GeoOrigin | | |
-| 고친 API(§12 번호) | | 커밋 해시 |
-| 설계와 다른 동작 발견 | | 이 문서에 없는 추가분 |
+| 전제(pytest·`L_ZoneTest06` 사본) | **통과** | UE5.8.3 빌드 5.32s 성공. 08:44Z 오케스트레이터 지시의 Save As §0 실행 성공. 원본 L_ZoneTest SHA-256 전후 동일 |
+| §1 생성(파일 27개·PNG·validate OK) | **통과** | --interior 파일27개, PNG5개256×256 디코딩·색/숫자/흰 사각형 확인. 실외·실내 strict validate 오류0·경고0. 자체 Saved/T5Synthetic 사용(D: 대체) |
+| §2 route / obj mapping / glb mapping | **통과** | route=fbx. OBJ scale=1, GLB scale=100, 양쪽 M=diag(1,-1,1), err=0 |
+| §2 텍스처 | **부분 확인** | facade tiles=[1001,1002,1011], 512×512, merged by importer; ground256×256; VT 모두 true. 낮 캡처에 빨강1001·초록1002·파랑1011 표시. 모든 면의 숫자 방향은 미확인 |
+| §2 청크·충돌 | **부분 확인** | 청크2개 각66tris·bounds_error_cm=0·unmatched=[]·ground/facade 슬롯 일치; 충돌2개 bounds오차0. 두 청크 Nanite enabled=True 직접 조회. 실제 보행 충돌은 §3 통과 |
+| §2 GeoOrigin·Zone 액터·뷰포트 | **부분 확인** | 에디터 액터 목록 GeoOrigin·Zone_z_synthetic_scan_001·Zone_z_synthetic_scan_001_room 각1개. 낮 캡처 확인. GeoOrigin API=(37.56,126.923,40.0), expected.json.area_origin과 일치 |
+| §3 PIE 걷기(유리·문·블록·경사) | **드라이버 통과** | InputKey 실제 CharacterMovement. 1s 압박 Δ위치: 유리0.000cm·벽1.219cm·블록0.000cm(<5). 장애물 남면 접촉 좌표도 단언. 약30m 경사 최저 발바닥−지면=+2.158cm. 시작 HUD ENU=(176.71,223.98,10.94) |
+| §4 실내 | **부분 확인** | round_trip.ok=true, dist=4.578891290460186e-06m, yaw_err=6.523411732928253e-05deg, parent_version=1. 서브레벨 생성, 조명1개. #29 importer 긴 이름 축약→rename 경고1개. PointLight API=3000cd·3000K·use_temperature=True, area-level 위치=(18170.579,-23258.019,1249.316), room-local 환산=(400,-340,250)cm |
+| §5 포털 왕복 | **드라이버 통과** | 문 통과 local north=889.487cm, inward→overlay off/outward→trigger 이탈 후 unload를 2회 확인. 노란 방·1001·따뜻한 조명·interior HUD 캡처. 실내 서·북·동벽1s 압박 Δ=0cm, 접촉x=162.102/y=1337.918/x=837.899cm. 천장은 위쪽 충돌 trace local z=299.999cm 확인(실제 점프는 미실행) |
+| §6 재실행 | **부분 확인** | reimport_textures=False 및 True, interior_setup 재실행 완료. ManualProp 보존·Interior_Light 각1개. True 재임포트 경고0·크기512/256 정상. False 직후 readback32×32 → 새 에디터 12s 대기 후512/256 확인(아래). 재임포트 뒤 §5 실제 드라이버 왕복 통과 |
+| §7 시점·캡처·무인 종료 | **파일 생성 통과 / HUD 관찰** | 고정 시점10개 저장·prepare 누락0. a×clear_noon/night 20장 모두2560×1440, 0 missing. 인덱스 분리 후 재검증: 전경53.656s·백그라운드67.063s 각각20/20. 메모장을 앞에 두어도 PIE 그리기 지속, 약25% 느림(단일 비교). quit_editor=True 후 프로세스 종료 |
+| §7 컨택트 시트·템플릿 | **생성 확인** | contact_sheet.html·report_template.md 생성. HTML table2개·img20개 확인, 실제 이미지도 별도 열어 확인. 브라우저 file:// 접근은 도구 보안정책으로 거부되어 HTML 렌더는 미확인(우회하지 않음) |
+| §8 레이어 맵·-game CSV | **차단** | s.save_layer_levels() 첫 L_Spike_b duplicate_asset→load_level에서 World Memory Leaks fatal. 완료 로그 없음. walk_01 InputKey 실시간 녹화73.003s·731샘플 확보. game_scripts·CSV·fps는 미실행 |
+| §9 PIE 참고치 | **미실행(선택)** | 선택 항목 미실행 |
+| §10 basemap GeoOrigin | **미실행(선택)** | 다른 세션의 베이스맵을 변경하지 않음 |
+| 게이트 | **통과** | ruff check, format103파일, pytest740 passed/77 skipped, check_repo OK. UE 전체 -SetupDevLevel 재실행: 28 Success(21+경고7), fail0; RenderEvidence 기본 NOT EXECUTED를 제외한 실제27개. 별도 opt-in 보행은 실행 성공 |
+| 고친 API | **문서만** | 승인된 §0 Save As 절차 및 §12 #8·#18 관찰 기록. 제품 Python/C++ 수정 없음. 09:14Z 승인된 Astra 테스트 opt-in 드라이버2파일 추가/연결 |
 
-### T5 차단 재현과 인계 (2026-09-28)
+### InputKey 실행 근거 (오케스트레이터 09:14Z 허용)
 
-main b0f583d, 별도 Astra worktree. 기존 L_ZoneTest 존재·L_ZoneTest06 없음. 오케스트레이터가 승인한 §0 원본 인자 정정 후 아래 순서로 실행했다. 에디터 시작 옵션 `-ExecutePythonScript=<로컬 검증 스크립트> -NoSplash -unattended`로 동일 Python 호출을 전달했다. GUI 입력이 아닌 정상 에디터 Python 실행이며, 출력 로그에 MAP LOAD·LevelEditorSubsystem.LoadLevel 스택을 확인했다.
+`Tests/GolmokCharacterRosterZoneWalk.cpp`를 기존 RenderEvidence의 `-GolmokZoneWalk` opt-in으로 연결했다. 새 테스트 등록 없음(총28개 유지). `-GolmokZoneWalkMap=/Game/Golmok/Maps/L_ZoneTest06` 필수·DoesPackageExist 검사, 코스 선택은 `-GolmokZoneWalkCourse=0..5`. 실시간 PIE, PlayerStart 초기 배치1회 외 텔레포트 없음. 각 코스 위치·HUD·단언·엔진 화면을 Saved/Automation/WP06ZoneWalk에 기록한다. 실제 키보드/애니메이션 품질 판정은 아니다.
 
-```python
-assert unreal.EditorAssetLibrary.duplicate_asset(
-    "/Game/Golmok/Maps/L_ZoneTest", "/Game/Golmok/Maps/L_ZoneTest06")
-les = unreal.get_editor_subsystem(unreal.LevelEditorSubsystem)
-assert les.load_level("/Game/Golmok/Maps/L_ZoneTest06")
+§3 지시대로 사본의 PlayerStart를 expected.json=(17670.59,-22398,1149.36)으로 옮겼다. 원본에서 상속된 이전 위치는 local north=-5m였다. 이전 Zone 인덱스가 다른 합성 Zone을 중첩 로드하는 것도 발견해 최초 실행은 판정에서 제외했다. 최종 프로세스에만 `-ini:Game:[/Script/Golmok.GolmokZoneSubsystem]:bDiscoverFromIndex=False`를 적용(설정 파일 변경 없음). 드라이버는 발견된 Zone이 있거나 PlayerStart가 기대 위치와5cm 이상 다르면 실패한다. 시작 HUD=2 placed zones·0 discovered.
+
+실행: 렌더링 UnrealEditor.exe에 위 옵션과 `-ExecCmds="Automation RunTests Golmok.Character.RenderEvidence;Quit" -ReportExportPath=<Saved>/Automation/T5WalkFinal` 전달. 코스0~4 단언13개와 추가 코스5(실내) 단언12개, 합계25개 통과, 각 실행 보고서 succeeded=1/failed=0, exit0. 최종 실내 코스 빌드6.01s 성공. 경로 녹화는3s 제자리 뒤 지면·문 왕복2회를 포함, 최종73.003s/731샘플. 첫 오염 실행·PlayerStart 조정 전 실행은 최종 결과에 포함하지 않았다.
+
+포털 로그(UTC, 최종 실행 첫 왕복):
+```text
+09:27:34.756 interior preload requested -> room loading (pinned)
+09:27:37.621 TimeOfDay: interior overlay on (source door_1, base clear_noon)
+09:27:37.621 Portal door_1: crossed inward
+09:27:42.786 TimeOfDay: interior overlay off -> clear_noon
+09:27:42.786 Portal door_1: crossed outward
+09:27:46.521 Portal door_1: player left -> unload ...; sublevel out
 ```
 
-07:13:27Z `Old world /Game/Golmok/Maps/L_ZoneTest06.L_ZoneTest06 not cleaned up by garbage collection while loading new map!` → `World Memory Leaks: 2 leaks objects and packages`, EditorServer.cpp:2544. 로그는 standalone KEEPFLAGS가 남은 복제 World와 패키지를 지목한다. 프로세스가 종료됐고 L_ZoneTest06.umap은 디스크에 없음. **원인 확정은 아님**: 복제 후 명시적 저장 또는 에디터 UI Save As 절차가 필요한지 담당자가 검토해야 한다. 삭제/GC 우회나 zone_import 코드 수정은 하지 않았다.
+[유리 압박](pc-verify-wp06-glass.jpg), [실내 보행](pc-verify-wp06-interior.jpg). 종료 시 zone.list=실외 loaded·실내 unloaded. 추가 실내 코스에서 진입2.100s 후 전환 종료·fog=0·exposure bias=base+1EV를 직접 계측했다. 천장 검증은 trace이며 점프 동작으로 과장하지 않는다.
 
-원본 L_ZoneTest는 보존했고 load 실패 뒤 destroy_actor·save_map·zone_import.run에는 도달하지 않았다. §2~§10 및 최종 GUI/성능은 미실행이다. 로컬 로그 `tools/.venv/t5-startup-crash.log`·`t5-preflight.txt`(정정 전 source-not-found), `t5-build2.txt`, 생성 입력 `Saved/T5Synthetic/`를 보관했다. 해당 에디터 PID43864 종료 확인 후 Astra GUI 잠금을 해제했다. GUI 검증 스크린샷은 없음.
+### 재현과 인계
 
-**병합 시 반영 — STATUS V-04 행 인계 문안**: T5 부분 검증. 합성 입력27개·PNG5개·실내/실외 strict validate 통과, UE5.8.3 빌드 성공. 런북 §0 원본 맵 인자 오타 정정 후 duplicate_asset→load_level에서 World Memory Leaks로 에디터 종료, §2~§10 미실행. 복제 맵 저장/로드 절차 담당 수정 뒤 재개. V-04 전체 통과/완료로 표시하지 않는다.
+1. **§0 선행 차단 해소**: 기존 duplicate_asset→load_level(copy)는 07:13:27Z EditorServer.cpp:2544의 `World Memory Leaks: 2 leaks objects and packages`로 종료했다. 오케스트레이터 [08:44Z 정정](https://github.com/wooklym/golmok/pull/41#issuecomment-5866539207)에 따라 §0를 save_map(world, copy)로 변경해 실제 성공. 원본 SHA-256은 실행 전후 `F284238B2172AC784923EDCD28499DD5A963341C3631FAFD6923BC7AD0E9F3D3`로 동일.
+2. **§8 독립 차단 재현**: 정상 L_ZoneTest06을 연 새 에디터에서 `import golmok.spike_runner as s; s.save_layer_levels()` 실행. 09:14:17Z `T5 LAYER START` 직후 첫 L_Spike_b의 복제 World가 GC에 남아 같은 fatal 발생. `T5 LAYER COMPLETE` 없음. spike_runner.save_layer_levels의 duplicate_asset→load_level 절차를 Claude 레인에서 검토해야 한다. 저장/GC 우회나 제품 코드 변경은 하지 않았다.
+3. **§7 HUD 기대 불일치**: `golmok.hud 0` 이후에도 이미지 좌상단에 `path: play vp_...` 줄이 남는다. GolmokHUD.cpp의 `!Debug->IsHudVisible()` 분기는 IsPlaying일 때 이 줄을 명시적으로 그린다. 일반 HUD와 캐릭터는 숨지만 런북의 HUD 없음 기대를 충족하지 못한다. 캡처 전용 숨김 여부는 오케스트레이터 09:18Z 답변: 재생 중 표시는 의도된 설계이며 캡처 증거에 영향 없음.
+4. **텍스처 readback**: reimport_textures=False와 다음 에디터 시작 직후 facade/ground `blueprint_get_size_x/y`가32×32. True 재임포트 보고는512/256이고 실제 캡처에 숫자/색이 보인다. 별도 새 에디터에서 텍스처를 로드한 뒤 slate tick으로12s 대기하자09:15:09Z facade512×512·ground256×256으로 정상화됐다. 즉시 조회는 임시 크기일 수 있으므로 재실행 기대값 판정은 준비 완료 후 해야 한다. 제품 손상으로 판정하지 않는다.
+5. **night 관찰**: 첫 실행은 Zone 인덱스 중첩이 있어 외관 판정에서 제외했다. 인덱스 분리 후에도 실내 PointLight가 켜진 시점은 노란 조명이 보이므로 전부 검정은 아니다. 기존 V-03 기록과 이번 측정 조건을 구별하며 야간 품질 판정은 하지 않는다.
+
+증거: [실외 타일 캡처](pc-verify-wp06-exterior.jpg), [HUD 상태줄 잔류](pc-verify-wp06-capture-hud.jpg). 원본20장2560×1440은 로컬 Saved/Screenshots/Golmok/a에 보존. 로그 tools/.venv/t5-saveas-import.log, t5-interior-reimport.log, t5-capture.log, t5-layer-crash.log, t5-texture-readback.log, 초기 t5-startup-crash.log 보관. 생성 에셋·원본PNG·검증 스크립트는 커밋하지 않는다. 시점은 에디터 Python 카메라 API로 저장했으며 수동 비행/보행으로 기록하지 않았다.
+
+**병합 시 반영 — STATUS V-04 행 인계 문안**: T5 부분 검증. Save As로 §0 GC 차단 해소·원본 맵 해시 불변, 합성 입력27개 strict validate·실외/실내 import·ManualProp 보존 재실행 확인. PIE 캡처20장2560×1440·누락0·자동 종료 확인. §8 save_layer_levels 맵 복제→로드 GC fatal 재현, §7 경로 상태줄 잔류. 실제 InputKey 보행·포털·실내 단언25개 통과·73.003s 경로 녹화. 전경/백그라운드 각20장 누락0 확인. -game 성능은 아직 미실행. V-04 전체 통과/완료로 표시하지 않는다. Claude 레인 레이어 맵 생성 수정 뒤 잔여 재개.
 
 기록 뒤:
 1. 이 표를 채우고 커밋(`WP-06: PC 검증 결과`). 스크린샷은 `docs/runbooks/` 옆에 `pc-verify-wp06-*.jpg`(작게).
@@ -421,11 +446,11 @@ assert les.load_level("/Game/Golmok/Maps/L_ZoneTest06")
 | 1 | zone_import | `unreal.AssetImportTask` + `factory=unreal.FbxFactory()` + `unreal.FbxImportUI`(`is_obj_import=True`, `import_materials/import_textures=False`, `mesh_type_to_import=unreal.FBXImportType.FBXIT_STATIC_MESH`, `static_mesh_import_data.build_nanite/combine_meshes`)가 OBJ에 적용되는지 | 5.8에서 OBJ가 레거시 FBX인지 Interchange인지(citations: Interchange 문서에 OBJ 없음, `FbxImportUI.is_obj_import`는 있음); `factory` 지정이 Interchange 라우팅을 우회하는지 | 사다리(D4): 프로브가 비면 `interchange` → 콘솔 `Interchange.FeatureFlags.Import.OBJ 0` 뒤 `legacy_flag`; 옵션이 무시돼도 부산물 삭제·슬롯 재할당으로 결과 동일 `legacy_flag` 경로는 캐시 적중 때도 콘솔 플래그를 다시 보낸다(CVar는 에디터 세션마다 초기화; 그 세션 동안 OBJ CVar가 0으로 남는다) |
 | 2 | zone_import | OBJ 임포터 축·단위(Z-up 유지? cm 변환?) | 측정으로 상쇄(프로브) | fit error > 1 cm → `ZoneImportError probe`; 청크 bounds 오류면 `remeasure=True`; 실측 (s, M)·route를 결과 표에 |
 | 3 | zone_import | `unreal.InterchangeGenericAssetsPipeline` 하위 `material_pipeline.texture_pipeline.import_udi_ms`, `material_pipeline.import_materials`, `mesh_pipeline.import_static_meshes/build_nanite`, `common_meshes_properties.force_all_mesh_as_type=unreal.InterchangeForceMeshType.IFMT_STATIC_MESH` | 속성 이름은 citations 확인, `AssetImportTask.options`로 전달되는지는 미확인 | hop마다 hasattr; 옵션 None(프로젝트 기본 UDIM 감지) → 병합 판정 → #4 폴백 |
-| 4 | zone_import | UDIM 자동 병합·`blueprint_get_size_x()`가 캔버스(512)인지 타일(256)인지; 결과 이름이 `T_<base>`(`destination_name`) | Python에 UDIM 크기 API 없음; UDIM 접미사 제거 규칙 | 크기로 판정하되 런북에 실제 표기 기록; `unreal.UDIMTextureFunctionLibrary.make_udim_virtual_texture_from_texture2_ds(name, textures, [unreal.IntPoint…])` 폴백 — 병합 안 된 앵커 `T_<base>` 위에 **제자리로** 묶는다(삭제하지 않음; `keep_existing_settings`: "if a texture with the same path name exists"), 타일 임포트는 `import_udi_ms=False`; `None`이 돌아오면 ERROR(앵커가 있는 경로를 함수가 거부한 것 — §11에 기록); 이름 다르면 `EditorAssetLibrary.rename_asset`; 최후 첫 타일 + WARNING |
+| 4 | zone_import | UDIM 자동 병합·`blueprint_get_size_x()`가 캔버스(512)인지 타일(256)인지; 결과 이름이 `T_<base>`(`destination_name`) | T5: 기존 텍스처 로드 직후32×32, 12s 뒤 facade512·ground256 정상화. Python에 UDIM 크기 API 없음; UDIM 접미사 제거 규칙| 크기로 판정하되 런북에 실제 표기 기록; `unreal.UDIMTextureFunctionLibrary.make_udim_virtual_texture_from_texture2_ds(name, textures, [unreal.IntPoint…])` 폴백 — 병합 안 된 앵커 `T_<base>` 위에 **제자리로** 묶는다(삭제하지 않음; `keep_existing_settings`: "if a texture with the same path name exists"), 타일 임포트는 `import_udi_ms=False`; `None`이 돌아오면 ERROR(앵커가 있는 경로를 함수가 거부한 것 — §11에 기록); 이름 다르면 `EditorAssetLibrary.rename_asset`; 최후 첫 타일 + WARNING |
 | 5 | zone_import | `Texture2D.set_editor_property("virtual_texture_streaming", True)`·`("srgb", True)` 뒤 재빌드 필요 여부 | 저장으로 충분한지 | `save_loaded_asset` 후 `MaterialEditingLibrary.recompile_material(M_ZoneScan)`; 못 켜면 `M_ZoneScan_NoVT` |
 | 6 | zone_import | `EditorAssetLibrary.list_assets(folder, recursive=True)` 반환 형식(`/Game/A/B.B` vs `/Game/A/B`), `imported_object_paths` 형식 | 문자열 형식 | `.split(".")[0]` 정규화(둘 다 처리) |
 | 7 | zone_import | `StaticMesh.get_editor_property("static_materials")[i].get_editor_property("material_slot_name")`, `set_material(i, mi)`; 머티리얼 임포트 off일 때 슬롯 이름이 `usemtl`인지 | 슬롯 이름 규약(2차) | 정확 → 대소문자 → usemtl 순서 폴백 + warn; `get_material_index(name)` 병행 |
-| 8 | zone_import | `EditorAssetLibrary.rename_asset(old, new)`, `delete_directory`, `duplicate_asset`; 규약 경로의 이전 에셋은 `delete_asset`(강제 삭제 — 참조 확인 없음)으로 지운 뒤 옮긴다(`sz._move_asset`과 같은 규칙) | T5: 일반 에셋과 별개로 §0 World 복제→load_level은 GC fatal 재현(§11), 저장/로드 절차 확인 필요 | `delete_asset`이 False면 `ERROR …: <path> exists and could not be deleted (referenced?)`; rename 실패 시 `duplicate_asset`+`delete_asset` |
+| 8 | zone_import | `EditorAssetLibrary.rename_asset(old, new)`, `delete_directory`, `duplicate_asset`; 규약 경로의 이전 에셋은 `delete_asset`(강제 삭제 — 참조 확인 없음)으로 지운 뒤 옮긴다(`sz._move_asset`과 같은 규칙) | T5: 월드는 duplicate_asset→load_level에서 GC fatal 재현. 오케스트레이터 08:44Z 정정: 월드는 duplicate_asset 불가 → Save As(§0·§11) | `delete_asset`이 False면 `ERROR …: <path> exists and could not be deleted (referenced?)`; rename 실패 시 `duplicate_asset`+`delete_asset` |
 | 9 | zone_import | `bm._set_nanite`(`unreal.StaticMeshEditorSubsystem.set_nanite_settings`), `bm._complex_collision`(`unreal.CollisionTraceFlag`) | V-02 확인 | 기존 hasattr 분기 |
 | 10 | materials·zone_import | `unreal.MaterialExpressionTextureSampleParameter2D.sampler_type = unreal.MaterialSamplerType.SAMPLERTYPE_VIRTUAL_COLOR`; **VT 샘플러의 기본 텍스처는 VT여야 한다**(비VT `DefaultTexture`면 컴파일 오류). 기본 텍스처는 마스터 전용 `/Game/Golmok/Materials/T_ZoneScanDefault`(생성 PNG 256×256 회색, VT on; NoVT 마스터는 `T_ZoneScanDefault_NoVT`, VT off) — zone 텍스처를 기본으로 두면 그 zone 재임포트의 강제 삭제가 기본을 None으로 만들고 커밋할 마스터가 zone 에셋에 묶인다. 이미 있는 마스터는 `unreal.MaterialEditingLibrary.get_material_property_input_node(mat, unreal.MaterialProperty.MP_BASE_COLOR)`로 샘플러를 찾아 `texture`를 제자리에서 고친다(`recompile_material`+저장; 다른 zone의 MI parent 유지) | enum 이름은 citations 확인; 기본 텍스처 제약은 엔진 규칙; `get_material_property_input_node` 노출은 미확인 | enum 없으면 미설정 + warn(수동 설정); `T_ZoneScanDefault`를 VT로 못 켜면 WARNING 후 첫 VT zone 텍스처를 기본으로(이전 동작); 함수가 없거나 샘플러를 못 찾으면 WARNING `… set it by hand` → `M_ZoneScan`을 열어 BaseColor 샘플러의 Texture를 `T_ZoneScanDefault`로 바꾸고 저장 |
 | 11 | interior_setup | `AGolmokZone.unload_in_editor()` 뒤 `get_actor_transform()` 유효 | WP-05 동일 | rebuild 직후 transform 취득(현재 순서) |
@@ -435,7 +460,7 @@ assert les.load_level("/Game/Golmok/Maps/L_ZoneTest06")
 | 15 | spike_runner | `unreal.SystemLibrary.execute_console_command(get_game_world(), cmd)`가 PIE 콘솔에 닿는지 | citations에 시그니처만 | `unreal.UnrealEditorSubsystem.get_game_world()` None이면 `unreal.EditorLevelLibrary.get_pie_worlds(False)`(deprecated) + warn; 최후 `viewpoints.capture` 에디터 모드 |
 | 16 | spike_runner | `LevelEditorSubsystem.editor_request_begin_play()/editor_request_end_play()/is_in_play_in_editor()` 뒤 PIE가 뜨는 틱 수 | 비동기. 엔진 소스(`LevelEditorSubsystem.cpp`)상 `DestinationSlateViewport`가 첫 활성 레벨 뷰포트로 고정 — 플레이 모드·새 창 설정은 무시되고, 활성 레벨 뷰포트가 없으면 시작하지 않는다 | 60 s 폴링; 시작 안 되면 `_finish`+런북(레벨 뷰포트를 연 뒤 재시도, 최후 `mode="editor"`) |
 | 17 | spike_runner | `-game -ExecCmds` 실행 시점(맵 로드 전이면 `golmok.*` 월드 명령 무효), `-ExitAfterCsvProfiling`이 콘솔 `CsvProfile Stop`에도 종료하는지 | 엔진 동작 | `.ps1` 타임아웃 kill + 로그 `GolmokDebugSubsystem: csv:` 검사; 실패면 PIE `perf_all()` 참고치 |
-| 18 | spike_runner | `EditorAssetLibrary.duplicate_asset(level, "/Game/Golmok/Maps/L_Spike_<tag>")`로 맵 복제 | 월드 파티션·외부 액터 | 실패 시 수동 "Save Current Level As" 안내 |
+| 18 | spike_runner | `EditorAssetLibrary.duplicate_asset(level, "/Game/Golmok/Maps/L_Spike_<tag>")`로 맵 복제 | T5: 첫 duplicate_asset→load_level에서 GC fatal 재현(§11). 월드 파티션·외부 액터| 실패 시 수동 "Save Current Level As" 안내 |
 | 19 | spike_runner | `set_is_temporarily_hidden_in_editor` / `set_actor_hidden_in_game` on Cesium3DTileset·XGRIDS 액터 | 플러그인 액터 가시성 구현 | `set_editor_property("hidden", True)`; Cesium은 `set_editor_property("enabled", False)`(있으면) |
 | 20 | basemap_import | `unreal.GolmokGeoOrigin` 프로퍼티 `latitude/longitude/height_ellipsoidal` | WP-04 sz와 동일 | sz 재사용 |
 | 21 | spike_runner | `configure_pie_window()`(선택 도우미, `capture_all`은 쓰지 않음 — #16): `unreal.get_default_object(unreal.LevelEditorPlaySettings)`의 `new_window_width/new_window_height`, `last_executed_play_mode_type=unreal.PlayModeType.PLAY_MODE_IN_EDITOR_FLOATING`(`EPlayModeType::PlayMode_InEditorFloating`) | 클래스·속성·enum 노출(추정) | 크기 실패: Editor Preferences > Level Editor > Play > New Window Size 수동; 모드 enum 없음(`PIE play mode: set 'New Editor Window (PIE)' by hand`): Play 드롭다운에서 수동. 기대 로그 `spike_runner: PIE window 1280x720 x2 (LevelEditorPlaySettings)` |
