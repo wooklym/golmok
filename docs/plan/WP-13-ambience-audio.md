@@ -207,3 +207,11 @@ Fable은 빠른 제3상태 최대50ms 교체, 70/110cm 보폭, 재질 default, P
 ## 병합 시 반영 — 13c T6
 
 STATUS 트랙 1A WP-13 행의 상태는 **🟡 코드 완료·PC V-10 대기** 유지. 근거 칸에 추가할 한 문장: “13c T6 리뷰 (B) 후속: ToD 수명 초기화·HUD 핸들·미임포트 패키지 선확인·미정의 물리 표면 default·임포트 실패 회귀, 헤드리스 검증; 청취·패키징 및 Shipping 크레딧 UI는 별도.”
+
+## 병합 기록 — 13c T6 PR #50 (2026-09-28, 오케스트레이터 세션)
+
+**내용**: PR #34 리뷰 (B) 중 청취 결과와 무관한 항목 — A-4 ToD 파괴 시 상태 초기화·재바인딩, A-5/B-5 HUD 공급자 인덱스 → 핸들 API(Debug/ 기존 `[WP-13 hook]` 블록 내부, 별도 커밋), A-7/B-8 `DoesPackageExist` 선확인, B-7 조건 위치 확인, C-9 임포트 실패 테스트 2케이스, C-11 미정의 `PhysicalSurfaces` → `default`, A-6/C-10/D7 문구. C-2(Shipping 크레딧 UI)는 오케스트레이터 보류(음원 확정 뒤). Astra 보고: PC 빌드, `Golmok.Audio` 2 Success(경고 1), 전체 28 Success, CI 10/10.
+
+**병합 전 리뷰(Opus 읽기 전용)**: BLOCKING·major 없음. 확인: 레인·hot-spot 준수(Debug/ 2파일은 훅 블록 내부, 재정렬 없음), 핸들 API 수명 안전(고유 ID·멱등 제거·HUD 캐시 무효화·Deinitialize 해제·weak 람다), 공급자 수 ==1 단언 유지, PR #49/#51/#52와 Debug 충돌 없음(merge-tree), A-4·A-7·B-7 동작, C-9 변이 3종 검증, 로컬 pytest 892. (B) 8건 → V-10 뒤 다음 Audio push: R50-1 미정의/미명명 표면 무진단 폴백(번호당 1회 경고 + 이름↔세트 id 대조 자동화 또는 이름 키잉), R50-2 런북 재질 비교 단계에 SurfaceType1~3 이름 지정 전제(`DefaultEngine.ini` 변경 커밋 금지), R50-3 헤드리스 경고 0→1(전체 21+7→20+8) 원인 기록, R50-4 훅 커밋 순서(중간 커밋 단독 빌드 불가), R50-5 B-5 잔여(`audio:` 줄 실제 단언·상대 개수), R50-6 패키지 실행에서 `error: missing SoundWave` 없음 확인, R50-7 D-019 훅 API 변경 기록(이번 병합 커밋에서 반영), R50-8 13b D7 문구.
+
+**병합**: 오케스트레이터 결정(D-019). WP-13 🟡 코드 완료·PC V-10 대기 유지.
