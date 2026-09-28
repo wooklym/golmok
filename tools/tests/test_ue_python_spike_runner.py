@@ -933,7 +933,8 @@ def test_pie_perf_waits_for_csv(fake, unreal, monkeypatch):
     assert stop == pytest.approx(play_at + 5.0 + 0.2, abs=0.11)  # path end + the fake's csv_stop_s
     assert perf.state == "WAIT_CSV" and perf.saved == []
     done = _until(fake, lambda: perf.saved)
-    assert play_at + 5.2 + sr.CSV_SETTLE_S - 1e-6 <= done <= play_at + 5.2 + sr.CSV_SETTLE_S + 0.15
+    upper = play_at + 5.2 + sr.CSV_SETTLE_S + POLL_TICK_S + 0.15  # at most one poll late (review R29-3)
+    assert play_at + 5.2 + sr.CSV_SETTLE_S - 1e-6 <= done <= upper
     assert perf.saved == [csv] and _csv_line(csv) in fake.logs
     fake_unreal.tick(fake, 400)
     assert perf.done and fake.calls_of("end_play") == [("end_play",)] and fake.callbacks == {}
@@ -1126,10 +1127,14 @@ def test_pie_perf_two_candidate_folders(fake, unreal, monkeypatch, tmp_path):
     _until(fake, lambda: fake.logged()[-1].startswith("GolmokDebugSubsystem: csv:"))
     fake_unreal.tick(fake, 10)
     assert len(perf.saved) == 1  # the project file (stopped 1 s ago) has not settled yet
+    gap_before = perf.csv_max_gap
     Path(other_2).write_text("FrameTime\n", encoding="utf-8")
     stamp = time.time() + 5.0  # the newest file
     os.utime(other_2, (stamp, stamp))
     written = fake.clock
+    _until(fake, lambda: perf.csv_stamp is not None and perf.csv_stamp[0] == other_2)
+    # a switch of file resets the same-file write clock but keeps the job's largest gap (PR #47 review R29-2)
+    assert perf.csv_written_at is None and perf.csv_max_gap == gap_before
     done = _until(fake, lambda: len(perf.saved) == 2)
     assert perf.saved[1] == other_2 and done >= written + sr.CSV_SETTLE_S - 1e-6
     assert _csv_line(other_2, "a_night_walk_01") in fake.logs
