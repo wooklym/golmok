@@ -24,6 +24,7 @@
 #include "Tests/AutomationEditorCommon.h"
 #include "UnrealClient.h"
 
+namespace GolmokCharacterRosterZoneWalk { void Enqueue(FAutomationTestBase* Test); }
 namespace GolmokCharacterRosterSequence { void Enqueue(FAutomationTestBase* Test); }
 
 namespace GolmokCharacterRosterRenderTest
@@ -125,6 +126,12 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGolmokCharacterRosterRenderTest, "Golmok.Chara
 
 bool FGolmokCharacterRosterRenderTest::RunTest(const FString& Parameters)
 {
+	if (FParse::Param(FCommandLine::Get(), TEXT("GolmokZoneWalk")))
+	{
+		if (!FApp::CanEverRender()) { AddError(TEXT("ZoneWalk requires a rendering RHI")); return false; }
+		GolmokCharacterRosterZoneWalk::Enqueue(this);
+		return true;
+	}
 	const bool bSequence = FParse::Param(FCommandLine::Get(), TEXT("GolmokCharacterSequence"));
 	if (bSequence && (!FParse::Param(FCommandLine::Get(), TEXT("GolmokCharacterRenderEvidence")) || !FApp::CanEverRender()))
 	{

@@ -1116,3 +1116,16 @@ V-04/V-05 메모(코드 미변경): (B3) `ResolveOverlaps`는 로드/언로드 �
 - 스파이크(V-05)는 `pc-spike.md` S0~S15; `night` 프리셋 화면 검정·HUD render ms 0·언로드 뒤 `blocked` 표시는 WP-09/D-010 몫(V-03 발견).
 - 2026-09-28 (PR #43): 런북 §0의 duplicate_asset→load_level fatal(Astra T5 2026-09-28, EditorServer.cpp:2544 World Memory Leaks) — save_layer_levels가 같은 패턴이라 Save As로 선제 수정, PC 미검증(V-04 §8 2단계에서 확인). `spike_runner.save_layer_levels`는 태그마다 원본을 다시 열고 `EditorLoadingAndSavingUtils.save_map`으로 `L_Spike_<tag>`에 저장한 뒤 그 맵이 열린 상태에서만 레이어를 적용하며, 원본은 쓰지 않는다: 에디터 호출 전에 태그를 검사하고 `L_Spike_*` 원본은 오류, 원본(외부 액터·오브젝트 패키지 포함)에 저장 안 된 변경이 있으면 오류(`capture_all`이 남긴 레이어 플래그가 사용자 맵에 저장되지 않게, J26), 열린 맵이 원본과 다르면 경고 후 진행, `base_level`은 객체 경로도 받는다(`_current_level_path`와 같은 정규화). `save_map`이 열린 월드 이름을 바꾸는지는 V-04 §8 2단계·런북 §12 #18에서 확인(V-07 wp09 §4 사전 단계가 이름 바꾸기 쪽 근거).
 
+## 병합 기록 — T5 PR #41 (2026-09-28, 오케스트레이터 세션; V-04 결과)
+
+**V-04 결과**: 🟢. 2026-09-28 ChatGPT Astra T5(PC, 브랜치 `astra/v04-verify-wp06`, [#41](https://github.com/wooklym/golmok/pull/41), head 937d028)가 런북 `runbooks/pc-verify-wp06.md`를 실행했다. 필수 §0~§8 기능 통과(§2 텍스처·청크, §4 실내, §6 재실행은 자동 단언 통과·사람 눈 관찰 미완 = "부분 확인"), §3·§5는 InputKey 드라이버(`Tests/GolmokCharacterRosterZoneWalk.cpp`, RenderEvidence `-GolmokZoneWalk` opt-in, 등록 28 유지) 6코스 25단언 통과, §7 20장×전경/백그라운드 2560×1440·누락 0, §8 b·c·ac 레이어 맵 생성(Save As, `save_map`은 열린 맵 이름을 바꾸지 않아 §12 #18 ④ 디스크 재열기 경로 확인)·`-game` a 139.1 fps(1% low 11.1)·b 164.6 fps(1% low 12.4, 단일 측정·품질 판정 아님). 선택 §9는 실행 실패(`_PiePerf` WAIT_CSV가 생성 중 CSV를 완료로 판단, 2프레임), §10 미실행. 제품 코드 수정 없음. 결과 표·재현·인계는 런북 §11, 스크린샷 `runbooks/pc-verify-wp06-*.jpg` 4장.
+
+**병합 전 리뷰(Opus 읽기 전용, 2026-09-28)**: BLOCKING·major 없음. 확인: 변경 7파일(런북·JPG 4·테스트 2)만으로 레인 준수, 제품 Python/C++·공유 문서·hot-spot 변경 없음, `IMPLEMENT_*_AUTOMATION_TEST` 28=28, §0 Save As 블록이 08:44Z 지시와 동일, main의 §8 2단계·§9·§12 #18 바이트 단위 유지, §11 표기가 본문·PR 본문·코드 단언 집계·JPG(LFS sha256 일치)와 일치, ZoneWalk 드라이버가 결정 조건(실제 폰·`InputKey`·초기 배치 1회·nullrhi/맵 누락/인덱스 zone/PlayerStart 편차/타임아웃 시 명시적 실패)을 지킴, 천장 trace 대체 타당(점프 정점 274 cm < 300 cm). minor 5·note 4:
+- (T1) STATUS 인계 문안이 칸별이 아님 → 병합 커밋에서 병행 트랙·트랙 1B 행을 칸별로 작성, "해시 불변"은 §8 전후로 한정.
+- (T2) 설계와 다른 동작: WP-09 zone 인덱스 발견이 WP-04/05 합성 zone을 `L_ZoneTest06`에 겹쳐 로드 → 최종 프로세스에만 `-ini:Game:[/Script/Golmok.GolmokZoneSubsystem]:bDiscoverFromIndex=False` 적용, `-game`은 Saved 아래 실행 사본 스크립트로 측정. 병합 커밋에서 런북 "재현과 인계" 7번·§8 행에 기록. 런북 §0/§8·`spike_runner.game_scripts` 격리 반영은 Claude 레인 후속(#28).
+- (T3) §5 포털 로그 발췌가 축약본 → 병합 커밋에 명기, 원문은 Astra가 PR 코멘트로 제공하면 후속에서 반영.
+- (T4) 코스 0·1의 1 s 압박 측정이 W 입력 뒤 고정 2 s 시작으로 접촉 시점과 겹침 → 재실행 시 거짓 FAIL 가능(거짓 PASS는 접촉면 단언이 막음). Astra 레인 후속.
+- (T5) §8 레이어 상태(Visual off·AutoManaged ✖·복귀) 직접 확인 기록 없음 → 병합 커밋에 "미기록(fps 차이로 간접)".
+- (T6) `Fail()`의 `golmok.path stop`이 잘린 녹화로 `walk_01.json`을 덮어쓸 수 있음, (T7) `-GolmokZoneWalk` 분기가 다른 opt-in 플래그를 말없이 건너뜀 → Astra 레인 후속. (T8) §5 "2회 확인"은 단언 1 + 로그 1(참고). (T9) §12 #18 불확실한 점에 T5 결과 반영(병합 커밋).
+
+**병합**: 오케스트레이터 결정(D-019). `V-04: 병합 시 반영 (Fable)` 커밋으로 위 문서 반영 뒤 merge commit. 다음: V-05 스파이크는 `runbooks/pc-spike.md`(PC), Claude 후속 #28(`_PiePerf` WAIT_CSV·PS 자기 복사·인덱스 격리), Astra 후속 T4/T6/T7은 다음 배정에.
