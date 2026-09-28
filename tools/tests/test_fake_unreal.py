@@ -672,4 +672,41 @@ def test_lit_knob(monkeypatch, tmp_path):
     assert dark.actors == [] and dark.calls == []
     world = dark.editor_world
     assert dark.module.EditorLoadingAndSavingUtils.save_map(world, f"{DEFAULT_LEVEL}.L_ZoneTest") is True
-    assert dark.calls == [("save_map", DEFAULT_LEVEL)]
+    assert dark.calls == [("save_map", DEFAULT_LEVEL, DEFAULT_LEVEL)]
+
+
+@pytest.mark.parametrize("renames", [True, False])
+def test_save_map_save_as(monkeypatch, tmp_path, renames):
+    """save_map to another path (runbook §12 #18): the copy exists with clones of the world's actors; with
+    save_map_renames it becomes the open world, and the source keeps its own actors either way."""
+    fake = fake_unreal.install(monkeypatch, tmp_path, save_map_renames=renames)
+    unreal, dst = fake.module, "/Game/Golmok/Maps/L_Spike_b"
+    zone = fake.add_actor("GolmokZone", "Zone_x", zone_id="z_x")
+    fake.streaming_levels[(DEFAULT_LEVEL, "/Game/Sub")] = unreal.LevelStreamingDynamic(
+        world_asset="/Game/Sub"
+    )
+    fake.dirty_maps.update({DEFAULT_LEVEL, "/Game/Other"})
+    dirty = unreal.EditorLoadingAndSavingUtils.get_dirty_map_packages()
+    assert [(p.get_name(), p.get_path_name()) for p in dirty] == [
+        (DEFAULT_LEVEL, DEFAULT_LEVEL),
+        ("/Game/Other", "/Game/Other"),
+    ]
+    world = unreal.get_editor_subsystem(unreal.UnrealEditorSubsystem).get_editor_world()
+    assert unreal.EditorLoadingAndSavingUtils.save_map(world, f"{dst}.L_Spike_b") is True
+    assert fake.calls == [("save_map", DEFAULT_LEVEL, dst)] and fake.saved_levels == [dst]
+    assert isinstance(
+        fake.registry[dst], fake_unreal.FakeLevel
+    ) and unreal.EditorAssetLibrary.does_asset_exist(dst)
+    copy = next(a for a in fake.levels[dst] if a.label == "Zone_x")
+    assert copy is not zone and zone in fake.levels[DEFAULT_LEVEL]
+    assert (dst, "/Game/Sub") in fake.streaming_levels and (
+        DEFAULT_LEVEL,
+        "/Game/Sub",
+    ) in fake.streaming_levels
+    open_level = dst if renames else DEFAULT_LEVEL
+    assert fake.current_level == fake.persistent_level == open_level
+    assert world.get_path_name() == f"{open_level}.{open_level.rsplit('/', 1)[-1]}"
+    assert fake.dirty_maps == ({"/Game/Other"} if renames else {DEFAULT_LEVEL, "/Game/Other"})
+    if not renames:
+        assert unreal.get_editor_subsystem(unreal.LevelEditorSubsystem).load_level(dst)
+        assert fake.actors == fake.levels[dst] and copy in fake.actors
