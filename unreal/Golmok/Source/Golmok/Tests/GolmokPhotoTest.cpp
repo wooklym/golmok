@@ -230,6 +230,7 @@ namespace GolmokPhotoTest
 		WaitForPawn,
 		Paused,
 		Exited,
+		PrePausedExit,
 		Refusals,
 		Console,
 		Done,
@@ -362,8 +363,9 @@ namespace GolmokPhotoTest
 				APlayerCameraManager* CameraManager = PC->PlayerCameraManager;
 				if (CameraManager)
 				{
-					Test->AddInfo(FString::Printf(TEXT("camera before Exit %s, player camera at entry %s"),
-						*CameraManager->GetCameraLocation().ToString(), *CameraLocationBefore.ToString()));
+					// Precondition: the check after Exit only discriminates when the cached POV is the (moved) photo camera now.
+					const double AwayCm = FVector::Dist(CameraManager->GetCameraLocation(), CameraLocationBefore);
+					Test->TestTrue(FString::Printf(TEXT("precondition: camera manager POV at the photo camera before Exit (%.1f cm > 20)"), AwayCm), AwayCm > 20.0);
 				}
 				Test->TestTrue(TEXT("Exit(test)"), Photo->Exit(TEXT("test")));
 				// #64: the exit frame already renders the player camera (the camera manager was refreshed inside Exit, with no
@@ -391,21 +393,45 @@ namespace GolmokPhotoTest
 				Test->TestTrue(TEXT("photo pawn destroyed (or pending kill)"), !PawnRef.IsValid() || PawnRef->IsPendingKillPending());
 				Test->TestTrue(TEXT("State == Inactive"), Photo->GetState() == EGolmokPhotoState::Inactive);
 
-				// A pause that pre-dates photo mode is kept.
+				// A pause that pre-dates photo mode is kept. The photo camera moves and the paused world ticks (the camera manager
+				// caches the photo POV through the full-tick flag) before the Exit in the next phase (#63 (b) / #64).
 				if (UGameplayStatics::SetGamePaused(World, true))
 				{
 					FString Message;
 					Test->TestTrue(TEXT("Enter() while already paused"), Photo->Enter(Message));
 					Test->TestTrue(TEXT("Enter() message says 'already paused'"), Message.Contains(TEXT("already paused")));
-					Test->TestTrue(TEXT("Exit() after a pre-existing pause"), Photo->Exit(TEXT("test")));
-					Test->TestTrue(TEXT("camera cut set on the exit frame (pre-existing pause)"), PC->PlayerCameraManager && PC->PlayerCameraManager->bGameCameraCutThisFrame != 0);
-					Test->TestTrue(TEXT("pre-existing pause kept after Exit"), UGameplayStatics::IsGamePaused(World));
-					UGameplayStatics::SetGamePaused(World, false);
+					if (AGolmokPhotoCameraPawn* PhotoPawn = Photo->GetPhotoPawn())
+					{
+						PhotoPawn->MoveConstrained(PhotoPawn->GetActorLocation() + FVector(0.0, 0.0, 80.0));
+					}
+					return Next(static_cast<int32>(EEnterExitPhase::PrePausedExit));
 				}
-				else
+				Test->AddInfo(TEXT("SetGamePaused(true) refused; pre-existing pause block skipped"));
+				return Next(static_cast<int32>(EEnterExitPhase::Refusals));
+			}
+
+			case EEnterExitPhase::PrePausedExit:
+			{
+				if (Elapsed() < 0.5)
 				{
-					Test->AddInfo(TEXT("SetGamePaused(true) refused; pre-existing pause block skipped"));
+					return false;
 				}
+				APlayerCameraManager* CameraManager = PC->PlayerCameraManager;
+				if (CameraManager)
+				{
+					const double AwayCm = FVector::Dist(CameraManager->GetCameraLocation(), CameraLocationBefore);
+					Test->TestTrue(FString::Printf(TEXT("precondition: camera manager POV at the photo camera before Exit (pre-existing pause, %.1f cm > 20)"), AwayCm), AwayCm > 20.0);
+				}
+				Test->TestTrue(TEXT("Exit() after a pre-existing pause"), Photo->Exit(TEXT("test")));
+				Test->TestTrue(TEXT("pre-existing pause kept after Exit"), UGameplayStatics::IsGamePaused(World));
+				if (CameraManager)
+				{
+					// #63 (b): the world stays paused, so no world tick refreshes the camera; Exit itself must have.
+					const double CameraDelta = FVector::Dist(CameraManager->GetCameraLocation(), CameraLocationBefore);
+					Test->TestTrue(FString::Printf(TEXT("camera manager POV back at the player camera while still paused (%.2f cm <= 2)"), CameraDelta), CameraDelta <= 2.0);
+					Test->TestTrue(TEXT("camera cut set on the exit frame (pre-existing pause)"), CameraManager->bGameCameraCutThisFrame != 0);
+				}
+				UGameplayStatics::SetGamePaused(World, false);
 				return Next(static_cast<int32>(EEnterExitPhase::Refusals));
 			}
 
@@ -590,23 +616,42 @@ namespace GolmokPhotoTest
 			Test->TestTrue(TEXT("pawn inside the sphere after -500 z"), FVector::Dist(Location, Anchor) <= RadiusCm + 1.0);
 			Test->TestTrue(TEXT("floor sweep stops the pawn (z >= floor - radius - 20 cm)"), Location.Z >= FloorZ - Sweep - 20.0);
 
-			// (b2) D-013 decision 3: a horizontal push (no Q/E: bKeepHeight) into the square / sphere never changes the height,
-			// even where the 3D nearest point would pull the pawn toward the anchor's height (V-09b junction observation).
-			// Start 60 cm above the anchor (a free 3D move, like Q/E), then push toward the +x / +y corner.
-			Pawn->MoveConstrained(Anchor + FVector(0.0, 0.0, 60.0));
-			const FVector PushStart = Pawn->GetActorLocation();
-			double MaxDz = 0.0;
-			for (int32 Step = 0; Step < 60; ++Step)
+			// (b2) D-013 decision 3: a horizontal push (no Q/E: bKeepHeight) into the junction of the sphere and a footprint edge
+			// never changes the height, where the 3D nearest point would slide the pawn down toward the anchor's height (V-09b
+			// junction: Shift 1.6 s -44 cm). Geometry from the effective radius R: start 0.5 R above the anchor (slice radius
+			// 0.866 R), square half-size 0.85 R (inset corner ~1.1 R out), so the push binds the sphere as well as the edge.
 			{
-				Pawn->MoveConstrained(Pawn->GetActorLocation() + FVector(15.0, 6.0, 0.0), /*bKeepHeight*/ true);
-				MaxDz = FMath::Max(MaxDz, FMath::Abs(Pawn->GetActorLocation().Z - PushStart.Z));
+				const double R = Photo->GetEffectiveRadiusCm();
+				const double Half = 0.85 * R;
+				TArray<FVector2D> Junction;
+				Junction.Add(FVector2D(Anchor.X - Half, Anchor.Y - Half));
+				Junction.Add(FVector2D(Anchor.X + Half, Anchor.Y - Half));
+				Junction.Add(FVector2D(Anchor.X + Half, Anchor.Y + Half));
+				Junction.Add(FVector2D(Anchor.X - Half, Anchor.Y + Half));
+				Photo->SetFootprintForTest(Junction);
+				// A free 3D move (like Q/E) to 0.5 R above the anchor, then 60 pushes of (15, 6) cm toward the +x edge.
+				Pawn->MoveConstrained(Anchor + FVector(0.0, 0.0, 0.5 * R));
+				const FVector PushStart = Pawn->GetActorLocation();
+				double MaxDz = 0.0;
+				for (int32 Step = 0; Step < 60; ++Step)
+				{
+					Pawn->MoveConstrained(Pawn->GetActorLocation() + FVector(15.0, 6.0, 0.0), /*bKeepHeight*/ true);
+					MaxDz = FMath::Max(MaxDz, FMath::Abs(Pawn->GetActorLocation().Z - PushStart.Z));
+				}
+				Location = Pawn->GetActorLocation();
+				const double Dz = PushStart.Z - Anchor.Z;
+				const double Slice = FMath::Sqrt(FMath::Max(R * R - Dz * Dz, 0.0));
+				const double Horizontal = FVector::Dist2D(Location, Anchor);
+				Test->AddInfo(FString::Printf(TEXT("keep height: from %s to %s, max |dz| %.4f, horizontal %.2f / slice %.2f (R %.1f)"),
+					*PushStart.ToString(), *Location.ToString(), MaxDz, Horizontal, Slice, R));
+				Test->TestTrue(TEXT("start 0.5 R above the anchor (+-5 cm)"), FMath::Abs(Dz - 0.5 * R) <= 5.0);
+				Test->TestTrue(TEXT("horizontal push keeps the height (|dz| <= 0.01 cm)"), MaxDz <= 0.01);
+				// The per-tick clamp settles within one step of the exact junction (pytest walkh: 0.4..1.6 cm inside the circle);
+				// the 3D path ends ~31 cm outside the start height's circle because it sank.
+				Test->TestTrue(TEXT("the push ends at the sphere's slice circle (-3..+0.01 cm): the sphere bound, not only the edge"), Horizontal >= Slice - 3.0 && Horizontal <= Slice + 0.01);
+				const double InsetEdge = Half - static_cast<double>(Photo->FootprintMarginM) * 100.0;
+				Test->TestTrue(TEXT("the push ends on the square's inset x edge (1 cm)"), FMath::Abs((Location.X - Anchor.X) - InsetEdge) <= 1.0);
 			}
-			Location = Pawn->GetActorLocation();
-			Test->AddInfo(FString::Printf(TEXT("keep height: from %s to %s, max |dz| %.4f"), *PushStart.ToString(), *Location.ToString(), MaxDz));
-			Test->TestTrue(TEXT("horizontal push keeps the height (|dz| <= 0.01 cm)"), MaxDz <= 0.01);
-			Test->TestTrue(TEXT("horizontal push moved the pawn (> 50 cm)"), FVector::Dist2D(Location, PushStart) > 50.0);
-			Test->TestTrue(TEXT("horizontal push stays inside the sphere"), FVector::Dist(Location, Anchor) <= Photo->GetEffectiveRadiusCm() + 1.0);
-			Test->TestTrue(TEXT("horizontal push stays inside the square"), FMath::Abs(Location.X - Anchor.X) <= 200.0 + 0.01 && FMath::Abs(Location.Y - Anchor.Y) <= 200.0 + 0.01);
 
 			// (c) a transient blocking box 1 m in front of the anchor; the move stops before it and passes once it is gone
 			Photo->Reset();

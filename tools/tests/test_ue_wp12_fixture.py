@@ -824,7 +824,11 @@ def test_keep_height_without_vertical_input():
     is flattened, so only the desired move itself changes Z."""
     pawn = _strip_comments(_read(PAWN_CPP))
     tick = _function_body(pawn, "AGolmokPhotoCameraPawn::Tick")
-    assert re.search(r"MoveConstrained\([^;]*,\s*UpDownInput == 0\.f\);", tick)
+    # a resting gamepad trigger (no dead zone on the trigger axes) must not switch the 3D clamp back on
+    assert re.search(r"constexpr\s+float\s+PhotoUpDownDeadZone\s*=\s*0\.1f;", pawn)
+    assert "(FMath::Abs(UpDownInput) > PhotoUpDownDeadZone) ? UpDownInput : 0.f" in tick
+    assert "FVector::UpVector * UpDown)" in tick
+    assert re.search(r"MoveConstrained\([^;]*,\s*UpDown == 0\.f\);", tick)
     move = _function_body(pawn, "AGolmokPhotoCameraPawn::MoveConstrained")
     assert "LocalConstraint.bKeepHeight = bKeepHeight;" in move
     flatten = move.index("Slide.Z = 0.0;")

@@ -22,6 +22,8 @@ namespace
 	constexpr int32 PhotoMaxSweeps = 2;
 	/** A slide shorter than this is dropped (a head-on push leaves only rounding noise). */
 	constexpr double PhotoMinSlideCm = 0.01;
+	/** |Q/E axis| at or below this counts as no vertical input (a resting gamepad trigger has no dead zone, D-013 decision 3). */
+	constexpr float PhotoUpDownDeadZone = 0.1f;
 } // namespace
 
 AGolmokPhotoCameraPawn::AGolmokPhotoCameraPawn()
@@ -264,16 +266,18 @@ void AGolmokPhotoCameraPawn::Tick(float DeltaSeconds)
 	// Move: forward includes the pitch, right is yaw only, up is world up; unit direction times the owner's speed.
 	const FVector Forward = Look.Vector();
 	const FVector Right = FRotator(0.f, Look.Yaw, 0.f).RotateVector(FVector::RightVector);
+	const float UpDown = (FMath::Abs(UpDownInput) > PhotoUpDownDeadZone) ? UpDownInput : 0.f;
 	const FVector Direction =
-		(Forward * MoveInput.Y + Right * MoveInput.X + FVector::UpVector * UpDownInput).GetClampedToMaxSize(1.0);
+		(Forward * MoveInput.Y + Right * MoveInput.X + FVector::UpVector * UpDown).GetClampedToMaxSize(1.0);
 	if (Direction.IsNearlyZero())
 	{
 		// No input: nothing to constrain or sweep this tick.
 		return;
 	}
 	const float SpeedCmPerSec = LocalOwner->MoveSpeedMps * 100.f * (bFast ? UGolmokPhotoModeSubsystem::FastMultiplier : 1.f);
-	// D-013 decision 3: only Q/E (UpDownInput) may change the height through the constraint / slide; W/S keep their pitch.
-	MoveConstrained(GetActorLocation() + Direction * (SpeedCmPerSec * LocalDt), /*bKeepHeight*/ UpDownInput == 0.f);
+	// D-013 decision 3: only Q/E (UpDown past the dead zone) may change the height through the constraint / slide; W/S keep
+	// their pitch.
+	MoveConstrained(GetActorLocation() + Direction * (SpeedCmPerSec * LocalDt), /*bKeepHeight*/ UpDown == 0.f);
 }
 
 void AGolmokPhotoCameraPawn::EndPlay(const EEndPlayReason::Type Reason)
