@@ -257,3 +257,11 @@ Python ruff check/format103·pytest740 passed/77 skipped(33.05s)·check_repo·di
 - **(B) 후속(다음 Astra push에 실으면 됨)**: S2 런북 "매 프레임" → "캡처 프레임마다(0.1 s sim)"; S3 300 s에 PIE 기동·정착 대기가 포함됨을 반 문장; S4 fixture 루프는 첫 누락만 보고(모아서 보고하거나 문서 정정); S5 course 0은 단언 없음 → `assertions=none` 또는 개수 표기; S6 capture.txt의 command_line에 절대 경로가 들어가니 저장소에 넣을 때도 확인/마스킹 문구.
 - **(C) 옮긴 것**: STATUS 마지막 갱신·WP-18 행 메모 한 문장, 이 절. ROADMAP/astra-tasks/DECISIONS 무변경(상태 변화 없음).
 - 판정: **병합**. WP-18·V-11 🟡 유지, 시각 판정 범위 변경 없음.
+
+## 병합 기록 — T7 PR #52 (2026-09-28, 오케스트레이터 세션)
+
+**내용**: PR #41 리뷰 T4/T6/T7 반영, `Tests/GolmokCharacterRosterZoneWalk.cpp`·`RenderTest.cpp`만(등록 28 유지). (T4) 코스 0·1의 1 s 압박 측정을 "접촉면 5 cm 이내 **그리고** 수평 속도 < 1 cm/s"에서 시작(과제 문구는 OR였으나 AND가 더 안전 — 리뷰 판단), 20 s 안에 정착하지 않으면 Fail. (T6) 녹화 중 Fail은 `golmok.path stop`을 생략하고 경고만 남겨 월드 서브시스템 `Deinitialize`가 녹화를 폐기(과제의 "다른 이름 저장" 대신 폐기 — walk.txt에 위치 샘플이 남고 잘린 경로는 아무도 쓰지 않으므로 허용). (T7) `-GolmokZoneWalk`와 RenderEvidence/Sequence 플래그 동시 지정 시 AddWarning. Astra 보고: PC 빌드·헤드리스 28 Success, RHI 실행은 PC 카드 3장(V-09c→V-10→V-04b) 뒤로 보류.
+
+**병합 전 리뷰(Opus 읽기 전용)**: BLOCKING·major 없음. 확인: 레인·hot-spot 준수, IMPLEMENT 28=28, 네임스페이스·unity·컴파일 위험 없음, T4 접촉면 수치(유리 남면 495 = 500 − BlockerThicknessCm/2, 벽 500, 캡슐 반지름 42 → FaceY 453/458)가 PR #41 실측과 일치, 교착 경로 없음, 1 s 변위 <5 cm·접촉면 ±30 cm 단언 의미 불변, T6 파일 보존 경로(StopRecording만 파일을 씀) 확인, T7 경고가 결과를 바꾸지 않음. (B) 3건은 RHI 실행 push에 반영: R52-1 경고 문구에 `walk_01` 경로 명시·주석 "EndPlay"→"Deinitialize", R52-2 유리 면을 `Zone->BlockerThicknessCm`에서 계산, R52-3 타임아웃 메시지에 y·면·속도 수치. 참고: 코스 4 성공 경로가 단언 전에 저장하는 기존 순서(R52-6), 세 수정은 아직 실행된 적 없음(R52-7 — RHI 실행에서 코스 0·1, 플래그 조합, 코스 4 강제 실패로 확인).
+
+**병합**: 오케스트레이터 결정(D-019), 헤드리스·CI 초록 기준. WP-18·V-11 상태 변동 없음(🟡 유지).

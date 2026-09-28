@@ -128,6 +128,10 @@ bool FGolmokCharacterRosterRenderTest::RunTest(const FString& Parameters)
 {
 	if (FParse::Param(FCommandLine::Get(), TEXT("GolmokZoneWalk")))
 	{
+		if (FParse::Param(FCommandLine::Get(), TEXT("GolmokCharacterRenderEvidence")) || FParse::Param(FCommandLine::Get(), TEXT("GolmokCharacterSequence")))
+		{
+			AddWarning(TEXT("GolmokZoneWalk takes precedence: GolmokCharacterRenderEvidence/Sequence will not execute. Run these opt-ins separately."));
+		}
 		if (!FApp::CanEverRender()) { AddError(TEXT("ZoneWalk requires a rendering RHI")); return false; }
 		GolmokCharacterRosterZoneWalk::Enqueue(this);
 		return true;
