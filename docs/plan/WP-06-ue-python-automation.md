@@ -1130,3 +1130,14 @@ V-04/V-05 메모(코드 미변경): (B3) `ResolveOverlaps`는 로드/언로드 �
 - (T6) `Fail()`의 `golmok.path stop`이 잘린 녹화로 `walk_01.json`을 덮어쓸 수 있음, (T7) `-GolmokZoneWalk` 분기가 다른 opt-in 플래그를 말없이 건너뜀 → Astra 레인 후속. (T8) §5 "2회 확인"은 단언 1 + 로그 1(참고). (T9) §12 #18 불확실한 점에 T5 결과 반영(병합 커밋).
 
 **병합**: 오케스트레이터 결정(D-019). `V-04: 병합 시 반영 (Fable)` 커밋으로 위 문서 반영 뒤 merge commit. 다음: V-05 스파이크는 `runbooks/pc-spike.md`(PC), Claude 후속 #28(`_PiePerf` WAIT_CSV·PS 자기 복사·인덱스 격리), Astra 후속 T4/T6/T7은 다음 배정에.
+
+## 병합 기록 — 후속 #28 PR #44 (2026-09-28, 오케스트레이터 세션)
+
+**후속 #28 내용**: T5(PR #41) 소견 3건 — ① `_PiePerf` WAIT_CSV 기록 완료 판정(`_pure.csv_complete`: 경로 길이 경과 + 경로 끝 − 1 s 이후 변경 + 2 s 정지), ② `run_game_perf.ps1` 자기 복사 제거(`_pure.copy_path_dirs`), ③ `game_scripts(discover_from_index=)` → `-ini:Game:[/Script/Golmok.GolmokZoneSubsystem]:bDiscoverFromIndex=<값>`(기본 `None` = 종전 argv), 런북 §0/§8/§9/§12 #39. 제품 동작·ini·C++ 변경 없음, PC 미검증(다음 PC §8·§9가 첫 확인). Opus 구현, pytest 837 → 864 passed.
+
+**병합 전 리뷰(Opus 읽기 전용, 2026-09-28)**: BLOCKING·major 없음. 확인: 시계 혼용 없음(`_now` 관측 시각만 비교, `not_before`는 후보 필터), 이전 작업의 CSV를 다음 작업이 가져갈 수 없음, 변이 테스트로 새 테스트가 옛 동작(존재만 확인)을 잡음, fake CSV 동작이 C++(첫 틱 `BeginCsv`·`EndPlayback` Stop·`Deinitialize` 'world ending')와 일치, 생성 `.ps1`이 pwsh 7.4에서 파싱 오류 0·`$pathDirs = @()` 실행 정상·자기 복사 경고 없음, `-ini:` 인자가 `-ExecCmds` 바로 앞 한 토큰·`None`이면 argv 바이트 동일, 엔진 `-ini:<File>:[Section]:Key=Value` 문법·T5 실측(HUD `0 discovered`)과 일치, §0 `Start-Process` 따옴표 정상, `_pure.LOG`·런북 기대 로그 불변. minor 2·note 1:
+- (F1, minor) 엔진이 2 s 넘는 간격으로 CSV를 쓰고 히치로 게임 시간이 실제 시간보다 늦어져 재생이 JSON 길이를 넘기면, 아직 쓰는 중인 CSV를 완료로 볼 수 있다(fake 재현: flush 3 s·지연 8 s). 피해는 참고치 PIE CSV의 꼬리 몇 초. 오케스트레이터 결정: 코드는 그대로, 런북 §9에 한 줄(프레임 수가 길이 × fps에 못 미치면 히치·재실행) 추가; 적응형 settle(관측 최대 변경 간격 × 1.5, 상한 10 s)은 (B) 후속.
+- (F2, minor) 런북 §7 무인 실행 줄에 `-ini:` 인자가 없어 그 단계는 인덱스 발견이 켜진 채 돈다 → 병합 커밋에서 추가, #39 행에 §7 명시.
+- (F3, note) WAIT_CSV가 캡처 내내 매 틱 두 폴더를 glob·stat(0.18 ms/폴 Linux, Windows는 더 느림) — 참고치 CSV라 그대로 둠; 0.25 s 간격 폴링은 (B) 후속.
+
+**병합**: 오케스트레이터 결정(D-019). `WP-06: 병합 시 반영 (Fable)` 커밋으로 F2·F1 런북 반영 뒤 merge commit. PC 확인 항목: 다음 PC 세션의 §8(`.ps1` `$pathDirs`·`-ini:`)·§9(`csv` 줄 시각 ≈ 길이 + 2 s, 프레임 수).

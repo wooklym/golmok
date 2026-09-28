@@ -79,7 +79,7 @@
 - 조명 프리셋 `golmok.lighting` — ✅ 4개 프리셋 적용 후 태양 각도·조도·색온도·스카이·안개·노출 값을 되읽어 전부 일치.
 - 고정 시점 저장·일괄 캡처 `golmok.viewpoints` — ✅(조건부) save·goto 정상. **버그 수정**: 스크린샷이 빠지거나 **다른 시점 이름으로 저장**됐다(스크린샷은 뷰포트의 다음 그리기에서 찍히는데, 그 그리기가 카메라 이동 뒤에 일어남). 이제 파일이 기록될 때까지 기다리고, 안 나오면 "missing"으로 알린다. 게임 뷰로 찍어 에디터 아이콘이 안 나온다. 재검증: L_Dev 3시점 × 프리셋 2개 = **6/6 저장, 이름·시점 일치**. ⚠ **캡처 중에는 에디터 창을 앞에 둔다** — 백그라운드에 오래 있던 에디터는 뷰포트를 그리지 않아 스크린샷이 안 나온다("백그라운드에서 CPU 덜 쓰기"를 꺼도 같음, UE 5.8.3). 무인 캡처는 PIE/`-game`의 `HighResShot`으로 한다(WP-06 `spike_runner`에 반영 필요).
 - 성능 요약 `golmok-perf` — ✅ 실제 UE 5.8.3 CSV로 확인. **버그 2개 수정**: 실제 CSV의 긴 이벤트 필드에서 파싱 실패, `-csvCaptureFrames` 부팅 캡처의 맵 로딩 프레임(7.5초)이 평균에 섞임. `-game` 실행의 CSV는 `%LOCALAPPDATA%\UnrealEngine\5.8\Saved\Profiling\CSV`에 생긴다. 사용자 PC 기준선(빈 L_Dev): 1080p 158 fps, 1440p 128 fps(`research/08` "기준선").
-- 스파이크 자동화 `golmok.spike_runner`(WP-06) — 🟢 PC 검증 통과(V-04 2026-09-28 §7·§8; 선택 §9 PIE 참고치는 후속 #28): 시점 10곳 이름 고정(`far_01..03 mid_01..04 near_01..03`), PIE 무인 캡처(`capture_all`: 태그 a/b/c/ac × 프리셋 × 시점, dwell 경로 재생 + `golmok.screenshot`, HUD 끔), `-game -RenderOffscreen` 성능 스크립트(`game_scripts` → `.ps1` → `golmok-perf`), 컨택트 시트 HTML, research/08 표 템플릿. 전체 절차 `runbooks/pc-spike.md`.
+- 스파이크 자동화 `golmok.spike_runner`(WP-06) — 🟢 PC 검증 통과(V-04 2026-09-28 §7·§8; 선택 §9 PIE 참고치는 후속 #28 PR #44로 수정, PC 미검증): 시점 10곳 이름 고정(`far_01..03 mid_01..04 near_01..03`), PIE 무인 캡처(`capture_all`: 태그 a/b/c/ac × 프리셋 × 시점, dwell 경로 재생 + `golmok.screenshot`, HUD 끔), `-game -RenderOffscreen` 성능 스크립트(`game_scripts` → `.ps1` → `golmok-perf`), 컨택트 시트 HTML, research/08 표 템플릿. 전체 절차 `runbooks/pc-spike.md`.
 
 **산출물**
 - `docs/research/08-spike-results.md`(템플릿 작성됨. 비교 스크린샷과 수치)
