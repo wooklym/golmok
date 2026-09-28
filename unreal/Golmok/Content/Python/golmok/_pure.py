@@ -1784,6 +1784,16 @@ def newest_file(
     return None if best is None else best[1]
 
 
+def csv_settle_s(max_gap_s: float | None, base_s: float, cap_s: float, factor: float = 1.5) -> float:
+    """Adaptive settle time of spike_runner._PiePerf WAIT_CSV (PR #44 review F1, follow-up #29): a CSV
+    writer that flushes less often than base_s would look settled between two flushes, so the quiet time
+    csv_complete asks for grows with the largest gap seen between two consecutive changes of the same file
+    (max_gap_s, state machine clock; its appearance is not a change, so a file seen to appear and change at
+    most once has gap 0): min(max(base_s, factor * max_gap_s), cap_s). None / negative / not finite = 0."""
+    gap = max_gap_s if max_gap_s is not None and math.isfinite(max_gap_s) and max_gap_s > 0.0 else 0.0
+    return min(max(base_s, factor * gap), cap_s)
+
+
 def csv_complete(
     changed_at: float | None,
     now: float,
@@ -1797,7 +1807,8 @@ def csv_complete(
     "a new file exists" is not "the capture is written". All times are seconds on one clock (the state
     machine's _now); changed_at = when the newest Profile*.csv was first seen or last seen to change (mtime or
     size; None = no file yet). Complete only when
-    - the file has not changed for settle_s (a file still being written is never taken), and
+    - the file has not changed for settle_s (a file still being written is never taken; the caller passes
+      csv_settle_s(...), which grows with the writer's observed flush gap), and
     - for a path of known length (> 0, finite): the path has had time to end (now >= play_started_at +
       length_s) and the file changed at or after that end less end_slack_s (the flush at CsvProfile Stop; the
       path pawn's first tick can count up to one frame from before the play command).
