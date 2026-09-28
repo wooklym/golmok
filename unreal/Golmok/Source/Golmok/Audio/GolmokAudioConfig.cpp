@@ -29,6 +29,13 @@ namespace GolmokAudio
 			&& (*Values)[0]->TryGetNumber(Low) && (*Values)[1]->TryGetNumber(High)
 			&& FMath::IsFinite(Low) && FMath::IsFinite(High) && Low >= Min && High >= Low && High <= Max;
 	}
+	bool VerifiedDate(const FString& Value)
+	{
+		if (Value.Len() != 10 || Value[4] != '-' || Value[7] != '-') return false;
+		for (int32 Index = 0; Index < 10; ++Index)
+			if (Index != 4 && Index != 7 && (Value[Index] < '0' || Value[Index] > '9')) return false;
+		return FDateTime::Validate(FCString::Atoi(*Value.Left(4)), FCString::Atoi(*Value.Mid(5, 2)), FCString::Atoi(*Value.Right(2)), 0, 0, 0, 0);
+	}
 	bool ParseConfig(const FString& Json, FGolmokAudioConfig& Out, FString& Error)
 	{
 		Error = TEXT("invalid audio.json schema, values or references");
@@ -63,12 +70,13 @@ namespace GolmokAudio
 			if (Pair.Value->Type != EJson::Object) return false;
 			const FObject Item = Pair.Value->AsObject();
 			FGolmokAudioAsset Asset;
-			FString Title, Author, Source, License, LicenseUrl, Changes;
+			FString Title, Author, Source, License, LicenseUrl, Changes, Verified;
 			double Gain = 0;
 			if (!String(Item, TEXT("asset"), Asset.Path) || !Asset.Path.StartsWith(TEXT("/Game/Golmok/Audio/"))
 				|| Asset.Path.Contains(TEXT("..")) || !Item->TryGetBoolField(TEXT("loop"), Asset.bLoop)
 				|| !Number(Item, TEXT("gain"), Gain, 0, 1) || !String(Item, TEXT("title"), Title)
 				|| !String(Item, TEXT("author"), Author) || !String(Item, TEXT("source_url"), Source)
+				|| !String(Item, TEXT("verified"), Verified) || !VerifiedDate(Verified)
 				|| !String(Item, TEXT("license"), License) || !String(Item, TEXT("changes"), Changes)
 				|| !Item->TryGetStringField(TEXT("license_url"), LicenseUrl) || Paths.Contains(Asset.Path.ToLower())) return false;
 			if (License != TEXT("project-generated") && License != TEXT("CC0-1.0") && License != TEXT("CC-BY-4.0")) return false;
@@ -79,7 +87,7 @@ namespace GolmokAudio
 			if (License == TEXT("CC-BY-4.0") && LicenseUrl != TEXT("https://creativecommons.org/licenses/by/4.0/")) return false;
 			Paths.Add(Asset.Path.ToLower());
 			Next.Assets.Add(FString(*Pair.Key), Asset);
-			Next.Credits += FString::Printf(TEXT("%s — %s\n%s\n%s %s\n%s\n\n"), *Title, *Author, *Source, *License, *LicenseUrl, *Changes);
+			Next.Credits += FString::Printf(TEXT("%s — %s\n%s\n%s %s\nVerified: %s\n%s\n\n"), *Title, *Author, *Source, *License, *LicenseUrl, *Verified, *Changes);
 		}
 		const FObject Ambience = Object(Root, TEXT("ambience")), Presets = Object(Root, TEXT("preset_states")), Steps = Object(Root, TEXT("footsteps"));
 		if (!Ambience.IsValid() || Ambience->Values.Num() != 3 || !Presets.IsValid() || !Steps.IsValid()) return false;

@@ -6,6 +6,8 @@
 #include "Audio/GolmokFootstepComponent.h"
 #include "Debug/GolmokDebugSubsystem.h"
 #include "Editor.h"
+#include "Misc/FileHelper.h"
+#include "Misc/Paths.h"
 #include "Engine/World.h"
 #include "GameFramework/PlayerController.h"
 #include "Lighting/GolmokTimeOfDay.h"
@@ -37,8 +39,9 @@ namespace GolmokAudioTest
 			Test->TestEqual(TEXT("second interior source remains"), Audio->GetState(), FString(TEXT("interior")));
 			Tod->ExitInterior(TEXT("audio_test_b"));
 			Test->TestEqual(TEXT("last exit uses updated outdoor preset"), Audio->GetState(), FString(TEXT("outdoor_day")));
+			Tod->ApplyPreset(TEXT("night"), true);
 			Test->TestFalse(TEXT("unknown lighting preset rejected"), Tod->ApplyPreset(TEXT("audio_missing"), true));
-			Test->TestEqual(TEXT("failed lighting change leaves audio state"), Audio->GetState(), FString(TEXT("outdoor_day")));
+			Test->TestEqual(TEXT("failed lighting change leaves audio state"), Audio->GetState(), FString(TEXT("outdoor_night")));
 			Test->TestFalse(TEXT("unknown forced state rejected"), Audio->ForceState(TEXT("invalid")));
 			Audio->ForceState(TEXT("outdoor_night")); Tod->EnterInterior(TEXT("audio_test_a"));
 			Test->TestEqual(TEXT("forced state overrides events"), Audio->GetState(), FString(TEXT("outdoor_night")));
@@ -99,6 +102,14 @@ bool FGolmokAudioFootstepTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("destination fade override"), Config.FadeSeconds(TEXT("interior")), 1.0);
 	Config.StateCrossfadeSeconds.Remove(TEXT("outdoor_day"));
 	TestEqual(TEXT("unspecified destination uses global duration"), Config.FadeSeconds(TEXT("outdoor_day")), 2.0);
+	FString Manifest;
+	TestTrue(TEXT("read manifest for invalid date tests"), FFileHelper::LoadFileToString(Manifest, *(FPaths::ProjectConfigDir() / TEXT("Golmok/audio.json"))));
+	for (const TCHAR* Invalid : {TEXT("2026-02-30"), TEXT("2026-9-28"), TEXT("0000-01-01")})
+	{
+		const FString InvalidJson = Manifest.Replace(TEXT("2026-09-28"), Invalid);
+		TestFalse(TEXT("invalid verified date rejected"), GolmokAudio::ParseConfig(InvalidJson, Config, Error));
+	}
+	TestTrue(TEXT("runtime credits include verified date"), Config.Credits.Contains(TEXT("Verified: 2026-09-28")));
 	TestEqual(TEXT("default physical surface"), Config.Surfaces.FindRef(0), FString(TEXT("default")));
 	TestFalse(TEXT("invalid config fails atomically"), GolmokAudio::ParseConfig(TEXT("{}"), Config, Error));
 	TestTrue(TEXT("failed parse preserves prior config"), Config.Sets.Contains(TEXT("asphalt")));

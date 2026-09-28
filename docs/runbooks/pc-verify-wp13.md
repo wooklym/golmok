@@ -4,6 +4,9 @@
 
 ## 1. 데이터와 임포트
 
+먼저 `.\tools\ue\build.ps1` → `.\tools\ue\open-editor.ps1` 순서로 실행한다. GUI 잠금 규칙을 확인한다. **PIE/자동화 전에 음원7개를 임포트**해야 LoadObject 누락 경고를 피할 수 있다.
+
+
 `Config/Golmok/audio.json`이 소스·에셋 경로·출처·루프·gain의 단일 소스다. 현재 7개 WAV는 결정적 합성 플레이스홀더이고 서울 녹음이나 채택 후보 원본이 아니다. 기본값과 소리의 적절성은 품질 가설이며 Fable/V-10 검토 대상이다.
 
 ```powershell
@@ -22,11 +25,35 @@ audio.run()
 
 모든 소스의 경로·WAV 헤더/본문·개별 5MB/합계 40MB 예산을 먼저 확인한다. 임포트 실패·잘못된 타입·저장 실패는 예외로 남는다. 일부 에셋 저장 뒤 실패하면 이미 저장한 에셋은 남을 수 있으며, 문제를 고쳐 재실행한다. 모든 임포트 성공 후 `Content/Golmok/Audio/ATTRIBUTION.md`와 `Credits/audio-credits.txt`를 갱신한다. 크레딧의 `project-generated`는 외부 라이선스나 CC0 권리 포기 선언이 아니다.
 
+헤드리스 임포트 재현: 다음 Python을 `unreal/Golmok/Saved/wp13-import-check.py`에 저장한다(미커밋). 실제 검증에 사용한 `-run=pythonscript` 방식이다. 같은 worktree의 에디터 GUI는 먼저 닫는다.
+
+```python
+import unreal
+from golmok import audio_import, audio_pure
+first = audio_import.run()
+second = audio_import.run()
+assert first == second and len(first) == 7
+for item in audio_pure.load_config()["assets"].values():
+    sound = unreal.load_asset(item["asset"])
+    assert sound.get_editor_property("looping") == item["loop"]
+    assert abs(sound.get_editor_property("volume") - item["gain"]) < 1e-6
+unreal.log("WP13_IMPORT_VERIFIED_7_REIMPORT_7")
+```
+
+저장소 루트 PowerShell:
+
+```powershell
+$projectFile = (Resolve-Path .\unreal\Golmok\Golmok.uproject).Path
+$importFile = (Resolve-Path .\unreal\Golmok\Saved\wp13-import-check.py).Path
+& 'C:\Program Files\Epic Games\UE_5.8\Engine\Binaries\Win64\UnrealEditor-Cmd.exe' $projectFile -run=pythonscript "-script=$importFile" -unattended -nullrhi -nosound
+```
+
 ## 2. 실제 소스로 교체
 
 1. 출처 조사 문서의 라이선스 원문과 실제 파일을 대조한다. Freesound 원본은 로그인 요구를 확인했으며 계정 생성/약정은 수행하지 않았다. 미리듣기 손실 파일을 원본처럼 반입하지 않는다.
 2. 허용된 파일을 PCM16/48kHz로 준비해 Audio/src 아래 둔다. 앰비언스 stereo, 발소리 mono를 우선 검토하며 각 5MB/총 40MB 이하로 유지한다.
-3. JSON의 해당 asset 항목에서 `source`, `asset`, `title`, `author`, `license`, `license_url`, `source_url`, `changes`, `placeholder=false`, `loop`, `gain`을 갱신한다. 상태/세트는 asset ID를 참조하므로 C++ 수정 없이 데이터로 교체한다. `seed`는 실제 파일에 사용하지 않는다.
+3. JSON의 해당 asset 항목에서 `source`, `asset`, `title`, `author`, `license`, `license_url`, `verified`(YYYY-MM-DD 확인일; 합성은 생성일), `source_url`, `changes`, `placeholder=false`, `loop`, `gain`을 갱신한다. 상태/세트는 asset ID를 참조하므로 C++ 수정 없이 데이터로 교체한다. `seed`는 실제 파일에 사용하지 않는다.
+   허용 값: `CC0-1.0` → `https://creativecommons.org/publicdomain/zero/1.0/`, `CC-BY-4.0` → `https://creativecommons.org/licenses/by/4.0/`. `project-generated`는 합성 전용이고 license_url은 빈 문자열이다. 실제 원본의 확인일을 생성일로 대신하지 않는다.
 4. 임포터 재실행 후 에셋과 크레딧의 저자·URL·라이선스·수정 내역을 확인한다. CC0에도 프로젝트 출처 추적 기록을 남긴다. CC-BY 표기는 같은 파이프라인에서 생성한다.
 5. gain은 SoundWave 볼륨 배율이며 원본 파형 정규화가 아니다. 이미 피크 조정한 파일에 gain을 적용한 후 청취로 밸런스를 정한다. 같은 gain을 런타임에서 중복 곱하지 않는다.
 
@@ -48,6 +75,10 @@ audio.run()
 
 V-10 GUI는 다른 UE 세션 종료와 GUI 잠금 확인 뒤 수행한다. 낮/밤·실내 전환 각3회, 재질별 걷기/달리기 각각10보, 점프/착지5회를 청취하고 clipping·루프 이음·발소리 중복·pause 뒤 복귀를 기록한다. 실제 청취와 자동화 로직 성공은 구분한다. 최종 야외 음원은 WP-17 현장 녹음 교체 대상이다.
 
+로스터별 확인: `golmok.character proxy135`, `golmok.character proxy110`, `golmok.character quinn`으로 각각 교체한 뒤 걷기/달리기10보씩 청취한다. 보폭 체감과 `stride_scale_by_mesh` 필요 여부를 기록한다. 현재 고정 보폭은 승인된 가설이며 옵션 도입 여부는 이 비교 뒤 판단한다.
+
+소유자 청취: 재생 장치(헤드폰/스피커 모델·OS 출력 볼륨)를 적고 `master_volume`, 상태별 asset gain, 발소리 asset gain의 최종 값을 audio.json에 기록한다. 플레이스홀더의 비교는 잠정이며 실제 소스 교체 뒤 다시 듣는다. mute 플래그만 헤드리스 자동화로 확인하며 채널 볼륨0·재생 중 발소리 정지는 청취 항목이다.
+
 ## 4. API·패키징 확인
 
 | 항목 | 상태 |
@@ -68,3 +99,54 @@ A/B 볼륨은 현재 값에서 선형 보간한다. 제3의 상태가 빠르게 
 `crossfade_seconds_by_state`는 진입할 상태별 초 단위 전환 시간이다. 누락한 상태는 `crossfade_seconds`를 사용하며 모두 0~30초다. 현재 세 상태 모두 2초를 유지한다. V-10에서 interior=1초, outdoor_day/outdoor_night=2초 가설을 JSON만 바꿔 비교하고 PIE를 재시작한다. 보폭에 메시 Z 스케일을 곱하는 `stride_scale_by_mesh` 제안은 이번 구현에 포함하지 않으며 로스터별 청취 뒤 후속으로 판단한다.
 
 패키징 확인(미실행): 임포트 후 `.\tools\ue\package.ps1` 실행 → `build/Windows`의 패키징 로그/컨테이너 목록에서 Audio의 SoundWave 7개와 `Config/Golmok/audio.json`을 확인 → 패키지 실행에서 세 상태 전환과 `golmok.audio credits` 출처 출력 확인. pak은 엔진 `UnrealPak.exe <pak 경로> -List`로 조사한다. IoStore를 사용한 출력이면 해당 컨테이너 목록과 cook/stage manifest도 함께 확인한다. 파일 존재와 실제 재생/크레딧 출력을 각각 기록하고 미실행을 성공으로 표시하지 않는다.
+
+
+### 런타임 불확실 API
+
+컴파일/헤드리스 성공과 출력 장치·패키지 검증을 구분한다.
+
+| 번호 | API | 위험 | 대안 | 확인 단계 | 결과 |
+|---|---|---|---|---|---|
+| A1 | USoundAttenuation(반경100cm·falloff600cm) | 실제 거리 감쇠 불일치 | 청취 뒤 설정 튜닝 | 근거리/600cm 비교 | 미확인 |
+| A2 | USoundConcurrency(8, StopOldest) | 원샷 중첩/잘림 | voice·정책 조정 | 연속 이동/착지 | 미확인 |
+| A3 | SpawnSound2D + bIsUISound | GamePause maintain 중 재생 중단 | pause 대응 검토 | Photo 양 모드 | 미확인 |
+| A4 | SpawnSoundAtLocation | 무음/null/공간화 불일치 | 출력·에셋·감쇠 점검 | 실제 발소리 | 미확인 |
+| A5 | LineTraceSingleByChannel(ECC_Visibility), bReturnPhysicalMaterial, GetSurfaceType | 재구성 메시·Zone 충돌/재질 누락 | default, Zone 재질/충돌 보완 | 각 재질/재구성 바닥 | 미확인 |
+| A6 | LoadObject<USoundWave> 소프트 경로 | 패키지 cook 누락 | cook 등록·임포트 확인 | Development 패키지 | 미확인 |
+| A7 | OnPossessedPawnChanged.AddDynamic | 교체 뒤 컴포넌트 누락/중복 | 바인딩 수명 점검 | 로스터·경로·Photo 복귀 | 헤드리스 부착 확인; GUI 미확인 |
+| A8 | IsTickableWhenPaused | pause 중 정책/페이드 정지 | 시간 처리 검토 | mute/maintain | 미확인 |
+| A9 | HasCalledBeginPlay | 초기/재시작 Tick 순서 | 월드 시작 후 초기화 | PIE 재시작3회 | 헤드리스 통과; GUI 미확인 |
+
+패키징 후 cook 파일 수 확인(7개 기대):
+
+```powershell
+.\tools\ue\package.ps1
+$audioCookFiles = Get-ChildItem .\unreal\Golmok\Saved\Cooked\Windows\Golmok\Content\Golmok\Audio -Recurse -Filter SW_*.uasset
+$audioCookFiles | Select-Object FullName
+$audioCookFiles.Count
+Get-ChildItem .\build\Windows -Recurse -Include *.pak,*.utoc
+```
+
+cook 파일만으로 합격시키지 않는다. 컨테이너/stage manifest의 SoundWave7개·audio.json과 패키지 실행의 재생·크레딧도 확인한다. 에디터 Packaging 저장은 중복 ini 섹션을 재작성할 수 있으므로 Audio cook 훅 보존을 diff로 확인한다. PhysicalSurfaces1/2/3 이름은 Zone 에셋 단계에서 정의하며 현재 미지정 바닥은 default다. CC-BY 원본 채택 시 Shipping에서 도달 가능한 크레딧 UI/배포 표기를 확인한다(현 콘솔 노출은 Development 검사용).
+
+## 6. 결과 기록
+
+| 항목 | 실행·기대 기준 | 결과/근거 |
+|---|---|---|
+| 세션/head | 날짜·담당·커밋·장치 | 미기록 |
+| build | UE5.8.3 성공 | 미기록 |
+| audio_import | 7개+재임포트7개·loop/gain | 미기록 |
+| Audio 필터 | Golmok.Audio 2/2 | 미기록 |
+| 전체 자동화 | 28 Success, RenderEvidence 미실행 별도 | 미기록 |
+| 콘솔/HUD | 상태·mute·auto·출처/확인일 | 미기록 |
+| 낮/밤·실내 | 각3회·실내 우선·복수 소스 | 미기록 |
+| 포털 | 1초 안 왕복3회·클릭 없음 | 미기록 |
+| 크로스페이드 | 기본2초 vs 실내1초/실외2초 | 미기록 |
+| 재질별 발소리 | default/asphalt/tile/stairs 걷기·달리기10보 | 미기록 |
+| 로스터별 발소리 | proxy135/proxy110/Quinn 각10보·스케일 필요성 | 미기록 |
+| 착지 | 점프5회·공중 무음·착지1회 | 미기록 |
+| Photo mute/maintain | 양 모드·원샷 정지/억제·채널0 | 미기록 |
+| 소유자 밸런스 | 장치·OS 볼륨·master/상태/발소리 gain JSON 값 | 미기록 |
+| 패키징 | SW7개·audio.json 포함·재생/크레딧 | 미기록 |
+| 고친 API | 위 번호·변경/재검증 근거 | 미기록 |
+| STATUS 판정 | 통과/부분/차단·남은 항목 | 미기록 |

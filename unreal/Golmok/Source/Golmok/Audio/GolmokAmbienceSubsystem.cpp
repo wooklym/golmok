@@ -171,7 +171,7 @@ void UGolmokAmbienceSubsystem::SetState(const FString& InState, bool bInstant)
 
 void UGolmokAmbienceSubsystem::StartSlot(int32 Slot, const FString& AssetId, bool bInstant)
 {
-	if (IsValid(Channels[Slot])) { Channels[Slot]->Stop(); Channels[Slot]->DestroyComponent(); Channels[Slot] = nullptr; }
+	if (IsValid(Channels[Slot])) { Channels[Slot]->SetVolumeMultiplier(0); Channels[Slot]->Stop(); Channels[Slot]->DestroyComponent(); Channels[Slot] = nullptr; }
 	SlotIds[Slot] = AssetId;
 	Gains[Slot].Value = 0;
 	Gains[Slot].Set(1, bInstant ? 0 : Config.FadeSeconds(State));

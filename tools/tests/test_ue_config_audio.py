@@ -18,6 +18,8 @@ def test_manifest_and_credit_contract():
     assert set(data["ambience"]) == {"outdoor_day", "outdoor_night", "interior"}
     assert data["footsteps"]["sets"]["default"]
     credits = audio.attribution(data)
+    assert (audio.AUDIO / "ATTRIBUTION.md").read_text(encoding="utf-8") == credits
+    assert (audio.AUDIO / "Credits/audio-credits.txt").read_text(encoding="utf-8") == credits
     for item in data["assets"].values():
         assert item["author"] in credits
         assert item["changes"] in credits
@@ -71,6 +73,8 @@ def test_adopted_cc_by_survives_credit_pipeline():
     )
     assert "Test author" in audio.attribution(data)
     assert "Trimmed and normalized" in audio.attribution(data)
+    assert "https://creativecommons.org/licenses/by/4.0/" in audio.attribution(data)
+    assert data["assets"]["tile"]["verified"] in audio.attribution(data)
 
 
 def test_source_symlink_cannot_escape(tmp_path):
@@ -102,3 +106,11 @@ def test_partial_state_fade_and_legacy_default():
     audio.parse_config(data)
     del data["crossfade_seconds_by_state"]
     audio.parse_config(data)
+
+
+@pytest.mark.parametrize("value", [None, "", "2026-9-28", "2026-02-30", "0000-01-01", "2026-09-28T00:00:00"])
+def test_invalid_verified_date(value):
+    data = audio.load_config()
+    data["assets"]["tile"]["verified"] = value
+    with pytest.raises(ValueError):
+        audio.parse_config(data)

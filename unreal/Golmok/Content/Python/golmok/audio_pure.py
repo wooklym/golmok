@@ -1,5 +1,6 @@
 """WP-13 audio manifest and import/credit plan; usable without Unreal."""
 
+from datetime import date
 import json
 import math
 import re
@@ -97,6 +98,10 @@ def parse_config(data):
             }[item["license"]]
             if item["license_url"] != expected:
                 raise ValueError("license URL does not match the declared license")
+        verified = item.get("verified")
+        if not isinstance(verified, str) or not re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}", verified):
+            raise ValueError("verified must be YYYY-MM-DD")
+        date.fromisoformat(verified)
         number(item["gain"], 0, 1)
     if set(data["ambience"]) != {"outdoor_day", "outdoor_night", "interior"}:
         raise ValueError("three ambience states required")
@@ -198,6 +203,7 @@ def attribution(data):
             f"Author: {item['author']}",
             f"Source: {item['source_url']}",
             f"License: {item['license']} {item['license_url']}".rstrip(),
+            f"Verified: {item['verified']}",
             f"Changes: {item['changes']}",
             f"Placeholder: {item['placeholder']}",
             "",

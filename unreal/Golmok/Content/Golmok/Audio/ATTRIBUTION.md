@@ -9,6 +9,7 @@ Project-generated means synthetic test audio, not a third-party license or CC0 d
 Author: Golmok procedural generator
 Source: https://github.com/wooklym/golmok/blob/main/tools/scripts/make_placeholder_audio.py
 License: project-generated
+Verified: 2026-09-28
 Changes: Deterministic filtered noise/tone; not a field recording.
 Placeholder: True
 
@@ -17,6 +18,7 @@ Placeholder: True
 Author: Golmok procedural generator
 Source: https://github.com/wooklym/golmok/blob/main/tools/scripts/make_placeholder_audio.py
 License: project-generated
+Verified: 2026-09-28
 Changes: Deterministic filtered noise/tone; not a field recording.
 Placeholder: True
 
@@ -25,6 +27,7 @@ Placeholder: True
 Author: Golmok procedural generator
 Source: https://github.com/wooklym/golmok/blob/main/tools/scripts/make_placeholder_audio.py
 License: project-generated
+Verified: 2026-09-28
 Changes: Deterministic filtered noise/tone; not a field recording.
 Placeholder: True
 
@@ -33,6 +36,7 @@ Placeholder: True
 Author: Golmok procedural generator
 Source: https://github.com/wooklym/golmok/blob/main/tools/scripts/make_placeholder_audio.py
 License: project-generated
+Verified: 2026-09-28
 Changes: Deterministic filtered noise/tone; not a field recording.
 Placeholder: True
 
@@ -41,6 +45,7 @@ Placeholder: True
 Author: Golmok procedural generator
 Source: https://github.com/wooklym/golmok/blob/main/tools/scripts/make_placeholder_audio.py
 License: project-generated
+Verified: 2026-09-28
 Changes: Deterministic filtered noise/tone; not a field recording.
 Placeholder: True
 
@@ -49,6 +54,7 @@ Placeholder: True
 Author: Golmok procedural generator
 Source: https://github.com/wooklym/golmok/blob/main/tools/scripts/make_placeholder_audio.py
 License: project-generated
+Verified: 2026-09-28
 Changes: Deterministic filtered noise/tone; not a field recording.
 Placeholder: True
 
@@ -57,5 +63,6 @@ Placeholder: True
 Author: Golmok procedural generator
 Source: https://github.com/wooklym/golmok/blob/main/tools/scripts/make_placeholder_audio.py
 License: project-generated
+Verified: 2026-09-28
 Changes: Deterministic filtered noise/tone; not a field recording.
 Placeholder: True

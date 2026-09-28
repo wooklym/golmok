@@ -99,7 +99,7 @@ main `c7fa296`에서 `astra/wp-13b-audio`를 시작했다. 13a PR #28이 병합�
 - `make_placeholder_audio.py`: numpy 기존 의존성으로 PCM16/48kHz mono 7개 생성. 채택된 실제 음원은 덮어쓰지 않는다. 앰비언스4초/원샷0.33초, deterministic seed, 피크 약−14dBFS. 실제 환경음 품질/루프 길이를 대체하지 않는다.
 - `audio_import.py`: JSON만으로 임포트 경로·루프·볼륨을 바꾸고 재실행한다. 임포트/저장 실패를 숨기지 않는다. 원본 파형 정규화는 하지 않는다.
 - `ATTRIBUTION.md` + `Credits/audio-credits.txt`: 같은 JSON에서 생성한다. CC-BY도 저자·원문 링크·수정 내역을 보존하는 테스트 포함. 현재 project-generated는 프로젝트 합성 테스트 음원이라는 출처 표시이며 새 라이선스 약정/CC0 선언이 아니다.
-- 패키징: 기존 Config/Golmok UFS가 audio.json과 전체 크레딧 메타데이터를 포함한다. 별도 cook/UFS 훅3701fb4는 기존 고정 목록 테스트와 충돌해 철회했다. 최종 diff에서 DefaultGame.ini 변경 없음. Audio cook은 WP-05 테스트 계약 확장을 소유 레인에 요청한 뒤 추가한다. 독립 크레딧 txt는 배포 문서 생성물이다.
+- 패키징: 기존 Config/Golmok UFS가 audio.json과 전체 크레딧 메타데이터를 포함한다. 별도 cook/UFS 훅3701fb4는 기존 고정 목록 테스트와 충돌해 철회했다. 당시 diff에서는 DefaultGame.ini 변경을 철회했다. 이후 허용 응답을 받아 7be448d로 Audio cook 훅을 반영했다(아래 최종 계약 반영 절). 독립 크레딧 txt는 배포 문서 생성물이다.
 - [V-10 런북](../runbooks/pc-verify-wp13.md): 소스 교체·재임포트·남은 런타임/청취 검증·API 표.
 
 ### 검증
@@ -129,7 +129,7 @@ Fable 검토용 구체안: Audio WorldSubsystem이 초기 TimeOfDay 상태를 �
 
 오케스트레이터의 [00:13Z Fable 설계 결정·최소 훅 허용](https://github.com/wooklym/golmok/issues/30#issuecomment-5861126977)을 받아 이벤트 방식을 구현했다. main `4a31718`까지 충돌 없이 병합했고, 병합된 PR #32 브랜치에는 push하지 않는다.
 
-- Audio WorldSubsystem: JSON 로딩, 월드별 A/B 컴포넌트, 실제 TimeOfDay 프리셋/실내 이벤트 구독, 초기 상태·지연 생성 바인딩, 강제/auto 상태, mute/maintain Photo 정책, 부드러운 볼륨 전환. 늦은 Controller 발견만0.25s 간격이고 상태 변경은 이벤트다. PawnChanged에서 기존 Player 파일 수정 없이 FootstepComponent를 붙인다.
+- Audio WorldSubsystem: JSON 로딩, 월드별 A/B 컴포넌트, 실제 TimeOfDay 프리셋/실내 이벤트 구독, 초기 상태·지연 생성 바인딩, 강제/auto 상태, mute/maintain Photo 정책, 부드러운 볼륨 전환. 늦은 Controller/TimeOfDay 재탐색은0.25s 간격이고 상태 변경은 이벤트다. PawnChanged에서 기존 Player 파일 수정 없이 FootstepComponent를 붙인다.
 - FootstepComponent: 수평 거리 누적·걷기/달리기 보폭, 공중 무음·착지1회, 텔레포트/폰 변경/포토/경로 누적 초기화, 재질 트레이스→JSON 세트·default, 명시적 계단 태그. L_Dev 폴더가 런타임 태그라는 가정은 하지 않는다.
 - 재생: SoundWave·코드 생성 attenuation/concurrency(최대8 voice), 피치/볼륨 범위, import된 SoundWave gain×master×랜덤(원본 gain 중복 곱하지 않음). 소스 교체는 JSON+임포트만으로 한다.
 - `golmok.audio` / `.mute` / `.state`, `golmok.audio credits`가 런타임 JSON의 전체 출처를 출력한다. HUD는 Debug 공급자 등록이며 Debug가 Audio를 include하지 않는다. 현재 확장 공급자는 Audio 하나다.
@@ -138,7 +138,7 @@ Fable 검토용 구체안: Audio WorldSubsystem이 초기 TimeOfDay 상태를 �
 
 ### 검증과 남은 계약
 
-Audio 단독 자동화 **2 Success, 경고0/실패0/notRun0,0.76s**. StateMachine은 실제 TimeOfDay 이벤트·복수 실내 소스·force/auto·잘못된 상태 거절·mute·크레딧·컴포넌트 부착을 검사한다. Footstep은 거리/공중/착지/텔레포트/재빙의·보간 계산을 검사한다. 실제 음색/청취를 테스트했다는 뜻은 아니다.
+Audio 단독 자동화 **2 Success, 경고0/실패0/notRun0,0.76s**. StateMachine은 실제 TimeOfDay 이벤트·복수 실내 소스·force/auto·잘못된 상태 거절·mute 플래그·크레딧·컴포넌트 부착을 검사한다. 채널 볼륨0/재생 중 원샷 정지는 헤드리스가 검사하지 않으며 V-10 청취 항목이다. Footstep은 거리/공중/착지/텔레포트/재빙의·보간 계산을 검사한다. 실제 음색/청취를 테스트했다는 뜻은 아니다.
 
 첫 전체 UE 회귀 **28 Success(21+경고7), failed0/notRun0,166.33s**. RenderEvidence NOT EXECUTED1 제외 실제 실행27개. PhotoIntegration6조합·Locomotion4종 등 기존 검사도 실행 성공. 이후 초기 BeginPlay 전 Tick 차단·표면 우선순위/메타데이터 검증 보완 후 최종 빌드/회귀를 다시 수행한다. 로그와 JSON은 Saved/Automation/WP13 및 tools/.venv 아래이며 생성 레벨/에셋/로그는 커밋하지 않는다.
 
@@ -148,7 +148,7 @@ Python에서 런타임 추가 뒤 **1 failed,722 passed,67 skipped**(37.34s)를 
 
 빠른 제3상태 요청은 조용한 슬롯을 최대50ms 감쇠한 뒤 교체한다(두 슬롯에서 세 소리를 동시에 유지할 수 없음). 이때 요청 상태는 같은 프레임에 바뀌고 새 파일 시작은 최대50ms 지연된다. 현재 값부터 페이드해 파형을 즉시 끊지 않는 방식이며 청취/설계 승인 전 품질 합격으로 기록하지 않는다. PhysicalMaterial 없는 실제 메시의 재질 구분은 default이고, 최종 바닥 세트는 명시적 재질 부여 후 V-10에서 확인한다.
 
-최종 런타임 빌드 **성공10.82s**, 음소거 시 이미 재생 중인 발소리 정지까지 보완한 Audio 필터 **2 Success, 경고0/실패0/notRun0,0.92s**. 직전 전체 회귀 **28 Success(21+경고7),167.19s**, RenderEvidence 제외 실제27개. 최종 Python **1 failed/722 passed/68 skipped/208 warnings,38.15s**이며 실패는 위 WP-12 런북 총계 계약1개뿐이다. ruff check/format103·check_repo·diff --check 통과. CI를 초록 또는 WP-13 완료로 보고하지 않는다.
+최종 런타임 빌드 **성공10.82s**, 재생 중 발소리 정지 코드를 보완한 뒤 실행한 Audio 필터 **2 Success, 경고0/실패0/notRun0,0.92s**. 직전 전체 회귀 **28 Success(21+경고7),167.19s**, RenderEvidence 제외 실제27개. 최종 Python **1 failed/722 passed/68 skipped/208 warnings,38.15s**이며 실패는 위 WP-12 런북 총계 계약1개뿐이다. ruff check/format103·check_repo·diff --check 통과. CI를 초록 또는 WP-13 완료로 보고하지 않는다.
 
 소유 레인에 제안하는 최소 반영 문안: WP-12 런북 §1 두 번째 명령의 현재 총계 `**26개**`를 `**28개**`로 갱신하고 열거 끝에 `+ WP-13 2개(`Audio.StateMachine/Footstep`)`를 추가한다. 같은 §1에 `현재 코드 기준 헤드리스 자동화 28개(Photo 3 + 기존 25). 아래 §13의26개는 당시 PC 실행 이력이다.`를 추가해 기존 결과표를 보존한다. WP-05 fixture의 cook 등록 검사는 기존 Zones와 새 Audio2개를 확인하도록 확장한다. 이 수정은 권한 응답 뒤만 반영한다.
 
@@ -167,3 +167,12 @@ Fable은 빠른 제3상태 최대50ms 교체, 70/110cm 보폭, 재질 default, P
 - D-002 출처 기록: WP-13 현재 WAV7개는 프로젝트의 결정적 합성 플레이스홀더(numpy 기존 의존성, 48kHz PCM16, 합계1,280,308바이트). `project-generated`는 출처 표기이며 외부 라이선스 채택/CC0 권리 포기 선언이 아니다. Freesound CC0 청취 후보7개 조사·채택은 13a 기록 유지, 실제 원본 다운로드/계정 약정은 하지 않음. 출처·저자·라이선스 URL·수정 내역은 audio.json→ATTRIBUTION.md/크레딧 파이프라인으로 보존.
 
 최종 계약 반영 로컬 게이트: ruff check/format103, check_repo, diff --check 통과. pytest **730 passed/68 skipped/208 warnings,34.12s**. UE5.8.3 빌드 **성공12.51s**; 전체 자동화 **28 Success(21+경고7), failed0/notRun0**, 166.97073364257812s. RenderEvidence NOT EXECUTED1 제외 실제27개, Audio2개·PhotoIntegration6조합 실행 성공. 증거는 Saved/Automation/WP13/full-contract-report.json. 패키징/청취는 미실행이며 V-10으로 남긴다. CI 결과는 PR #34의 현재 head 검사 및 최종 코멘트에 기록한다.
+
+
+## PR #34 리뷰 수정 (2026-09-28 03시 세션)
+
+[02:50Z 리뷰](https://github.com/wooklym/golmok/pull/34#issuecomment-5862385823)의 (A)10건 반영: 모든 asset에 verified 확인일(합성은 생성일)을 필수로 검증·출력하고 표기 파일을 재생성했다. 잘못된 날짜 Python/C++ 검사와 생성 표기 드리프트 검사를 추가했다. 실패 프리셋 호출 전에 night로 상태를 바꾸어 상태 유지를 확인한다. StartSlot은 Stop 직전 볼륨0을 적용한다. mute 자동화는 플래그만 확인하며 채널/원샷 정지는 V-10에서 청취한다는 범위를 명시했다.
+
+런북에 로스터별10보·소유자 gain/장치 기록, 런타임 API9개 위험/대안/단계/결과, 결과표, 빌드→에디터→임포트·헤드리스 재현, cook 목록 명령, 허용 라이선스/URL/확인일을 보완했다. cook 철회는 당시 이력으로 정정했다. (B) ToD도0.25초 재탐색, 임포트 선행·ini 재작성·PhysicalSurfaces·Shipping CC-BY 크레딧도 기록했다. 메시 스케일 보폭 옵션은 로스터 청취 근거를 얻은 뒤 판단한다.
+
+수정 게이트: ruff check/format103·check_repo·diff --check 통과, pytest **736 passed/68 skipped/208 warnings,33.34s**. UE 빌드 **7.47s 성공**, 전체 **28 Success(21+경고7), failed0/notRun0,167.10s**. RenderEvidence NOT EXECUTED1 제외 실제27개. 확인일 오류 거부·night에서 실패 프리셋 상태 유지 검사 실행 성공. 증거 Saved/Automation/WP13/full-review-report.json; 실제 청취/패키징 미실행.
