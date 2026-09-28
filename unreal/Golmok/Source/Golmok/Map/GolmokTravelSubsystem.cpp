@@ -82,6 +82,7 @@ void UGolmokTravelSubsystem::Deinitialize()
 			Save->HandleWorldEnd(World);
 		}
 	}
+	SetMoveInputBlocked(false);
 	State = EGolmokTravelState::Idle;
 	Super::Deinitialize();
 }
@@ -182,6 +183,19 @@ void UGolmokTravelSubsystem::StartFade(float FromAlpha, float ToAlpha)
 	}
 	// No asset: the camera manager's own fade (hold the black until the fade in starts).
 	Camera->StartCameraFade(FromAlpha, ToAlpha, FadeSeconds, FLinearColor::Black, /*bShouldFadeAudio*/ false, /*bHoldWhenFinished*/ ToAlpha > 0.5f);
+}
+
+void UGolmokTravelSubsystem::SetMoveInputBlocked(bool bBlocked)
+{
+	if (bBlocked == bMoveInputBlocked)
+	{
+		return;
+	}
+	bMoveInputBlocked = bBlocked;
+	if (APlayerController* PC = GetPlayerController())
+	{
+		PC->SetIgnoreMoveInput(bBlocked);
+	}
 }
 
 // ---- travel ---------------------------------------------------------------------------------------------------
@@ -306,6 +320,7 @@ bool UGolmokTravelSubsystem::StartTravel(
 	}
 
 	FString LoadMessage;
+	bTargetWasPinned = Zones->IsZonePinned(ZoneId);
 	if (!Zones->RequestLoad(ZoneId, /*bPin*/ true, LoadMessage, EGolmokZoneRequestSource::Travel))
 	{
 		OutMessage = FString::Printf(TEXT("travel to %s failed: %s"), *ZoneId, *LoadMessage);
@@ -318,6 +333,7 @@ bool UGolmokTravelSubsystem::StartTravel(
 	State = EGolmokTravelState::Loading;
 	StartSeconds = FPlatformTime::Seconds();
 	StartFade(0.f, 1.f);
+	SetMoveInputBlocked(true); // nobody walks into a portal trigger while the screen is black
 	World->GetTimerManager().SetTimer(PollTimer, FTimerDelegate::CreateUObject(this, &UGolmokTravelSubsystem::OnPoll),
 		GolmokTravelPrivate::TimerRate(PollSeconds), /*bLoop*/ true);
 	OutMessage = FString::Printf(TEXT("traveling to %s (%s)%s%s"), *ZoneId, *LoadMessage, Note.IsEmpty() ? TEXT("") : TEXT("; "), *Note);
@@ -336,6 +352,13 @@ void UGolmokTravelSubsystem::OnPoll()
 	if (!Zone)
 	{
 		Fail(FString::Printf(TEXT("zone %s disappeared while loading"), *TargetZoneId));
+		return;
+	}
+	UWorld* World = GetWorld();
+	if (UGolmokPhotoModeSubsystem::IsActiveIn(World) || IsAnyPortalBusy())
+	{
+		// The refusal of step ① re-checked while waiting: never teleport out of photo mode or a portal transition.
+		Fail(TEXT("photo mode / a portal transition started while loading"));
 		return;
 	}
 	const double Elapsed = FPlatformTime::Seconds() - StartSeconds;
@@ -426,11 +449,12 @@ void UGolmokTravelSubsystem::FinishArrival()
 		return;
 	}
 	const FString Arrived = TargetZoneId;
-	if (UGolmokZoneSubsystem* Zones = GetZones())
+	if (UGolmokZoneSubsystem* Zones = GetZones(); Zones && !bTargetWasPinned)
 	{
 		Zones->ReleasePin(Arrived); // distance rules take over; never RequestUnload
 	}
 	StartFade(1.f, 0.f);
+	SetMoveInputBlocked(false);
 	State = EGolmokTravelState::Idle;
 	LastArrivedZoneId = Arrived;
 	TargetZoneId.Reset();
@@ -446,7 +470,7 @@ void UGolmokTravelSubsystem::Fail(const FString& Reason)
 		World->GetTimerManager().ClearTimer(PollTimer);
 		World->GetTimerManager().ClearTimer(ArrivalTimer);
 	}
-	if (!TargetZoneId.IsEmpty())
+	if (!TargetZoneId.IsEmpty() && !bTargetWasPinned)
 	{
 		if (UGolmokZoneSubsystem* Zones = GetZones())
 		{
@@ -457,6 +481,7 @@ void UGolmokTravelSubsystem::Fail(const FString& Reason)
 	{
 		StartFade(1.f, 0.f);
 	}
+	SetMoveInputBlocked(false);
 	State = EGolmokTravelState::Idle;
 	LastError = FString::Printf(TEXT("travel to %s failed: %s"), *TargetZoneId, *Reason);
 	LastErrorSeconds = FPlatformTime::Seconds();

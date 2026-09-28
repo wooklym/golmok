@@ -29,6 +29,7 @@
 #include "GameFramework/Character.h"
 #include "GameFramework/Pawn.h"
 #include "GameFramework/PlayerController.h"
+#include "Geo/GolmokGeo.h"
 #include "Geo/GolmokGeoSubsystem.h"
 #include "HAL/FileManager.h"
 #include "Kismet/GameplayStatics.h"
@@ -72,6 +73,21 @@ namespace GolmokTravelSaveTest
 		}
 		const GolmokTravelMath::Vec3 S = GolmokTravelMath::StandingLocationUE(GolmokTravelMath::Vec3{Feet.X, Feet.Y, Feet.Z}, Half);
 		OutLocation = FVector(S[0], S[1], S[2]);
+		return true;
+	}
+
+	/**
+	 * Independent expectation for a manifest spawn (not GetSpawnUE's matrix path): the zone root FTransform applied to
+	 * GolmokGeo::EnuToUE(position_enu), heading = root yaw + (-yaw_deg) (the zone roots are level: tilt << 0.01 deg).
+	 */
+	bool IndependentSpawn(const AGolmokZone& Zone, FVector& OutFeet, float& OutYaw)
+	{
+		if (!Zone.Manifest.bHasSpawn)
+		{
+			return false;
+		}
+		OutFeet = Zone.GetActorTransform().TransformPosition(GolmokGeo::EnuToUE(Zone.Manifest.SpawnPositionEnu));
+		OutYaw = static_cast<float>(FRotator::NormalizeAxis(Zone.GetActorRotation().Yaw - Zone.Manifest.SpawnYawDeg));
 		return true;
 	}
 
@@ -131,6 +147,15 @@ namespace GolmokTravelSaveTest
 				Got.Equals(Expected, ToleranceCm));
 			Test->TestTrue(FString::Printf(TEXT("%s: yaw %.3f = %.3f"), What, Travel->GetLastArrivalYawUE(), ExpectedYaw),
 				FMath::IsNearlyEqual(FRotator::NormalizeAxis(Travel->GetLastArrivalYawUE() - ExpectedYaw), 0.f, 0.01f));
+			FVector Feet = FVector::ZeroVector;
+			float Yaw = 0.f;
+			if (IndependentSpawn(*Zone, Feet, Yaw))
+			{
+				Test->TestTrue(FString::Printf(TEXT("%s: arrival XY = root transform * EnuToUE(spawn) (%.2f, %.2f)"), What, Feet.X, Feet.Y),
+					FMath::IsNearlyEqual(Got.X, Feet.X, ToleranceCm) && FMath::IsNearlyEqual(Got.Y, Feet.Y, ToleranceCm));
+				Test->TestTrue(FString::Printf(TEXT("%s: yaw = root yaw - yaw_deg (%.3f)"), What, Yaw),
+					FMath::IsNearlyEqual(FRotator::NormalizeAxis(Travel->GetLastArrivalYawUE() - Yaw), 0.f, 0.01f));
+			}
 		}
 
 		FAutomationTestBase* Test;
@@ -268,6 +293,23 @@ namespace GolmokTravelSaveTest
 				Test->TestFalse(TEXT("z_synthetic_002 pin released"), Zones->IsZonePinned(SecondZoneId));
 				AGolmokZone* Second = Zones->FindZone(SecondZoneId);
 				CheckArrival(Travel, Second, Pawn, TEXT("z_synthetic_002"));
+				if (Second && Second->HasManifest() && Second->Manifest.bHasSpawn)
+				{
+					// A root turned by 30 deg (the synthetic roots are almost unrotated, so a transposed matrix would hide):
+					// GetSpawnUE must still agree with the independent FTransform path. The root is put back at once.
+					const FTransform Original = Second->GetActorTransform();
+					Second->SetActorRotation(Original.Rotator() + FRotator(0.0, 30.0, 0.0));
+					FVector Feet = FVector::ZeroVector, Independent = FVector::ZeroVector;
+					float Yaw = 0.f, IndependentYaw = 0.f;
+					Test->TestTrue(TEXT("rotated root: GetSpawnUE"), Second->GetSpawnUE(Feet, Yaw));
+					IndependentSpawn(*Second, Independent, IndependentYaw);
+					Test->TestTrue(FString::Printf(TEXT("rotated root: spawn (%.2f, %.2f, %.2f) = (%.2f, %.2f, %.2f)"), Feet.X, Feet.Y, Feet.Z, Independent.X,
+									   Independent.Y, Independent.Z),
+						Feet.Equals(Independent, ToleranceCm));
+					Test->TestTrue(FString::Printf(TEXT("rotated root: yaw %.3f = %.3f"), Yaw, IndependentYaw),
+						FMath::IsNearlyEqual(FRotator::NormalizeAxis(Yaw - IndependentYaw), 0.f, 0.01f));
+					Second->SetActorTransform(Original);
+				}
 				if (Second && Second->HasManifest())
 				{
 					const bool bHadSpawn = Second->Manifest.bHasSpawn;

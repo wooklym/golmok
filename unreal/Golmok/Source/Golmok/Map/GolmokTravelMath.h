@@ -52,7 +52,7 @@ namespace GolmokTravelMath
 	}
 
 	inline Vec3 EnuToUE(const Vec3& Enu) { return Vec3{Enu[0] * EnuToUEScale, -Enu[1] * EnuToUEScale, Enu[2] * EnuToUEScale}; }
-	inline Vec3 UEToEnu(const Vec3& UE) { return Vec3{UE[0] / EnuToUEScale, -UE[1] / EnuToUEScale, UE[2] / EnuToUEScale}; }
+	inline Vec3 UEToEnu(const Vec3& PointUE) { return Vec3{PointUE[0] / EnuToUEScale, -PointUE[1] / EnuToUEScale, PointUE[2] / EnuToUEScale}; }
 
 	inline Vec3 ApplyPoint(const Mat4& M, const Vec3& P)
 	{

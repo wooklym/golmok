@@ -4,6 +4,7 @@
 #include "Map/GolmokTravelMath.h"
 #include "Save/GolmokSaveGame.h"
 #include "Subsystems/GameInstanceSubsystem.h"
+#include "TimerManager.h"
 #include "GolmokSaveSubsystem.generated.h"
 
 class UWorld;
@@ -43,6 +44,10 @@ public:
 	/** Restore the saved state after the world begins play (off with -GolmokNoRestore). */
 	UPROPERTY(Config, EditAnywhere, Category = "Golmok|Save")
 	bool bRestoreOnBeginPlay = true;
+
+	/** Also restore at PIE begin play. Off by default so the existing PIE runbooks (V-03/V-07/V-09/V-10) always start at the PlayerStart; golmok.load and standalone -game runs restore. */
+	UPROPERTY(Config, EditAnywhere, Category = "Golmok|Save")
+	bool bRestoreInPIE = false;
 
 	/** Fallback zone (spec §3 ②) when the saved zone is gone. Empty = keep the PlayerStart. */
 	UPROPERTY(Config, EditAnywhere, Category = "Golmok|Save")
@@ -121,6 +126,11 @@ private:
 	};
 
 	bool TakeSnapshot(UWorld& InWorld);
+	/** The slot's position / zone become the snapshot and are held (not overwritten by the pawn at the PlayerStart) until a
+	 *  travel arrives or the pawn walks more than HoldReleaseCm from where it stood: a failed / pending restore never loses the save. */
+	void HoldSlotPosition(const UGolmokSaveGame& Save);
+	void ReleaseHold(const TCHAR* Why);
+	static FString LevelNameOf(const UWorld& InWorld);
 	void LoadIndexFromSlot();
 	void OnTraveled(const FString& ZoneId);
 	void OnPhotoSaved(const FString& RelativePath);
@@ -152,4 +162,12 @@ private:
 	bool bDirty = false;
 	bool bSaveQueued = false;
 	bool bBaselineSet = false;
+	FSnapshot Held;              // slot position while bHoldSlotPosition
+	FVector HoldAnchorUE = FVector::ZeroVector;
+	bool bHoldSlotPosition = false;
+	bool bHoldAnchorSet = false;
+	bool bRestorePending = false; // restore scheduled, not run yet: no visit saves / autosaves before it
+	bool bSuppressWrites = false; // after golmok.save reset: no automatic write until a new visit / photo / travel or golmok.save
+	bool bSyncAfterAsync = false; // a sync write happened while an async one was in flight: rewrite once it completes
+	static constexpr double HoldReleaseCm = 200.0;
 };

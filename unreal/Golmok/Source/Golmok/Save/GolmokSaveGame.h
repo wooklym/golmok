@@ -89,6 +89,10 @@ public:
 	UPROPERTY(SaveGame, VisibleAnywhere, BlueprintReadOnly, Category = "Golmok|Save")
 	FString CharacterId;
 
+	/** Map package the save was made in (PIE prefix removed, e.g. /Game/Golmok/Maps/L_ZoneTest): a save is restored only in that level. */
+	UPROPERTY(SaveGame, VisibleAnywhere, BlueprintReadOnly, Category = "Golmok|Save")
+	FString LevelName;
+
 	/** UTC, ISO 8601. */
 	UPROPERTY(SaveGame, VisibleAnywhere, BlueprintReadOnly, Category = "Golmok|Save")
 	FString SavedAtUtc;

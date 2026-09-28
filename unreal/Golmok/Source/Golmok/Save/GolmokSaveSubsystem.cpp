@@ -22,6 +22,8 @@
 #include "Misc/Paths.h"
 #include "Photo/GolmokPhotoModeSubsystem.h"
 #include "TimerManager.h"
+#include "UObject/Package.h"
+#include "EngineUtils.h"
 #include "Zones/GolmokZone.h"
 #include "Zones/GolmokZoneSubsystem.h"
 
@@ -87,6 +89,8 @@ void UGolmokSaveSubsystem::HandleWorldBeginPlay(UWorld& InWorld)
 	RestoreAttempts = 0;
 	bBaselineSet = false;
 	LastSaveSeconds = FPlatformTime::Seconds(); // the periodic autosave never fires before an interval has passed
+	bHoldSlotPosition = false;
+	bRestorePending = false;
 	LoadIndexFromSlot();
 
 	if (UGolmokTravelSubsystem* Travel = UGolmokTravelSubsystem::Get(&InWorld))
@@ -101,15 +105,68 @@ void UGolmokSaveSubsystem::HandleWorldBeginPlay(UWorld& InWorld)
 		/*bLoop*/ true);
 
 	const bool bNoRestoreSwitch = FParse::Param(FCommandLine::Get(), TEXT("GolmokNoRestore"));
-	if (bAutomatic && bRestoreOnBeginPlay && !bNoRestoreSwitch)
+	const bool bPieBlocked = InWorld.WorldType == EWorldType::PIE && !bRestoreInPIE;
+	if (bAutomatic && bRestoreOnBeginPlay && !bNoRestoreSwitch && !bPieBlocked)
 	{
 		// One tick after BeginPlay (spec §3): the pawn is possessed and the geo origin found by then; retried until a pawn exists.
+		// Until it has run, the slot's position is held so no visit / periodic save can overwrite it with the PlayerStart.
+		bRestorePending = true;
+		if (const UGolmokSaveGame* Saved = LoadSlot())
+		{
+			HoldSlotPosition(*Saved);
+		}
 		RestoreTimer = InWorld.GetTimerManager().SetTimerForNextTick(FTimerDelegate::CreateUObject(this, &UGolmokSaveSubsystem::OnRestoreTick));
 	}
 	else
 	{
 		UE_LOG(LogGolmok, Log, TEXT("GolmokSave: restore skipped (%s)"),
-			!bAutomatic ? TEXT("automatic saves off (automation)") : (bNoRestoreSwitch ? TEXT("-GolmokNoRestore") : TEXT("bRestoreOnBeginPlay=False")));
+			!bAutomatic ? TEXT("automatic saves off (automation)")
+						: (bNoRestoreSwitch ? TEXT("-GolmokNoRestore")
+											: (bPieBlocked ? TEXT("PIE, bRestoreInPIE=False; golmok.load restores") : TEXT("bRestoreOnBeginPlay=False"))));
+	}
+}
+
+FString UGolmokSaveSubsystem::LevelNameOf(const UWorld& InWorld)
+{
+	const UPackage* Package = InWorld.GetPackage();
+	return Package ? UWorld::RemovePIEPrefix(Package->GetName()) : FString();
+}
+
+void UGolmokSaveSubsystem::HoldSlotPosition(const UGolmokSaveGame& Save)
+{
+	Held = FSnapshot();
+	Held.bValid = true;
+	Held.bHasPosition = Save.bHasPosition;
+	Held.Lat = Save.Lat;
+	Held.Lon = Save.Lon;
+	Held.HeightEllipsoidal = Save.HeightEllipsoidal;
+	Held.YawDeg = Save.YawDeg;
+	Held.ZoneId = Save.ZoneId;
+	Held.ZoneVersion = Save.ZoneVersion;
+	bHoldSlotPosition = true;
+	bHoldAnchorSet = false;
+	if (!Snapshot.bValid)
+	{
+		// Nothing sampled yet: the held slot values are what a world-end save would write.
+		Snapshot.bValid = true;
+		Snapshot.bHasPosition = Held.bHasPosition;
+		Snapshot.Lat = Held.Lat;
+		Snapshot.Lon = Held.Lon;
+		Snapshot.HeightEllipsoidal = Held.HeightEllipsoidal;
+		Snapshot.YawDeg = Held.YawDeg;
+		Snapshot.ZoneId = Held.ZoneId;
+		Snapshot.ZoneVersion = Held.ZoneVersion;
+		Snapshot.TodPreset = Save.TimeOfDay.PresetName;
+		Snapshot.CharacterId = Save.CharacterId;
+	}
+}
+
+void UGolmokSaveSubsystem::ReleaseHold(const TCHAR* Why)
+{
+	if (bHoldSlotPosition)
+	{
+		bHoldSlotPosition = false;
+		UE_LOG(LogGolmok, Log, TEXT("GolmokSave: saved position no longer held (%s)"), Why);
 	}
 }
 
@@ -120,12 +177,14 @@ void UGolmokSaveSubsystem::HandleWorldEnd(UWorld* InWorld)
 		return;
 	}
 	// Synchronous: an async write during shutdown can be lost (spec §3). The snapshot is refreshed while actors exist.
-	if (bAutomatic && Snapshot.bValid)
+	if (bAutomatic && Snapshot.bValid && !bSuppressWrites)
 	{
 		SaveNow(/*bSync*/ true, TEXT("world end"));
 	}
 	InWorld->GetTimerManager().ClearTimer(VisitTimer);
 	InWorld->GetTimerManager().ClearTimer(RestoreTimer);
+	bSaveQueued = false; // the sync save above holds the newest state; a late async completion must not write again
+	bRestorePending = false;
 	if (UGolmokTravelSubsystem* Travel = UGolmokTravelSubsystem::Get(InWorld))
 	{
 		Travel->OnTraveled.Remove(TraveledHandle);
@@ -141,7 +200,7 @@ void UGolmokSaveSubsystem::HandleWorldEnd(UWorld* InWorld)
 
 void UGolmokSaveSubsystem::OnPreExit()
 {
-	if (bAutomatic && Snapshot.bValid)
+	if (bAutomatic && Snapshot.bValid && !bSuppressWrites)
 	{
 		SaveNow(/*bSync*/ true, TEXT("pre-exit"));
 	}
@@ -187,6 +246,29 @@ bool UGolmokSaveSubsystem::TakeSnapshot(UWorld& InWorld)
 	{
 		S.CharacterId = Characters->GetCurrentId();
 	}
+	if (bHoldSlotPosition)
+	{
+		if (!bHoldAnchorSet)
+		{
+			HoldAnchorUE = S.LocationUE;
+			bHoldAnchorSet = true;
+		}
+		else if (FVector::Dist(HoldAnchorUE, S.LocationUE) > HoldReleaseCm)
+		{
+			ReleaseHold(TEXT("the player walked away"));
+		}
+	}
+	if (bHoldSlotPosition)
+	{
+		// Restore pending / refused / timed out: keep writing the slot's position, not the PlayerStart.
+		S.bHasPosition = Held.bHasPosition;
+		S.Lat = Held.Lat;
+		S.Lon = Held.Lon;
+		S.HeightEllipsoidal = Held.HeightEllipsoidal;
+		S.YawDeg = Held.YawDeg;
+		S.ZoneId = Held.ZoneId;
+		S.ZoneVersion = Held.ZoneVersion;
+	}
 	Snapshot = MoveTemp(S);
 	return true;
 }
@@ -224,6 +306,14 @@ UGolmokSaveGame* UGolmokSaveSubsystem::BuildSaveObject()
 	Out->Visited = Visited;
 	Out->Photos = Photos;
 	Out->CharacterId = Snapshot.CharacterId;
+	if (const UWorld* World = ActiveWorld.Get())
+	{
+		Out->LevelName = LevelNameOf(*World);
+	}
+	else if (const UGolmokSaveGame* Previous = LoadSlot())
+	{
+		Out->LevelName = Previous->LevelName; // pre-exit without a world: keep the level of the last save
+	}
 	Out->SavedAtUtc = FDateTime::UtcNow().ToIso8601();
 	return Out;
 }
@@ -276,6 +366,7 @@ bool UGolmokSaveSubsystem::SaveNow(bool bSync, const TCHAR* Reason, FString* Out
 		}
 		return false;
 	}
+	bSuppressWrites = false; // any real write ends a golmok.save reset
 	LastSaveSeconds = FPlatformTime::Seconds();
 	LastSavedLocationUE = Snapshot.LocationUE;
 	LastSavedYawUE = Snapshot.YawUE;
@@ -291,6 +382,8 @@ bool UGolmokSaveSubsystem::SaveNow(bool bSync, const TCHAR* Reason, FString* Out
 		{
 			++CompletedSaves;
 		}
+		// An async write still in flight may land after this one with older data: write again once it completes.
+		bSyncAfterAsync = PendingAsync > 0;
 		Message = FString::Printf(TEXT("saved %s (sync, %s)%s"), *SlotName, Reason, bOk ? TEXT("") : TEXT(" FAILED"));
 	}
 	else
@@ -322,7 +415,24 @@ void UGolmokSaveSubsystem::OnAsyncSaved(const FString& InSlotName, const int32 I
 		UE_LOG(LogGolmok, Warning, TEXT("GolmokSave: async save to %s (user %d) failed"), *InSlotName, InUserIndex);
 		MarkDirty();
 	}
-	if (bSaveQueued && PendingAsync == 0)
+	if (PendingAsync > 0)
+	{
+		return;
+	}
+	if (bSuppressWrites)
+	{
+		// golmok.save reset happened while this write was in flight: delete what it wrote.
+		UGameplayStatics::DeleteGameInSlot(SlotName, GolmokSavePrivate::UserIndex);
+		bSaveQueued = false;
+		bSyncAfterAsync = false;
+		return;
+	}
+	if (bSyncAfterAsync)
+	{
+		bSyncAfterAsync = false;
+		SaveNow(/*bSync*/ true, TEXT("rewrite after async"));
+	}
+	else if (bSaveQueued && ActiveWorld.IsValid())
 	{
 		SaveNow(/*bSync*/ false, TEXT("queued"));
 	}
@@ -347,8 +457,9 @@ bool UGolmokSaveSubsystem::NoteVisit(const FString& ZoneId, int32 Version, const
 	Visit.FirstVisitUtc = FDateTime::UtcNow().ToIso8601();
 	Visited.Add(MoveTemp(Visit));
 	MarkDirty();
+	bSuppressWrites = false;
 	UE_LOG(LogGolmok, Log, TEXT("GolmokSave: first visit %s v%d (%s)"), *ZoneId, Version, Why);
-	if (bAutomatic)
+	if (bAutomatic && !bRestorePending)
 	{
 		SaveNow(/*bSync*/ false, TEXT("first visit"));
 	}
@@ -363,7 +474,8 @@ void UGolmokSaveSubsystem::NotePhoto(const FString& RelativePath)
 	}
 	Photos.Add(RelativePath);
 	MarkDirty();
-	if (bAutomatic)
+	bSuppressWrites = false;
+	if (bAutomatic && !bRestorePending)
 	{
 		SaveNow(/*bSync*/ false, TEXT("photo"));
 	}
@@ -371,6 +483,8 @@ void UGolmokSaveSubsystem::NotePhoto(const FString& RelativePath)
 
 void UGolmokSaveSubsystem::OnTraveled(const FString& ZoneId)
 {
+	ReleaseHold(TEXT("travel arrived"));
+	bSuppressWrites = false;
 	UWorld* World = ActiveWorld.Get();
 	const UGolmokZoneSubsystem* Zones = World ? World->GetSubsystem<UGolmokZoneSubsystem>() : nullptr;
 	const int32 Version = Zones ? Zones->ResolveZoneVersion(ZoneId) : 0;
@@ -394,7 +508,7 @@ void UGolmokSaveSubsystem::OnVisitPoll()
 {
 	UWorld* World = ActiveWorld.Get();
 	const UGolmokTravelSubsystem* Travel = UGolmokTravelSubsystem::Get(World);
-	if (!World || (Travel && Travel->IsTraveling()) || !TakeSnapshot(*World))
+	if (!World || bRestorePending || (Travel && Travel->IsTraveling()) || !TakeSnapshot(*World))
 	{
 		return; // mid-travel (restore included) the pawn is still at the old place: neither a visit nor a position to save
 	}
@@ -405,11 +519,22 @@ void UGolmokSaveSubsystem::OnVisitPoll()
 		LastSavedYawUE = Snapshot.YawUE;
 		bBaselineSet = true;
 	}
-	if (!Snapshot.ZoneId.IsEmpty() && !IsVisited(Snapshot.ZoneId))
+	// First visit (spec §3): every loaded zone whose footprint contains the player, not only the winning one.
+	const FVector2D PlayerXY(Snapshot.LocationUE.X, Snapshot.LocationUE.Y);
+	TArray<TPair<FString, int32>> Entered;
+	for (TActorIterator<AGolmokZone> It(World); It; ++It)
 	{
-		NoteVisit(Snapshot.ZoneId, Snapshot.ZoneVersion, TEXT("entered"));
+		AGolmokZone* Zone = *It;
+		if (Zone && Zone->IsLoaded() && !IsVisited(Zone->ZoneId) && Zone->FootprintContains(PlayerXY))
+		{
+			Entered.Emplace(Zone->ZoneId, Zone->Version);
+		}
 	}
-	if (!bAutomatic)
+	for (const TPair<FString, int32>& Zone : Entered)
+	{
+		NoteVisit(Zone.Key, Zone.Value, TEXT("entered"));
+	}
+	if (!bAutomatic || bSuppressWrites)
 	{
 		return;
 	}
@@ -436,6 +561,7 @@ void UGolmokSaveSubsystem::OnRestoreTick()
 			GolmokSavePrivate::RestoreRetrySeconds, false);
 		return;
 	}
+	bRestorePending = false;
 	FString Message;
 	Restore(Message);
 	UE_LOG(LogGolmok, Log, TEXT("GolmokSave: restore on begin play: %s"), *Message);
@@ -482,11 +608,30 @@ bool UGolmokSaveSubsystem::Restore(FString& OutMessage)
 		}
 	}
 
+	const FString Level = LevelNameOf(*World);
+	if (!Save->LevelName.IsEmpty() && Save->LevelName != Level)
+	{
+		// One slot, several dev / spike levels: never apply a position from another level.
+		ReleaseHold(TEXT("the save belongs to another level"));
+		LastRestoreDecision = GolmokTravelMath::ERestore::None;
+		OutMessage = FString::Printf(TEXT("slot %s was saved in %s, this level is %s: position not restored (visit / photo index kept)"), *SlotName,
+			*Save->LevelName, *Level);
+		LastMessage = OutMessage;
+		return false;
+	}
 	const int32 IndexVersion = Save->ZoneId.IsEmpty() ? 0 : Zones->ResolveZoneVersion(Save->ZoneId);
 	const bool bHomeKnown = !HomeZoneId.IsEmpty() && Zones->ResolveZoneVersion(HomeZoneId) > 0;
 	const bool bHasPosition = Save->bHasPosition && Geo && Geo->HasOrigin();
 	LastRestoreDecision = GolmokTravelMath::DecideRestore(true, bHasPosition, Save->ZoneId.IsEmpty(), Save->ZoneVersion, IndexVersion, bHomeKnown);
 
+	if (LastRestoreDecision != GolmokTravelMath::ERestore::None)
+	{
+		HoldSlotPosition(*Save); // until the restore travel arrives (or the player walks away after a failure)
+	}
+	else
+	{
+		ReleaseHold(TEXT("nothing to restore"));
+	}
 	bool bOk = true;
 	FString TravelMessage;
 	switch (LastRestoreDecision)
@@ -497,6 +642,10 @@ bool UGolmokSaveSubsystem::Restore(FString& OutMessage)
 		Geo->LonLatToLevelUE(Save->Lon, Save->Lat, Save->HeightEllipsoidal, LocationUE);
 		const float YawUE = static_cast<float>(GolmokTravelMath::EnuYawToUEYaw(Save->YawDeg));
 		bOk = Travel->TravelToLocation(Save->ZoneId, LocationUE, YawUE, TravelMessage);
+		if (bOk && Save->ZoneId.IsEmpty())
+		{
+			ReleaseHold(TEXT("placed at the saved basemap position"));
+		}
 		break;
 	}
 	case GolmokTravelMath::ERestore::SavedZoneSpawn:
@@ -553,6 +702,10 @@ bool UGolmokSaveSubsystem::ResetSlot(FString& OutMessage)
 	Visited.Reset();
 	Photos.Reset();
 	bDirty = false;
+	bSaveQueued = false;
+	bSyncAfterAsync = false;
+	bSuppressWrites = true; // world end / pre-exit / in-flight async must not recreate the slot
+	ReleaseHold(TEXT("slot reset"));
 	OutMessage = FString::Printf(TEXT("slot %s %s; visit / photo index cleared"), *SlotName,
 		!bHad ? TEXT("was empty") : (bDeleted ? TEXT("deleted") : TEXT("could NOT be deleted")));
 	LastMessage = OutMessage;

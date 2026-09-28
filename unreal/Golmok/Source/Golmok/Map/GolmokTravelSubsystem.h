@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Subsystems/WorldSubsystem.h"
+#include "TimerManager.h"
 #include "GolmokTravelSubsystem.generated.h"
 
 class AGolmokZone;
@@ -109,6 +110,8 @@ private:
 	void FinishArrival();
 	void Fail(const FString& Reason);
 	void StartFade(float FromAlpha, float ToAlpha);
+	/** Movement input is ignored while the screen is black (Loading / Arriving); SetIgnoreMoveInput is a counter, so paired once. */
+	void SetMoveInputBlocked(bool bBlocked);
 	bool IsAnyPortalBusy() const;
 	APawn* GetPlayerPawn() const;
 	APlayerController* GetPlayerController() const;
@@ -129,6 +132,8 @@ private:
 	FVector LastArrivalLocationUE = FVector::ZeroVector;
 	float LastArrivalYawUE = 0.f;
 	int32 ArrivalCount = 0;
+	bool bMoveInputBlocked = false;
+	bool bTargetWasPinned = false; // a console / portal pin that existed before the travel is kept
 	FTimerHandle PollTimer;
 	FTimerHandle ArrivalTimer;
 };

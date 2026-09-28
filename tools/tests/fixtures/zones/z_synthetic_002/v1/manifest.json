@@ -73,7 +73,7 @@
   },
   "portals": [],
   "spawn": {
-    "position_enu": [5.0, 3.0, 0.1],
+    "position_enu": [-8.0, 3.0, -0.16],
     "yaw_deg": 90.0
   },
   "priority": 10,

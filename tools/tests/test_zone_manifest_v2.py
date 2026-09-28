@@ -31,7 +31,7 @@ PLAYER_RADIUS_M = 0.4  # >= UE capsule radius (34 cm default)
 COMMITTED = {
     "z_synthetic_001": ({"position_enu": [5.0, 4.0, 0.0], "yaw_deg": 90.0}, "합성 골목 1"),
     "z_synthetic_001_interior": ({"position_enu": [0.0, -1.5, 0.0], "yaw_deg": 90.0}, "합성 골목 1 실내"),
-    "z_synthetic_002": ({"position_enu": [5.0, 3.0, 0.1], "yaw_deg": 90.0}, "합성 골목 2"),
+    "z_synthetic_002": ({"position_enu": [-8.0, 3.0, -0.16], "yaw_deg": 90.0}, "합성 골목 2"),
 }
 
 
@@ -383,7 +383,9 @@ def test_make_synthetic_zone_manifests_v2_spawn_on_open_ground(scripts):
     assert msz.GROUND_X[0] < x < msz.GROUND_X[1] and msz.GROUND_Y[0] < y < msz.GROUND_Y[1]
     assert z == pytest.approx(msz.GROUND_SLOPE * x, abs=1e-9)
     assert _clear([(lo, hi) for _, _, lo, hi in msz.exterior_boxes()], x, y, z)
-    assert x == msz.DOOR_1[0] and y < msz.DOOR_1[1] and ext["spawn"]["yaw_deg"] == 90.0
+    (wx0, wx1), _ = msz.WINDOW
+    assert wx0 < x < wx1 and y < msz.WALL_B[0][1] and ext["spawn"]["yaw_deg"] == 90.0  # facing the window
+    assert 200.0 + x < 195.0  # z_synthetic_002 (200 m east of 001) stays on L_ZoneTest's +-200 m Zone_Ground
     x, y, z = room["spawn"]["position_enu"]
     floor, *walls = msz.room_boxes()
     assert z == floor[1][2] and floor[0][0] < x < floor[1][0] and floor[0][1] < y < floor[1][1]

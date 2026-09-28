@@ -17,8 +17,8 @@ Writes (WP-06 design §3-7):
     --display-name TEXT        WP-15a: manifest display_name of the exterior (default "합성 스캔 골목"); the
                                room gets "<TEXT> 실내". Only the two manifests change.
 
-Manifests are schema_version 2 (WP-15a) with `spawn`: exterior EXTERIOR_SPAWN (on the ground 4 m south of
-the door, facing it), room ROOM_SPAWN (just inside the door, facing into the room).
+Manifests are schema_version 2 (WP-15a) with `spawn`: exterior EXTERIOR_SPAWN (on the ground 2 m south of
+the window in facade B, facing it), room ROOM_SPAWN (just inside the door, facing into the room).
 
 The zone folder comes out of golmok_tools.mesh.cli (chunk -> collision --per-chunk --no-snap-ground ->
 blockers) and golmok_tools.zone.cli validate --check-files --strict, exactly like a real scan. expected.json
@@ -121,9 +121,13 @@ ROOM_LOOK = "yellow room (1001)"
 # door_out = door_1 in room-local coordinates: (4, -0.2, 0), yaw -90 (facing south, out of the room)
 DOOR_OUT = tuple(round(a - b, 6) for a, b in zip(DOOR_1, ROOM_ORIGIN_IN_PARENT_M, strict=True))
 PLAYER_START_ENU = (0.0, 2.0, 1.5)
-# WP-15a manifest v2 spawn (x, y, z feet, yaw_deg): open ground 4 m south of door_1, z = GROUND_SLOPE * x,
-# facing north at the door in facade A; the room's just inside door_out, facing north into the room.
-EXTERIOR_SPAWN = (DOOR_1[0], 3.0, round(GROUND_SLOPE * DOOR_1[0], 6), 90.0)
+# WP-15a manifest v2 spawn (x, y, z feet, yaw_deg): open ground 2 m south of the glass window in
+# facade B (window centre x -8), z = GROUND_SLOPE * x, facing north at it; the room's just inside
+# door_out, facing north into the room. West of the origin on purpose: z_synthetic_002 (this zone
+# 200 m east of z_synthetic_001) then lands 192 m from 001, inside L_ZoneTest's 400 x 400 m
+# Zone_Ground plane (synthetic_zone._spawn_ground), which catches the player because 002 has no
+# collision assets in the project.
+EXTERIOR_SPAWN = (sum(WINDOW[0]) / 2.0, 3.0, round(GROUND_SLOPE * sum(WINDOW[0]) / 2.0, 6), 90.0)
 ROOM_SPAWN = (DOOR_OUT[0], 1.5, 0.0, 90.0)
 DEFAULT_DISPLAY_NAME = "합성 스캔 골목"
 ROOM_DISPLAY_SUFFIX = " 실내"
