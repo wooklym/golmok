@@ -24,6 +24,8 @@
 #include "Tests/AutomationEditorCommon.h"
 #include "UnrealClient.h"
 
+namespace GolmokCharacterRosterSequence { void Enqueue(FAutomationTestBase* Test); }
+
 namespace GolmokCharacterRosterRenderTest
 {
 	const TCHAR* Map = TEXT("/Game/Golmok/Maps/L_Dev");
@@ -132,6 +134,11 @@ bool FGolmokCharacterRosterRenderTest::RunTest(const FString& Parameters)
 	{
 		AddError(TEXT("Rendered evidence explicitly requested without a rendering RHI; remove -nullrhi."));
 		return false;
+	}
+	if (FParse::Param(FCommandLine::Get(), TEXT("GolmokCharacterSequence")))
+	{
+		GolmokCharacterRosterSequence::Enqueue(this);
+		return true;
 	}
 	using namespace GolmokCharacterRosterRenderTest;
 	if (!FPackageName::DoesPackageExist(Map))
