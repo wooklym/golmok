@@ -409,7 +409,7 @@ basemap_import: GeoOrigin lat=… lon=… h=… (basemap origin; ellipsoidal = D
 | §6 재실행 | **부분 확인** | reimport_textures=False 및 True, interior_setup 재실행 완료. ManualProp 보존·Interior_Light 각1개. True 재임포트 경고0·크기512/256 정상. False 직후 readback32×32 → 새 에디터 12s 대기 후512/256 확인(아래). 재임포트 뒤 §5 실제 드라이버 왕복 통과 |
 | §7 시점·캡처·무인 종료 | **파일 생성 통과 / HUD 관찰** | 고정 시점10개 저장·prepare 누락0. a×clear_noon/night 20장 모두2560×1440, 0 missing. 인덱스 분리 후 재검증: 전경53.656s·백그라운드67.063s 각각20/20. 메모장을 앞에 두어도 PIE 그리기 지속, 약25% 느림(단일 비교). quit_editor=True 후 프로세스 종료 |
 | §7 컨택트 시트·템플릿 | **생성 확인** | contact_sheet.html·report_template.md 생성. HTML table2개·img20개 확인, 실제 이미지도 별도 열어 확인. 브라우저 file:// 접근은 도구 보안정책으로 거부되어 HTML 렌더는 미확인(우회하지 않음) |
-| §8 레이어 맵·-game CSV | **통과** | PR #43 반영 후 b·c·ac Save As→디스크 재열기→저장 성공, 원본 맵 해시 불변. walk_01 73.003s·731샘플. a/b 모두 CSV 생성·경로 종료·자동 종료 성공(아래). `-game`은 Saved 아래 실행 사본 스크립트에 `bDiscoverFromIndex=False`를 더해 측정(원본 스크립트 불변, 인계 7). 레이어 상태(`L_Spike_b` Visual off·AutoManaged ✖·`L_ZoneTest06` 복귀) 직접 확인 기록 없음(b fps > a로 간접, 리뷰 T5) |
+| §8 레이어 맵·-game CSV | **통과** | PR #43 반영 후 b·c·ac Save As→디스크 재열기→저장 성공, 원본 맵 해시 불변. walk_01 73.003s·731샘플. a/b 모두 CSV 생성·경로 종료·자동 종료 성공(아래). `-game`은 Saved 아래 실행 사본 스크립트에 `bDiscoverFromIndex=False`를 더해 측정(원본 스크립트 불변, 인계 7). 레이어 상태(`L_Spike_b` Visual off·AutoManaged ✖·`L_ZoneTest06` 복귀)는 GUI로 눈으로 확인하지 않았고 AutoManaged 저장값 readback도 없음(Astra PR #41 코멘트 11:07Z, 리뷰 T5); 근거는 로그뿐 — `t5-save-layers-fixed.log`의 `spike_runner: layers tag=b zone_visual=False Spike_b=True Spike_c=False (actors 2, editor)`(10:10:50Z), 이어서 `L_ZoneTest06` 오디오 디바이스 재등록(원본 재로드)과 `T5_LAYERS ['/Game/Golmok/Maps/L_Spike_b', '/Game/Golmok/Maps/L_Spike_c', '/Game/Golmok/Maps/L_Spike_ac']`. 저장된 Visual/AutoManaged 값의 독립 검증은 다음 PC 세션(§8 2단계 체크) |
 | §9 PIE 참고치 | **실행 실패(선택)** | perf_all이 기록 중인 CSV 생성만 보고 PIE 종료. 73s 경로 대신 첫2s 제외2프레임만 남음. fps 참고값으로 인정하지 않음 |
 | §10 basemap GeoOrigin | **미실행(선택)** | 다른 세션의 베이스맵을 변경하지 않음 |
 | 게이트 | **통과** | ruff check, format103파일, PR #43 병합 후 pytest763 passed/77 skipped, check_repo OK. UE 전체 -SetupDevLevel 재실행: 28 Success(21+경고7), fail0; RenderEvidence 기본 NOT EXECUTED를 제외한 실제27개. 별도 opt-in 보행은 실행 성공 |
@@ -423,14 +423,20 @@ basemap_import: GeoOrigin lat=… lon=… h=… (basemap origin; ellipsoidal = D
 
 실행: 렌더링 UnrealEditor.exe에 위 옵션과 `-ExecCmds="Automation RunTests Golmok.Character.RenderEvidence;Quit" -ReportExportPath=<Saved>/Automation/T5WalkFinal` 전달. 코스0~4 단언13개와 추가 코스5(실내) 단언12개, 합계25개 통과, 각 실행 보고서 succeeded=1/failed=0, exit0. 최종 실내 코스 빌드6.01s 성공. 경로 녹화는3s 제자리 뒤 지면·문 왕복2회를 포함, 최종73.003s/731샘플. 첫 오염 실행·PlayerStart 조정 전 실행은 최종 결과에 포함하지 않았다.
 
-포털 로그(UTC, 최종 실행 첫 왕복; 축약 발췌 — `Portal door_1:` 접두·zone loaded/unloaded 줄·마지막 줄 뒷부분 생략, 원문은 로컬 보존 로그. 첫 줄 preload는 §5 기대 블록에 없는 WP-09 줄. 리뷰 T3):
+포털 로그(UTC, 최종 실행 첫 왕복; 보존 로그 `tools/.venv/t5-walk-final.log`의 LogGolmok 줄 원문 — Astra가 PR #41 코멘트(11:07Z)로 제공, 리뷰 T3. 첫 두 줄(비동기 로드·preload)은 §5 기대 블록에 없는 WP-09 줄이고, 그 뒤는 기대 블록과 같은 순서다. 오버레이 on은 진입 2.6 s 뒤, 트리거 이탈(42.786) 3.7 s 뒤 언로드):
 ```text
-09:27:34.756 interior preload requested -> room loading (pinned)
-09:27:37.621 TimeOfDay: interior overlay on (source door_1, base clear_noon)
-09:27:37.621 Portal door_1: crossed inward
-09:27:42.786 TimeOfDay: interior overlay off -> clear_noon
-09:27:42.786 Portal door_1: crossed outward
-09:27:46.521 Portal door_1: player left -> unload ...; sublevel out
+[2026.09.28-09.27.34:756][888]LogGolmok: Zone z_synthetic_scan_001_room v1: async load requested (2 assets, 0 missing, priority 100)
+[2026.09.28-09.27.34:756][888]LogGolmok: Portal door_1: interior preload requested -> zone z_synthetic_scan_001_room loading (pinned)
+[2026.09.28-09.27.34:783][891]LogGolmok: Zone z_synthetic_scan_001_room: chunk c_e000_n000 bbox center -> level (18170.58, -23258.02, 1149.32) cm
+[2026.09.28-09.27.34:783][891]LogGolmok: Zone z_synthetic_scan_001_room: portal door_out -> z_synthetic_scan_001 rel (400, 20, 0) cm yaw 90.0 radius 100 cm -> level (18170.58, -22898.01, 999.33) [marker]
+[2026.09.28-09.27.34:783][891]LogGolmok: Zone z_synthetic_scan_001_room v1 loaded (async 26.0 ms wait + 0.9 ms build): chunks 1/1 (0 wire boxes), collision 1/1, blockers 0/0, portals 1 (WP-05)
+[2026.09.28-09.27.35:006][918]LogGolmok: Portal door_1 (z_synthetic_scan_001 -> z_synthetic_scan_001_room): player within 100 cm -> load [zone z_synthetic_scan_001_room loaded (pinned)]; sublevel /Game/Golmok/Zones/z_synthetic_scan_001_room/v1/L_z_synthetic_scan_001_room (LevelInstance)
+[2026.09.28-09.27.37:621][223]LogGolmok: TimeOfDay: interior overlay on (source door_1, base clear_noon)
+[2026.09.28-09.27.37:621][223]LogGolmok: Portal door_1: crossed inward
+[2026.09.28-09.27.42:786][836]LogGolmok: TimeOfDay: interior overlay off -> clear_noon
+[2026.09.28-09.27.42:786][836]LogGolmok: Portal door_1: crossed outward
+[2026.09.28-09.27.46:521][284]LogGolmok: Zone z_synthetic_scan_001_room v1 unloaded
+[2026.09.28-09.27.46:521][284]LogGolmok: Portal door_1: player left -> unload z_synthetic_scan_001_room (zone z_synthetic_scan_001_room unloaded (portal)); sublevel out
 ```
 
 [유리 압박](pc-verify-wp06-glass.jpg), [실내 보행](pc-verify-wp06-interior.jpg). 종료 시 zone.list=실외 loaded·실내 unloaded. 추가 실내 코스에서 진입2.100s 후 전환 종료·fog=0·exposure bias=base+1EV를 직접 계측했다. 천장 검증은 trace이며 점프 동작으로 과장하지 않는다.
