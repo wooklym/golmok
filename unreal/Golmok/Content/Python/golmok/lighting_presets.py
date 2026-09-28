@@ -5,17 +5,21 @@ C++ loader (Lighting/GolmokTimeOfDay.cpp) applies the same rules, so the JSON fi
 lighting preset values.
 
 Rules (shared with the tests and the C++ parser):
-- schema_version == 1; top-level keys are exactly {schema_version, cycle, presets}
+- schema_version == 2 (WP-14a: cycle presets carry a keyframe "time"; a schema 1 file is an error);
+  top-level keys are exactly {schema_version, cycle, presets}
 - preset names match ^[a-z][a-z0-9_]*$
 - cycle has exactly 4 distinct names, all in presets, each with all 9 keys (complete presets)
 - other presets may be partial (missing key = keep the current value); unknown keys are errors
 - the sun keys (pitch, yaw, lux, kelvin) and the fog keys (fog, fog_height_falloff) are set together
 - "interior" must exist, is not in cycle, has fog == 0 and exposure_bias > 0
+- every cycle preset has "time": "HH:MM" (00:00-23:59); the times strictly increase in cycle order; a preset
+  outside the cycle (interior) must not have a time
 """
 
 from __future__ import annotations
 
 import json
+import math
 import os
 import re
 
@@ -46,7 +50,9 @@ PRESETS_FILE = os.path.normpath(
     os.path.join(os.path.dirname(__file__), "..", "..", "..", "Config", "Golmok", "lighting_presets.json")
 )  # unreal/Golmok/Config/Golmok/lighting_presets.json
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
+TIME_KEY = "time"  # keyframe time of a cycle preset, "HH:MM" (WP-14a design section 2)
+HHMM_RE = re.compile(r"^([0-9]{2}):([0-9]{2})$")
 TOP_LEVEL_KEYS = frozenset({"schema_version", "cycle", "presets"})
 CYCLE_LENGTH = 4
 INTERIOR = "interior"
@@ -61,6 +67,25 @@ def _error(reason: str, preset: str | None = None) -> ValueError:
     return ValueError(f"{_FILE}: {preset}: {reason}")
 
 
+def parse_hhmm(text: str) -> int:
+    """ "HH:MM" (two digits each, 00:00-23:59) -> minutes of the day; ValueError otherwise (GolmokClockMath::ParseHHMM)."""
+    m = HHMM_RE.match(text) if isinstance(text, str) else None
+    if not m or int(m.group(1)) > 23 or int(m.group(2)) > 59:
+        raise ValueError(f"time must be HH:MM (00:00-23:59), got {text!r}")
+    return int(m.group(1)) * 60 + int(m.group(2))
+
+
+def format_hhmm(minutes: float) -> str:
+    """Minutes (wrapped into the day, floored) -> "HH:MM" (GolmokClockMath::FormatHHMM)."""
+    m = int(math.floor(minutes % 1440.0)) % 1440 if math.isfinite(minutes) else 0
+    return f"{m // 60:02d}:{m % 60:02d}"
+
+
+def keyframes(cycle: list[str], presets: dict[str, dict]) -> list[tuple[str, int]]:
+    """(name, minutes) of the cycle presets in cycle order (the clock keyframes)."""
+    return [(name, parse_hhmm(presets[name][TIME_KEY])) for name in cycle]
+
+
 def _is_number(value: object) -> bool:
     return isinstance(value, int | float) and not isinstance(value, bool)
 
@@ -71,9 +96,15 @@ def _check_preset(name: str, preset: object) -> dict:
     if not isinstance(preset, dict):
         raise _error("preset must be an object", name)
     for key in preset:
-        if key not in REQUIRED_KEYS:
+        if key not in REQUIRED_KEYS and key != TIME_KEY:
             raise _error(f"unknown key '{key}'", name)
     for key, value in preset.items():
+        if key == TIME_KEY:
+            try:
+                parse_hhmm(value)
+            except ValueError as e:
+                raise _error(str(e), name) from None
+            continue
         if key == "volumetric":
             if not isinstance(value, bool):
                 raise _error("volumetric must be a bool", name)
@@ -123,6 +154,20 @@ def parse_presets(text: str) -> tuple[list[str], dict[str, dict]]:
         for key in REQUIRED_KEYS:
             if key not in presets[name]:
                 raise _error(f"missing key '{key}' (cycle presets need all 9 keys)", name)
+        if TIME_KEY not in presets[name]:
+            raise _error(f"missing key '{TIME_KEY}' (cycle presets need a keyframe time HH:MM)", name)
+    for name, preset in presets.items():
+        if name not in raw_cycle and TIME_KEY in preset:
+            raise _error(f"{TIME_KEY} is only allowed on cycle presets", name)
+    for before, after in zip(raw_cycle, raw_cycle[1:], strict=False):
+        t0, t1 = parse_hhmm(presets[before][TIME_KEY]), parse_hhmm(presets[after][TIME_KEY])
+        if t1 == t0:
+            raise _error(f"cycle has duplicate time {presets[after][TIME_KEY]} ({before}, {after})")
+        if t1 < t0:
+            raise _error(
+                f"cycle times must increase ({after} {presets[after][TIME_KEY]} is before "
+                f"{before} {presets[before][TIME_KEY]})"
+            )
 
     if INTERIOR not in presets:
         raise _error(f"missing preset '{INTERIOR}'")
@@ -142,4 +187,4 @@ def load_presets(path: str = PRESETS_FILE) -> tuple[list[str], dict[str, dict]]:
 
 
 def is_partial(preset: dict) -> bool:
-    return set(preset) < set(REQUIRED_KEYS)
+    return set(preset) - {TIME_KEY} < set(REQUIRED_KEYS)

@@ -2,6 +2,9 @@
 
 #include "Golmok.h"
 
+#include "Lighting/GolmokClockMath.h"
+#include "Photo/GolmokPhotoModeSubsystem.h"
+
 #include "Components/DirectionalLightComponent.h"
 #include "Components/ExponentialHeightFogComponent.h"
 #include "Components/SceneComponent.h"
@@ -16,6 +19,7 @@
 #include "EngineUtils.h"
 #include "HAL/IConsoleManager.h"
 #include "Internationalization/Regex.h"
+#include "Misc/DateTime.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 #include "Serialization/JsonReader.h"
@@ -32,7 +36,8 @@ namespace GolmokLightingJson
 	using FJsonObjectPtr = TSharedPtr<FJsonObject>;
 	using FJsonArray = TArray<TSharedPtr<FJsonValue>>;
 
-	constexpr int32 SchemaVersion = 1;
+	// WP-14a: schema 2 adds the keyframe "time" of the cycle presets; a schema 1 file is an error (single source).
+	constexpr int32 SchemaVersion = 2;
 	constexpr int32 CycleLength = 4;
 	const TCHAR* InteriorName = TEXT("interior");
 
@@ -58,6 +63,7 @@ namespace GolmokLightingJson
 	constexpr int32 NumberKeyCount = 8;
 	static_assert(UE_ARRAY_COUNT(NumberKeys) == NumberKeyCount, "NumberKeys table size");
 	const TCHAR* VolumetricKey = TEXT("volumetric");
+	const TCHAR* TimeKey = TEXT("time");
 
 	bool Fail(FString& Error, const FString& Message)
 	{
@@ -72,7 +78,7 @@ namespace GolmokLightingJson
 
 	bool IsKnownPresetKey(const FString& Key)
 	{
-		if (Key == VolumetricKey)
+		if (Key == VolumetricKey || Key == TimeKey)
 		{
 			return true;
 		}
@@ -173,6 +179,16 @@ namespace GolmokLightingJson
 		{
 			return FailPreset(Error, Name, TEXT("volumetric must be a bool"));
 		}
+		int TimeMinutes = 0;
+		const TSharedPtr<FJsonValue> TimeValue = Obj->TryGetField(FString(TimeKey));
+		if (TimeValue.IsValid())
+		{
+			const FString TimeText = TimeValue->Type == EJson::String ? TimeValue->AsString() : FString();
+			if (!GolmokClockMath::ParseHHMM(*TimeText, TimeMinutes))
+			{
+				return FailPreset(Error, Name, TEXT("time must be HH:MM (00:00-23:59)"));
+			}
+		}
 
 		// Index into NumberKeys: 0 pitch, 1 yaw, 2 lux, 3 kelvin, 4 sky, 5 fog, 6 fog_height_falloff, 7 exposure_bias.
 		auto GroupComplete = [&](const int32* Indices, int32 Count, FString& OutMissing) -> bool
@@ -222,6 +238,8 @@ namespace GolmokLightingJson
 		Out.bVolumetric = bVolumetric;
 		Out.bHasExposure = bPresent[7];
 		Out.ExposureBias = Values[7];
+		Out.bHasTime = TimeValue.IsValid();
+		Out.TimeMinutes = static_cast<double>(TimeMinutes);
 		return true;
 	}
 
@@ -344,7 +362,38 @@ bool AGolmokTimeOfDay::ParsePresetsText(const FString& Json, TArray<FGolmokLight
 		{
 			return FailPreset(Error, NameText, FString::Printf(TEXT("missing key '%s' (cycle presets need all 9 keys)"), *FirstMissingKey(*P)));
 		}
+		if (!P->bHasTime)
+		{
+			return FailPreset(Error, NameText, TEXT("missing key 'time' (cycle presets need a keyframe time HH:MM)"));
+		}
 		OutCycle.Add(Name);
+	}
+	for (const FGolmokLightingPreset& P : Out)
+	{
+		if (P.bHasTime && !OutCycle.Contains(P.Name))
+		{
+			return FailPreset(Error, P.Name.ToString(), TEXT("time is only allowed on cycle presets"));
+		}
+	}
+	{
+		double Times[CycleLength] = {};
+		for (int32 i = 0; i < CycleLength; ++i)
+		{
+			Times[i] = FindByName(Out, OutCycle[i])->TimeMinutes;
+		}
+		int Bad = -1;
+		const int Order = GolmokClockMath::CheckKeyframeOrder(Times, CycleLength, Bad);
+		if (Order != 0)
+		{
+			TCHAR Before[6];
+			TCHAR After[6];
+			GolmokClockMath::FormatHHMM(Times[Bad - 1], Before);
+			GolmokClockMath::FormatHHMM(Times[Bad], After);
+			return Order == 1
+				? Fail(Error, FString::Printf(TEXT("cycle has duplicate time %s (%s, %s)"), After, *OutCycle[Bad - 1].ToString(), *OutCycle[Bad].ToString()))
+				: Fail(Error, FString::Printf(TEXT("cycle times must increase (%s %s is before %s %s)"), *OutCycle[Bad].ToString(), After,
+					  *OutCycle[Bad - 1].ToString(), Before));
+		}
 	}
 
 	const FName Interior(InteriorName);
@@ -400,16 +449,25 @@ void AGolmokTimeOfDay::BeginPlay()
 	// return point while the base preset is None.
 	CaptureState(Initial);
 	Applied = Initial;
+	TimeOfDayMinutes = static_cast<float>(GolmokClockMath::WrapMinutes(TimeOfDayMinutes));
 	if (!InitialPreset.IsNone())
 	{
 		ApplyPreset(InitialPreset, /*bInstant*/ true);
 	}
+	// WP-14a: a Clock / Realtime mode from the config starts on the clock state at once (Fixed = WP-05 as before).
+	if (ClockMode != EGolmokClockMode::Fixed && CycleTimes.Num() > 0)
+	{
+		SetTimeOfDay(static_cast<float>(ClockMode == EGolmokClockMode::Realtime ? RealtimeTargetMinutes() : TimeOfDayMinutes), /*bInstant*/ true);
+	}
+	RefreshNight(/*bBroadcast*/ false);
+	UpdateTickEnabled();
 }
 
 void AGolmokTimeOfDay::EndPlay(const EEndPlayReason::Type Reason)
 {
 	InteriorSources.Empty();
 	bTransitioning = false;
+	bRealtimeHeld = false;
 	SetActorTickEnabled(false);
 	Super::EndPlay(Reason);
 }
@@ -497,6 +555,12 @@ bool AGolmokTimeOfDay::EnsurePresets()
 		return false;
 	}
 	bPresetsLoaded = true;
+	CycleTimes.Reset();
+	for (const FName& Name : Cycle)
+	{
+		const FGolmokLightingPreset* P = GolmokLightingJson::FindByName(Presets, Name);
+		CycleTimes.Add(P ? P->TimeMinutes : 0.0);
+	}
 	UE_LOG(LogGolmok, Log, TEXT("TimeOfDay: presets loaded (%d) from %s"), Presets.Num(), *Path);
 	return true;
 }
@@ -544,6 +608,21 @@ bool AGolmokTimeOfDay::ApplyPreset(FName Name, bool bInstant)
 		LastError = FString::Printf(TEXT("unknown preset '%s'"), *Name.ToString());
 		return false;
 	}
+	// WP-14a: a preset without a keyframe time (interior as a base) cannot live on a running clock; Realtime would
+	// pull a keyframe straight back to the local time. Both fall back to Fixed, which keeps the preset (WP-05).
+	if (ClockMode == EGolmokClockMode::Realtime || (ClockMode != EGolmokClockMode::Fixed && !Preset.bHasTime))
+	{
+		UE_LOG(LogGolmok, Log, TEXT("TimeOfDay: preset %s in %s mode -> fixed"), *Name.ToString(), ClockModeName(ClockMode));
+		ClockMode = EGolmokClockMode::Fixed;
+		bRealtimeHeld = false;
+	}
+	if (Preset.bHasTime)
+	{
+		TimeOfDayMinutes = static_cast<float>(Preset.TimeMinutes);
+	}
+	// Fixed: CurrentPreset's own values exactly as in WP-05; Clock: the interpolation at the keyframe (same values)
+	// that the running clock then moves on from.
+	bBaseFromClock = ClockMode != EGolmokClockMode::Fixed;
 	FromPreset = CurrentPreset;
 	CurrentPreset = Name;
 	TargetPreset = Name;
@@ -551,6 +630,7 @@ bool AGolmokTimeOfDay::ApplyPreset(FName Name, bool bInstant)
 	// [WP-13 hook]
 	OnPresetChanged.Broadcast(Name, bInstant);
 	// [/WP-13 hook]
+	RefreshNight(/*bBroadcast*/ true);
 	return true;
 }
 
@@ -790,14 +870,24 @@ FGolmokLightingState AGolmokTimeOfDay::StateFromPreset(const FGolmokLightingPres
 	return S;
 }
 
-FGolmokLightingState AGolmokTimeOfDay::ComposeTarget() const
+FGolmokLightingState AGolmokTimeOfDay::ComposeBase() const
 {
 	FGolmokLightingState Base = Initial;
+	if (bBaseFromClock && EvaluateClock(TimeOfDayMinutes, Base))
+	{
+		return Base;
+	}
 	FGolmokLightingPreset Preset;
 	if (!CurrentPreset.IsNone() && FindPreset(CurrentPreset, Preset))
 	{
 		Base = StateFromPreset(Preset, Initial);
 	}
+	return Base;
+}
+
+FGolmokLightingState AGolmokTimeOfDay::ComposeTarget() const
+{
+	FGolmokLightingState Base = ComposeBase();
 	if (IsInterior())
 	{
 		FGolmokLightingPreset Overlay;
@@ -837,8 +927,12 @@ void AGolmokTimeOfDay::StartTransition(const FGolmokLightingState& InTo, bool bI
 	if (bImmediate)
 	{
 		bTransitioning = false;
-		SetActorTickEnabled(false);
+		UpdateTickEnabled();
 		ApplyState(To, /*bFinal*/ true);
+		if (ClockMode != EGolmokClockMode::Fixed)
+		{
+			ApplyClockState(To);
+		}
 		return;
 	}
 	// From the currently applied (possibly mid-transition) values so a new request never jumps.
@@ -892,10 +986,17 @@ void AGolmokTimeOfDay::ShiftTransitionStart(double DeltaSeconds)
 void AGolmokTimeOfDay::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
+	// WP-14a: the clock moves first (no-op in Fixed); while no transition runs it applies its state itself.
+	AdvanceClock(static_cast<double>(DeltaSeconds));
 	if (!bTransitioning)
 	{
-		SetActorTickEnabled(false);
+		UpdateTickEnabled();
 		return;
+	}
+	// A jump on a running clock heads for where the clock is now, not where it was when the jump started.
+	if (ClockMode != EGolmokClockMode::Fixed && bBaseFromClock)
+	{
+		To = ComposeTarget();
 	}
 	const float Alpha = GetTransitionAlpha();
 	const bool bDone = Alpha >= 1.f;
@@ -903,7 +1004,11 @@ void AGolmokTimeOfDay::Tick(float DeltaSeconds)
 	{
 		ApplyState(To, /*bFinal*/ true);
 		bTransitioning = false;
-		SetActorTickEnabled(false);
+		if (ClockMode != EGolmokClockMode::Fixed)
+		{
+			ApplyClockState(To);
+		}
+		UpdateTickEnabled();
 		return;
 	}
 	ApplyState(Lerp(From, To, Alpha), /*bFinal*/ false);
@@ -993,7 +1098,367 @@ FString AGolmokTimeOfDay::Describe() const
 	return Text;
 }
 
+// ---- WP-14a clock -----------------------------------------------------------------------------------------------
+
+// Named namespace (unity build: see GolmokLightingJson above).
+namespace GolmokTimeOfDayClock
+{
+	GolmokClockMath::LightKey ToKey(const FGolmokLightingPreset& P)
+	{
+		GolmokClockMath::LightKey K;
+		K.Pitch = P.PitchDeg;
+		K.Yaw = P.YawDeg;
+		K.Lux = P.Lux;
+		K.Kelvin = P.Kelvin;
+		K.Sky = P.Sky;
+		K.Fog = P.Fog;
+		K.FogHeightFalloff = P.FogHeightFalloff;
+		K.ExposureBias = P.ExposureBias;
+		K.bVolumetric = P.bVolumetric;
+		return K;
+	}
+
+	/** Wrapped minutes as the float property (a double just under 1440 must not round up to 1440.f). */
+	float ToStoredMinutes(double Minutes)
+	{
+		const float Stored = static_cast<float>(GolmokClockMath::WrapMinutes(Minutes));
+		return Stored >= 1440.f ? 0.f : Stored;
+	}
+} // namespace GolmokTimeOfDayClock
+
+const TCHAR* AGolmokTimeOfDay::ClockModeName(EGolmokClockMode Mode)
+{
+	switch (Mode)
+	{
+	case EGolmokClockMode::Clock:
+		return TEXT("clock");
+	case EGolmokClockMode::Realtime:
+		return TEXT("realtime");
+	default:
+		return TEXT("fixed");
+	}
+}
+
+bool AGolmokTimeOfDay::ParseClockMode(const FString& Text, EGolmokClockMode& Out)
+{
+	const EGolmokClockMode Modes[] = {EGolmokClockMode::Fixed, EGolmokClockMode::Clock, EGolmokClockMode::Realtime};
+	for (const EGolmokClockMode Candidate : Modes)
+	{
+		if (Text.Equals(ClockModeName(Candidate), ESearchCase::IgnoreCase))
+		{
+			Out = Candidate;
+			return true;
+		}
+	}
+	return false;
+}
+
+bool AGolmokTimeOfDay::EvaluateClock(double Minutes, FGolmokLightingState& Out) const
+{
+	if (CycleTimes.Num() == 0 || CycleTimes.Num() != Cycle.Num())
+	{
+		return false;
+	}
+	const GolmokClockMath::KeyframeSpan Span = GolmokClockMath::FindKeyframes(Minutes, CycleTimes.GetData(), CycleTimes.Num());
+	if (!Span.IsValid())
+	{
+		return false;
+	}
+	const FGolmokLightingPreset* A = GolmokLightingJson::FindByName(Presets, Cycle[Span.Prev]);
+	const FGolmokLightingPreset* B = GolmokLightingJson::FindByName(Presets, Cycle[Span.Next]);
+	if (!A || !B)
+	{
+		return false;
+	}
+	const GolmokClockMath::LightKey K = GolmokClockMath::Interpolate(GolmokTimeOfDayClock::ToKey(*A), GolmokTimeOfDayClock::ToKey(*B), Span.Alpha);
+	// Same fields and flags as StateFromPreset() of a complete preset: at a keyframe time (alpha 0) the values are the preset's.
+	Out = Initial;
+	Out.SunRotation = FRotator(K.Pitch, K.Yaw, 0.0);
+	Out.Lux = K.Lux;
+	Out.bUseTemperature = true;
+	Out.Kelvin = K.Kelvin;
+	Out.Sky = K.Sky;
+	Out.Fog = K.Fog;
+	Out.FogHeightFalloff = K.FogHeightFalloff;
+	Out.bVolumetric = K.bVolumetric;
+	Out.bExposureOverridden = true;
+	Out.ExposureBias = K.ExposureBias;
+	return true;
+}
+
+FName AGolmokTimeOfDay::NearestKeyframe(double Minutes) const
+{
+	if (CycleTimes.Num() == 0 || CycleTimes.Num() != Cycle.Num())
+	{
+		return CurrentPreset;
+	}
+	const GolmokClockMath::KeyframeSpan Span = GolmokClockMath::FindKeyframes(Minutes, CycleTimes.GetData(), CycleTimes.Num());
+	return Span.IsValid() ? Cycle[Span.Nearest()] : CurrentPreset;
+}
+
+double AGolmokTimeOfDay::RealtimeTargetMinutes() const
+{
+	// PC local time, no time-zone conversion (design section 4: the owner's PC is on KST).
+	const FDateTime Now = FDateTime::Now();
+	const double Minutes = Now.GetHour() * 60.0 + Now.GetMinute() + Now.GetSecond() / 60.0 + Now.GetMillisecond() / 60000.0;
+	return GolmokClockMath::WrapMinutes(Minutes + static_cast<double>(RealtimeOffsetMinutes));
+}
+
+bool AGolmokTimeOfDay::SetTimeOfDay(float Minutes, bool bInstant)
+{
+	if (!EnsurePresets())
+	{
+		return false;
+	}
+	if (CycleTimes.Num() == 0 || !FMath::IsFinite(Minutes))
+	{
+		LastError = CycleTimes.Num() == 0 ? FString(TEXT("no keyframes")) : FString(TEXT("time is not a number"));
+		return false;
+	}
+	TimeOfDayMinutes = GolmokTimeOfDayClock::ToStoredMinutes(static_cast<double>(Minutes));
+	bBaseFromClock = true;
+	const FName Nearest = NearestKeyframe(TimeOfDayMinutes);
+	const bool bPresetChanged = Nearest != CurrentPreset;
+	FromPreset = CurrentPreset;
+	CurrentPreset = Nearest;
+	TargetPreset = Nearest;
+	StartTransition(ComposeTarget(), bInstant);
+	if (bPresetChanged)
+	{
+		// Same (name, bInstant) meaning as ApplyPreset(): WP-13 maps the nearest keyframe name to day / night.
+		OnPresetChanged.Broadcast(Nearest, bInstant);
+	}
+	RefreshNight(/*bBroadcast*/ true);
+	return true;
+}
+
+bool AGolmokTimeOfDay::SetClockMode(EGolmokClockMode Mode)
+{
+	if (Mode != EGolmokClockMode::Fixed && (!EnsurePresets() || CycleTimes.Num() == 0))
+	{
+		LastError = TEXT("no keyframes (presets not loaded)");
+		return false;
+	}
+	ClockMode = Mode;
+	bRealtimeHeld = false;
+	if (Mode == EGolmokClockMode::Realtime)
+	{
+		SetTimeOfDay(static_cast<float>(RealtimeTargetMinutes()), /*bInstant*/ false);
+	}
+	else if (Mode == EGolmokClockMode::Clock && !bBaseFromClock)
+	{
+		// From a preset (or the level's lighting) onto the clock at the current time.
+		SetTimeOfDay(TimeOfDayMinutes, /*bInstant*/ false);
+	}
+	// Fixed: the clock stops where it is and the lighting stays what it is.
+	UpdateTickEnabled();
+	return true;
+}
+
+void AGolmokTimeOfDay::AdvanceClock(double DeltaSeconds)
+{
+	if (ClockMode == EGolmokClockMode::Fixed || !bPresetsLoaded || CycleTimes.Num() == 0)
+	{
+		return;
+	}
+	double Target = TimeOfDayMinutes;
+	if (ClockMode == EGolmokClockMode::Clock)
+	{
+		// World delta: a paused world does not tick, photo mode's time dilation leaves it near 0.
+		Target = GolmokClockMath::Advance(TimeOfDayMinutes, static_cast<double>(ClockMinutesPerRealSecond), DeltaSeconds);
+	}
+	else
+	{
+		if (IsPhotoModeActive())
+		{
+			// Photo mode keeps the entry time; the first tick after it re-syncs with a transition (design section 4).
+			bRealtimeHeld = true;
+			return;
+		}
+		Target = RealtimeTargetMinutes();
+		if (bRealtimeHeld || GolmokClockMath::CircularDistance(TimeOfDayMinutes, Target) > GolmokClockMath::ResyncMinutes)
+		{
+			bRealtimeHeld = false;
+			SetTimeOfDay(static_cast<float>(Target), /*bInstant*/ false);
+			return;
+		}
+	}
+	if (!bBaseFromClock)
+	{
+		SetTimeOfDay(static_cast<float>(Target), /*bInstant*/ false);
+		return;
+	}
+	TimeOfDayMinutes = GolmokTimeOfDayClock::ToStoredMinutes(Target);
+	const FName Nearest = NearestKeyframe(TimeOfDayMinutes);
+	if (Nearest != CurrentPreset)
+	{
+		// The clock passed the midpoint between two keyframes: one notification per crossing (design section 5).
+		CurrentPreset = Nearest;
+		TargetPreset = Nearest;
+		bRecapturePending = true;
+		OnPresetChanged.Broadcast(Nearest, /*bInstant*/ false);
+	}
+	if (!bTransitioning)
+	{
+		ApplyClockState(ComposeTarget());
+	}
+	RefreshNight(/*bBroadcast*/ true);
+}
+
+void AGolmokTimeOfDay::ApplyClockState(const FGolmokLightingState& S)
+{
+	ApplyState(S, /*bFinal*/ false);
+	// Per tick, not only at a transition end: the sun follows lux > 0.01 and volumetric fog the alpha 0.5 rule,
+	// each switched only when it changes (both invalidate caches).
+	if (UDirectionalLightComponent* Component = Sun.Get())
+	{
+		const bool bVisible = GolmokClockMath::IsSunVisible(S.Lux);
+		if (Component->GetVisibleFlag() != bVisible)
+		{
+			Component->SetVisibility(bVisible);
+		}
+	}
+	if (UExponentialHeightFogComponent* Component = Fog.Get())
+	{
+		if ((Component->bEnableVolumetricFog != 0) != S.bVolumetric)
+		{
+			Component->SetVolumetricFog(S.bVolumetric);
+		}
+	}
+	if (bRecapturePending)
+	{
+		bRecapturePending = false;
+		USkyLightComponent* Component = Sky.Get();
+		if (Component && !Component->bRealTimeCapture)
+		{
+			Component->RecaptureSky();
+		}
+	}
+}
+
+void AGolmokTimeOfDay::RefreshNight(bool bBroadcast)
+{
+	const bool bNow = GolmokClockMath::IsNight(ComposeBase().Lux, static_cast<double>(NightLuxThreshold));
+	if (bNow == bNight)
+	{
+		return;
+	}
+	bNight = bNow;
+	if (bBroadcast)
+	{
+		OnNightChanged.Broadcast(bNight);
+	}
+}
+
+void AGolmokTimeOfDay::UpdateTickEnabled()
+{
+	// Fixed: exactly the WP-05 rule (tick only while a transition runs).
+	SetActorTickEnabled(bTransitioning || ClockMode != EGolmokClockMode::Fixed);
+}
+
+bool AGolmokTimeOfDay::IsPhotoModeActive() const
+{
+	return UGolmokPhotoModeSubsystem::IsActiveIn(GetWorld());
+}
+
+FString AGolmokTimeOfDay::DescribeClock() const
+{
+	if (!bPresetsLoaded)
+	{
+		return FString();
+	}
+	TCHAR Hhmm[6];
+	GolmokClockMath::FormatHHMM(static_cast<double>(TimeOfDayMinutes), Hhmm);
+	// The level's own lighting has no time of day.
+	const FString TimeText = (CurrentPreset.IsNone() && !bBaseFromClock) ? FString(TEXT("--:--")) : FString(Hhmm);
+	if (ClockMode == EGolmokClockMode::Clock)
+	{
+		return FString::Printf(TEXT(" %s clock x%g"), *TimeText, static_cast<double>(ClockMinutesPerRealSecond));
+	}
+	return FString::Printf(TEXT(" %s %s"), *TimeText, ClockModeName(ClockMode));
+}
+
 // ---- console --------------------------------------------------------------------------------------------------
+
+// WP-14a subcommands; a named namespace so a unity build never merges them with another file's helpers.
+namespace GolmokTimeOfDayConsole
+{
+	FString Hhmm(double Minutes)
+	{
+		TCHAR Text[6];
+		GolmokClockMath::FormatHHMM(Minutes, Text);
+		return FString(Text);
+	}
+
+	/** "status 12:30 fixed rate 0.5 min/s | prev clear_noon 12:30 next golden_evening 18:00 alpha 0.00 | current clear_noon | night no | interior off". */
+	FString DescribeStatus(const AGolmokTimeOfDay& TimeOfDay)
+	{
+		const double Minutes = static_cast<double>(TimeOfDay.GetTimeOfDayMinutes());
+		FString Line = FString::Printf(TEXT("status %s %s rate %g min/s"), *Hhmm(Minutes), AGolmokTimeOfDay::ClockModeName(TimeOfDay.GetClockMode()),
+			static_cast<double>(TimeOfDay.ClockMinutesPerRealSecond));
+		const TArray<FName>& Cycle = TimeOfDay.GetCycle();
+		const TArray<double>& Times = TimeOfDay.GetCycleTimes();
+		const GolmokClockMath::KeyframeSpan Span = GolmokClockMath::FindKeyframes(Minutes, Times.GetData(), Times.Num());
+		if (Span.IsValid() && Times.Num() == Cycle.Num())
+		{
+			Line += FString::Printf(TEXT(" | prev %s %s next %s %s alpha %.2f"), *Cycle[Span.Prev].ToString(), *Hhmm(Times[Span.Prev]),
+				*Cycle[Span.Next].ToString(), *Hhmm(Times[Span.Next]), Span.Alpha);
+		}
+		const FString Current = TimeOfDay.CurrentPreset.IsNone() ? FString(TEXT("(level)")) : TimeOfDay.CurrentPreset.ToString();
+		Line += FString::Printf(TEXT(" | current %s | night %s | interior %s"), *Current, TimeOfDay.IsNight() ? TEXT("yes") : TEXT("no"),
+			TimeOfDay.IsInterior() ? TEXT("on") : TEXT("off"));
+		return Line;
+	}
+
+	void CmdTime(AGolmokTimeOfDay& TimeOfDay, const TArray<FString>& Args)
+	{
+		int Minutes = 0;
+		if (Args.Num() < 2 || !GolmokClockMath::ParseHHMM(*Args[1], Minutes))
+		{
+			UE_LOG(LogGolmok, Log, TEXT("golmok.tod: ERROR time must be HH:MM (00:00-23:59), got '%s'"), Args.Num() < 2 ? TEXT("") : *Args[1]);
+			return;
+		}
+		const FString Before = Hhmm(static_cast<double>(TimeOfDay.GetTimeOfDayMinutes()));
+		if (!TimeOfDay.SetTimeOfDay(static_cast<float>(Minutes), /*bInstant*/ false))
+		{
+			UE_LOG(LogGolmok, Log, TEXT("golmok.tod: ERROR %s"), *TimeOfDay.LastError);
+			return;
+		}
+		UE_LOG(LogGolmok, Log, TEXT("golmok.tod: time %s -> %s (%s) over %.1f s"), *Before, *Hhmm(static_cast<double>(Minutes)),
+			*TimeOfDay.CurrentPreset.ToString(), TimeOfDay.TransitionSeconds);
+	}
+
+	void CmdMode(AGolmokTimeOfDay& TimeOfDay, const TArray<FString>& Args)
+	{
+		EGolmokClockMode Mode = EGolmokClockMode::Fixed;
+		if (Args.Num() < 2 || !AGolmokTimeOfDay::ParseClockMode(Args[1], Mode))
+		{
+			UE_LOG(LogGolmok, Log, TEXT("golmok.tod: ERROR mode must be fixed|clock|realtime, got '%s'"), Args.Num() < 2 ? TEXT("") : *Args[1]);
+			return;
+		}
+		const TCHAR* Before = AGolmokTimeOfDay::ClockModeName(TimeOfDay.GetClockMode());
+		if (!TimeOfDay.SetClockMode(Mode))
+		{
+			UE_LOG(LogGolmok, Log, TEXT("golmok.tod: ERROR %s"), *TimeOfDay.LastError);
+			return;
+		}
+		UE_LOG(LogGolmok, Log, TEXT("golmok.tod: mode %s -> %s at %s"), Before, AGolmokTimeOfDay::ClockModeName(Mode),
+			*Hhmm(static_cast<double>(TimeOfDay.GetTimeOfDayMinutes())));
+	}
+
+	void CmdRate(AGolmokTimeOfDay& TimeOfDay, const TArray<FString>& Args)
+	{
+		const double Rate = Args.Num() < 2 || !Args[1].IsNumeric() ? -1.0 : FCString::Atod(*Args[1]);
+		if (!GolmokClockMath::IsValidRate(Rate))
+		{
+			UE_LOG(LogGolmok, Log, TEXT("golmok.tod: ERROR rate must be a number in (0, 1440] min/s, got '%s'"), Args.Num() < 2 ? TEXT("") : *Args[1]);
+			return;
+		}
+		const double Before = static_cast<double>(TimeOfDay.ClockMinutesPerRealSecond);
+		TimeOfDay.ClockMinutesPerRealSecond = static_cast<float>(Rate);
+		UE_LOG(LogGolmok, Log, TEXT("golmok.tod: rate %g -> %g min/s (mode %s)"), Before, Rate, AGolmokTimeOfDay::ClockModeName(TimeOfDay.GetClockMode()));
+	}
+} // namespace GolmokTimeOfDayConsole
 
 namespace
 {
@@ -1055,7 +1520,7 @@ namespace
 		}
 		if (Args.Num() < 1)
 		{
-			UE_LOG(LogGolmok, Warning, TEXT("usage: golmok.tod <preset>|next|list"));
+			UE_LOG(LogGolmok, Warning, TEXT("usage: golmok.tod <preset>|next|list|status|time HH:MM|mode fixed|clock|realtime|rate <min/s>"));
 			return;
 		}
 		if (!TimeOfDay->EnsurePresets())
@@ -1069,6 +1534,27 @@ namespace
 			UE_LOG(LogGolmok, Log, TEXT("golmok.tod: %s"), *DescribeList(*TimeOfDay));
 			return;
 		}
+		// WP-14a clock subcommands (checked before preset names, like next / list).
+		if (Arg == TEXT("status"))
+		{
+			UE_LOG(LogGolmok, Log, TEXT("golmok.tod: %s"), *GolmokTimeOfDayConsole::DescribeStatus(*TimeOfDay));
+			return;
+		}
+		if (Arg == TEXT("time"))
+		{
+			GolmokTimeOfDayConsole::CmdTime(*TimeOfDay, Args);
+			return;
+		}
+		if (Arg == TEXT("mode"))
+		{
+			GolmokTimeOfDayConsole::CmdMode(*TimeOfDay, Args);
+			return;
+		}
+		if (Arg == TEXT("rate"))
+		{
+			GolmokTimeOfDayConsole::CmdRate(*TimeOfDay, Args);
+			return;
+		}
 		const FString Before = TimeOfDay->CurrentPreset.IsNone() ? FString(TEXT("(level)")) : TimeOfDay->CurrentPreset.ToString();
 		const bool bOk = Arg == TEXT("next") ? TimeOfDay->NextPreset() : TimeOfDay->ApplyPreset(FName(*Arg));
 		if (!bOk)
@@ -1080,6 +1566,6 @@ namespace
 	}
 
 	FAutoConsoleCommandWithWorldAndArgs GCmdTod(TEXT("golmok.tod"),
-		TEXT("golmok.tod <preset>|next|list: change the lighting preset (transition over TransitionSeconds) or list presets."),
+		TEXT("golmok.tod <preset>|next|list|status|time HH:MM|mode fixed|clock|realtime|rate <min/s>: change the lighting preset (transition over TransitionSeconds), list presets, or drive the clock (WP-14a)."),
 		FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&CmdTod));
 } // namespace

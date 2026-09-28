@@ -30,6 +30,9 @@ struct FGolmokLightingPreset
 	bool bVolumetric = false;
 	bool bHasExposure = false;
 	double ExposureBias = 0.0;
+	/** Keyframe time (schema 2 "time", cycle presets only); minutes of the day. */
+	bool bHasTime = false;
+	double TimeMinutes = 0.0;
 
 	bool IsComplete() const { return bHasSun && bHasSky && bHasFog && bHasVolumetric && bHasExposure; }
 };
@@ -57,6 +60,15 @@ struct FGolmokLightingState
 	bool bVolumetric = false;
 };
 
+/** WP-14a design section 4: how TimeOfDayMinutes moves. Fixed = the WP-05 behavior (the clock stands still). */
+UENUM(BlueprintType)
+enum class EGolmokClockMode : uint8
+{
+	Fixed,
+	Clock,
+	Realtime,
+};
+
 /**
  * Time-of-day lighting (one per level; AGolmokPlayerController spawns a transient one when the level has none).
  *
@@ -64,12 +76,18 @@ struct FGolmokLightingState
  * (or the first of each class) with the presets of Config/Golmok/lighting_presets.json, the same file the editor
  * Python golmok.lighting reads. ApplyPreset() changes the base preset; EnterInterior()/ExitInterior() overlay the
  * partial InteriorPreset (fog / exposure) while at least one source (a portal id) is inside. Transitions
- * interpolate over TransitionSeconds and Tick runs only while a transition is in progress.
+ * interpolate over TransitionSeconds and Tick runs only while a transition is in progress or the clock runs.
+ *
+ * WP-14a: the cycle presets are keyframes at their "time"; TimeOfDayMinutes (0..1440) picks the interpolation of
+ * the two keyframes around it (GolmokClockMath). ClockMode Fixed (default) keeps the WP-05 behavior: the clock
+ * stands still and ApplyPreset() moves it to the preset's keyframe. Clock advances it by ClockMinutesPerRealSecond
+ * per world second, Realtime follows the PC's local time. CurrentPreset is always the nearest keyframe.
  */
 // [WP-13 hook] Native notifications for audio subscribers.
 DECLARE_MULTICAST_DELEGATE_TwoParams(FGolmokOnPresetChanged, FName, bool);
 DECLARE_MULTICAST_DELEGATE_OneParam(FGolmokOnInteriorChanged, bool);
 // [/WP-13 hook]
+DECLARE_MULTICAST_DELEGATE_OneParam(FGolmokOnNightChanged, bool);
 UCLASS(Config = Game, HideCategories = (Rendering, Replication, Collision, Input, LOD, Cooking, Physics, Networking))
 class GOLMOK_API AGolmokTimeOfDay : public AActor
 {
@@ -97,6 +115,26 @@ public:
 	/** Actor tag that pins which DirectionalLight / SkyLight / ExponentialHeightFog / PostProcessVolume the presets drive. */
 	UPROPERTY(Config, EditAnywhere, Category = "Golmok|Lighting")
 	FName LightingActorTag = TEXT("GolmokLighting");
+
+	/** WP-14a: minutes of the day [0, 1440) (the clock; start time when the mode is Clock and no InitialPreset is set). */
+	UPROPERTY(Config, EditAnywhere, Category = "Golmok|Lighting|Clock", meta = (ClampMin = "0.0", ClampMax = "1439.999"))
+	float TimeOfDayMinutes = 450.f;
+
+	/** Fixed (default, WP-05 behavior) | Clock | Realtime. Code default only; DefaultGame.ini does not set it. */
+	UPROPERTY(Config, EditAnywhere, Category = "Golmok|Lighting|Clock")
+	EGolmokClockMode ClockMode = EGolmokClockMode::Fixed;
+
+	/** Clock mode: game minutes per world second (0.5 = a day in 48 minutes). */
+	UPROPERTY(Config, EditAnywhere, Category = "Golmok|Lighting|Clock", meta = (ClampMin = "0.001", ClampMax = "1440.0"))
+	float ClockMinutesPerRealSecond = 0.5f;
+
+	/** Realtime mode: added to the PC's local time (no time-zone conversion). */
+	UPROPERTY(Config, EditAnywhere, Category = "Golmok|Lighting|Clock")
+	float RealtimeOffsetMinutes = 0.f;
+
+	/** IsNight(): base lux below this. */
+	UPROPERTY(Config, EditAnywhere, Category = "Golmok|Lighting|Clock", meta = (ClampMin = "0.0"))
+	float NightLuxThreshold = 0.1f;
 
 	/** Base preset (NAME_None = the level's authored lighting). */
 	UPROPERTY(VisibleAnywhere, Transient, Category = "Golmok|Lighting|State")
@@ -171,6 +209,45 @@ public:
 	/** "overcast_morning" | "overcast_morning -> night 45%" | + " [interior: door_1]" | "(no presets)". */
 	FString Describe() const;
 
+	// ---- WP-14a clock ---------------------------------------------------------------------------------------
+
+	/** Jump to Minutes (wrapped into the day): transition unless bInstant. The base follows the clock from then on. False without keyframes. */
+	UFUNCTION(BlueprintCallable, Category = "Golmok|Lighting")
+	bool SetTimeOfDay(float Minutes, bool bInstant = false);
+
+	UFUNCTION(BlueprintCallable, Category = "Golmok|Lighting")
+	float GetTimeOfDayMinutes() const { return TimeOfDayMinutes; }
+
+	/** Fixed stops the clock where it is; Clock runs from the current time; Realtime jumps (transition) to the local time. */
+	UFUNCTION(BlueprintCallable, Category = "Golmok|Lighting")
+	bool SetClockMode(EGolmokClockMode Mode);
+
+	UFUNCTION(BlueprintCallable, Category = "Golmok|Lighting")
+	EGolmokClockMode GetClockMode() const { return ClockMode; }
+
+	/** Base lighting lux < NightLuxThreshold (the interpolated state; OnNightChanged fires when it flips). */
+	UFUNCTION(BlueprintCallable, Category = "Golmok|Lighting")
+	bool IsNight() const { return bNight; }
+
+	/** One clock step (Tick calls it; tests call it directly): Clock adds rate x DeltaSeconds, Realtime reads the local time. No-op in Fixed. */
+	void AdvanceClock(double DeltaSeconds);
+
+	/** Keyframe times of GetCycle() in minutes (empty until the presets are loaded). */
+	const TArray<double>& GetCycleTimes() const { return CycleTimes; }
+
+	/** Base state the clock gives at Minutes (keyframe interpolation, no interior overlay); false without keyframes. */
+	bool EvaluateClock(double Minutes, FGolmokLightingState& Out) const;
+
+	/** PC local time + RealtimeOffsetMinutes, wrapped (Realtime mode target). */
+	double RealtimeTargetMinutes() const;
+
+	/** " 12:30 fixed" | " 13:02 clock x10" | " 21:40 realtime" | " --:-- fixed" (level lighting) - appended to the HUD tod: line. */
+	FString DescribeClock() const;
+
+	/** "fixed" | "clock" | "realtime". */
+	static const TCHAR* ClockModeName(EGolmokClockMode Mode);
+	static bool ParseClockMode(const FString& Text, EGolmokClockMode& Out);
+
 	virtual void Tick(float DeltaSeconds) override;
 
 protected:
@@ -188,8 +265,25 @@ private:
 	static FGolmokLightingState Lerp(const FGolmokLightingState& A, const FGolmokLightingState& B, float Alpha);
 	FString BaseName() const;
 
+	// WP-14a clock helpers.
+	FGolmokLightingState ComposeBase() const;
+	FName NearestKeyframe(double Minutes) const;
+	void UpdateTickEnabled();
+	void RefreshNight(bool bBroadcast);
+	void ApplyClockState(const FGolmokLightingState& S);
+	bool IsPhotoModeActive() const;
+
 	TArray<FGolmokLightingPreset> Presets;
 	TArray<FName> Cycle;
+	/** Keyframe minutes of Cycle (same order). */
+	TArray<double> CycleTimes;
+	/** True while the base lighting is the clock interpolation at TimeOfDayMinutes (SetTimeOfDay, Clock / Realtime); false = CurrentPreset's values (ApplyPreset in Fixed, WP-05). */
+	bool bBaseFromClock = false;
+	bool bNight = false;
+	/** Realtime: photo mode held the clock; the next free tick re-syncs with a transition. */
+	bool bRealtimeHeld = false;
+	/** A static sky light is recaptured when the nearest keyframe changes on the clock (not every tick). */
+	bool bRecapturePending = false;
 	bool bPresetsLoaded = false;
 	bool bPresetsFailed = false;
 	bool bTransitioning = false;
@@ -212,4 +306,6 @@ public:
 	FGolmokOnPresetChanged OnPresetChanged;
 	FGolmokOnInteriorChanged OnInteriorChanged;
 	// [/WP-13 hook]
+	/** WP-14a: base lighting crossed NightLuxThreshold (true = night). No subscriber yet (14b emissives, audio optional). */
+	FGolmokOnNightChanged OnNightChanged;
 };

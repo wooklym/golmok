@@ -203,3 +203,110 @@ def test_apply_survives_missing_actors(mod, unreal, monkeypatch):
     unreal.logged.clear()
     mod.apply("overcast_morning")
     assert unreal.logged == ["Lighting preset applied: overcast_morning"]
+
+
+# ---- WP-14a clock: set_time / mode / status through golmok.tod (fake_unreal records the console) ----
+
+
+@pytest.fixture
+def fake(mod, monkeypatch, tmp_path):
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    try:
+        import fake_unreal
+    finally:
+        sys.path.remove(str(Path(__file__).resolve().parent))
+    return fake_unreal.install(monkeypatch, tmp_path, pie=True)
+
+
+class ClockMode:
+    """Stand-in for an unreal enum member (unreal.GolmokClockMode.CLOCK has .name == "CLOCK")."""
+
+    def __init__(self, name):
+        self.name = name
+
+
+def _add_time_of_day(unreal, fake, monkeypatch, **props):
+    cls = type("GolmokTimeOfDay", (object,), {})
+
+    class Actor(cls):
+        def __init__(self, values):
+            self.values = values
+
+        def get_editor_property(self, name):
+            return self.values[name]
+
+    actor = Actor(props)
+    monkeypatch.setattr(unreal, "GolmokTimeOfDay", cls, raising=False)
+    fake.actors.append(actor)
+    return actor
+
+
+def _tod_console(fake):
+    return [c[1] for c in fake.calls if c[0] == "console" and c[1].startswith("golmok.tod")]
+
+
+def test_clock_names_are_exported(mod):
+    assert mod.CLOCK_MODES == ("fixed", "clock", "realtime")
+    for name in ("set_time", "mode", "status", "CLOCK_MODES"):
+        assert name in mod.__all__
+
+
+def test_set_time_sends_the_console_command_to_the_pie_world(mod, unreal, fake):
+    assert mod._world() is fake.pie_world
+    assert mod.set_time("18:30") == "golmok.tod time 18:30"
+    assert _tod_console(fake) == ["golmok.tod time 18:30"]
+    assert fake.tod_commands == [["time", "18:30"]]
+    assert fake.preset is None  # a clock subcommand is not a preset (screenshot folder unchanged)
+
+
+def test_set_time_falls_back_to_the_editor_world(mod, unreal, fake):
+    fake.pie = False
+    assert mod._world() is fake.editor_world
+    mod.set_time("07:05")
+    assert fake.tod_commands == [["time", "07:05"]]
+
+
+@pytest.mark.parametrize("bad", ["7:30", "24:00", "12:60", "noon", ""])
+def test_set_time_rejects_bad_text_before_sending(mod, fake, bad):
+    with pytest.raises(ValueError):
+        mod.set_time(bad)
+    assert _tod_console(fake) == []
+
+
+def test_mode_sets_and_validates(mod, fake):
+    assert mod.mode("clock") == "golmok.tod mode clock"
+    assert mod.mode("Realtime") == "golmok.tod mode realtime"
+    with pytest.raises(ValueError):
+        mod.mode("dusk")
+    assert fake.tod_commands == [["mode", "clock"], ["mode", "realtime"]]
+
+
+def test_mode_query_reads_the_actor(mod, unreal, fake, monkeypatch):
+    monkeypatch.delattr(unreal, "GolmokTimeOfDay", raising=False)
+    assert mod.mode() is None  # no class exposed: status is still logged
+    _add_time_of_day(unreal, fake, monkeypatch, clock_mode=ClockMode("CLOCK"))
+    assert mod.mode() == "clock"
+    assert fake.tod_commands == [["status"], ["status"]]
+
+
+def test_status_returns_the_actor_values(mod, unreal, fake, monkeypatch):
+    monkeypatch.delattr(unreal, "GolmokTimeOfDay", raising=False)
+    assert mod.status() is None
+    _add_time_of_day(
+        unreal,
+        fake,
+        monkeypatch,
+        time_of_day_minutes=1110.75,
+        clock_mode=ClockMode("REALTIME"),
+        clock_minutes_per_real_second=0.5,
+    )
+    assert mod.status() == {"time": "18:30", "mode": "realtime", "rate": 0.5}
+    assert _tod_console(fake) == ["golmok.tod status", "golmok.tod status"]
+
+
+def test_preset_commands_still_pick_the_screenshot_folder(fake):
+    import unreal as u
+
+    u.SystemLibrary.execute_console_command(fake.pie_world, "golmok.tod golden_evening")
+    u.SystemLibrary.execute_console_command(fake.pie_world, "golmok.tod mode clock")
+    assert fake.preset == "golden_evening"

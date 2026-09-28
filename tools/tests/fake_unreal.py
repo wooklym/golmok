@@ -69,7 +69,9 @@ KNOBS (install(**cfg) keywords = Fake attributes): obj_mapping=(100.0, M_OBJ) gl
     spawn records, so synthetic_zone.open_or_create_level takes the plain load_level path; lit=False leaves
     it empty and the V-03 "had no lighting; rebuilt" branch runs on the first open)
 
-Console (SystemLibrary.execute_console_command): "golmok.tod <preset>" picks the screenshot folder;
+Console (SystemLibrary.execute_console_command): "golmok.tod <preset>" picks the screenshot folder
+(fake.tod_commands records every golmok.tod argument list; the WP-14a subcommands time / mode / rate / status
+leave the folder as is);
 "golmok.screenshot <tag> [name]" writes <Saved>/Screenshots/Golmok/<tag>/<preset or current>/<name>.png
 (PNG signature + IHDR of viewport_size x 2 - the C++ sizes it from the game viewport, which in a PIE started
 by editor_request_begin_play() is the level viewport; "<name>00000.png" with screenshot_fallback_name) after
@@ -123,6 +125,7 @@ ENGINE_VERSION = "5.8.3-fake"
 DEFAULT_LEVEL = "/Game/Golmok/Maps/L_ZoneTest"
 ZONE_ROOT_CM = (17670.59, -22198.0, 999.37)  # expected.json zone_root_ue_cm (spec §4 table C)
 PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
+TOD_CLOCK_SUBCOMMANDS = frozenset({"time", "mode", "rate", "status"})  # golmok.tod WP-14a (not preset names)
 ABSENT_BY_DEFAULT = ("EditorLevelLibrary", "CesiumGeoreference")
 KNOBS = {
     "obj_mapping": (100.0, M_OBJ), "glb_mapping": (100.0, M_GLB),
@@ -1104,7 +1107,9 @@ class FakeSystemLibrary(_Bound):
         if head == "Interchange.FeatureFlags.Import.OBJ":
             fake.legacy_flag = bool(args) and args[0] == "0"
         elif head == "golmok.tod" and args:
-            fake.preset = args[0]
+            fake.tod_commands.append(list(args))
+            if args[0] not in TOD_CLOCK_SUBCOMMANDS:  # WP-14a clock subcommands keep the preset folder
+                fake.preset = args[0]
         elif head == "golmok.hud":
             fake.hud = not (args and args[0] == "0")
         elif head == "golmok.screenshot":
@@ -1411,6 +1416,7 @@ class Fake:
         self.now = self._clock_now  # one bound method object: bind_clock() and tests compare it by identity
         self.legacy_flag = False
         self.preset: str | None = None
+        self.tod_commands: list[list[str]] = []  # golmok.tod argument lists in order (WP-14a)
         self.hud = True
         self.playing: str | None = None
         self.csv_count = 0

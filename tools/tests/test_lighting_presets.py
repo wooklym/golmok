@@ -25,6 +25,13 @@ TIME_OF_DAY_CPP = UE / "Source" / "Golmok" / "Lighting" / "GolmokTimeOfDay.cpp"
 LIGHTING_PY = UE / "Content" / "Python" / "golmok" / "lighting.py"
 CYCLE = ["overcast_morning", "clear_noon", "golden_evening", "night"]
 INTERIOR = "interior"
+# WP-14a design section 2: keyframe times of the cycle presets (schema_version 2).
+CYCLE_TIMES = {
+    "overcast_morning": "07:30",
+    "clear_noon": "12:30",
+    "golden_evening": "18:00",
+    "night": "21:30",
+}
 
 # Values of unreal/Golmok/Content/Python/golmok/lighting.py PRESETS at the WP-04 commit (regression guard).
 WP04_PRESETS = {
@@ -52,7 +59,7 @@ def in_range(key: str, value: float) -> bool:
 
 def test_presets_file_path_and_schema(raw):
     assert lp.PRESETS_FILE == str(PRESETS_JSON), "PRESETS_FILE must resolve relative to the module file"
-    assert raw["schema_version"] == 1
+    assert raw["schema_version"] == 2 == lp.SCHEMA_VERSION
     assert set(raw) == {"schema_version", "cycle", "presets"}
 
 
@@ -60,7 +67,7 @@ def test_cycle_presets_are_complete_and_in_range(raw):
     assert raw["cycle"] == CYCLE
     for name in CYCLE:
         p = raw["presets"][name]
-        assert set(p) == set(lp.REQUIRED_KEYS), name
+        assert set(p) == {*lp.REQUIRED_KEYS, lp.TIME_KEY}, name
         assert isinstance(p["volumetric"], bool), name
         for key in lp.RANGES:
             assert isinstance(p[key], int | float) and not isinstance(p[key], bool), (name, key)
@@ -71,7 +78,8 @@ def test_preset_names_and_keys(raw):
     assert set(raw["presets"]) == set(CYCLE) | {INTERIOR}
     for name, p in raw["presets"].items():
         assert lp.NAME_RE.match(name), name
-        assert set(p) <= set(lp.REQUIRED_KEYS), (name, set(p) - set(lp.REQUIRED_KEYS))
+        allowed = {*lp.REQUIRED_KEYS, lp.TIME_KEY}
+        assert set(p) <= allowed, (name, set(p) - allowed)
 
 
 def test_interior_is_a_partial_overlay(raw):
@@ -85,8 +93,24 @@ def test_interior_is_a_partial_overlay(raw):
 
 
 def test_cycle_values_equal_wp04_lighting_py(raw):
+    # WP-14a only adds "time": every lighting value stays what WP-04 shipped.
     for name, expected in WP04_PRESETS.items():
-        assert raw["presets"][name] == expected, name
+        values = {k: v for k, v in raw["presets"][name].items() if k != lp.TIME_KEY}
+        assert values == expected, name
+
+
+def test_cycle_keyframe_times(raw):
+    assert {name: raw["presets"][name]["time"] for name in CYCLE} == CYCLE_TIMES
+    assert "time" not in raw["presets"][INTERIOR]
+    cycle, presets = lp.load_presets()
+    assert lp.keyframes(cycle, presets) == [
+        ("overcast_morning", 450),
+        ("clear_noon", 750),
+        ("golden_evening", 1080),
+        ("night", 1290),
+    ]
+    minutes = [m for _, m in lp.keyframes(cycle, presets)]
+    assert minutes == sorted(set(minutes))  # strictly increasing in cycle order
 
 
 def test_load_presets_returns_the_file_content(raw):
@@ -121,7 +145,18 @@ def _top(key: str, value):
         pytest.param(_set("clear_noon", "kelvin", 100), ["clear_noon", "kelvin"], id="kelvin-out-of-range"),
         pytest.param(_set("night", "yaw", 360.0), ["night", "yaw"], id="yaw-half-open"),
         pytest.param(_set("night", "volumetric", 1), ["night", "volumetric"], id="volumetric-not-bool"),
-        pytest.param(_top("schema_version", 2), ["schema_version"], id="schema-version-2"),
+        pytest.param(_top("schema_version", 1), ["schema_version"], id="schema-version-1"),
+        pytest.param(_top("schema_version", 3), ["schema_version"], id="schema-version-3"),
+        pytest.param(_del_key("clear_noon", "time"), ["clear_noon", "time"], id="time-missing"),
+        pytest.param(_set("clear_noon", "time", "12:60"), ["clear_noon", "time"], id="time-minutes"),
+        pytest.param(_set("clear_noon", "time", "24:00"), ["clear_noon", "time"], id="time-hours"),
+        pytest.param(_set("clear_noon", "time", "7:30"), ["clear_noon", "time"], id="time-format"),
+        pytest.param(_set("clear_noon", "time", 750), ["clear_noon", "time"], id="time-not-string"),
+        pytest.param(_set("clear_noon", "time", "07:30"), ["duplicate", "07:30"], id="time-duplicate"),
+        pytest.param(
+            _set("golden_evening", "time", "12:00"), ["increase", "golden_evening"], id="time-reverse"
+        ),
+        pytest.param(_set(INTERIOR, "time", "12:00"), [INTERIOR, "time"], id="interior-time"),
         pytest.param(
             _top("cycle", ["dawn", "clear_noon", "golden_evening", "night"]), ["dawn"], id="cycle-unknown"
         ),
@@ -155,7 +190,7 @@ def test_parse_presets_rejects_non_object_root():
 
 def test_cpp_loader_uses_the_same_keys():
     text = TIME_OF_DAY_CPP.read_text(encoding="utf-8")
-    for key in (*lp.REQUIRED_KEYS, "cycle", "presets", "schema_version"):
+    for key in (*lp.REQUIRED_KEYS, lp.TIME_KEY, "cycle", "presets", "schema_version"):
         assert f'TEXT("{key}")' in text, f'GolmokTimeOfDay.cpp: missing TEXT("{key}")'
     assert "FJsonSerializer::Deserialize" in text
     assert 'TEXT("interior")' in text  # the interior preset rules (fog == 0, exposure_bias > 0, not in cycle)
