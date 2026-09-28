@@ -216,35 +216,218 @@ def test_apply_layers_editor_and_pie(fake, unreal):
     assert any("runbook #19" in text and "Spike_c_cesium" in text for _, text in fake.logs)
 
 
+LAYER_LEVEL_KINDS = ("duplicate_asset", "delete_asset", "load_level", "save_map", "save_current_level")
+
+
 def test_save_layer_levels(fake, unreal):
+    """Save As per tag (runbook #18): reopen the base, save_map it to L_Spike_<tag> (the open world becomes
+    the copy), apply the layers there and save; never duplicate_asset + load_level (World Memory Leaks)."""
     zone = fake.add_actor("GolmokZone", "Zone_x", zone_id="z_x")
     fake.add_actor(unreal.Actor, "Spike_b_lcc")
     assert sr.save_layer_levels(tags=("b",)) == [f"{L_SPIKE}b"]
-    kinds = ("duplicate_asset", "delete_asset", "load_level", "set_visual_visible", "hidden_in_game",
-             "hidden_in_editor", "save_current_level")  # fmt: skip
+    kinds = LAYER_LEVEL_KINDS + ("set_visual_visible", "hidden_in_game", "hidden_in_editor")
     assert [c for c in fake.calls if c[0] in kinds] == [
-        ("duplicate_asset", DEFAULT_LEVEL, f"{L_SPIKE}b"),
-        ("load_level", f"{L_SPIKE}b"),
+        ("load_level", DEFAULT_LEVEL),
+        ("save_map", DEFAULT_LEVEL, f"{L_SPIKE}b"),
         ("set_visual_visible", "z_x", False),
         ("hidden_in_game", "Spike_b_lcc", False),
         ("hidden_in_editor", "Spike_b_lcc", False),
         ("save_current_level",),
         ("load_level", DEFAULT_LEVEL),
     ]
+    assert fake.saved_levels == [f"{L_SPIKE}b", f"{L_SPIKE}b"]
     copies = {a.label: a for a in fake.levels[f"{L_SPIKE}b"]}
     assert copies["Zone_x"].get_editor_property("auto_managed") is False
     assert zone.get_editor_property("auto_managed") is True and fake.current_level == DEFAULT_LEVEL
     assert ("log", f"spike_runner: layer level {L_SPIKE}b saved (tag b)") in fake.logs
-    # default tags b, c, ac; an existing layer level is deleted before the duplicate
+    assert fake.logged("warning") == []
+    # default tags b, c, ac: an existing layer level is deleted first, and every tag starts from the base
     fake.calls.clear()
     assert sr.save_layer_levels() == [f"{L_SPIKE}b", f"{L_SPIKE}c", f"{L_SPIKE}ac"]
-    assert fake.calls[:2] == [
-        ("delete_asset", f"{L_SPIKE}b"),
-        ("duplicate_asset", DEFAULT_LEVEL, f"{L_SPIKE}b"),
+    per_tag = [
+        [
+            ("load_level", DEFAULT_LEVEL),
+            ("save_map", DEFAULT_LEVEL, f"{L_SPIKE}{tag}"),
+            ("save_current_level",),
+        ]
+        for tag in ("b", "c", "ac")
     ]
-    assert fake.calls[-1] == ("load_level", DEFAULT_LEVEL)
+    assert [c for c in fake.calls if c[0] in LAYER_LEVEL_KINDS] == [
+        ("delete_asset", f"{L_SPIKE}b"),
+        *per_tag[0],
+        *per_tag[1],
+        *per_tag[2],
+        ("load_level", DEFAULT_LEVEL),
+    ]
     ac = {a.label: a for a in fake.levels[f"{L_SPIKE}ac"]}
     assert ac["Zone_x"].get_editor_property("auto_managed") is True and ac["Spike_b_lcc"].hidden_in_game
+    c = {a.label: a for a in fake.levels[f"{L_SPIKE}c"]}
+    assert c["Zone_x"].get_editor_property("auto_managed") is False and c["Spike_b_lcc"].hidden_in_game
+    assert "duplicate_asset(" not in Path(sr.__file__).read_text("utf-8")
+
+
+def test_save_layer_levels_opens_the_copy_when_save_map_does_not_rename(fake, unreal):
+    """save_map_renames=False: SaveMap wrote L_Spike_<tag> but the base is still the open world (runbook
+    #18), so the copy is opened from disk before any actor is touched."""
+    fake.save_map_renames = False
+    zone = fake.add_actor("GolmokZone", "Zone_x", zone_id="z_x")
+    assert sr.save_layer_levels(tags=("b", "c")) == [f"{L_SPIKE}b", f"{L_SPIKE}c"]
+    assert [c for c in fake.calls if c[0] in LAYER_LEVEL_KINDS] == [
+        ("load_level", DEFAULT_LEVEL),
+        ("save_map", DEFAULT_LEVEL, f"{L_SPIKE}b"),
+        ("load_level", f"{L_SPIKE}b"),
+        ("save_current_level",),
+        ("load_level", DEFAULT_LEVEL),
+        ("save_map", DEFAULT_LEVEL, f"{L_SPIKE}c"),
+        ("load_level", f"{L_SPIKE}c"),
+        ("save_current_level",),
+        ("load_level", DEFAULT_LEVEL),
+    ]
+    assert fake.saved_levels == [f"{L_SPIKE}b", f"{L_SPIKE}b", f"{L_SPIKE}c", f"{L_SPIKE}c"]
+    assert fake.logged("warning") == [
+        f"spike_runner: WARNING save_map left {DEFAULT_LEVEL} open; opening {L_SPIKE}{tag} from disk"
+        " (runbook #18)"
+        for tag in ("b", "c")
+    ]  # the runbook §8 step 2 check for the PC: SaveMap did not rename the open world
+    for tag in ("b", "c"):
+        copies = {a.label: a for a in fake.levels[f"{L_SPIKE}{tag}"]}
+        assert copies["Zone_x"] is not zone and copies["Zone_x"].get_editor_property("auto_managed") is False
+    assert zone.get_editor_property("auto_managed") is True and fake.current_level == DEFAULT_LEVEL
+
+
+@pytest.mark.parametrize("renames", [True, False])
+def test_save_layer_levels_never_modifies_the_base(fake, unreal, monkeypatch, renames):
+    """Every actor edit (layers, AutoManaged) happens while L_Spike_<tag> is the open world and on its own
+    actors; the base level's actors keep their state and the base is never saved."""
+    fake.save_map_renames = renames
+    fake.add_actor("GolmokZone", "Zone_x", zone_id="z_x")
+    fake.add_actor(unreal.Actor, "Spike_b_lcc")
+    fake.add_actor(unreal.Actor, "Spike_c_cesium")
+    base_actors = list(fake.levels[DEFAULT_LEVEL])
+
+    def snapshot():
+        return [(a.label, a.hidden_in_game, a.hidden_in_editor, dict(a.props)) for a in base_actors]
+
+    before, touched = snapshot(), []
+
+    def spy(original):
+        def call(self, *args):
+            touched.append((fake.current_level, any(self is a for a in base_actors)))
+            return original(self, *args)
+
+        return call
+
+    for cls, name in (
+        (fake_unreal.FakeActor, "set_editor_property"),
+        (fake_unreal.FakeActor, "set_actor_hidden_in_game"),
+        (fake_unreal.FakeActor, "set_is_temporarily_hidden_in_editor"),
+        (fake_unreal.FakeZoneActor, "set_visual_visible"),
+    ):
+        monkeypatch.setattr(cls, name, spy(getattr(cls, name)))
+    assert sr.save_layer_levels() == [f"{L_SPIKE}b", f"{L_SPIKE}c", f"{L_SPIKE}ac"]
+    assert touched and not any(on_base for _, on_base in touched)
+    assert {level for level, _ in touched} == {f"{L_SPIKE}b", f"{L_SPIKE}c", f"{L_SPIKE}ac"}
+    assert snapshot() == before and fake.levels[DEFAULT_LEVEL] == base_actors
+    assert DEFAULT_LEVEL not in fake.saved_levels and fake.current_level == DEFAULT_LEVEL
+
+
+def test_save_layer_levels_save_map_fails(fake, unreal, monkeypatch):
+    zone = fake.add_actor("GolmokZone", "Zone_x", zone_id="z_x")
+    monkeypatch.setattr(
+        unreal.EditorLoadingAndSavingUtils, "save_map", staticmethod(lambda world, path: False)
+    )
+    with pytest.raises(RuntimeError) as err:
+        sr.save_layer_levels()
+    assert str(err.value) == (
+        f"could not save {DEFAULT_LEVEL} as {L_SPIKE}b (runbook #18: File > Save Current Level As, then"
+        " apply_layers('b'))"
+    )
+    assert fake.calls_of("set_visual_visible") == [] and fake.calls_of("save_current_level") == []
+    assert fake.calls[-1] == ("load_level", DEFAULT_LEVEL) and fake.current_level == DEFAULT_LEVEL
+    assert zone.get_editor_property("auto_managed") is True and f"{L_SPIKE}b" not in fake.registry
+
+
+@pytest.mark.parametrize(
+    "opened, message",
+    [
+        (False, f"could not open {L_SPIKE}b after saving it (runbook #18)"),
+        (True, f"{DEFAULT_LEVEL} is open instead of {L_SPIKE}b; layers not applied (runbook #18)"),
+    ],
+)
+def test_save_layer_levels_copy_not_open(fake, unreal, monkeypatch, opened, message):
+    """No rename and the copy does not become the open world: stop before touching the base's actors."""
+    fake.save_map_renames = False
+    fake.add_actor("GolmokZone", "Zone_x", zone_id="z_x")
+    load_level = fake.level_editor.load_level
+
+    def load(path):
+        if str(path).startswith(L_SPIKE):
+            fake.calls.append(("load_level", str(path)))
+            return opened  # True: reported as opened, but the base is still the editor world
+        return load_level(path)
+
+    monkeypatch.setattr(fake.level_editor, "load_level", load)
+    with pytest.raises(RuntimeError) as err:
+        sr.save_layer_levels(tags=("b",))
+    assert str(err.value) == message
+    assert fake.calls_of("set_visual_visible") == [] and fake.calls_of("save_current_level") == []
+    assert fake.calls[-1] == ("load_level", DEFAULT_LEVEL)
+
+
+def test_save_layer_levels_saves_a_dirty_base_first(fake, unreal, monkeypatch):
+    """Unsaved edits of the open base (or of its one-file-per-actor packages) are saved to the base by path
+    before the first tag reopens it from disk; other dirty maps do not count."""
+    fake.add_actor("GolmokZone", "Zone_x", zone_id="z_x")
+    note = (
+        f"spike_runner: WARNING {DEFAULT_LEVEL} had unsaved changes; saved it first so the layer levels"
+        " derive from it"
+    )
+    fake.dirty_maps.add(DEFAULT_LEVEL)
+    sr.save_layer_levels(tags=("b",))
+    assert [c for c in fake.calls if c[0] in LAYER_LEVEL_KINDS][:3] == [
+        ("save_map", DEFAULT_LEVEL, DEFAULT_LEVEL),
+        ("load_level", DEFAULT_LEVEL),
+        ("save_map", DEFAULT_LEVEL, f"{L_SPIKE}b"),
+    ]
+    assert fake.logged("warning") == [note] and fake.dirty_maps == set()
+    fake.calls.clear()
+    fake.logs.clear()
+    fake.dirty_maps.add("/Game/__ExternalActors__/Golmok/Maps/L_ZoneTest/A/B/XYZ")
+    sr.save_layer_levels(tags=("b",))
+    assert fake.calls[0] == ("save_map", DEFAULT_LEVEL, DEFAULT_LEVEL) and fake.logged("warning") == [note]
+    fake.calls.clear()
+    fake.logs.clear()
+    fake.dirty_maps = {
+        "/Game/Golmok/Maps/L_ZoneTest06",
+        "/Game/__ExternalActors__/Golmok/Maps/L_ZoneTest06/A/B",
+    }
+    sr.save_layer_levels(tags=("b",))
+    assert ("save_map", DEFAULT_LEVEL, DEFAULT_LEVEL) not in fake.calls and fake.logged("warning") == []
+    # the base cannot be saved: stop before anything is reopened or copied
+    fake.calls.clear()
+    fake.logs.clear()
+    fake.dirty_maps = {DEFAULT_LEVEL}
+    monkeypatch.setattr(
+        unreal.EditorLoadingAndSavingUtils, "save_map", staticmethod(lambda world, path: False)
+    )
+    with pytest.raises(RuntimeError) as err:
+        sr.save_layer_levels(tags=("b",))
+    assert str(err.value) == (
+        f"{DEFAULT_LEVEL} has unsaved changes and could not be saved; save it and rerun (runbook #18)"
+    )
+    assert fake.calls_of("load_level") == [] and fake.logged("warning") == []
+
+
+def test_save_layer_levels_without_dirty_map_api(fake, unreal, monkeypatch):
+    """An editor without get_dirty_map_packages: a warning, then every tag starts from the saved base."""
+    fake.dirty_maps = {DEFAULT_LEVEL}
+    monkeypatch.delattr(unreal.EditorLoadingAndSavingUtils, "get_dirty_map_packages")
+    assert sr.save_layer_levels(tags=("b",)) == [f"{L_SPIKE}b"]
+    assert fake.logged("warning") == [
+        f"spike_runner: WARNING cannot check {DEFAULT_LEVEL} for unsaved changes (runbook #18); using its"
+        " saved state"
+    ]
+    assert fake.calls_of("save_map") == [("save_map", DEFAULT_LEVEL, f"{L_SPIKE}b")]
 
 
 # ---- PIE capture -------------------------------------------------------------------------------------------

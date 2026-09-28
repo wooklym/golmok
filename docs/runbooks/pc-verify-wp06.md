@@ -304,7 +304,7 @@ spike_runner: done capture: 20 saved, 0 missing -> <Project>\Saved\Screenshots\G
 
 ## 8. `-game` 성능 (정본)
 1. PIE에서 경로 녹화(WP-05 런북 §7과 같은 규칙): 콘솔 `golmok.path record walk_01` → **3 s 제자리** → 약 60 s 걷기(지면 전체·문 왕복 포함) → `golmok.path stop` → `<Saved>\Golmok\Paths\walk_01.json`. PIE 종료.
-2. 레이어 맵 저장(태그 b·c·ac; 합성 레벨엔 `Spike_*` 액터가 없으니 zone 가시성만 다르다):
+2. 레이어 맵 저장(태그 b·c·ac; 합성 레벨엔 `Spike_*` 액터가 없으니 zone 가시성만 다르다). 현재 맵을 Save As(`EditorLoadingAndSavingUtils.save_map`)로 `L_Spike_<tag>`에 저장 → 레이어 적용 → 저장; 태그마다 원본을 다시 연다. 레이어는 `L_Spike_<tag>`가 열린 뒤에만 적용하므로 원본은 바뀌지 않는다(원본에 저장 안 된 변경이 있으면 먼저 원본에 저장하고 `WARNING … had unsaved changes; saved it first …` 한 줄). 월드를 `duplicate_asset`으로 복제한 뒤 `load_level`하면 5.8.3에서 fatal이라 쓰지 않는다(`Old world … not cleaned up by garbage collection while loading new map!` → World Memory Leaks, EditorServer.cpp:2544; PC 재현 2026-09-28):
    ```python
    import golmok.spike_runner as s
    s.save_layer_levels()
@@ -318,6 +318,7 @@ spike_runner: done capture: 20 saved, 0 missing -> <Project>\Saved\Screenshots\G
    spike_runner: layer level /Game/Golmok/Maps/L_Spike_ac saved (tag ac)
    ```
    - [ ] `/Game/Golmok/Maps/L_Spike_b`·`L_Spike_c`·`L_Spike_ac` 3개, 끝에 `L_ZoneTest06`로 복귀. `L_Spike_b`를 열면 `Zone_z_synthetic_scan_001`의 Visual 레이어가 꺼져 있고(충돌만) 디테일 `AutoManaged` ✖.
+   - [ ] 에디터가 끝까지 살아 있다(fatal·`World Memory Leaks` 없음). 태그마다 `spike_runner: WARNING save_map left /Game/Golmok/Maps/L_ZoneTest06 open; opening /Game/Golmok/Maps/L_Spike_<tag> from disk (runbook #18)`가 찍히면 `save_map`이 열린 월드의 패키지 이름을 바꾸지 않는 것이다(동작은 정상; §12 #18 확인 결과로 §11에 적는다). 이 줄이 없으면 이름 바꾸기(Save As) 동작이 확인된 것.
 3. 스크립트 생성·실행:
    ```python
    s.game_scripts(paths=("walk_01",), tags=("a", "b"))
@@ -418,7 +419,7 @@ basemap_import: GeoOrigin lat=… lon=… h=… (basemap origin; ellipsoidal = D
 | 15 | spike_runner | `unreal.SystemLibrary.execute_console_command(get_game_world(), cmd)`가 PIE 콘솔에 닿는지 | citations에 시그니처만 | `unreal.UnrealEditorSubsystem.get_game_world()` None이면 `unreal.EditorLevelLibrary.get_pie_worlds(False)`(deprecated) + warn; 최후 `viewpoints.capture` 에디터 모드 |
 | 16 | spike_runner | `LevelEditorSubsystem.editor_request_begin_play()/editor_request_end_play()/is_in_play_in_editor()` 뒤 PIE가 뜨는 틱 수 | 비동기. 엔진 소스(`LevelEditorSubsystem.cpp`)상 `DestinationSlateViewport`가 첫 활성 레벨 뷰포트로 고정 — 플레이 모드·새 창 설정은 무시되고, 활성 레벨 뷰포트가 없으면 시작하지 않는다 | 60 s 폴링; 시작 안 되면 `_finish`+런북(레벨 뷰포트를 연 뒤 재시도, 최후 `mode="editor"`) |
 | 17 | spike_runner | `-game -ExecCmds` 실행 시점(맵 로드 전이면 `golmok.*` 월드 명령 무효), `-ExitAfterCsvProfiling`이 콘솔 `CsvProfile Stop`에도 종료하는지 | 엔진 동작 | `.ps1` 타임아웃 kill + 로그 `GolmokDebugSubsystem: csv:` 검사; 실패면 PIE `perf_all()` 참고치 |
-| 18 | spike_runner | `EditorAssetLibrary.duplicate_asset(level, "/Game/Golmok/Maps/L_Spike_<tag>")`로 맵 복제 | 월드 파티션·외부 액터 | 실패 시 수동 "Save Current Level As" 안내 |
+| 18 | spike_runner | 현재 맵을 Save As(`unreal.EditorLoadingAndSavingUtils.save_map(world, "/Game/Golmok/Maps/L_Spike_<tag>")`)로 `L_Spike_<tag>`에 저장 → 레이어 적용 → 저장; 태그마다 원본을 다시 연다(`load_level`). 시작 전 원본에 저장 안 된 변경이 있으면(`unreal.EditorLoadingAndSavingUtils.get_dirty_map_packages`, 외부 액터 패키지 포함) 원본 경로로 먼저 `save_map`. 월드에 `EditorAssetLibrary.duplicate_asset`+`load_level`은 쓰지 않는다 — 5.8.3에서 fatal(`Old world … not cleaned up by garbage collection while loading new map!` → `World Memory Leaks: 2 leaks objects and packages`, EditorServer.cpp:2544; PC 재현 2026-09-28, §0 사본과 같은 패턴) | `FEditorFileUtils::SaveMap`이 다른 경로로 저장할 때 열린 월드의 패키지 이름을 바꾸는지(Save As; 엔진 소스 기준 추정) 아니면 사본만 쓰고 원본을 열어 두는지; 그 경우 `load_level(L_Spike_<tag>)`가 메모리 사본 없이 디스크에서 여는지; 월드 파티션·외부 액터 | 원본이 열린 채면 경고 `save_map left … open; opening … from disk (runbook #18)` 뒤 `load_level(L_Spike_<tag>)`; 그래도 `L_Spike_<tag>`가 열리지 않으면 레이어를 적용하지 않고 오류로 멈춘다(원본 보호). `could not save … as …`·`could not open …` 오류나 fatal이면 로그를 §11에 붙이고 수동: File › Save Current Level As로 `L_Spike_<tag>` 저장 → `apply_layers("<tag>")` → 저장 |
 | 19 | spike_runner | `set_is_temporarily_hidden_in_editor` / `set_actor_hidden_in_game` on Cesium3DTileset·XGRIDS 액터 | 플러그인 액터 가시성 구현 | `set_editor_property("hidden", True)`; Cesium은 `set_editor_property("enabled", False)`(있으면) |
 | 20 | basemap_import | `unreal.GolmokGeoOrigin` 프로퍼티 `latitude/longitude/height_ellipsoidal` | WP-04 sz와 동일 | sz 재사용 |
 | 21 | spike_runner | `configure_pie_window()`(선택 도우미, `capture_all`은 쓰지 않음 — #16): `unreal.get_default_object(unreal.LevelEditorPlaySettings)`의 `new_window_width/new_window_height`, `last_executed_play_mode_type=unreal.PlayModeType.PLAY_MODE_IN_EDITOR_FLOATING`(`EPlayModeType::PlayMode_InEditorFloating`) | 클래스·속성·enum 노출(추정) | 크기 실패: Editor Preferences > Level Editor > Play > New Window Size 수동; 모드 enum 없음(`PIE play mode: set 'New Editor Window (PIE)' by hand`): Play 드롭다운에서 수동. 기대 로그 `spike_runner: PIE window 1280x720 x2 (LevelEditorPlaySettings)` |

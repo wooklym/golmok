@@ -11,7 +11,8 @@ every name is restored, or removed again, after the test. It returns a Fake the 
                current_level = the level spawns go to (load_level/new_level set both; add_level_to_world
                makes the added sublevel current, like UEditorLevelUtils::AddLevelToWorld; V-03);
                actors = the current level's list; saved_levels = level packages written to disk, in order
-               (save_current_level -> current_level, save_map -> its path)
+               (save_current_level -> current_level, save_map -> its path); dirty_maps = map packages
+               with unsaved changes (tests seed it; get_dirty_map_packages lists it, saving clears it)
     logs       ("log" | "warning" | "error", text) from unreal.log/log_warning/log_error plus the errors
                the C++ console commands would print (golmok.path play without a path file, ...)
     clock      fake seconds; tick() advances it and fake.now replaces golmok.spike_runner._now
@@ -45,7 +46,7 @@ RECORDS (fake.calls, design §5-0; "spawn" gets its label when set_actor_label i
     ("save_current_level",) ("duplicate_asset", src, dst) ("play_settings", width, height)
     additive: ("hidden_in_editor", label, hidden) ("make_udim", output_path, [(u, v), ...])
     ("add_level_to_world", package) ("get_streaming_level", package) ("high_res_screenshot", path)
-    ("save_map", package) ("quit_editor",)
+    ("save_map", world package, path) ("quit_editor",)
     ("set_current_level", package) (LevelEditorSubsystem.set_current_level_by_name)
 
 KNOBS (install(**cfg) keywords = Fake attributes): obj_mapping=(100.0, M_OBJ) glb_mapping=(100.0, M_GLB)
@@ -58,6 +59,10 @@ KNOBS (install(**cfg) keywords = Fake attributes): obj_mapping=(100.0, M_OBJ) gl
     NOT in imported_object_paths; runbook §12 #37) engine_udim_regex=False (True: a .png whose stem ends in
     [._]#### with #### >= 1001 is placed as one UDIM block like UTextureFactory's default UdimRegexPattern,
     unless the task options carry import_udi_ms=False; runbook §12 #38)
+    save_map_renames=True (EditorLoadingAndSavingUtils.save_map(world, other_path) is a Save As: the open
+    world's actors are written to other_path and that level becomes the open world, like FEditorFileUtils::
+    SaveMap -> SaveWorld(bRenamePackageToFile=true); the source level keeps its list = what is on disk.
+    False: the copy is written but the source stays open; runbook §12 #18)
     zone_transform=ZONE_ROOT_CM begin_play_starts_pie=True level=DEFAULT_LEVEL (registered as an existing
     FakeLevel and opened) lit=True (that level already holds the five L_Dev lighting actors, seeded without
     spawn records, so synthetic_zone.open_or_create_level takes the plain load_level path; lit=False leaves
@@ -78,8 +83,8 @@ Libraries (EditorAssetLibrary, SystemLibrary, Paths, ...) are classes of static 
 monkeypatch.delattr(unreal.SystemLibrary, "get_engine_version") removes one for a hasattr test; subsystems
 are classes too (delattr on unreal.StaticMeshEditorSubsystem); get_editor_subsystem returns Fake instances.
 EditorLevelLibrary and CesiumGeoreference are absent by default (fallback tests add them). Where the fake
-merely assumes real-API behaviour (UDIM canvas size, usemtl slot names, HighResShot fallback name) the
-runbook rows are docs/runbooks/pc-verify-wp06.md §12 #4, #7 and #30.
+merely assumes real-API behaviour (UDIM canvas size, usemtl slot names, HighResShot fallback name, save_map
+renaming the open world) the runbook rows are docs/runbooks/pc-verify-wp06.md §12 #4, #7, #30 and #18.
 """
 
 from __future__ import annotations
@@ -122,6 +127,7 @@ KNOBS = {
     "screenshot_delay_s": 0.3, "csv_delay_s": 0.5, "screenshot_fallback_name": False,
     "viewport_size": (1014, 550), "nested_glb": False, "engine_udim_regex": False,
     "zone_transform": ZONE_ROOT_CM, "begin_play_starts_pie": True, "level": DEFAULT_LEVEL, "lit": True,
+    "save_map_renames": True,
 }  # fmt: skip
 # (class, label, tags) of setup_dev_level._build_lighting(), seeded into the initial level when lit=True.
 L_DEV_LIGHTING = (
@@ -834,6 +840,7 @@ class LevelEditorSubsystem(_Bound):
     def save_current_level(self):
         self._fake.calls.append(("save_current_level",))
         self._fake.saved_levels.append(self._fake.current_level)
+        self._fake.dirty_maps.discard(self._fake.current_level)
         return True
 
     def set_current_level_by_name(self, level_name):
@@ -1180,14 +1187,50 @@ class FakeEditorLevelUtils(_Bound):
         return streaming
 
 
+class FakePackage:
+    """UPackage from get_dirty_map_packages: get_name() / get_path_name() are the long package name."""
+
+    def __init__(self, path):
+        self.path = path
+
+    def get_name(self):
+        return self.path
+
+    def get_path_name(self):
+        return self.path
+
+
 class FakeEditorLoadingAndSavingUtils(_Bound):
-    """save_map(world, asset_path) -> True; synthetic_zone.register_interior_sublevel saves the persistent
-    map by path with it (V-03) because add_level_to_world made the sublevel current."""
+    """save_map(world, asset_path) -> True. Same path: synthetic_zone.register_interior_sublevel saves the
+    persistent map by path with it (V-03) because add_level_to_world made the sublevel current. Another
+    path is a Save As (spike_runner.save_layer_levels, runbook §12 #18): FakeLevel + clones of the world's
+    actors (and Levels entries) at that path, the source keeps its own = what is on disk; with the
+    save_map_renames knob the new level becomes the open world (FEditorFileUtils::SaveMap renames the
+    world's package), otherwise the source stays open. get_dirty_map_packages(): a FakePackage per
+    dirty_maps entry."""
 
     def save_map(self, world, asset_path):
-        self._fake.calls.append(("save_map", _key(asset_path)))
-        self._fake.saved_levels.append(_key(asset_path))
+        fake = self._fake
+        src, dst = _key(world.get_path_name()), _key(asset_path)
+        fake.calls.append(("save_map", src, dst))
+        if dst != src:
+            fake.registry[dst] = FakeLevel(fake, dst)
+            fake.levels[dst] = [a._clone() for a in fake.levels.get(src, [])]
+            for (persistent, sub), streaming in list(fake.streaming_levels.items()):
+                if persistent == src:
+                    fake.streaming_levels[(dst, sub)] = copy.copy(streaming)
+            if fake.save_map_renames:
+                if fake.current_level == src:
+                    fake.current_level = dst
+                fake.persistent_level = dst
+        if dst == src or fake.save_map_renames:
+            fake.dirty_maps.discard(src)
+        fake.dirty_maps.discard(dst)
+        fake.saved_levels.append(dst)
         return True
+
+    def get_dirty_map_packages(self):
+        return [FakePackage(path) for path in sorted(self._fake.dirty_maps)]
 
 
 class ScopedSlowTask(Recorder):
@@ -1371,6 +1414,7 @@ class Fake:
         # load_level like the entry saved in the persistent map (GameplayStatics.get_streaming_level)
         self.streaming_levels: dict[tuple[str, str], LevelStreamingDynamic] = {}
         self.saved_levels: list[str] = []
+        self.dirty_maps: set[str] = set()  # map packages with unsaved changes (get_dirty_map_packages)
         if self.lit:
             for cls_name, label, tags in L_DEV_LIGHTING:
                 self.add_actor(cls_name, label, tags=list(tags))

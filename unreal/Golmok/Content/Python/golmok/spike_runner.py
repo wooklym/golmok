@@ -86,6 +86,10 @@ def _editor_actors():
     return unreal.get_editor_subsystem(unreal.EditorActorSubsystem).get_all_level_actors()
 
 
+def _editor_world():
+    return unreal.get_editor_subsystem(unreal.UnrealEditorSubsystem).get_editor_world()
+
+
 def _layer_level(tag):
     _pure.layer_state(tag)  # validates the tag
     return f"{LAYER_LEVEL_PREFIX}{tag}"
@@ -300,28 +304,76 @@ def apply_layers(tag, world=None):
     return {**state, "actors": n}
 
 
+_EXTERNAL = ("__ExternalActors__", "__ExternalObjects__")  # one-file-per-actor packages of a map
+
+
+def _dirty_map_packages():
+    """Package paths of the maps with unsaved changes (EditorLoadingAndSavingUtils.get_dirty_map_packages),
+    or None when the editor does not expose it."""
+    utils = unreal.EditorLoadingAndSavingUtils
+    if not hasattr(utils, "get_dirty_map_packages"):
+        return None
+    return {str(p.get_path_name()).split(".")[0] for p in utils.get_dirty_map_packages()}
+
+
+def _save_base_if_dirty(base):
+    """The layer levels come from the base map on disk (it is reopened for every tag), so unsaved edits of
+    the open base are saved first rather than dropped or carried into one copy only. Saved by path (save_map
+    to its own package, V-03), not save_current_level(): the current level may be a sublevel."""
+    from . import synthetic_zone as sz
+
+    dirty = _dirty_map_packages()
+    if dirty is None:
+        _warn(f"cannot check {base} for unsaved changes (runbook #18); using its saved state")
+        return
+    root, _, rest = base.lstrip("/").partition("/")
+    external = tuple(f"/{root}/{kind}/{rest}/" for kind in _EXTERNAL)
+    if not any(p == base or p.startswith(external) for p in dirty) or sz._current_level_path() != base:
+        return
+    if not unreal.EditorLoadingAndSavingUtils.save_map(_editor_world(), base):
+        raise RuntimeError(
+            f"{base} has unsaved changes and could not be saved; save it and rerun (runbook #18)"
+        )
+    _warn(f"{base} had unsaved changes; saved it first so the layer levels derive from it")
+
+
 def save_layer_levels(tags=("b", "c", "ac"), base_level=None):
-    """Duplicate the level once per tag with that tag's layers applied and AutoManaged off where the zone
-    visual layer is hidden (-game must not distance-load it): /Game/Golmok/Maps/L_Spike_<tag>."""
+    """Save the base level once per tag as /Game/Golmok/Maps/L_Spike_<tag> with that tag's layers applied
+    and AutoManaged off where the zone visual layer is hidden (-game must not distance-load it).
+
+    Save As, never duplicate_asset: on UE 5.8.3 a World copied with duplicate_asset stays in memory with
+    RF_Standalone, and load_level of it dies in UEditorEngine::Map_Load ("Old world ... not cleaned up by
+    garbage collection", World Memory Leaks, EditorServer.cpp:2544; PC 2026-09-28). Every tag reopens the
+    saved base and saves it as the layer level (EditorLoadingAndSavingUtils.save_map to the other path:
+    FEditorFileUtils::SaveMap renames the open world's package; if the base is still open afterwards, the
+    saved copy is opened from disk). Actors are touched only once the layer level is the open world, so the
+    base is never modified."""
     from . import synthetic_zone as sz
 
     base = base_level or sz._current_level_path()
     level_editor = _level_editor()
     library = unreal.EditorAssetLibrary
     out = []
+    _save_base_if_dirty(base)  # before try: nothing to reopen if it fails
     try:
         for tag in tags:
             state = _pure.layer_state(tag)
             dst = _layer_level(tag)
             if library.does_asset_exist(dst):
                 library.delete_asset(dst)
-            if not library.duplicate_asset(base, dst):
+            if not level_editor.load_level(base):
+                raise RuntimeError(f"could not open {base} (runbook #18)")
+            if not unreal.EditorLoadingAndSavingUtils.save_map(_editor_world(), dst):
                 raise RuntimeError(
-                    f"could not duplicate {base} -> {dst} (runbook #18: File > Save Current Level As, then"
+                    f"could not save {base} as {dst} (runbook #18: File > Save Current Level As, then"
                     f" apply_layers({tag!r}))"
                 )
-            if not level_editor.load_level(dst):
-                raise RuntimeError(f"could not open {dst} (runbook #18)")
+            if (current := sz._current_level_path()) != dst:
+                _warn(f"save_map left {current} open; opening {dst} from disk (runbook #18)")
+                if not level_editor.load_level(dst):
+                    raise RuntimeError(f"could not open {dst} after saving it (runbook #18)")
+            if (current := sz._current_level_path()) != dst:
+                raise RuntimeError(f"{current} is open instead of {dst}; layers not applied (runbook #18)")
             apply_layers(tag)
             for actor in _editor_actors():
                 if isinstance(actor, unreal.GolmokZone):

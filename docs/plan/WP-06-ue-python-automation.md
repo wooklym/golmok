@@ -1114,4 +1114,5 @@ V-04/V-05 메모(코드 미변경): (B3) `ResolveOverlaps`는 로드/언로드 �
 - §1 생성기 → §2 `zi.run(...)`(route·매핑 실측·UDIM 병합 표기·Nanite 청크 bbox를 결과 표에) → §3 PIE 걷기 → §4 `it.run(...)` → §5 포털 왕복 → §6 재실행 → §7 `capture_all` 리허설(에디터 창 뒤로 보낸 채 한 번 더) → §8 `-game` 성능 스크립트 → §11 결과 표. 컴파일/실행 오류는 §12 표 번호로 고치고 `WP-06: PC fix …` 커밋.
 - 미검증 2라운드 소견 6건(위 표)은 병합 전 Opus 보완 리뷰 또는 V-04에서 판정. 특히 ③(TIF UDIM)·④(MI 이름 충돌)는 실데이터에서 먼저 드러날 수 있다.
 - 스파이크(V-05)는 `pc-spike.md` S0~S15; `night` 프리셋 화면 검정·HUD render ms 0·언로드 뒤 `blocked` 표시는 WP-09/D-010 몫(V-03 발견).
+- 2026-09-28 T5 PC 재현: save_layer_levels의 duplicate_asset→load_level이 World Memory Leaks fatal → Save As로 수정(PR 번호는 오케스트레이터가 채움). `spike_runner.save_layer_levels`는 태그마다 원본을 다시 열고 `EditorLoadingAndSavingUtils.save_map`으로 `L_Spike_<tag>`에 저장한 뒤 그 맵이 열린 상태에서만 레이어를 적용한다; `save_map`이 열린 월드 이름을 바꾸는지는 V-04 §8 2단계·런북 §12 #18에서 확인.
 
