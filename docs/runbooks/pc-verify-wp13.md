@@ -1,6 +1,6 @@
 # V-10 — WP-13 환경음 검증
 
-상태: 🟢 **V-10 PC 검증 통과(2026-09-29, §6·§7)**. 녹음 파형 분석 근거로 결함 0. 남은 소유자 항목(비차단): 볼륨 청취·최종 gain(후보 §6), 패키지 발소리 1회(§7-4). 이전: 🟡 13b 코드 완료·PC V-10 패키징/청취 대기. 런타임·임포트 및 헤드리스 Audio 자동화 검증 완료.
+상태: 🟢 **V-10 PC 검증 통과(2026-09-29, §6·§7)**. 녹음 파형 분석·루프백 근거(사람 귀 청취 없음)로 WP-13 코드 결함 0(도구·런북 결함 2건은 PC fix). `5f6c810` Audio 코드(T6 #50 이전) 기준 — #50 런타임 변경은 헤드리스만, 다음 PC 카드에서 스모크. 남은 소유자 항목(비차단): 볼륨 청취·최종 gain(후보 §6), 패키지 발소리 1회(§7-4). 이전: 🟡 13b 코드 완료·PC V-10 패키징/청취 대기. 런타임·임포트 및 헤드리스 Audio 자동화 검증 완료.
 
 ## 1. 데이터와 임포트
 
@@ -98,7 +98,7 @@ A/B 볼륨은 현재 값에서 선형 보간한다. 제3의 상태가 빠르게 
 
 `crossfade_seconds_by_state`는 진입할 상태별 초 단위 전환 시간이다. 누락한 상태는 `crossfade_seconds`를 사용하며 모두 0~30초다. 현재 세 상태 모두 2초를 유지한다. V-10에서 interior=1초, outdoor_day/outdoor_night=2초 가설을 JSON만 바꿔 비교하고 PIE를 재시작한다. 보폭에 메시 Z 스케일을 곱하는 `stride_scale_by_mesh` 제안은 이번 구현에 포함하지 않으며 로스터별 청취 뒤 후속으로 판단한다.
 
-패키징 확인(미실행): 임포트 후 `.\tools\ue\package.ps1` 실행 → `build/Windows`의 패키징 로그/컨테이너 목록에서 Audio의 SoundWave 7개와 `Config/Golmok/audio.json`을 확인 → 패키지 실행에서 세 상태 전환과 `golmok.audio credits` 출처 출력 확인. pak은 엔진 `UnrealPak.exe <pak 경로> -List`로 조사한다. IoStore를 사용한 출력이면 해당 컨테이너 목록과 cook/stage manifest도 함께 확인한다. 파일 존재와 실제 재생/크레딧 출력을 각각 기록하고 미실행을 성공으로 표시하지 않는다.
+패키징 확인(V-10 실행, §6·§7): 임포트 후 `.\tools\ue\package.ps1` 실행 → `build/Windows`의 패키징 로그/컨테이너 목록에서 Audio의 SoundWave 7개와 `Config/Golmok/audio.json`을 확인 → 패키지 실행에서 세 상태 전환과 `golmok.audio credits` 출처 출력 확인. pak은 엔진 `UnrealPak.exe <pak 경로> -List`로 조사한다. IoStore를 사용한 출력이면 해당 컨테이너 목록과 cook/stage manifest도 함께 확인한다. 파일 존재와 실제 재생/크레딧 출력을 각각 기록하고 미실행을 성공으로 표시하지 않는다.
 
 
 ### 런타임 불확실 API
@@ -128,7 +128,7 @@ Select-String "$env:TEMP\utoc.csv" -Pattern 'Golmok/Audio/.*SW_'
 & $pak (Resolve-Path .\build\Windows\Golmok\Content\Paks\Golmok-Windows.pak).Path -List | Select-String 'audio.json'
 ```
 
-`package.ps1`은 V-10부터 `-ubtargs=-NoHotReloadFromIDE`를 넘긴다. 같은 엔진 설치의 다른 에디터나 `-game`이 Live Coding을 켜 둔 상태이면, 이 인자가 없을 때 BuildCookRun이 "Unable to build while Live Coding is active"로 멈춘다(`build.ps1`과 같은 처리).
+`package.ps1`은 V-10부터 `-ubtargs=-NoHotReloadFromIDE`를 넘긴다. 같은 엔진 설치의 다른 에디터나 `-game`이 Live Coding을 켜 둔 상태이면, 이 인자가 없을 때 BuildCookRun이 "Unable to build while Live Coding is active"로 멈춘다(`build.ps1`과 같은 처리). 이 인자는 Live Coding 검사만 피한다. 같은 워크트리의 에디터가 `UnrealEditor-Golmok.dll`을 잡고 있고 코드가 바뀌었으면 에디터 타깃 링크는 여전히 실패하므로, 같은 워크트리의 에디터는 닫는다(GUI 잠금 규칙).
 
 cook 파일만으로 합격시키지 않는다. 컨테이너/stage manifest의 SoundWave7개·audio.json과 패키지 실행의 재생·크레딧도 확인한다. 에디터 Packaging 저장은 중복 ini 섹션을 재작성할 수 있으므로 Audio cook 훅 보존을 diff로 확인한다. PhysicalSurfaces1/2/3 이름은 Zone 에셋 단계에서 정의한다. 13c는 audio.json에 번호 매핑이 있어도 프로젝트 PhysicalSurfaces에 이름이 없으면 default로 처리한다(명시 Course/Stairs 태그는 우선). CC-BY 원본 채택 시 Shipping에서 도달 가능한 크레딧 UI/배포 표기를 확인한다(현 콘솔 노출은 Development 검사용).
 
@@ -147,15 +147,15 @@ cook 파일만으로 합격시키지 않는다. 컨테이너/stage manifest의 S
 | 낮/밤·실내 | 각3회·실내 우선·복수 소스 | ✅ 키 1·4·2·4·3·F5·F5로 낮↔밤 3회씩: −50.3 ↔ −53.9 dBFS, 1 dB 안착 1.66~1.93 s(2 s 페이드, 12회 중 1회는 잡음으로 3.0 s), 중간 dip 1.6~2.1 dB. 포털을 걸어서 실내 3회 진입·복귀: −55.6 dBFS ↔ 낮. 제3상태(밤 전환 0.4 s 뒤 실내): 끊김 없이 이어짐(최저 −58, 실내 대비 −2.5 dB). 복수 포털 소스 GUI는 미실행(헤드리스가 검사) |
 | 포털 | 1초 안 왕복3회·클릭 없음 | ✅ 클릭 없음. 문 평면 순간이동으로 0.33 s 간격 6회 통과(3왕복 1.64 s)와 0.5 s 간격 3왕복(왕복당 1 s). `MinCrossingIntervalSeconds=0.25` 때문에 3왕복을 1.25 s 안에는 할 수 없음. 발소리를 끈 구간의 클릭 z 최댓값 4.2(판정 8, 자체 시험의 하드컷은 z 160). 레벨이 −50 → −53.7로 부드럽게 출렁였다가 복귀 |
 | 크로스페이드 | 기본2초 vs 실내1초/실외2초 | ✅ 측정: 2.0 s면 → 실내 안착 1.83 s, 1.0 s면 0.94 s(0.66 s에 dip 2.5 dB). → 실외 2.0 s는 1.84 s로 양쪽 같음. 1.0 s는 빠른 왕복에서 더 깊게 출렁임(−56.5). 차트 `pc-verify-wp13-crossfade.jpg`. **체감 판정은 소유자 청취**. Fable 설계 의견은 §7-3 |
-| 재질별 발소리 | default/asphalt/tile/stairs 걷기·달리기10보 | ✅ L_Dev Floor PIE 한정 override(§7-5): 미지정·SurfaceType1 → `SW_asphalt`, 2 → `SW_tile`, 3 → `SW_stairs`. 각각 걷기 11보(71.7 cm/보)·달리기 12보(109 cm/보). `Course/Stairs` 태그 계단 → `SW_stairs`(걷기 8보 중 계단 위 7보, 달리기 5+5보). 합성 Zone 충돌 바닥 → default `SW_asphalt` 10보 |
-| 로스터별 발소리 | proxy135/proxy110/Quinn 각10보·스케일 필요성 | ✅ 실행: 각 걷기 10~11보, 달리기 11~12보, 소리 보폭은 고정(걷기 72~77, 달리기 109~112 cm). 애니메이션 발 딛기와의 비율(소리 ÷ 애니)은 걷기 Manny/Quinn 0.92·proxy135 0.70·proxy110 0.59, 달리기 1.27·1.22·1.03. **`stride_scale_by_mesh`(Z 스케일 곱)는 권장하지 않음**: proxy 걷기는 1.03~1.05로 맞지만 달리기가 1.7배로 나빠짐. 대안은 §7-3 |
+| 재질별 발소리 | default/asphalt/tile/stairs 걷기·달리기10보 | ✅ L_Dev Floor PIE 한정 override(§7-5): SurfaceType2 → `SW_tile`, 3 → `SW_stairs` 확인; 미지정·SurfaceType1은 둘 다 `SW_asphalt`(`audio.json`의 `sets.default`와 `sets.asphalt`가 같아 현 설정에서는 구분할 수 없음). 각각 걷기 11보(71.7 cm/보)·달리기 12보(109 cm/보). `Course/Stairs` 태그 계단 → `SW_stairs`(걷기 8보 중 계단 위 7보, 달리기 5+5보). 합성 Zone 충돌 바닥 → default `SW_asphalt` 10보 |
+| 로스터별 발소리 | proxy135/proxy110/Quinn 각10보·스케일 필요성 | ✅ 실행: 각 걷기 10~11보, 달리기 11~12보, 소리 보폭은 고정(걷기 72~77, 달리기 109~112 cm). 애니메이션 발 딛기와의 비율(소리 ÷ 애니)은 걷기 Manny/Quinn 0.92·proxy135 0.70·proxy110 0.59, 달리기(애니 보폭 ÷ 소리 보폭 109~112 cm) Manny/Quinn 1.30~1.34·proxy135 1.27~1.30·proxy110 1.03~1.06(비율 = 발소리 횟수 ÷ 애니 발 딛기 횟수 = 애니 보폭 ÷ 소리 보폭; 세션 기록의 1.27·1.22는 소리 보폭 115~116 cm 기준 값이었음). **`stride_scale_by_mesh`(Z 스케일 곱)는 권장하지 않음**: proxy 걷기는 1.03~1.05로 맞지만 달리기가 1.7배로 나빠짐. 대안은 §7-3 |
 | 착지 | 점프5회·공중 무음·착지1회 | ✅ 제자리 점프 5회 → `SW_landing` 5회, 발소리 0. 달리며 점프 2회 → 착지 2회, 공중 구간 발소리 없음 |
 | Photo mute/maintain | 양 모드·원샷 정지/억제·채널0 | ✅ mute: 진입 시 앰비언스와 재생 중 원샷이 20~40 ms 램프로 무음(클릭 없음), 종료 즉시 복귀, describe ` muted`. maintain(JSON 수정·재시작): Photo 중 레벨 불변(이 구간에는 캐릭터가 움직이지 않아 발소리 없음). 사용자 `.mute 1`은 maintain 설정에서도 무음. Photo 안에서 두 가지를 겹친 경우는 미실행 |
 | 발소리 중복·루프 이음·clipping | (§3 청취 항목) | ✅ 동시 발소리 보이스 최대 2, 보폭 1회당 1인스턴스. 4 s 루프 이음이 약 9회 지나는 구간에서 클릭 없음(z 최댓값 4.5). clipping 0 샘플, 전체 피크 −32.1 dBFS |
-| 소유자 밸런스 | 장치·OS 볼륨·master/상태/발소리 gain JSON 값 | ⏳ **소유자 결정 대기**(세션은 후보만 제시). 현재 값: master 0.7 / 낮 0.25·밤 0.18·실내 0.15 / 발소리 0.5·착지 0.6. 측정(엔진 출력): 낮 베드 RMS −50.3, 밤 −53.9, 실내 −55.6 dBFS, 발소리 피크 약 −35.8, 착지 −34.7 dBFS. 장치 루프백(OS 52 %)은 낮 −60.5 dBFS로 **매우 작음**. 후보: master 1.0, 낮 0.5·밤 0.36·실내 0.30, 발소리 1.0, 착지 1.0 — 상대 비율을 유지한 채 약 +9 dB(낮 ≈ −41 dBFS RMS, 발소리 피크 ≈ −27 dBFS, clipping 없음 예상). 합성 소스 자체가 −26 dBFS RMS라 JSON 상한(1.0) 안에서는 이 정도가 최대 |
+| 소유자 밸런스 | 장치·OS 볼륨·master/상태/발소리 gain JSON 값 | ⏳ **소유자 결정 대기**(세션은 후보만 제시). 현재 값: master 0.7 / 낮 0.25·밤 0.18·실내 0.15 / 발소리 0.5·착지 0.6. 측정(엔진 출력): 낮 베드 RMS −50.3, 밤 −53.9, 실내 −55.6 dBFS, 발소리 피크 약 −35.8, 착지 −34.7 dBFS. 장치 루프백(OS 52 %)은 낮 −60.5 dBFS로 **매우 작음**. 후보: master 1.0, 낮 0.5·밤 0.36·실내 0.30, 발소리 1.0, 착지 1.0 — 약 +9 dB(master 0.7→1.0 +3.1 dB, 상태·발소리 gain ×2 +6 dB; 착지는 0.6→1.0 ×1.67이라 +7.5 dB로 발소리 대비 −1.6 dB)(낮 ≈ −41 dBFS RMS, 발소리 피크 ≈ −27 dBFS, clipping 없음 예상). 발소리 gain 0.5→상한 1.0이 비율 유지의 한계라 이 정도가 최대(앰비언스만이면 ×4까지 가능; 합성 소스 자체는 −26 dBFS RMS) |
 | 패키징 | SW7개·audio.json 포함·재생/크레딧 | ✅(발소리 제외) BuildCookRun 성공. 첫 실행은 "Live Coding active"로 실패 → `package.ps1` PC fix 뒤 통과. stage manifest와 `.utoc`에 SW 7개(.uasset+.ubulk), `.pak`에 `Config/Golmok/audio.json`. 패키지 실행: `golmok.audio`·`credits` 출력, `-ExecCmds`로 night·interior 전환, 루프백 낮/밤/실내 −60.5/−64.2/−65.6 dBFS. **패키지 발소리 청취는 미확인**: 05:46부터 떠 있는 Windows 보안 시스템 대화상자가 포커스를 막아 키 입력 불가(§7-4) |
-| 고친 API | 위 번호·변경/재검증 근거 | A1~A9 코드 수정 없음. PC fix는 `tools/ue/package.ps1` 1건(`-ubtargs=-NoHotReloadFromIDE`, Astra 레인 아님)과 이 런북의 cook 확인 명령 정정. Astra 레인 파일(`Source/Golmok/Audio/`·`audio.json`·`Content/Golmok/Audio/`)은 수정하지 않음 |
-| STATUS 판정 | 통과/부분/차단·남은 항목 | **WP-13 🟢**, V-10 🟢. 결함 0이고 기능·전환·클릭·재질·착지·Photo·패키징(앰비언스·크레딧)이 통과. 비차단으로 남은 항목: ① 소유자 볼륨 청취·최종 gain(후보 위), ② 패키지 발소리 1회 청취(보안 대화상자를 소유자가 처리한 뒤), ③ 크로스페이드 1.0/2.0 체감, ④ 실제 음원 교체(결정 필요 ③) 뒤 재청취 |
+| 고친 API | 위 번호·변경/재검증 근거 | A1~A9 코드 수정 없음. PC fix는 `tools/ue/package.ps1` 1건(`-ubtargs=-NoHotReloadFromIDE`, Astra 레인 아님)과 이 런북의 cook 확인 명령 정정. Astra 레인 코드·설정·에셋(`Source/Golmok/Audio/`·`audio.json`·`Content/Golmok/Audio/`)은 수정하지 않음. 레인 문서인 이 런북은 PC 세션이 결과 칸(§4·§6)·cook 확인 명령(§5)·§7을 수정(D-019 규칙 2026-09-28: PC 검증 세션은 레인 런북의 결과·확인 절을 고칠 수 있고, 병합 때 양쪽을 살린다) |
+| STATUS 판정 | 통과/부분/차단·남은 항목 | **WP-13 🟢**, V-10 🟢. WP-13 코드 결함 0(도구·런북 결함 2건은 PC fix)이고 기능·전환·클릭·재질·착지·Photo·패키징(앰비언스·크레딧)이 통과. 비차단으로 남은 항목: ① 소유자 볼륨 청취·최종 gain(후보 위), ② 패키지 발소리 1회 청취(보안 대화상자를 소유자가 처리한 뒤), ③ 크로스페이드 1.0/2.0 체감, ④ 실제 음원 교체(결정 필요 ③) 뒤 재청취, ⑤ 미실행(비차단): A1 600 cm 경계·A7 경로 재생 빙의 교체·복수 포털 소스 GUI·Photo 안 사용자 mute+maintain 겹침·StopOldest 실동작(보이스가 8 한도에 닿지 않음), ⑥ T6 #50 런타임 변경(HUD 핸들·ToD 초기화·DoesPackageExist·이름 없는 표면 default)은 헤드리스만 — 다음 PC 카드에서 스모크 |
 
 ### T6(13c) 후속 확인 범위
 
@@ -169,7 +169,7 @@ C-10: Packaging 설정을 에디터에서 저장한 뒤 DefaultGame.ini의 중�
 
 ### 7-1. 방법
 
-- 드라이버: V-09b `pie_driver.py`에 오디오 단계를 더한 것(세션 scratchpad `v10/`, 미커밋). 에디터 GUI를 `-ini:Engine:[Audio]:UnfocusedVolumeMultiplier=1.0`으로 띄우고(포커스 영향 제거), 새 창 PIE(Alt+P)와 SendInput 키(1~4·F5·W·Shift)를 쓴다.
+- 드라이버: V-09b `pie_driver.py`에 오디오 단계를 더한 것(세션 scratchpad `v10/`, 미커밋 — 후속(다음 PC 카드): WAV 분석(100 ms RMS 안착·클릭 z)을 순수 Python/numpy 스크립트로 테스트와 함께 `tools/` 아래에 커밋해 T6 스모크·실제 음원 재청취 때 같은 판정을 재현할 수 있게 한다). 에디터 GUI를 `-ini:Engine:[Audio]:UnfocusedVolumeMultiplier=1.0`으로 띄우고(포커스 영향 제거), 새 창 PIE(Alt+P)와 SendInput 키(1~4·F5·W·Shift)를 쓴다.
 - 녹음: PIE 월드에서 `unreal.AudioMixerLibrary.start_recording_output(world, s)` → `stop_recording_output(world, AudioRecordingExportType.WAV_FILE, name, dir)`(Python 이름은 `AudioMixerLibrary`, `ScriptName` 메타데이터). master submix 출력이라 OS 볼륨 전 신호다.
 - 분석: 100 ms RMS 포락선(안착 = 최종 레벨 ±1 dB 진입 시각), 클릭 = 1차 차분을 국소 강건 σ(MAD, ±100 ms)로 나눈 z(발소리 원샷 구간 제외, 판정 z ≥ 8). 합성 베드가 32탭 이동평균 노이즈라 차분이 백색에 가깝다. 자체 시험에서 의도적 하드컷은 z 160, 2 s/1 s 선형 페이드는 안착 2.09/0.85 s로 검출됐다.
 - 발소리 식별: `ListWaves`(0.1 s 샘플, 재생 위치 되감김 = 새 인스턴스)로 웨이브 이름·동시 보이스 수를 센다. 애니메이션 cadence는 foot_l/foot_r 소켓의 진행 방향 간격을 자기상관해 구한다(주기 = 2보).
@@ -193,13 +193,13 @@ C-10: Packaging 설정을 에디터에서 저장한 뒤 DefaultGame.ini의 중�
 
 1. **실내 1.0 s / 실외 2.0 s는 채택 후보**: 문 통과는 공간 이벤트라 시간대 전환(2 s)보다 빨리 바뀌는 편이 자연스럽다. 측정상 1.0 s도 클릭·끊김이 없다. 다만 빠른 왕복에서 출렁임이 커지니 소유자 청취로 확정한다.
 2. **동일 전력(equal-power) 크로스페이드**: 현재 선형 진폭 보간은 서로 무관한 두 베드를 섞을 때 중간에 1.6~2.8 dB 꺼진다. sin/cos 곡선이면 일정하게 유지된다. `GolmokAudioMath::Envelope` 곡선만 바꾸는 폴리시 후보(Astra 레인)다.
-3. **발소리 보폭**: ABP_Unarmed의 걷기 cadence는 속도와 상관없이 2.68 보/s로 고정이다. 고정 보폭(70/110 cm)은 Manny 걷기(애니 67 cm)에는 맞지만, 달리기(애니 146 cm)에서는 발소리가 27 % 많다. proxy 걷기(애니 54·45 cm)에서는 0.70·0.59배로 적다. `stride_scale_by_mesh`는 달리기를 1.7배로 망치므로 **권장하지 않는다**. 대안은 캐릭터별 (걷기, 달리기) 보폭 데이터다. 측정값은 Manny/Quinn 67/146, proxy135 54/142, proxy110 45/115 cm(각 캐릭터 걷기·달리기 속도 기준). 또는 V-08 애니메이션 채택 뒤 노티파이 구동으로 바꾼다(WP-13 원래 계획).
+3. **발소리 보폭**: ABP_Unarmed의 걷기 cadence는 속도와 상관없이 2.68 보/s로 고정이다. 고정 보폭(70/110 cm)은 Manny 걷기(애니 67 cm)에는 맞지만, 달리기(애니 146 cm)에서는 발소리가 약 30~34 % 많다(소리 보폭 109~112 cm 기준). proxy 걷기(애니 54·45 cm)에서는 0.70·0.59배로 적다. `stride_scale_by_mesh`는 달리기를 1.7배로 망치므로 **권장하지 않는다**. 대안은 캐릭터별 (걷기, 달리기) 보폭 데이터다. 측정값은 Manny/Quinn 67/146, proxy135 54/142, proxy110 45/115 cm(각 캐릭터 걷기·달리기 속도 기준). 또는 V-08 애니메이션 채택 뒤 노티파이 구동으로 바꾼다(WP-13 원래 계획).
 4. **Photo mute 진입**은 20~40 ms 안에 뚝 끊긴다(클릭은 없음). 0.2~0.3 s 짧은 페이드는 폴리시 후보다.
 5. 합성 플레이스홀더 7개는 같은 공식(필터 노이즈 ± 95 Hz)이라 **세 앰비언스와 네 발소리 세트가 음색으로는 거의 구분되지 않는다**(gain 차이만 있음). 품질 판정은 실제 음원 교체(결정 필요 ③)나 WP-17 녹음 뒤에 한다.
 
 ### 7-4. 막힌 것·환경
 
-- **Windows 보안 대화상자**: 05:46쯤부터 `PickerHost.exe`의 `Shell_SystemDialog`(제목 "Windows 보안")와 전체 화면 `Shell_SystemDim` 오버레이(최상위)가 떠 있다. 이 때문에 다른 창을 포그라운드로 만들 수 없고 SendInput 키가 게임에 들어가지 않는다. 패키지 `Golmok.exe`를 처음 실행할 때 뜬 방화벽 허용 프롬프트로 보인다. 보안 설정이라 세션은 누르지 않았다. 소유자가 처리한 뒤 패키지에서 W 걷기 발소리를 1회 확인한다(`scratchpad v10/run_packaged.py` 방식, 또는 직접 실행해 걸어 보기).
+- **Windows 보안 대화상자**: 05:46쯤부터 `PickerHost.exe`의 `Shell_SystemDialog`(제목 "Windows 보안")와 전체 화면 `Shell_SystemDim` 오버레이(최상위)가 떠 있다. 이 때문에 다른 창을 포그라운드로 만들 수 없고 SendInput 키가 게임에 들어가지 않는다. 패키지 `Golmok.exe`를 처음 실행할 때 뜬 방화벽 허용 프롬프트로 보인다. 보안 설정이라 세션은 누르지 않았다. 소유자가 처리한 뒤 패키지에서 W 걷기 발소리를 1회 확인한다(수동: `build\Windows\Golmok.exe` 실행 → L_Dev에서 W로 걷기 → 발소리 확인. 세션 드라이버는 저장소에 없다).
 - `-log`로 패키지를 띄우면 로그 콘솔 창이 포그라운드를 가져간다. `-forcelogflush`만 쓴다. 부트스트랩 `Golmok.exe`를 종료해도 실제 게임 프로세스는 남는다.
 
 ### 7-5. 재현 메모

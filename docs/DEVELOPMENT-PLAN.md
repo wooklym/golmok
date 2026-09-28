@@ -228,7 +228,7 @@ docs/plan/STATUS.md, docs/plan/WP-0N-<name>.md를 먼저 읽고, WP-0N을 처음
 | 브랜치 | `claude/*`(WP 통합 브랜치 `claude/hopeful-allen-f0a0jb`), PC는 `pc/*` | `astra/<wp>-<주제>`(예: `astra/wp-18-design`) |
 | 병합 | §7.4 오케스트레이션 | 스스로 병합하지 않는다. Claude 리뷰(Opus 코드 + 필요 시 Fable 설계) → (A) 해소·CI 초록 → 병합 세션이 merge commit으로 병합. 사용자 승인은 되돌릴 수 없는 일이 얽힌 PR에만(D-019, 2026-09-27) |
 
-**레인(파일 소유)**: 레인 주인만 그 파일을 고친다. 새 레인은 사용자나 오케스트레이터가 WP를 배정할 때 이 표에 더한다.
+**레인(파일 소유)**: 레인 주인만 그 파일을 고친다. 새 레인은 사용자나 오케스트레이터가 WP를 배정할 때 이 표에 더한다. 예외(D-019, 2026-09-28): PC 검증 세션은 레인 런북(`docs/runbooks/pc-verify-*.md`)의 결과 칸·확인 명령·실행 기록 절을 고칠 수 있다(코드·설정·에셋은 아님).
 
 | 레인 | 주인 | 경로 |
 |---|---|---|
@@ -266,6 +266,7 @@ docs/plan/STATUS.md, docs/plan/WP-0N-<name>.md를 먼저 읽고, WP-0N을 처음
 | 파일 | 해결 |
 |---|---|
 | 상대 레인 파일 | 레인 주인의 버전을 그대로 쓴다. 내 의도가 필요하면 훅이나 후속 PR로 다시 넣는다 |
+| 레인 런북의 PC 결과 칸·확인 명령·실행 기록 절 | 양쪽을 살린다 — PC 세션이 채운 결과·§7 실행 기록은 버리지 않고, 레인 주인의 절차 문장 변경도 유지한다(V-10 [#54](https://github.com/wooklym/golmok/pull/54) 방식) |
 | 핫스팟의 훅 블록 | 양쪽을 다 살린다(서로 독립된 추가 줄이다). main 쪽 블록을 먼저 둔다 |
 | STATUS·DECISIONS·ROADMAP·DEVELOPMENT-PLAN | main 버전을 받고 내 행·항목만 다시 넣는다 |
 | 생성물·픽스처 | 손으로 합치지 않고 생성기로 다시 만든다(예: `tools/scripts/make_index_fixture.py`, `make_synthetic_zone.py`) |
