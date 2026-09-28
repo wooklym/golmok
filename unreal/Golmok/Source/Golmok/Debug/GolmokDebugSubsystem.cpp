@@ -32,6 +32,7 @@
 #include "HighResScreenshot.h"
 #include "Kismet/GameplayStatics.h"
 #include "Lighting/GolmokTimeOfDay.h"
+#include "Map/GolmokTravelSubsystem.h" // [WP-15 hook]
 #include "Materials/Material.h"
 #include "Materials/MaterialInterface.h"
 #include "Misc/App.h"
@@ -327,6 +328,9 @@ const TArray<FString>& UGolmokDebugSubsystem::GetHudLines()
 		// [WP-13 hook]
 		for (const TFunction<FString()>& Provider : ExtraHudLineProviders) { HudLinesCache.Add(Provider()); }
 		// [/WP-13 hook]
+		// [WP-15 hook] travel line (WP-15a; not a provider: Golmok.Audio.StateMachine counts ExtraHudLineProviders)
+		if (const UGolmokTravelSubsystem* Travel = UGolmokTravelSubsystem::Get(GetWorld())) { HudLinesCache.Add(Travel->DescribeHudLine()); }
+		// [/WP-15 hook]
 		HudLinesCache.Add(FString::Printf(TEXT("collision: %s   keys: F1 hud  F2 col  1-4 tod  F5 next  F9 rec  F10 play"),
 			bCollisionVisible ? TEXT("on") : TEXT("off")));
 		HudLinesTime = Now;
