@@ -359,7 +359,8 @@ FString UGolmokDebugSubsystem::BuildLightingLine() const
 	{
 		return TEXT("tod: -");
 	}
-	return FString::Printf(TEXT("tod: %s"), *Tod->Describe());
+	// WP-14a: the clock (" HH:MM mode[ xrate]") after the WP-05 text; the "tod:" prefix stays.
+	return FString::Printf(TEXT("tod: %s%s"), *Tod->Describe(), *Tod->DescribeClock());
 }
 
 FString UGolmokDebugSubsystem::BuildPlayerLine() const
