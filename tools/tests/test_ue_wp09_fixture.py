@@ -90,6 +90,9 @@ CONSOLE_COMMANDS = {
     "golmok.stats",
     "golmok.geo.selftest",
     "golmok.character",  # [WP-18 hook] 캐릭터 콘솔
+    "golmok.audio",  # [WP-13 hook]
+    "golmok.audio.mute",  # [WP-13 hook]
+    "golmok.audio.state",  # [WP-13 hook]
 }
 
 # Golmok.Build.cs as WP-05 left it (PC fix e446504): no new module for WP-09 (StreamableManager is in Engine).

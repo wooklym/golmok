@@ -66,6 +66,10 @@ struct FGolmokLightingState
  * partial InteriorPreset (fog / exposure) while at least one source (a portal id) is inside. Transitions
  * interpolate over TransitionSeconds and Tick runs only while a transition is in progress.
  */
+// [WP-13 hook] Native notifications for audio subscribers.
+DECLARE_MULTICAST_DELEGATE_TwoParams(FGolmokOnPresetChanged, FName, bool);
+DECLARE_MULTICAST_DELEGATE_OneParam(FGolmokOnInteriorChanged, bool);
+// [/WP-13 hook]
 UCLASS(Config = Game, HideCategories = (Rendering, Replication, Collision, Input, LOD, Cooking, Physics, Networking))
 class GOLMOK_API AGolmokTimeOfDay : public AActor
 {
@@ -203,4 +207,9 @@ private:
 	TWeakObjectPtr<USkyLightComponent> Sky;
 	TWeakObjectPtr<UExponentialHeightFogComponent> Fog;
 	TWeakObjectPtr<APostProcessVolume> PostProcess;
+	// [WP-13 hook] Public subscription API; no subscriber means no behavior change.
+public:
+	FGolmokOnPresetChanged OnPresetChanged;
+	FGolmokOnInteriorChanged OnInteriorChanged;
+	// [/WP-13 hook]
 };

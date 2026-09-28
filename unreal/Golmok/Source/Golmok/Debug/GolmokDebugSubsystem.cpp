@@ -324,6 +324,9 @@ const TArray<FString>& UGolmokDebugSubsystem::GetHudLines()
 		HudLinesCache.Append(ZoneLines);
 		HudLinesCache.Add(BuildPortalLine());
 		HudLinesCache.Add(BuildPathLine());
+		// [WP-13 hook]
+		for (const TFunction<FString()>& Provider : ExtraHudLineProviders) { HudLinesCache.Add(Provider()); }
+		// [/WP-13 hook]
 		HudLinesCache.Add(FString::Printf(TEXT("collision: %s   keys: F1 hud  F2 col  1-4 tod  F5 next  F9 rec  F10 play"),
 			bCollisionVisible ? TEXT("on") : TEXT("off")));
 		HudLinesTime = Now;
