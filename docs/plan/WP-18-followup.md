@@ -229,3 +229,21 @@ PR #39 (A) 수정: D1 GUI 캡슐 복구를 Runtime+ini 실패 로그로 대체·
 - **Fable 시각 판정(시트)**: 걷기→달리기 전환에서 보폭·팔 스윙이 깨끗하게 바뀌고 0.1 s 연속 구간의 다리 교대가 끊김 없음; 계단 상승·랜딩·회전·하강이 단차를 따라 연속, 부유·침하 없음; 포털 진입·회전·복귀 연속. 보강 시트(quinn 달리기 3.1~4.2 s·proxy135 계단 하강 4.1~5.2 s 연속 12프레임): 달리기 주기의 공중 위상·팔 스윙과 하강의 단차 추종이 끊김 없이 이어짐. T-pose·팝 없음, 3종 동일 품질. 한계: 타일당 캐릭터 60~80 px라 발 접지·관절·미끄러짐은 판정 불가 → **사람 눈 검수는 PC 카드 유지**. 참고: L_Dev 실내 상자 과노출(눈 적응 스윙)은 WP-14 조명 look-dev 메모. **판정: 🟡 근거로 채택, WP-18/V-11 🟡 유지.**
 - **(C) 옮긴 것**: STATUS 병행 트랙 WP-18·V-11 행(상태 칸·메모: T2 근거·PC 카드 인계·D1 종결)·마지막 갱신, ROADMAP 1.3, astra-tasks T2 완료·우선순위, 이 절.
 - 판정: **병합**. 실제 키보드 지속 입력·영상·사람 눈 검수(보행 주기·관절·발 미끄러짐)는 다음 PC 카드(V-09c와 합침)에서.
+
+
+## #39 비블로킹 후속 C1/C3/C4/C5 (2026-09-28)
+
+main4826929 기준 별도 astra/wp-18-sequence-diagnostics. T5는 #41 맵 복제/로드 오류 검토를 기다리며, 독립 후속 큐를 진행했다. 런타임/공유 훅/테스트 등록 수 변경 없음.
+
+- C1: 코스 생성 시각이 아닌 첫 Update에서 300초 제한 시작, timeout 오류에 경과시간 기록.
+- C3: 큐 추가 전에 L_Dev/L_ZoneTest/합성 실내 패키지 존재를 모두 확인해 누락 경로 즉시 보고.
+- C4: 프레임별 Feet/포털 상태와 계단·포털 단언 PASS/FAIL·값, COMPLETE 단언 집계 기록.
+- C5: RHI·명령줄·프리셋 적용 결과·진단 붐 길이를 manifest에 기록, clear_noon 적용 실패는 명시적 오류.
+
+### 병합 시 반영 — 후속
+
+> WP-18 인계 메모 추가: #39 비블로킹 C1/C3/C4/C5 후속으로 렌더 시퀀스 코스별 타임아웃·fixture 사전 검사·환경/단언 진단을 보완했다. 기존 시각 판정 범위와 WP-18/V-11 🟡 상태는 유지한다. T5 #41 차단은 별도다.
+
+검증(2026-09-28): UE5.8.3 빌드5.38s 성공. 자체 worktree의 생성 실내 .umap을 잠시 별도 이름으로 옮겨 missing fixture 오류를 재현(0.07s, failed1, PIE 큐 시작 전), finally에서 원래 경로로 복원했다. D3D12 정상9코스 **1 Success·경고/실패/notRun0,77.54s**, PNG577장1014×550 디코딩·0.1s 간격·프레임별 state577줄·PASS 단언12개·포털 inside1→복귀0 기록 확인. 각 manifest에 D3D12/preset applied=true/붐 길이/실제 명령줄 존재. 타임아웃300초 자체의 만료를 기다리는 실험은 하지 않았으며 첫 Update 초기화와 코스별 인스턴스로 범위를 확인했다.
+
+Python ruff check/format103·pytest740 passed/77 skipped(33.05s)·check_repo·diff check 통과. 바로 앞 main4826929 전체 UE 기준선은28 Success(21+경고7), 실패0/notRun0,167.53s(RenderEvidence NOT EXECUTED1 제외실제27); 후속 변경 검증은 위 실제 RHI opt-in 실행이며 전체 회귀를 재실행한 것으로 중복 집계하지 않는다. 증거는 로컬 Saved/Automation/SequenceDiagnostics/index.json·SequenceMissingFixture/index.json·WP18T2Sequence의 최신9개 폴더에 보관. 기존 PR39 시트·manifest는 변경하지 않음. GUI 잠금 해제·생성 에셋 복원 완료.
