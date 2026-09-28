@@ -1,6 +1,6 @@
 # WP-13 — 환경음 기본: 앰비언스·발소리·실내 전환 (D-016 (a))
 
-상태: 🔵 **진행 중 — 13a 출처 조사 완료·소스 채택/13b 구현 대기** (2026-09-28; 등록 2026-09-25) · 담당: **ChatGPT Astra**(2026-09-27 오디오 레인 배정, `plan/astra-tasks.md` T3; 코드 리뷰 Opus ultracode, 설계·최종 품질 Fable, 병합 오케스트레이터, DEVELOPMENT-PLAN §7.6) · 의존: WP-05(포털·시간대), WP-04(Zone), V-08 결과는 **불필요**(발소리는 이동 거리 기반으로 시작, 애니메이션 노티파이 연동은 채택안 뒤) · 검증: G2(`runbooks/pc-verify-wp13.md`, V-10)
+상태: 🔵 **진행 중 — 13a 병합·13b 데이터/임포트 기반 구현, 런타임 연동 대기** (2026-09-28; 등록 2026-09-25) · 담당: **ChatGPT Astra**(2026-09-27 오디오 레인 배정, `plan/astra-tasks.md` T3; 코드 리뷰 Opus ultracode, 설계·최종 품질 Fable, 병합 오케스트레이터, DEVELOPMENT-PLAN §7.6) · 의존: WP-05(포털·시간대), WP-04(Zone), V-08 결과는 **불필요**(발소리는 이동 거리 기반으로 시작, 애니메이션 노티파이 연동은 채택안 뒤) · 검증: G2(`runbooks/pc-verify-wp13.md`, V-10)
 
 ## 목표
 소리 없는 골목을 "장소"로 만든다(D-016 (a), 사용자 승인 2026-09-25): 전역 앰비언스(도시 원경, 낮/밤), 발소리(바닥 재질 2~3종), 실내 진입 시 앰비언스 전환, 시간대별 전환. 현재 코드에는 오디오가 전혀 없다. 근거: [`design/game-features-proposal.md`](../design/game-features-proposal.md) D-016.
@@ -86,3 +86,36 @@ main `d37720e`를 충돌 없이 병합한 뒤 ruff check·format(98파일), pyte
 ### ROADMAP
 
 > WP-13 🔵 진행 중 — 13a 출처 조사 완료(`research/10-ambience-sources.md`), 소스 채택·13b 구현·V-10 청취 대기.
+
+
+## 13b 진행 — 데이터/임포트 기반 (2026-09-28)
+
+main `c7fa296`에서 `astra/wp-13b-audio`를 시작했다. 13a PR #28이 병합돼 스택이 아니며, 기존 13a worktree를 재사용한다. 이슈 #30의 CC0 7개 청취 후보 채택 결정을 확인했다. Freesound C01 원본 다운로드 요청은 200 HTML 로그인 페이지로 리다이렉트됐고 WAV를 받지 못했다. 가입·약정이나 미리듣기 대체 없이 허용된 합성 플레이스홀더 경로를 구현했다. 다른 6개의 다운로드 가능 여부를 성공/실패로 단정하지 않는다.
+
+### 이번 산출물
+
+- `Config/Golmok/audio.json`: 상태/프리셋/재질 세트가 asset ID를 참조하고, 각 asset에 소스·대상 경로·루프·gain·출처·저자·라이선스·수정 내역이 있다. 기본값은 품질 가설이다. 기존 lighting_presets.json의 4개 cycle 이름과 대조한다.
+- `audio_pure.py`: Unreal 없는 검증·임포트 계획·표기 생성. 경로 이탈/중복·부정확한 CC 라이선스 URL·비유한 수치·누락 참조·WAV 포맷/본문·용량을 검증한다.
+- `make_placeholder_audio.py`: numpy 기존 의존성으로 PCM16/48kHz mono 7개 생성. 채택된 실제 음원은 덮어쓰지 않는다. 앰비언스4초/원샷0.33초, deterministic seed, 피크 약−14dBFS. 실제 환경음 품질/루프 길이를 대체하지 않는다.
+- `audio_import.py`: JSON만으로 임포트 경로·루프·볼륨을 바꾸고 재실행한다. 임포트/저장 실패를 숨기지 않는다. 원본 파형 정규화는 하지 않는다.
+- `ATTRIBUTION.md` + `Credits/audio-credits.txt`: 같은 JSON에서 생성한다. CC-BY도 저자·원문 링크·수정 내역을 보존하는 테스트 포함. 현재 project-generated는 프로젝트 합성 테스트 음원이라는 출처 표시이며 새 라이선스 약정/CC0 선언이 아니다.
+- DefaultGame.ini의 파일 끝 WP-13 훅: Audio SoundWave cook 디렉터리와 Credits UFS 경로 등록. 기존 Config/Golmok UFS가 audio.json을 포함한다. 별도 훅 커밋으로 구분한다.
+- [V-10 런북](../runbooks/pc-verify-wp13.md): 소스 교체·재임포트·남은 런타임/청취 검증·API 표.
+
+### 검증
+
+ruff check/format102, pytest **716 passed / 64 skipped / 208 warnings**(43.46s), check_repo 통과. 새 테스트는 경로/라이선스/재생 참조 오류, seed/PCM 결정성, 채택 파일 보존, 가짜 Unreal 임포트/실패·출처 교체를 검증한다. 로컬 symlink 권한 없음1건과 기존 g++ 등63건은 skip이며 CI에서 확인한다.
+
+UE5.8.3 에디터 빌드 **성공(116.60s)**. Python commandlet(nullrhi·nosound)에서 **7개 임포트 + 같은7개 재임포트**, SoundWave 타입·looping·volume 확인 성공, **0 errors / 0 warnings**. `Saved/Automation/WP13/import-result.json`과 로컬 `tools/.venv/audio-import-log.txt`에 근거를 보관한다. 생성된 `.uasset`은 커밋하지 않으며 WAV/JSON/스크립트로 재생성한다. **청취·패키징·런타임 오디오 테스트 결과가 아니다.**
+
+### 런타임 연동 설계 요청·남은 구현
+
+[이슈 #30 요청](https://github.com/wooklym/golmok/issues/30#issuecomment-5861053935): 현행 AGolmokTimeOfDay는 CurrentPreset/InteriorSources 공개 상태만 있고 변경 델리게이트가 없다. 스펙의 이벤트 구독을 충족하려면 Lighting 소유자가 성공한 ApplyPreset 및 InteriorSources 변경 알림을 제공하거나 해당 파일 최소 훅을 허용해야 한다. Debug/GolmokHUD의 audio: 행도 타 레인 연동이다. 이 파일들을 임의 수정하지 않았다.
+
+Fable 검토용 구체안: Audio WorldSubsystem이 초기 TimeOfDay 상태를 읽고 변경 이벤트를 구독한다. 실내 소스가 하나 이상이면 interior를 우선하고, 마지막 실내 소스가 빠지면 현재 프리셋의 outdoor 상태로 돌아간다. A/B 두 컴포넌트로 2초 페이드하며 빠른 재전환 때 현재 gain에서 다음 목표로 이동한다. Controller 교체 탐색과 PawnChanged 델리게이트로 Character에 거리 기반 FootstepComponent를 붙이고, 공중·경로/포토 폰에는 발소리를 내지 않는다. 표면 미지정은 default, 근거 없는 계단 경사 추정은 하지 않고 L_Dev Course/Stairs 태그 및 PhysicalMaterial만 사용한다. pause mute 기본/maintain 옵션은 Photo API로 상태를 읽어 적용한다. 이벤트 제공 전의 대안인 상태 폴링은 스펙과 다르므로 오케스트레이터에 선택을 요청했다.
+
+아직 **미구현**: Audio C++/순수 수학 교차검증/UE StateMachine·Footstep/콘솔/실시간 전환·착지·HUD·게임 내 크레딧 노출. **미검증**: 패키징에 실제 사운드·크레딧 포함, 재생/청취/최종 음질. 이번 초안은 WP-13 완료·🟡로 표시하거나 최종 병합하지 않는다. 레인 간 설계 응답을 받아 같은 브랜치에서 이어간다.
+
+### 병합 시 반영 (13b 진행, 아직 최종 병합 대상 아님)
+
+> WP-13 🔵: 13a 병합, 13b JSON/결정적 플레이스홀더/임포트/출처·크레딧 기반 구현 및 UE 7개 임포트·재임포트 확인. 런타임 이벤트/HUD 연동 설계 요청 중, C++/Audio 자동화·V-10 청취·패키징 대기. 새 외부 음원 반입·라이선스 약정 없음.
