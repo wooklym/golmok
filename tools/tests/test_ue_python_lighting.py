@@ -300,8 +300,36 @@ def test_status_returns_the_actor_values(mod, unreal, fake, monkeypatch):
         clock_mode=ClockMode("REALTIME"),
         clock_minutes_per_real_second=0.5,
     )
-    assert mod.status() == {"time": "18:30", "mode": "realtime", "rate": 0.5}
+    assert mod.status() == {"time": "18:30", "mode": "realtime", "rate": 0.5, "hold": None}
     assert _tod_console(fake) == ["golmok.tod status", "golmok.tod status"]
+    assert ("log", "golmok.lighting: status 18:30 realtime") in fake.logs
+
+
+@pytest.mark.parametrize(
+    ("minutes", "time", "hold"),
+    [
+        (1390.0, "23:10", "night 23:10 hold until 05:30"),  # WP-14a design 2a: night held 21:30 -> 05:30
+        (1290.0, "21:30", "night 21:30 hold until 05:30"),
+        (30.5, "00:30", "night 00:30 hold until 05:30"),  # across midnight
+        (329.9, "05:29", "night 05:29 hold until 05:30"),
+        (330.0, "05:30", None),  # hold end = ramp start
+        (390.0, "06:30", None),
+        (1289.5, "21:29", None),
+    ],
+)
+def test_status_reports_the_night_hold(mod, unreal, fake, monkeypatch, minutes, time, hold):
+    _add_time_of_day(
+        unreal,
+        fake,
+        monkeypatch,
+        time_of_day_minutes=minutes,
+        clock_mode=ClockMode("CLOCK"),
+        clock_minutes_per_real_second=10.0,
+    )
+    assert mod.status() == {"time": time, "mode": "clock", "rate": 10.0, "hold": hold}
+    line = f"golmok.lighting: status {time} clock" + (f" | {hold}" if hold else "")
+    assert [text for kind, text in fake.logs if text.startswith("golmok.lighting: status")] == [line]
+    assert fake.tod_commands == [["status"]]
 
 
 def test_preset_commands_still_pick_the_screenshot_folder(fake):

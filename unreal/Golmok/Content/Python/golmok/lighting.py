@@ -16,6 +16,7 @@ keys it has, so the sun and sky keep their current values.
 WP-14a: set_time / mode / status drive the runtime clock of AGolmokTimeOfDay through the console command
 golmok.tod (time HH:MM | mode fixed|clock|realtime | status) in the PIE world (the editor world when no PIE
 runs; the C++ spawns an AGolmokTimeOfDay only in game worlds). apply() stays the editor-only preset writer.
+status() also reports a keyframe hold (design 2a: the default night is held 21:30 -> 05:30).
 """
 
 import unreal
@@ -24,6 +25,7 @@ from .lighting_presets import (
     PRESETS_FILE,
     RANGES,
     REQUIRED_KEYS,
+    describe_hold,
     format_hhmm,
     load_presets,
     parse_hhmm,
@@ -187,13 +189,22 @@ def mode(name=None):
 
 
 def status():
-    """Log `golmok.tod status` and return {"time", "mode", "rate"} read off the actor (None without one)."""
+    """Log `golmok.tod status` and return {"time", "mode", "rate", "hold"} read off the actor (None without one).
+
+    "hold" is "<keyframe> HH:MM hold until HH:MM" while the clock is inside a keyframe hold (WP-14a design 2a,
+    e.g. "night 23:10 hold until 05:30"), else None; the same summary is logged as
+    "golmok.lighting: status 23:10 clock | night 23:10 hold until 05:30"."""
     _tod("status")
     actor = _time_of_day_actor()
     if actor is None:
         return None
-    return {
-        "time": format_hhmm(float(actor.get_editor_property("time_of_day_minutes"))),
+    minutes = float(actor.get_editor_property("time_of_day_minutes"))
+    result = {
+        "time": format_hhmm(minutes),
         "mode": _mode_name(actor.get_editor_property("clock_mode")),
         "rate": float(actor.get_editor_property("clock_minutes_per_real_second")),
+        "hold": describe_hold(minutes, *_loaded()),
     }
+    hold = f" | {result['hold']}" if result["hold"] else ""
+    unreal.log(f"golmok.lighting: status {result['time']} {result['mode']}{hold}")
+    return result

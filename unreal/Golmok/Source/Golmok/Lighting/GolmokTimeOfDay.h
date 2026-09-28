@@ -33,6 +33,9 @@ struct FGolmokLightingPreset
 	/** Keyframe time (schema 2 "time", cycle presets only); minutes of the day. */
 	bool bHasTime = false;
 	double TimeMinutes = 0.0;
+	/** WP-14a design 2a: "hold_minutes" (cycle presets only, optional): the keyframe state is held this long from TimeMinutes. */
+	bool bHasHold = false;
+	double HoldMinutes = 0.0;
 
 	bool IsComplete() const { return bHasSun && bHasSky && bHasFog && bHasVolumetric && bHasExposure; }
 };
@@ -82,6 +85,8 @@ enum class EGolmokClockMode : uint8
  * the two keyframes around it (GolmokClockMath). ClockMode Fixed (default) keeps the WP-05 behavior: the clock
  * stands still and ApplyPreset() moves it to the preset's keyframe. Clock advances it by ClockMinutesPerRealSecond
  * per world second, Realtime follows the PC's local time. CurrentPreset is always the nearest keyframe.
+ * Design 2a: a keyframe with "hold_minutes" keeps its state that long from its time, then ramps to the next keyframe
+ * (the default night holds 21:30 -> 05:30); the nearest-keyframe midpoint is the ramp's.
  */
 // [WP-13 hook] Native notifications for audio subscribers.
 DECLARE_MULTICAST_DELEGATE_TwoParams(FGolmokOnPresetChanged, FName, bool);
@@ -235,7 +240,10 @@ public:
 	/** Keyframe times of GetCycle() in minutes (empty until the presets are loaded). */
 	const TArray<double>& GetCycleTimes() const { return CycleTimes; }
 
-	/** Base state the clock gives at Minutes (keyframe interpolation, no interior overlay); false without keyframes. */
+	/** Design 2a: keyframe holds of GetCycle() in minutes (0 = none; same order and length as GetCycleTimes()). */
+	const TArray<double>& GetCycleHolds() const { return CycleHolds; }
+
+	/** Base state the clock gives at Minutes (keyframe interpolation with holds, no interior overlay); false without keyframes. */
 	bool EvaluateClock(double Minutes, FGolmokLightingState& Out) const;
 
 	/** PC local time + RealtimeOffsetMinutes, wrapped (Realtime mode target). */
@@ -283,6 +291,8 @@ private:
 	TArray<FName> Cycle;
 	/** Keyframe minutes of Cycle (same order). */
 	TArray<double> CycleTimes;
+	/** Keyframe hold minutes of Cycle (same order; design 2a). */
+	TArray<double> CycleHolds;
 	/** True while the base lighting is the clock interpolation at TimeOfDayMinutes (SetTimeOfDay, Clock / Realtime); false = CurrentPreset's values (ApplyPreset in Fixed, WP-05). */
 	bool bBaseFromClock = false;
 	bool bNight = false;

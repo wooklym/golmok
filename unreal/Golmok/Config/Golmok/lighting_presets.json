@@ -8,8 +8,8 @@
                          "fog": 0.015, "fog_height_falloff": 0.2, "volumetric": false, "exposure_bias": 0.0},
     "golden_evening":   {"time": "18:00", "pitch": -8.0, "yaw": 265.0, "lux": 4.0, "kelvin": 3600.0, "sky": 0.8,
                          "fog": 0.05, "fog_height_falloff": 0.12, "volumetric": true, "exposure_bias": 0.5},
-    "night":            {"time": "21:30", "pitch": 15.0, "yaw": 0.0, "lux": 0.0, "kelvin": 4000.0, "sky": 0.15,
-                         "fog": 0.03, "fog_height_falloff": 0.2, "volumetric": true, "exposure_bias": 1.5},
+    "night":            {"time": "21:30", "hold_minutes": 480, "pitch": 15.0, "yaw": 0.0, "lux": 0.0, "kelvin": 4000.0,
+                         "sky": 0.15, "fog": 0.03, "fog_height_falloff": 0.2, "volumetric": true, "exposure_bias": 1.5},
     "interior":         {"fog": 0.0, "fog_height_falloff": 0.2, "volumetric": false, "exposure_bias": 1.0}
   }
 }

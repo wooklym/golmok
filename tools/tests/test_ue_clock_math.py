@@ -1,7 +1,8 @@
 """WP-14a: Lighting/GolmokClockMath.h compiled with g++ and checked against tables and a Python reference.
 
-The header is the only home of the clock rules AGolmokTimeOfDay uses (design sections 1-3): wrap, HH:MM,
-keyframe search across midnight, shortest-arc yaw, the per-field interpolation rule, sun visibility and night.
+The header is the only home of the clock rules AGolmokTimeOfDay uses (design sections 1-3, 2a): wrap, HH:MM,
+keyframe search across midnight, keyframe holds, shortest-arc yaw, the per-field interpolation rule, sun
+visibility and night. golmok/lighting_presets.py mirrors the keyframe / hold rules (checked here too).
 """
 
 from __future__ import annotations
@@ -24,6 +25,8 @@ from golmok import lighting_presets as lp  # noqa: E402
 
 # The shipped keyframes (lighting_presets.json schema 2): 07:30, 12:30, 18:00, 21:30.
 TIMES = [450.0, 750.0, 1080.0, 1290.0]
+# The shipped holds (design 2a): night 21:30 + 480 min -> 05:30, then a 120 min ramp to 07:30.
+HOLDS = [0.0, 0.0, 0.0, 480.0]
 # pitch yaw lux kelvin sky fog fog_height_falloff exposure_bias volumetric (lighting_presets.json values)
 KEYS = {
     "overcast_morning": (-35.0, 110.0, 2.5, 6500.0, 1.4, 0.035, 0.15, 0.3, 0),
@@ -91,7 +94,7 @@ def ref_wrap(m: float) -> float:
     return 0.0 if r >= 1440.0 else r
 
 
-def ref_find(t: float, times: list[float]) -> tuple[int, int, float]:
+def ref_find(t: float, times: list[float], holds: list[float] | None = None) -> tuple[int, int, float]:
     t = ref_wrap(t)
     n = len(times)
     if n == 1:
@@ -101,7 +104,10 @@ def ref_find(t: float, times: list[float]) -> tuple[int, int, float]:
     nxt = (prev + 1) % n
     width = (times[nxt] - times[prev]) % 1440.0
     elapsed = (t - times[prev]) % 1440.0
-    return prev, nxt, min(max(elapsed / width, 0.0), 1.0)
+    hold = holds[prev] if holds else 0.0
+    if elapsed < hold:
+        return prev, nxt, 0.0  # held: the keyframe's own state
+    return prev, nxt, min(max((elapsed - hold) / (width - hold), 0.0), 1.0)
 
 
 def ref_yaw(a: float, b: float, alpha: float) -> float:
@@ -239,7 +245,7 @@ def _times_arg(times: list[float]) -> str:
         (0, 3, 0, 150 / 600, 3),  # midnight
         (30, 3, 0, 180 / 600, 3),  # 00:30 after midnight
         (449.999, 3, 0, 599.999 / 600, 0),
-        (1590, 3, 0, 300 / 600, 0),  # 1590 wraps to 02:30 = the night -> morning midpoint
+        (1590, 3, 0, 300 / 600, 0),  # 1590 wraps to 02:30 = the night -> morning midpoint (no holds here)
     ],
 )
 def test_find_keyframes_table(driver, minutes, prev, nxt, alpha, nearest):
@@ -255,6 +261,121 @@ def test_find_keyframes_degenerate(driver):
     assert rows[1][:3] == ["0", "0", "0"]
     assert rows[2][:2] == ["1", "0"] and float(rows[2][2]) == pytest.approx(280 / 720)
     assert rows[3][:3] == ["0", "1", "0"]
+    assert [r[4] for r in rows] == ["0", "0", "0", "0"]  # no holds -> never held
+
+
+def _holds_arg(times: list[float], holds: list[float]) -> str:
+    return f"{len(times)} " + " ".join(f"{t!r}" for t in times) + " " + " ".join(f"{h!r}" for h in holds)
+
+
+# ---- design 2a: keyframe holds -------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("minutes", "prev", "nxt", "alpha", "nearest", "held"),
+    [
+        (1290, 3, 0, 0.0, 3, 1),  # night keyframe time: the hold starts
+        (1390, 3, 0, 0.0, 3, 1),  # 23:10 inside the hold
+        (1439.999, 3, 0, 0.0, 3, 1),
+        (0, 3, 0, 0.0, 3, 1),  # midnight inside the hold (it wraps past 00:00)
+        (30, 3, 0, 0.0, 3, 1),
+        (150, 3, 0, 0.0, 3, 1),  # 02:30 = midpoint of the whole 21:30 -> 07:30 span: still held (night)
+        (329.999, 3, 0, 0.0, 3, 1),  # just before the hold end
+        (330, 3, 0, 0.0, 3, 0),  # hold end 05:30 = ramp start: alpha 0, not held
+        (330.5, 3, 0, 0.5 / 120, 3, 0),
+        (389.999, 3, 0, 59.999 / 120, 3, 0),
+        (390, 3, 0, 0.5, 0, 0),  # 06:30 ramp midpoint: nearest turns to overcast_morning
+        (449.999, 3, 0, 119.999 / 120, 0, 0),
+        (450, 0, 1, 0.0, 0, 0),  # overcast_morning (no hold): the old spans are unchanged
+        (600, 0, 1, 0.5, 1, 0),
+        (1185, 2, 3, 0.5, 3, 0),
+        (1289.9, 2, 3, 209.9 / 210, 3, 0),
+        (1770, 3, 0, 0.0, 3, 0),  # 1770 wraps to 05:30
+    ],
+)
+def test_find_keyframes_with_the_shipped_night_hold(driver, minutes, prev, nxt, alpha, nearest, held):
+    (row,) = run(driver, [f"findh {minutes!r} {_holds_arg(TIMES, HOLDS)}"])
+    assert (int(row[0]), int(row[1])) == (prev, nxt)
+    assert float(row[2]) == pytest.approx(alpha, abs=1e-12)
+    assert (int(row[3]), int(row[4])) == (nearest, held)
+    # The Python mirror (lighting_presets.find_keyframes) and the independent reference agree.
+    p_prev, p_next, p_alpha, p_held = lp.find_keyframes(minutes, TIMES, HOLDS)
+    assert (p_prev, p_next, int(p_held)) == (prev, nxt, held)
+    assert p_alpha == pytest.approx(alpha, abs=1e-12)
+    assert ref_find(minutes, TIMES, HOLDS) == (prev, nxt, pytest.approx(alpha, abs=1e-12))
+
+
+def test_find_keyframes_hold_edge_cases(driver):
+    rows = run(
+        driver,
+        [
+            "findh 100 1 450 1000",  # one keyframe held 07:30 -> 00:10 (wraps): 01:40 is outside
+            "findh 460 1 450 1000",
+            "findh 500 2 450 750 nan 0",  # an invalid hold counts as 0
+            "findh 500 2 450 750 -5 0",
+            "findh 500 2 450 750 0 0",
+        ],
+    )
+    assert [r[4] for r in rows[:2]] == ["0", "1"] and all(r[:3] == ["0", "0", "0"] for r in rows[:2])
+    assert rows[2] == rows[3] == rows[4]
+    assert lp.find_keyframes(460, [450.0], [1000.0]) == (0, 0, 0.0, True)
+    no_holds = lp.find_keyframes(500, [450.0, 750.0])
+    assert lp.find_keyframes(500, [450.0, 750.0], [float("nan"), 0.0]) == no_holds
+    assert lp.find_keyframes(500, []) == (-1, -1, 0.0, False)
+
+
+def test_find_keyframes_with_holds_random_against_python(driver):
+    rng = random.Random(480)
+    cases = []
+    for _ in range(400):
+        n = rng.randint(2, 6)
+        times = [float(t) for t in sorted(rng.sample(range(0, 1440), n))]
+        gaps = [(times[(i + 1) % n] - times[i]) % 1440.0 or 1440.0 for i in range(n)]
+        holds = [0.0 if rng.random() < 0.3 else rng.uniform(0.0, gap - 1e-6) for gap in gaps]
+        cases.append((rng.uniform(-3000, 4000), times, holds))
+    rows = run(driver, [f"findh {m!r} {_holds_arg(t, h)}" for m, t, h in cases])
+    for (m, times, holds), row in zip(cases, rows, strict=True):
+        prev, nxt, alpha = ref_find(m, times, holds)
+        assert (int(row[0]), int(row[1])) == (prev, nxt), (m, times, holds)
+        assert float(row[2]) == pytest.approx(alpha, abs=1e-9), (m, times, holds)
+        assert int(row[3]) == (prev if alpha < 0.5 else nxt)
+        p_prev, p_next, p_alpha, p_held = lp.find_keyframes(m, times, holds)
+        assert (p_prev, p_next, int(p_held)) == (prev, nxt, int(row[4])), (m, times, holds)
+        assert p_alpha == pytest.approx(float(row[2]), abs=1e-12)
+
+
+@pytest.mark.parametrize(
+    ("holds", "result", "index"),
+    [
+        ([0, 0, 0, 480], 0, -1),  # the shipped holds
+        ([0, 0, 0, 0], 0, -1),
+        ([0, 0, 0, 599.5], 0, -1),  # the last hold may cross 00:00 while it ends before 07:30
+        ([299.99, 329, 209, 0], 0, -1),
+        ([0, 0, 0, 600], 2, 3),  # 21:30 + 600 = 07:30 = overcast_morning: not strictly before
+        ([0, 0, 0, 1000], 2, 3),
+        ([300, 0, 0, 0], 2, 0),  # 07:30 + 300 = 12:30 = clear_noon
+        ([0, 330, 0, 0], 2, 1),
+        ([0, 0, 210, 0], 2, 2),
+        ([0, -1, 0, 0], 1, 1),  # negative
+        ([0, 0, "nan", 0], 1, 2),  # not finite
+        ([0, 0, 0, "inf"], 1, 3),
+        (["-inf", 0, 0, 0], 1, 0),
+    ],
+)
+def test_check_keyframe_holds_table(driver, holds, result, index):
+    (row,) = run(driver, [f"holds 4 {' '.join(repr(t) for t in TIMES)} {' '.join(str(h) for h in holds)}"])
+    assert row == [str(result), str(index)]
+    assert lp.check_keyframe_holds(TIMES, [float(h) for h in holds]) == (result, index)
+
+
+def test_hold_validity_and_end(driver):
+    values = ["0", "480", "0.5", "-0.001", "-1", "nan", "inf", "-inf"]
+    got = [int(v) for v in floats(driver, [f"hold {v}" for v in values])]
+    assert got == [1, 1, 1, 0, 0, 0, 0, 0]
+    assert [int(lp.is_valid_hold(float(v))) for v in values] == got
+    assert not lp.is_valid_hold(True) and not lp.is_valid_hold("480")
+    ends = floats(driver, ["holdend 1290 480", "holdend 1290 150", "holdend 450 0"])
+    assert ends == [pytest.approx(330.0), pytest.approx(0.0), pytest.approx(450.0)]
 
 
 def test_find_keyframes_random_against_python(driver):

@@ -32,6 +32,8 @@ CYCLE_TIMES = {
     "golden_evening": "18:00",
     "night": "21:30",
 }
+# WP-14a design 2a: only night carries a hold (21:30 + 480 min = 05:30, then a 2 h ramp to 07:30).
+CYCLE_HOLDS = {"night": 480}
 
 # Values of unreal/Golmok/Content/Python/golmok/lighting.py PRESETS at the WP-04 commit (regression guard).
 WP04_PRESETS = {
@@ -67,7 +69,7 @@ def test_cycle_presets_are_complete_and_in_range(raw):
     assert raw["cycle"] == CYCLE
     for name in CYCLE:
         p = raw["presets"][name]
-        assert set(p) == {*lp.REQUIRED_KEYS, lp.TIME_KEY}, name
+        assert set(p) - {lp.HOLD_KEY} == {*lp.REQUIRED_KEYS, lp.TIME_KEY}, name
         assert isinstance(p["volumetric"], bool), name
         for key in lp.RANGES:
             assert isinstance(p[key], int | float) and not isinstance(p[key], bool), (name, key)
@@ -78,7 +80,7 @@ def test_preset_names_and_keys(raw):
     assert set(raw["presets"]) == set(CYCLE) | {INTERIOR}
     for name, p in raw["presets"].items():
         assert lp.NAME_RE.match(name), name
-        allowed = {*lp.REQUIRED_KEYS, lp.TIME_KEY}
+        allowed = {*lp.REQUIRED_KEYS, lp.TIME_KEY, lp.HOLD_KEY}
         assert set(p) <= allowed, (name, set(p) - allowed)
 
 
@@ -93,9 +95,9 @@ def test_interior_is_a_partial_overlay(raw):
 
 
 def test_cycle_values_equal_wp04_lighting_py(raw):
-    # WP-14a only adds "time": every lighting value stays what WP-04 shipped.
+    # WP-14a only adds "time" / "hold_minutes": every lighting value stays what WP-04 shipped.
     for name, expected in WP04_PRESETS.items():
-        values = {k: v for k, v in raw["presets"][name].items() if k != lp.TIME_KEY}
+        values = {k: v for k, v in raw["presets"][name].items() if k not in (lp.TIME_KEY, lp.HOLD_KEY)}
         assert values == expected, name
 
 
@@ -111,6 +113,43 @@ def test_cycle_keyframe_times(raw):
     ]
     minutes = [m for _, m in lp.keyframes(cycle, presets)]
     assert minutes == sorted(set(minutes))  # strictly increasing in cycle order
+
+
+def test_cycle_keyframe_holds(raw):
+    # WP-14a design 2a: night is held 21:30 -> 05:30 (480 min), the other keyframes have no hold key at all.
+    held = {n: raw["presets"][n][lp.HOLD_KEY] for n in CYCLE if lp.HOLD_KEY in raw["presets"][n]}
+    assert held == CYCLE_HOLDS
+    hold = raw["presets"]["night"][lp.HOLD_KEY]
+    assert isinstance(hold, int | float) and not isinstance(hold, bool)
+    assert lp.HOLD_KEY not in raw["presets"][INTERIOR]
+    cycle, presets = lp.load_presets()
+    assert lp.holds(cycle, presets) == [0.0, 0.0, 0.0, 480.0]
+    assert lp.format_hhmm(1290 + 480) == "05:30"
+    times = [float(m) for _, m in lp.keyframes(cycle, presets)]
+    assert lp.check_keyframe_holds(times, lp.holds(cycle, presets)) == (0, -1)
+    # Inside the hold the clock state is night; the ramp starts at 05:30 and reaches its midpoint at 06:30.
+    assert lp.describe_hold(1390, cycle, presets) == "night 23:10 hold until 05:30"
+    assert lp.describe_hold(30, cycle, presets) == "night 00:30 hold until 05:30"
+    assert lp.describe_hold(1290, cycle, presets) == "night 21:30 hold until 05:30"
+    assert lp.describe_hold(330, cycle, presets) is None  # hold end = ramp start
+    assert lp.describe_hold(1289.9, cycle, presets) is None and lp.describe_hold(750, cycle, presets) is None
+    assert lp.find_keyframes(390, times, lp.holds(cycle, presets)) == (3, 0, 0.5, False)
+
+
+@pytest.mark.parametrize(
+    ("preset", "hold"),
+    [
+        ("night", 0),
+        ("night", 0.0),
+        ("night", 599.5),  # 21:30 + 599.5 = 07:29:30, still before overcast_morning 07:30 (wraps past 00:00)
+        ("clear_noon", 329),  # 12:30 + 329 = 17:59 < golden_evening 18:00
+        ("overcast_morning", 299.99),
+    ],
+)
+def test_parse_presets_accepts_holds_before_the_next_keyframe(raw, preset, hold):
+    cycle, presets = lp.parse_presets(_mutated(raw, _hold(preset, hold)))
+    assert presets[preset][lp.HOLD_KEY] == hold
+    assert lp.holds(cycle, presets)[cycle.index(preset)] == float(hold)
 
 
 def test_load_presets_returns_the_file_content(raw):
@@ -138,6 +177,10 @@ def _top(key: str, value):
     return lambda d: d.__setitem__(key, value)
 
 
+def _hold(preset: str, value):
+    return _set(preset, lp.HOLD_KEY, value)
+
+
 @pytest.mark.parametrize(
     ("mutate", "words"),
     [
@@ -158,6 +201,24 @@ def _top(key: str, value):
             _set("golden_evening", "time", "12:00"), ["increase", "golden_evening"], id="time-reverse"
         ),
         pytest.param(_set(INTERIOR, "time", "12:00"), [INTERIOR, "time"], id="interior-time"),
+        pytest.param(
+            _hold("night", 600),
+            ["night", "hold_minutes 600 runs to 07:30", "next keyframe overcast_morning 07:30"],
+            id="hold-overlaps-next-across-midnight",
+        ),
+        pytest.param(_hold("night", 700), ["night", "hold_minutes", "overcast_morning"], id="hold-past-next"),
+        pytest.param(
+            _hold("clear_noon", 330),
+            ["clear_noon", "hold_minutes 330 runs to 18:00", "next keyframe golden_evening 18:00"],
+            id="hold-overlaps-next",
+        ),
+        pytest.param(_hold("night", -1), ["night", "hold_minutes", ">= 0"], id="hold-negative"),
+        pytest.param(_hold("night", float("inf")), ["night", "hold_minutes", "finite"], id="hold-infinite"),
+        pytest.param(_hold("night", float("nan")), ["night", "hold_minutes", "finite"], id="hold-nan"),
+        pytest.param(_hold("night", "480"), ["night", "hold_minutes", "number"], id="hold-string"),
+        pytest.param(_hold("night", True), ["night", "hold_minutes", "number"], id="hold-bool"),
+        pytest.param(_hold(INTERIOR, 10), [INTERIOR, "hold_minutes"], id="interior-hold"),
+        pytest.param(_hold(INTERIOR, 0), [INTERIOR, "hold_minutes"], id="interior-hold-zero"),
         pytest.param(
             _top("cycle", ["dawn", "clear_noon", "golden_evening", "night"]), ["dawn"], id="cycle-unknown"
         ),
@@ -191,7 +252,7 @@ def test_parse_presets_rejects_non_object_root():
 
 def test_cpp_loader_uses_the_same_keys():
     text = TIME_OF_DAY_CPP.read_text(encoding="utf-8")
-    for key in (*lp.REQUIRED_KEYS, lp.TIME_KEY, "cycle", "presets", "schema_version"):
+    for key in (*lp.REQUIRED_KEYS, lp.TIME_KEY, lp.HOLD_KEY, "cycle", "presets", "schema_version"):
         assert f'TEXT("{key}")' in text, f'GolmokTimeOfDay.cpp: missing TEXT("{key}")'
     assert "FJsonSerializer::Deserialize" in text
     assert 'TEXT("interior")' in text  # the interior preset rules (fog == 0, exposure_bias > 0, not in cycle)

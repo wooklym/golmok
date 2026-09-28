@@ -7,7 +7,8 @@
 // Golmok.Lighting.Clock (WP-14a design section 7): keyframe times reproduce the presets, a time between keyframes is
 // the GolmokClockMath interpolation (checked against the formula here), midnight wrap, mode / rate changes, the
 // OnPresetChanged midpoint contract and OnNightChanged, ApplyPreset moving the clock, the Fixed-mode PresetApply
-// sequence, and the interior overlay returning to the clock state.
+// sequence, and the interior overlay returning to the clock state. Design 2a: inside the night hold (21:30 -> 05:30)
+// the state is the night preset and IsNight() holds; the ramp to 07:30 fires OnPresetChanged once at 06:30.
 // All pass under -nullrhi (no rendering is inspected).
 //
 // Headless: .\tools\ue\test.ps1 -Filter Golmok.Lighting   (or in the editor console: Automation RunTests Golmok.Lighting)
@@ -37,14 +38,18 @@ namespace GolmokLightingTest
 	const TCHAR* CompleteBody = TEXT("\"pitch\": -35.0, \"yaw\": 110.0, \"lux\": 2.5, \"kelvin\": 6500.0, \"sky\": 1.4, ")
 								 TEXT("\"fog\": 0.035, \"fog_height_falloff\": 0.15, \"volumetric\": false, \"exposure_bias\": 0.3");
 
-	/** Cycle a b c d at 07:30 / TimeB / 18:00 / 21:30 (schema 2); TimeB empty = b has no time; InteriorExtra is spliced into interior. */
-	FString MakeJson(int32 SchemaVersion, const TCHAR* InteriorFog, const TCHAR* TimeB = TEXT("12:30"), const TCHAR* InteriorExtra = TEXT(""))
+	/**
+	 * Cycle a b c d at 07:30 / TimeB / 18:00 / 21:30 (schema 2); TimeB empty = b has no time; InteriorExtra is spliced
+	 * into interior, ExtraD into d (the last keyframe: its hold wraps past midnight to a at 07:30, design 2a).
+	 */
+	FString MakeJson(int32 SchemaVersion, const TCHAR* InteriorFog, const TCHAR* TimeB = TEXT("12:30"), const TCHAR* InteriorExtra = TEXT(""),
+		const TCHAR* ExtraD = TEXT(""))
 	{
 		const FString TimeBKey = FString(TimeB).IsEmpty() ? FString() : FString::Printf(TEXT("\"time\": \"%s\", "), TimeB);
 		return FString::Printf(TEXT("{\"schema_version\": %d, \"cycle\": [\"a\", \"b\", \"c\", \"d\"], \"presets\": {")
-								   TEXT("\"a\": {\"time\": \"07:30\", %s}, \"b\": {%s%s}, \"c\": {\"time\": \"18:00\", %s}, \"d\": {\"time\": \"21:30\", %s}, ")
+								   TEXT("\"a\": {\"time\": \"07:30\", %s}, \"b\": {%s%s}, \"c\": {\"time\": \"18:00\", %s}, \"d\": {\"time\": \"21:30\", %s%s}, ")
 								   TEXT("\"interior\": {%s\"fog\": %s, \"fog_height_falloff\": 0.2, \"volumetric\": false, \"exposure_bias\": 1.0}}}"),
-			SchemaVersion, CompleteBody, *TimeBKey, CompleteBody, CompleteBody, CompleteBody, InteriorExtra, InteriorFog);
+			SchemaVersion, CompleteBody, *TimeBKey, CompleteBody, CompleteBody, ExtraD, CompleteBody, InteriorExtra, InteriorFog);
 	}
 
 	const FGolmokLightingPreset* FindPreset(const TArray<FGolmokLightingPreset>& Presets, const TCHAR* Name)
@@ -408,12 +413,19 @@ namespace GolmokLightingTest
 				Test->TestEqual(TEXT("09:00 nearest overcast_morning"), Tod->CurrentPreset.ToString(), FString(TEXT("overcast_morning")));
 				Test->TestFalse(TEXT("instant SetTimeOfDay leaves no transition"), Tod->IsTransitioning());
 
-				// 3. Midnight: the night -> overcast_morning span is 600 min wide (21:30 -> 07:30).
+				// 3. Midnight lies inside the night hold (design 2a): night 21:30 is held 480 min to 05:30, then a 120 min
+				//    ramp reaches overcast_morning at 07:30.
+				Test->TestTrue(TEXT("night hold_minutes == 480"), Night.bHasHold && Night.HoldMinutes == 480.0);
+				Test->TestTrue(TEXT("overcast_morning has no hold"), !Morning.bHasHold && Morning.HoldMinutes == 0.0);
 				Tod->SetTimeOfDay(30.f, true);
-				CheckState(*Tod, ExpectedBetween(Night, Morning, 180.0 / 600.0), TEXT("00:30"));
+				CheckState(*Tod, ExpectedBetween(Night, Night, 0.0), TEXT("00:30 (night hold)"));
 				Test->TestEqual(TEXT("00:30 nearest night"), Tod->CurrentPreset.ToString(), FString(TEXT("night")));
+				Test->TestTrue(TEXT("00:30 inside the hold is night"), Tod->IsNight());
 				Tod->SetTimeOfDay(1380.f, true);
-				CheckState(*Tod, ExpectedBetween(Night, Morning, 90.0 / 600.0), TEXT("23:00"));
+				CheckState(*Tod, ExpectedBetween(Night, Night, 0.0), TEXT("23:00 (night hold)"));
+				Tod->SetTimeOfDay(390.f, true);
+				CheckState(*Tod, ExpectedBetween(Night, Morning, 0.5), TEXT("06:30 (ramp midpoint)"));
+				Test->TestEqual(TEXT("06:30 nearest overcast_morning (ramp midpoint)"), Tod->CurrentPreset.ToString(), FString(TEXT("overcast_morning")));
 
 				// 4. Shortest arc: golden_evening 265 -> night 0 passes 312.5 at the midpoint (19:45), volumetric = next.
 				Tod->SetTimeOfDay(1185.f, true);
@@ -445,7 +457,8 @@ namespace GolmokLightingTest
 				Test->TestEqual(TEXT("CurrentPreset follows the nearest keyframe"), Tod->CurrentPreset.ToString(), FString(TEXT("clear_noon")));
 				CheckState(*Tod, ExpectedBetween(Morning, Noon, 151.5 / 300.0), TEXT("clock 10:01.5"));
 
-				// 7. OnNightChanged at lux < 0.1 (golden_evening -> night: after 21:24:45) and back.
+				// 7. OnNightChanged at lux < 0.1 (golden_evening -> night: after 21:24:45), kept through the night hold,
+				//    and back on the ramp after 05:34:48 (lux 2.5 x alpha >= 0.1).
 				Tod->SetTimeOfDay(1284.f, true);
 				Test->TestFalse(TEXT("21:24 is not night yet (lux 0.114)"), Tod->IsNight());
 				ResetEvents();
@@ -459,9 +472,42 @@ namespace GolmokLightingTest
 					Tod->SetTimeOfDay(1289.9f, true); // lux 0.0019
 					Test->TestFalse(TEXT("sun hidden at lux 0.0019 on the clock (<= 0.01)"), SunLight->GetVisibleFlag());
 				}
-				Tod->SetTimeOfDay(1320.f, true); // 22:00, lux 0.125
+				Tod->SetTimeOfDay(1320.f, true); // 22:00 inside the night hold, lux 0
+				Test->TestEqual(TEXT("22:00 inside the hold: no OnNightChanged"), NightEvents, 1);
+				Test->TestTrue(TEXT("22:00 inside the hold is night"), Tod->IsNight());
+				if (UDirectionalLightComponent* SunLight = SunComponent(World))
+				{
+					Test->TestFalse(TEXT("sun hidden inside the night hold"), SunLight->GetVisibleFlag());
+				}
+				Tod->SetTimeOfDay(340.f, true); // 05:40 on the ramp, lux 0.208
 				Test->TestEqual(TEXT("OnNightChanged again"), NightEvents, 2);
 				Test->TestFalse(TEXT("OnNightChanged(false)"), bLastNight || Tod->IsNight());
+				Test->TestEqual(TEXT("05:40 nearest night (before the 06:30 ramp midpoint)"), Tod->CurrentPreset.ToString(), FString(TEXT("night")));
+
+				// 7b. Night hold on the running clock (design 2a): no OnPresetChanged at 02:30 (the old midpoint of the
+				//     whole span) or at the hold end 05:30; exactly one, to overcast_morning, at the ramp midpoint 06:30.
+				Tod->ClockMinutesPerRealSecond = 1.f;
+				Tod->SetTimeOfDay(149.f, true); // 02:29
+				ResetEvents();
+				Tod->AdvanceClock(2.0); // 02:31
+				Test->TestEqual(TEXT("no OnPresetChanged at 02:30 inside the hold"), PresetEvents, 0);
+				CheckState(*Tod, ExpectedBetween(Night, Night, 0.0), TEXT("clock 02:31 (night hold)"));
+				Test->TestTrue(TEXT("02:31 inside the hold is night"), Tod->IsNight() && Tod->CurrentPreset == FName(TEXT("night")));
+				Tod->SetTimeOfDay(329.f, true); // 05:29
+				Tod->AdvanceClock(0.5); // 05:29.5, still held
+				CheckState(*Tod, ExpectedBetween(Night, Night, 0.0), TEXT("clock 05:29.5 (night hold)"));
+				Tod->AdvanceClock(1.0); // 05:30.5, the ramp has started
+				CheckState(*Tod, ExpectedBetween(Night, Morning, 0.5 / 120.0), TEXT("clock 05:30.5 (ramp start)"));
+				Test->TestEqual(TEXT("no OnPresetChanged at the hold end"), PresetEvents, 0);
+				Tod->SetTimeOfDay(389.f, true); // 06:29
+				Tod->AdvanceClock(0.5); // 06:29.5
+				Test->TestEqual(TEXT("no OnPresetChanged before the ramp midpoint"), PresetEvents, 0);
+				Tod->AdvanceClock(1.0); // 06:30.5
+				Tod->AdvanceClock(1.0); // 06:31.5
+				Test->TestEqual(TEXT("OnPresetChanged exactly once across the ramp midpoint"), PresetEvents, 1);
+				Test->TestEqual(TEXT("... to overcast_morning"), LastPreset.ToString(), FString(TEXT("overcast_morning")));
+				Test->TestFalse(TEXT("... with bInstant false"), bLastInstant);
+				CheckState(*Tod, ExpectedBetween(Night, Morning, 61.5 / 120.0), TEXT("clock 06:31.5 (ramp)"));
 
 				// 8. Rate and midnight wrap on the clock.
 				Tod->ClockMinutesPerRealSecond = 10.f;
@@ -718,11 +764,14 @@ bool FGolmokLightingPresetsFileTest::RunTest(const FString& Parameters)
 		TestEqual(TEXT("cycle[0]"), Cycle[0].ToString(), FString(TEXT("overcast_morning")));
 		TestEqual(TEXT("cycle[3]"), Cycle[3].ToString(), FString(TEXT("night")));
 		const double Times[] = {450.0, 750.0, 1080.0, 1290.0}; // 07:30 12:30 18:00 21:30
+		const double Holds[] = {0.0, 0.0, 0.0, 480.0}; // design 2a: night held 21:30 -> 05:30
 		for (int32 i = 0; i < 4; ++i)
 		{
 			const FGolmokLightingPreset* P = FindPreset(Presets, *Cycle[i].ToString());
 			TestTrue(FString::Printf(TEXT("%s has a keyframe time"), *Cycle[i].ToString()), P && P->bHasTime);
 			TestTrue(FString::Printf(TEXT("%s time == %g"), *Cycle[i].ToString(), Times[i]), P && P->TimeMinutes == Times[i]);
+			TestTrue(FString::Printf(TEXT("%s hold_minutes == %g"), *Cycle[i].ToString(), Holds[i]),
+				P && P->HoldMinutes == Holds[i] && P->bHasHold == (Holds[i] > 0.0));
 		}
 	}
 	if (const FGolmokLightingPreset* Morning = FindPreset(Presets, TEXT("overcast_morning")))
@@ -741,6 +790,7 @@ bool FGolmokLightingPresetsFileTest::RunTest(const FString& Parameters)
 		TestTrue(TEXT("interior.Fog == 0"), Interior->Fog == 0.0);
 		TestFalse(TEXT("interior is not complete"), Interior->IsComplete());
 		TestFalse(TEXT("interior has no keyframe time"), Interior->bHasTime);
+		TestFalse(TEXT("interior has no hold"), Interior->bHasHold);
 	}
 	else
 	{
@@ -770,6 +820,28 @@ bool FGolmokLightingPresetsFileTest::RunTest(const FString& Parameters)
 	TestFalse(TEXT("interior time fails"),
 		AGolmokTimeOfDay::ParsePresetsText(MakeJson(2, TEXT("0.0"), TEXT("12:30"), TEXT("\"time\": \"12:00\", ")), Bad, BadCycle, BadError));
 	TestTrue(TEXT("interior time error names preset and key"), BadError.Contains(TEXT("preset interior")) && BadError.Contains(TEXT("time")));
+	// WP-14a design 2a: hold_minutes on a cycle keyframe ends strictly before the next keyframe (d wraps to a at 07:30).
+	TestTrue(TEXT("d hold 599 (to 07:29) parses"),
+		AGolmokTimeOfDay::ParsePresetsText(MakeJson(2, TEXT("0.0"), TEXT("12:30"), TEXT(""), TEXT("\"hold_minutes\": 599, ")), Bad, BadCycle, BadError));
+	const FGolmokLightingPreset* HeldD = FindPreset(Bad, TEXT("d"));
+	TestTrue(TEXT("d hold 599 is read"), HeldD && HeldD->bHasHold && HeldD->HoldMinutes == 599.0);
+	TestFalse(TEXT("d hold 600 (to a 07:30) fails"),
+		AGolmokTimeOfDay::ParsePresetsText(MakeJson(2, TEXT("0.0"), TEXT("12:30"), TEXT(""), TEXT("\"hold_minutes\": 600, ")), Bad, BadCycle, BadError));
+	TestTrue(FString::Printf(TEXT("hold overlap error names preset, key and next keyframe: %s"), *BadError),
+		BadError.Contains(TEXT("preset d")) && BadError.Contains(TEXT("hold_minutes 600 runs to 07:30")) && BadError.Contains(TEXT("next keyframe a 07:30")));
+	TestFalse(TEXT("negative hold fails"),
+		AGolmokTimeOfDay::ParsePresetsText(MakeJson(2, TEXT("0.0"), TEXT("12:30"), TEXT(""), TEXT("\"hold_minutes\": -1, ")), Bad, BadCycle, BadError));
+	TestTrue(TEXT("negative hold error names preset and key"), BadError.Contains(TEXT("preset d")) && BadError.Contains(TEXT("hold_minutes")));
+	TestFalse(TEXT("non-finite hold (1e999) fails"),
+		AGolmokTimeOfDay::ParsePresetsText(MakeJson(2, TEXT("0.0"), TEXT("12:30"), TEXT(""), TEXT("\"hold_minutes\": 1e999, ")), Bad, BadCycle, BadError));
+	TestFalse(TEXT("non-finite hold has an error message"), BadError.IsEmpty());
+	TestFalse(TEXT("string hold fails"),
+		AGolmokTimeOfDay::ParsePresetsText(MakeJson(2, TEXT("0.0"), TEXT("12:30"), TEXT(""), TEXT("\"hold_minutes\": \"480\", ")), Bad, BadCycle, BadError));
+	TestTrue(TEXT("string hold error"), BadError.Contains(TEXT("preset d")) && BadError.Contains(TEXT("hold_minutes must be a number")));
+	TestFalse(TEXT("interior hold fails"),
+		AGolmokTimeOfDay::ParsePresetsText(MakeJson(2, TEXT("0.0"), TEXT("12:30"), TEXT("\"hold_minutes\": 10, ")), Bad, BadCycle, BadError));
+	TestTrue(TEXT("interior hold error names preset and key"),
+		BadError.Contains(TEXT("preset interior")) && BadError.Contains(TEXT("hold_minutes is only allowed on cycle presets")));
 	return true;
 }
 

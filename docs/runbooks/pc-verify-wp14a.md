@@ -6,16 +6,18 @@
 
 **14b 전 정상인 것**: night 프리셋은 WP-05 값 그대로(태양 lux 0) — night 근처 시각의 화면이 매우 어둡거나 검정인 것은 결함이 아니다(V-03 메모, 14b look-dev 항목). 이 런북은 **시각·보간·모드·이벤트가 맞는지**만 본다.
 
+**설계 보완 §2a(2026-09-28)**: night 키프레임은 `"hold_minutes": 480` — 21:30부터 **05:30까지 night 그대로 유지**되고 05:30 → 07:30 두 시간 램프로 overcast_morning이 된다. 가장 가까운 키프레임 이름 night는 19:45~**06:30**(램프 중점).
+
 ## 0. 바뀐 파일
 
 | 파일 | 내용 |
 |---|---|
-| `Source/Golmok/Lighting/GolmokClockMath.h` (새) | 엔진 헤더 없는 순수 규칙: `WrapMinutes`, `ParseHHMM`/`FormatHHMM`, `FindKeyframes`(자정 넘김), `LerpYawShortest`, `Interpolate`(yaw 최단 호·나머지 선형·volumetric alpha<0.5면 prev), `IsSunVisible`(lux > 0.01), `IsNight`, `CheckKeyframeOrder`. g++ 교차검증 `tools/tests/test_ue_clock_math.py` |
-| `Source/Golmok/Lighting/GolmokTimeOfDay.{h,cpp}` | `EGolmokClockMode { Fixed, Clock, Realtime }`, Config `TimeOfDayMinutes`(450)·`ClockMode`(Fixed)·`ClockMinutesPerRealSecond`(0.5)·`RealtimeOffsetMinutes`(0)·`NightLuxThreshold`(0.1) — **ini 변경 없음**. `SetTimeOfDay/GetTimeOfDayMinutes/SetClockMode/GetClockMode/IsNight/AdvanceClock/EvaluateClock/DescribeClock`, 델리게이트 `OnNightChanged(bool)`. 파서 schema 2(`time`). 콘솔 `golmok.tod time/mode/rate/status`. `Photo/GolmokPhotoModeSubsystem.h` include(Realtime이 `IsActiveIn`으로 포토 모드를 본다 — Photo 코드 수정 없음) |
+| `Source/Golmok/Lighting/GolmokClockMath.h` (새) | 엔진 헤더 없는 순수 규칙: `WrapMinutes`, `ParseHHMM`/`FormatHHMM`, `FindKeyframes`(자정 넘김·유지 구간 `bHeld`), `LerpYawShortest`, `Interpolate`(yaw 최단 호·나머지 선형·volumetric alpha<0.5면 prev), `IsSunVisible`(lux > 0.01), `IsNight`, `CheckKeyframeOrder`, `IsValidHold`·`HoldEnd`·`CheckKeyframeHolds`(§2a). g++ 교차검증 `tools/tests/test_ue_clock_math.py` |
+| `Source/Golmok/Lighting/GolmokTimeOfDay.{h,cpp}` | `EGolmokClockMode { Fixed, Clock, Realtime }`, Config `TimeOfDayMinutes`(450)·`ClockMode`(Fixed)·`ClockMinutesPerRealSecond`(0.5)·`RealtimeOffsetMinutes`(0)·`NightLuxThreshold`(0.1) — **ini 변경 없음**. `SetTimeOfDay/GetTimeOfDayMinutes/SetClockMode/GetClockMode/IsNight/AdvanceClock/EvaluateClock/DescribeClock`, 델리게이트 `OnNightChanged(bool)`. 파서 schema 2(`time`, 선택 `hold_minutes`). 콘솔 `golmok.tod time/mode/rate/status`(유지 중이면 `status`에 `… hold until HH:MM`). `Photo/GolmokPhotoModeSubsystem.h` include(Realtime이 `IsActiveIn`으로 포토 모드를 본다 — Photo 코드 수정 없음) |
 | `Source/Golmok/Debug/GolmokDebugSubsystem.cpp` | HUD `tod:` 줄 끝에 `DescribeClock()`(한 줄) |
 | `Source/Golmok/Tests/GolmokLightingTest.cpp` | `Golmok.Lighting.PresetsFile` schema 2 반영, 새 `Golmok.Lighting.Clock` |
-| `Config/Golmok/lighting_presets.json` | `schema_version` 2, cycle 4개에 `time` 07:30 / 12:30 / 18:00 / 21:30. **조명 값은 한 글자도 안 바뀜** |
-| `Content/Python/golmok/lighting{,_presets}.py` | 파서 schema 2·`parse_hhmm`/`format_hhmm`/`keyframes`, `set_time`/`mode`/`status` |
+| `Config/Golmok/lighting_presets.json` | `schema_version` 2, cycle 4개에 `time` 07:30 / 12:30 / 18:00 / 21:30, night에 `hold_minutes` 480(§2a). **조명 값은 한 글자도 안 바뀜** |
+| `Content/Python/golmok/lighting{,_presets}.py` | 파서 schema 2·`hold_minutes`·`parse_hhmm`/`format_hhmm`/`keyframes`/`holds`/`find_keyframes`/`describe_hold`, `set_time`/`mode`/`status`(`status()`에 `"hold"`) |
 
 ## 1. 빌드
 
@@ -54,10 +56,18 @@ L_Dev PIE, F1로 HUD를 켠다.
 - [ ] `golmok.tod rate 10` → `LogGolmok: golmok.tod: rate 0.5 -> 10 min/s (mode fixed)`. `golmok.tod mode clock` → `LogGolmok: golmok.tod: mode fixed -> clock at 12:30`.
 - [ ] HUD가 `tod: clear_noon 12:30 clock x10`에서 1초에 10분씩 간다(하루 = 144 s). 약 2분 반 동안 지켜본다:
   - 태양이 **끊김 없이** 돌고 밝기·색이 이어진다(프리셋 사이 계단 없음). 18:00 근처 볼류메트릭 안개가 켜지는 순간(15:15, 12:30–18:00 중점)은 한 번 바뀌는 것이 정상.
-  - HUD 이름이 **중점에서** 바뀐다: 15:15 → `golden_evening`, 19:45 → `night`, 02:30 → `overcast_morning`, 10:00 → `clear_noon`.
-  - 21:25 무렵부터 night 구간은 어둡거나 검정(14b 전 정상). 태양은 lux ≤ 0.01인 21:29~21:32 사이에만 꺼지고(night 키프레임 lux 0 양옆) 그 밖에서 **깜빡이지 않는다**(가시성은 매 틱 lux > 0.01 한 규칙).
-  - 태양 yaw의 0°/360° 통과는 golden_evening(265°) → night(0°) 구간(19:45에 312.5°, 21:30에 0°)에서 최단 호로 튐 없이. 자정(23:59 → 00:00)은 night → overcast_morning 구간 안이라 yaw 약 27.5° → 110°로 계속 이어진다(튐 없음). 볼류메트릭 안개는 15:15에 켜지고 02:30(night → overcast_morning 중점)에 꺼진다.
-  - **설계상 알려진 모습(결함 아님, 14b 항목)**: 키프레임 4개 선형 보간이라 night(21:30, lux 0) → overcast_morning(07:30, lux 2.5) 600분 구간에서 lux가 곧바로 오른다 — `IsNight`(lux < 0.1)는 21:24:45~21:54만 참이고, 태양 pitch가 00:30에 0°를 지나 00:30~07:30은 지평선 위 약한 태양(03:00 lux 1.4)이 보인다. 저녁 쪽도 19:13 무렵 pitch 0°에서 lux 약 2.6(지평선 아래에서 비추는 빛). 밤 구간 유지·완화(night 유지 키프레임, smoothstep/EV 공간 보간)나 `IsNight` 정의는 14b look-dev 결정(WP 문서 결과 #15).
+  - HUD 이름이 **중점에서** 바뀐다: 15:15 → `golden_evening`, 19:45 → `night`, **06:30**(night 유지 뒤 램프 05:30 → 07:30의 중점) → `overcast_morning`, 10:00 → `clear_noon`. 02:30에는 바뀌지 않는다.
+  - 21:25 무렵부터 어둡거나 검정(14b 전 정상). 태양은 lux ≤ 0.01인 21:29 무렵부터 05:30 무렵까지 꺼져 있고(night 유지 구간 전체) 그 밖에서 **깜빡이지 않는다**(가시성은 매 틱 lux > 0.01 한 규칙).
+  - **night 유지(§2a)**: 21:30 → 05:30(rate 10이면 48 s) 동안 조명이 **night 프리셋 그대로 멈춰 있다**(어둡거나 검정, 태양 방향·안개·노출 변화 없음). 05:30부터 2시간(12 s) 램프로 밝아지고 07:30에 overcast_morning. 유지 중 `golmok.tod status` → `… | night HH:MM hold until 05:30 | current night | night yes | …`.
+  - 태양 yaw의 0°/360° 통과는 golden_evening(265°) → night(0°) 구간(19:45에 312.5°, 21:30에 0°)에서 최단 호로 튐 없이. 자정(23:59 → 00:00)은 night 유지 안이라 yaw 0° 그대로, 05:30 뒤 램프에서 0° → 110°(06:30에 55°). 볼류메트릭 안개는 15:15에 켜지고 06:30(램프 중점)에 꺼진다.
+  - **설계상 알려진 모습(결함 아님, 14b 항목)**: `IsNight`(lux < 0.1)는 21:24:45~05:34:48. 램프 05:30~06:06은 태양 pitch가 아직 0° 위(지평선 아래에서 비추는 빛, lux ≤ 0.75)이고, 저녁 쪽도 19:13 무렵 pitch 0°에서 lux 약 2.6(지평선 아래에서 비추는 빛). 램프 완화(smoothstep/EV 공간 보간)·night look은 14b look-dev 결정(WP 문서 결과 #15·#18).
+- [ ] **night 유지 확인(§2a)**: `golmok.tod rate 10`·`mode clock` 상태에서 `golmok.tod time 21:30` → 2 s 전환 뒤 05:30까지(약 48 s) 화면이 night 그대로 어둡다(점점 밝아지지 않는다). 05:30을 지나면 12 s에 걸쳐 서서히 밝아진다(07:30 overcast_morning). 유지 중 `golmok.tod status`는 그 순간 시각으로 `… alpha 0.00 | night HH:MM hold until 05:30 | current night | night yes | …`.
+  - 정확한 줄: `golmok.tod mode fixed` → `golmok.tod time 23:10` → 2 s 뒤 `golmok.tod status` →
+    ```
+    LogGolmok: golmok.tod: status 23:10 fixed rate 10 min/s | prev night 21:30 next overcast_morning 07:30 alpha 0.00 | night 23:10 hold until 05:30 | current night | night yes | interior off
+    ```
+    `golmok.tod time 06:00` 뒤 `status`는 `… alpha 0.25 | current night | night no | …`(유지 밖이라 `hold until` 없음, 램프 30/120).
+  - 에디터 Python(PIE 중) `import golmok.lighting as l; l.set_time("23:10")` 2 s 뒤 `l.status()` → `{'time': '23:10', 'mode': 'fixed', 'rate': 10.0, 'hold': 'night 23:10 hold until 05:30'}`, Output Log `golmok.lighting: status 23:10 fixed | night 23:10 hold until 05:30`(유지 밖이면 `'hold': None`, 로그 끝 ` | …` 없음).
 - [ ] 스크린샷(선택): 11:00·16:00·20:30 세 장 `pc-verify-wp14a-clock-*.jpg`.
 
 ## 4. 시각 점프 전환
@@ -85,7 +95,7 @@ L_Dev PIE, F1로 HUD를 켠다.
 
 ## 8. 오디오 낮/밤(V-10 뒤)
 
-- [ ] WP-13 임포트가 끝난 빌드에서 `golmok.tod mode clock`·`rate 10`: HUD 오디오 줄의 상태가 19:45(night 중점)에 `outdoor_night`, 02:30(overcast_morning 중점)에 `outdoor_day`로 바뀐다(`OnPresetChanged`가 중점에서 1회, Audio 코드 수정 없음). 포토·실내 규칙은 V-10 그대로.
+- [ ] WP-13 임포트가 끝난 빌드에서 `golmok.tod mode clock`·`rate 10`: HUD 오디오 줄의 상태가 19:45(night 중점)에 `outdoor_night`, 06:30(night 유지 뒤 램프 중점, §2a)에 `outdoor_day`로 바뀐다(`OnPresetChanged`가 중점에서 1회, Audio 코드 수정 없음). 포토·실내 규칙은 V-10 그대로.
 
 ## 9. 선택 ini 키(커밋하지 않음)
 
@@ -125,7 +135,7 @@ TimeOfDayMinutes=450
 |---|---|---|
 | §1 빌드 | | |
 | §2 자동화 3 / 29 | | |
-| §3 하루 순환 | | |
+| §3 하루 순환·night 유지(§2a) | | |
 | §4 점프·오류 줄 | | |
 | §5 realtime·포토 | | |
 | §6 Fixed 호환 | | |

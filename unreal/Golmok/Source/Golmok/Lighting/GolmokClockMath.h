@@ -1,7 +1,8 @@
 #pragma once
 
-// Pure time-of-day clock math (WP-14a design sections 1-3). No engine headers: AGolmokTimeOfDay uses it and
-// tools/tests/test_ue_clock_math.py compiles it with g++ (fixtures/ue/clockmath_driver.cpp) to pin the rules.
+// Pure time-of-day clock math (WP-14a design sections 1-3 and 2a, keyframe holds). No engine headers:
+// AGolmokTimeOfDay uses it and tools/tests/test_ue_clock_math.py compiles it with g++
+// (fixtures/ue/clockmath_driver.cpp) to pin the rules; golmok/lighting_presets.py mirrors the keyframe rules.
 
 #include <cmath>
 
@@ -110,12 +111,26 @@ namespace GolmokClockMath
 		return std::isfinite(Rate) && Rate > 0.0 && Rate <= MaxRate;
 	}
 
+	/** Design 2a: a keyframe "hold_minutes" is a finite number >= 0. */
+	inline bool IsValidHold(double Hold)
+	{
+		return std::isfinite(Hold) && Hold >= 0.0;
+	}
+
+	/** Design 2a: where a keyframe's hold ends (Time + Hold wrapped; the last keyframe's hold may cross midnight). */
+	inline double HoldEnd(double Time, double Hold)
+	{
+		return WrapMinutes(Time + Hold);
+	}
+
 	/** The two keyframes around a time and the 0..1 position between them. */
 	struct KeyframeSpan
 	{
 		int Prev = -1;
 		int Next = -1;
 		double Alpha = 0.0;
+		/** Design 2a: inside Prev's hold. Alpha is 0 (the state is Prev's) and Next is the keyframe the ramp heads to. */
+		bool bHeld = false;
 		bool IsValid() const { return Prev >= 0 && Next >= 0; }
 		/** Nearest keyframe: Prev below the midpoint, Next from it on (CurrentPreset, OnPresetChanged). */
 		int Nearest() const { return Alpha < 0.5 ? Prev : Next; }
@@ -125,20 +140,26 @@ namespace GolmokClockMath
 	 * Times[0..Count) strictly increasing in [0, 1440) (the parser guarantees it). At a keyframe time Alpha is 0 and
 	 * Prev is that keyframe. Past the last keyframe the span wraps through midnight to the first one; its width is
 	 * 1440 - last + first. Count 1 -> Prev = Next = 0, Alpha 0. Count <= 0 -> invalid span.
+	 *
+	 * Design 2a: Holds[0..Count) (nullptr = no holds; an invalid entry counts as 0) keeps keyframe i for Holds[i]
+	 * minutes from Times[i] (Alpha 0, bHeld); after the hold the span ramps from the hold end to the next keyframe:
+	 * Alpha = (elapsed - hold) / (width - hold). The hold end itself is the ramp start (Alpha 0, not held).
 	 */
-	inline KeyframeSpan FindKeyframes(double Minutes, const double* Times, int Count)
+	inline KeyframeSpan FindKeyframes(double Minutes, const double* Times, const double* Holds, int Count)
 	{
 		KeyframeSpan Span;
 		if (!Times || Count <= 0)
 		{
 			return Span;
 		}
+		auto HoldOf = [Holds](int Index) -> double { return Holds && IsValidHold(Holds[Index]) ? Holds[Index] : 0.0; };
+		const double T = WrapMinutes(Minutes);
 		if (Count == 1)
 		{
 			Span.Prev = Span.Next = 0;
+			Span.bHeld = WrapMinutes(T - Times[0]) < HoldOf(0);
 			return Span;
 		}
-		const double T = WrapMinutes(Minutes);
 		int Prev = Count - 1;
 		for (int i = 0; i < Count; ++i)
 		{
@@ -160,9 +181,22 @@ namespace GolmokClockMath
 		}
 		Span.Prev = Prev;
 		Span.Next = Next;
-		const double Alpha = Width > 0.0 ? Elapsed / Width : 0.0;
+		const double Hold = HoldOf(Prev);
+		if (Elapsed < Hold)
+		{
+			Span.bHeld = true; // Alpha stays 0: the held keyframe's own values
+			return Span;
+		}
+		const double Ramp = Width - Hold;
+		const double Alpha = Ramp > 0.0 ? (Elapsed - Hold) / Ramp : 0.0;
 		Span.Alpha = Alpha < 0.0 ? 0.0 : (Alpha > 1.0 ? 1.0 : Alpha);
 		return Span;
+	}
+
+	/** Without holds (every hold 0). */
+	inline KeyframeSpan FindKeyframes(double Minutes, const double* Times, int Count)
+	{
+		return FindKeyframes(Minutes, Times, nullptr, Count);
 	}
 
 	inline double Lerp(double A, double B, double Alpha)
@@ -242,6 +276,31 @@ namespace GolmokClockMath
 				return 1;
 			}
 			if (Times[i] < Times[i - 1])
+			{
+				OutIndex = i;
+				return 2;
+			}
+		}
+		return 0;
+	}
+
+	/**
+	 * Parser rule (design 2a), on times that passed CheckKeyframeOrder: 0 = fine, 1 = Holds[Index] is negative or not
+	 * finite, 2 = Times[Index] + Holds[Index] is not strictly before the next keyframe time along the cycle (the last
+	 * keyframe's hold may cross midnight but must end before Times[0] + 1440).
+	 */
+	inline int CheckKeyframeHolds(const double* Times, const double* Holds, int Count, int& OutIndex)
+	{
+		OutIndex = -1;
+		for (int i = 0; i < Count; ++i)
+		{
+			if (!IsValidHold(Holds[i]))
+			{
+				OutIndex = i;
+				return 1;
+			}
+			const double NextTime = i + 1 < Count ? Times[i + 1] : Times[0] + MinutesPerDay;
+			if (!(Times[i] + Holds[i] < NextTime))
 			{
 				OutIndex = i;
 				return 2;

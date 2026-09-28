@@ -64,6 +64,8 @@ namespace GolmokLightingJson
 	static_assert(UE_ARRAY_COUNT(NumberKeys) == NumberKeyCount, "NumberKeys table size");
 	const TCHAR* VolumetricKey = TEXT("volumetric");
 	const TCHAR* TimeKey = TEXT("time");
+	// WP-14a design 2a: optional keyframe hold (cycle presets only), minutes >= 0.
+	const TCHAR* HoldKey = TEXT("hold_minutes");
 
 	bool Fail(FString& Error, const FString& Message)
 	{
@@ -78,7 +80,7 @@ namespace GolmokLightingJson
 
 	bool IsKnownPresetKey(const FString& Key)
 	{
-		if (Key == VolumetricKey || Key == TimeKey)
+		if (Key == VolumetricKey || Key == TimeKey || Key == HoldKey)
 		{
 			return true;
 		}
@@ -189,6 +191,16 @@ namespace GolmokLightingJson
 				return FailPreset(Error, Name, TEXT("time must be HH:MM (00:00-23:59)"));
 			}
 		}
+		bool bHasHold = false;
+		double HoldMinutes = 0.0;
+		if (!ReadNumber(Obj, FString(HoldKey), bHasHold, HoldMinutes))
+		{
+			return FailPreset(Error, Name, TEXT("hold_minutes must be a number"));
+		}
+		if (bHasHold && !GolmokClockMath::IsValidHold(HoldMinutes))
+		{
+			return FailPreset(Error, Name, FString::Printf(TEXT("hold_minutes must be a finite number >= 0 (got %g)"), HoldMinutes));
+		}
 
 		// Index into NumberKeys: 0 pitch, 1 yaw, 2 lux, 3 kelvin, 4 sky, 5 fog, 6 fog_height_falloff, 7 exposure_bias.
 		auto GroupComplete = [&](const int32* Indices, int32 Count, FString& OutMissing) -> bool
@@ -240,6 +252,8 @@ namespace GolmokLightingJson
 		Out.ExposureBias = Values[7];
 		Out.bHasTime = TimeValue.IsValid();
 		Out.TimeMinutes = static_cast<double>(TimeMinutes);
+		Out.bHasHold = bHasHold;
+		Out.HoldMinutes = bHasHold ? HoldMinutes : 0.0;
 		return true;
 	}
 
@@ -374,6 +388,10 @@ bool AGolmokTimeOfDay::ParsePresetsText(const FString& Json, TArray<FGolmokLight
 		{
 			return FailPreset(Error, P.Name.ToString(), TEXT("time is only allowed on cycle presets"));
 		}
+		if (P.bHasHold && !OutCycle.Contains(P.Name))
+		{
+			return FailPreset(Error, P.Name.ToString(), TEXT("hold_minutes is only allowed on cycle presets"));
+		}
 	}
 	{
 		double Times[CycleLength] = {};
@@ -393,6 +411,27 @@ bool AGolmokTimeOfDay::ParsePresetsText(const FString& Json, TArray<FGolmokLight
 				? Fail(Error, FString::Printf(TEXT("cycle has duplicate time %s (%s, %s)"), After, *OutCycle[Bad - 1].ToString(), *OutCycle[Bad].ToString()))
 				: Fail(Error, FString::Printf(TEXT("cycle times must increase (%s %s is before %s %s)"), *OutCycle[Bad].ToString(), After,
 					  *OutCycle[Bad - 1].ToString(), Before));
+		}
+		// Design 2a: a hold ends strictly before the next keyframe time along the cycle (the last one wraps past midnight).
+		double Holds[CycleLength] = {};
+		for (int32 i = 0; i < CycleLength; ++i)
+		{
+			Holds[i] = FindByName(Out, OutCycle[i])->HoldMinutes;
+		}
+		const int HoldCheck = GolmokClockMath::CheckKeyframeHolds(Times, Holds, CycleLength, Bad);
+		if (HoldCheck == 1)
+		{
+			return FailPreset(Error, OutCycle[Bad].ToString(), FString::Printf(TEXT("hold_minutes must be a finite number >= 0 (got %g)"), Holds[Bad]));
+		}
+		if (HoldCheck == 2)
+		{
+			const int32 NextIndex = (Bad + 1) % CycleLength;
+			TCHAR End[6];
+			TCHAR NextTime[6];
+			GolmokClockMath::FormatHHMM(Times[Bad] + Holds[Bad], End);
+			GolmokClockMath::FormatHHMM(Times[NextIndex], NextTime);
+			return FailPreset(Error, OutCycle[Bad].ToString(),
+				FString::Printf(TEXT("hold_minutes %g runs to %s, not before the next keyframe %s %s"), Holds[Bad], End, *OutCycle[NextIndex].ToString(), NextTime));
 		}
 	}
 
@@ -559,10 +598,12 @@ bool AGolmokTimeOfDay::EnsurePresets()
 	}
 	bPresetsLoaded = true;
 	CycleTimes.Reset();
+	CycleHolds.Reset();
 	for (const FName& Name : Cycle)
 	{
 		const FGolmokLightingPreset* P = GolmokLightingJson::FindByName(Presets, Name);
 		CycleTimes.Add(P ? P->TimeMinutes : 0.0);
+		CycleHolds.Add(P ? P->HoldMinutes : 0.0);
 	}
 	UE_LOG(LogGolmok, Log, TEXT("TimeOfDay: presets loaded (%d) from %s"), Presets.Num(), *Path);
 	return true;
@@ -1159,11 +1200,12 @@ bool AGolmokTimeOfDay::ParseClockMode(const FString& Text, EGolmokClockMode& Out
 
 bool AGolmokTimeOfDay::EvaluateClock(double Minutes, FGolmokLightingState& Out) const
 {
-	if (CycleTimes.Num() == 0 || CycleTimes.Num() != Cycle.Num())
+	if (CycleTimes.Num() == 0 || CycleTimes.Num() != Cycle.Num() || CycleHolds.Num() != CycleTimes.Num())
 	{
 		return false;
 	}
-	const GolmokClockMath::KeyframeSpan Span = GolmokClockMath::FindKeyframes(Minutes, CycleTimes.GetData(), CycleTimes.Num());
+	// Inside a hold (design 2a) the span has Alpha 0: the held keyframe's values exactly.
+	const GolmokClockMath::KeyframeSpan Span = GolmokClockMath::FindKeyframes(Minutes, CycleTimes.GetData(), CycleHolds.GetData(), CycleTimes.Num());
 	if (!Span.IsValid())
 	{
 		return false;
@@ -1192,11 +1234,12 @@ bool AGolmokTimeOfDay::EvaluateClock(double Minutes, FGolmokLightingState& Out) 
 
 FName AGolmokTimeOfDay::NearestKeyframe(double Minutes) const
 {
-	if (CycleTimes.Num() == 0 || CycleTimes.Num() != Cycle.Num())
+	if (CycleTimes.Num() == 0 || CycleTimes.Num() != Cycle.Num() || CycleHolds.Num() != CycleTimes.Num())
 	{
 		return CurrentPreset;
 	}
-	const GolmokClockMath::KeyframeSpan Span = GolmokClockMath::FindKeyframes(Minutes, CycleTimes.GetData(), CycleTimes.Num());
+	// Design 2a: the held keyframe during its hold, then the midpoint of the ramp (hold end -> next keyframe).
+	const GolmokClockMath::KeyframeSpan Span = GolmokClockMath::FindKeyframes(Minutes, CycleTimes.GetData(), CycleHolds.GetData(), CycleTimes.Num());
 	return Span.IsValid() ? Cycle[Span.Nearest()] : CurrentPreset;
 }
 
@@ -1422,7 +1465,10 @@ namespace GolmokTimeOfDayConsole
 		return FString(Text);
 	}
 
-	/** "status 12:30 fixed rate 0.5 min/s | prev clear_noon 12:30 next golden_evening 18:00 alpha 0.00 | current clear_noon | night no | interior off". */
+	/**
+	 * "status 12:30 fixed rate 0.5 min/s | prev clear_noon 12:30 next golden_evening 18:00 alpha 0.00 | current clear_noon | night no | interior off";
+	 * inside a keyframe hold (design 2a) " | night 23:10 hold until 05:30" follows the prev / next part.
+	 */
 	FString DescribeStatus(const AGolmokTimeOfDay& TimeOfDay)
 	{
 		const double Minutes = static_cast<double>(TimeOfDay.GetTimeOfDayMinutes());
@@ -1430,11 +1476,18 @@ namespace GolmokTimeOfDayConsole
 			static_cast<double>(TimeOfDay.ClockMinutesPerRealSecond));
 		const TArray<FName>& Cycle = TimeOfDay.GetCycle();
 		const TArray<double>& Times = TimeOfDay.GetCycleTimes();
-		const GolmokClockMath::KeyframeSpan Span = GolmokClockMath::FindKeyframes(Minutes, Times.GetData(), Times.Num());
+		const TArray<double>& Holds = TimeOfDay.GetCycleHolds();
+		const GolmokClockMath::KeyframeSpan Span =
+			GolmokClockMath::FindKeyframes(Minutes, Times.GetData(), Holds.Num() == Times.Num() ? Holds.GetData() : nullptr, Times.Num());
 		if (Span.IsValid() && Times.Num() == Cycle.Num())
 		{
 			Line += FString::Printf(TEXT(" | prev %s %s next %s %s alpha %.2f"), *Cycle[Span.Prev].ToString(), *Hhmm(Times[Span.Prev]),
 				*Cycle[Span.Next].ToString(), *Hhmm(Times[Span.Next]), Span.Alpha);
+			if (Span.bHeld)
+			{
+				Line += FString::Printf(TEXT(" | %s %s hold until %s"), *Cycle[Span.Prev].ToString(), *Hhmm(Minutes),
+					*Hhmm(GolmokClockMath::HoldEnd(Times[Span.Prev], Holds[Span.Prev])));
+			}
 		}
 		const FString Current = TimeOfDay.CurrentPreset.IsNone() ? FString(TEXT("(level)")) : TimeOfDay.CurrentPreset.ToString();
 		Line += FString::Printf(TEXT(" | current %s | night %s | interior %s"), *Current, TimeOfDay.IsNight() ? TEXT("yes") : TEXT("no"),

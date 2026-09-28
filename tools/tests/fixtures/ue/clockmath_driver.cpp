@@ -73,7 +73,44 @@ int main()
 			std::vector<double> Times(static_cast<size_t>(Count > 0 ? Count : 0));
 			for (double& T : Times) std::cin >> T;
 			const GolmokClockMath::KeyframeSpan Span = GolmokClockMath::FindKeyframes(M, Times.data(), Count);
-			std::cout << Span.Prev << ' ' << Span.Next << ' ' << Span.Alpha << ' ' << (Span.IsValid() ? Span.Nearest() : -1) << '\n';
+			std::cout << Span.Prev << ' ' << Span.Next << ' ' << Span.Alpha << ' ' << (Span.IsValid() ? Span.Nearest() : -1) << ' '
+					  << (Span.bHeld ? 1 : 0) << '\n';
+		}
+		else if (Command == "findh")
+		{
+			// findh <minutes> <count> <times...> <holds...> (design 2a)
+			Num M; int Count; std::cin >> M >> Count;
+			std::vector<double> Times(static_cast<size_t>(Count > 0 ? Count : 0));
+			std::vector<Num> Holds(Times.size());
+			for (double& T : Times) std::cin >> T;
+			for (Num& H : Holds) std::cin >> H;
+			std::vector<double> HoldValues(Holds.begin(), Holds.end());
+			const GolmokClockMath::KeyframeSpan Span = GolmokClockMath::FindKeyframes(M, Times.data(), HoldValues.data(), Count);
+			std::cout << Span.Prev << ' ' << Span.Next << ' ' << Span.Alpha << ' ' << (Span.IsValid() ? Span.Nearest() : -1) << ' '
+					  << (Span.bHeld ? 1 : 0) << '\n';
+		}
+		else if (Command == "hold")
+		{
+			Num Hold; std::cin >> Hold;
+			std::cout << (GolmokClockMath::IsValidHold(Hold) ? 1 : 0) << '\n';
+		}
+		else if (Command == "holdend")
+		{
+			Num Time, Hold; std::cin >> Time >> Hold;
+			std::cout << GolmokClockMath::HoldEnd(Time, Hold) << '\n';
+		}
+		else if (Command == "holds")
+		{
+			// holds <count> <times...> <holds...> -> CheckKeyframeHolds result and index
+			int Count; std::cin >> Count;
+			std::vector<double> Times(static_cast<size_t>(Count));
+			std::vector<Num> Holds(Times.size());
+			for (double& T : Times) std::cin >> T;
+			for (Num& H : Holds) std::cin >> H;
+			std::vector<double> HoldValues(Holds.begin(), Holds.end());
+			int Index = -1;
+			const int Result = GolmokClockMath::CheckKeyframeHolds(Times.data(), HoldValues.data(), Count, Index);
+			std::cout << Result << ' ' << Index << '\n';
 		}
 		else if (Command == "yaw")
 		{
