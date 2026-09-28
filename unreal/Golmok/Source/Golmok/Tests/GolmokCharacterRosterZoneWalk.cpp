@@ -188,7 +188,12 @@ public:
   {
    if(S.bPush)
    {
-    if(Now-StepAt>=2 && !bPushMeasured){PushStart=Pos;PushAt=Now;bPushMeasured=true;}
+    // The facade contact occurs around 2s; do not start measuring while still approaching it.
+    const double FaceY=(Course==0?495.:500.)-Character->GetCapsuleComponent()->GetScaledCapsuleRadius();
+    const bool bFacadeSettled=FMath::Abs(Pos.Y-FaceY)<=5 && Character->GetVelocity().Size2D()<1;
+    const bool bCanMeasure=(Course==0 || Course==1)?bFacadeSettled:Now-StepAt>=2;
+    if(!bPushMeasured && Now-StepAt>20) return Fail(TEXT("obstacle contact did not settle within20s"));
+    if(Now-StepAt>=.25 && bCanMeasure && !bPushMeasured){PushStart=Pos;PushAt=Now;bPushMeasured=true;}
     if(!bPushMeasured || Now-PushAt<1) return false;
     Check(TEXT("obstacle 1s push displacement <5cm"),FVector::Dist(Pos,PushStart)<5,FVector::Dist(Pos,PushStart));
     // Guard against vacuous stationary success (input failure or a wrong obstacle).
@@ -240,7 +245,23 @@ private:
  void Release(){Key(false);}
  void Save(){if(!Folder.IsEmpty())FFileHelper::SaveStringToFile(Log,*(Folder/TEXT("walk.txt")),FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);}
  void Check(const TCHAR* Label,bool OK,double Value){Test->TestTrue(Label,OK);Log+=FString::Printf(TEXT("assert %s value=%.5f %s\n"),Label,Value,OK?TEXT("PASS"):TEXT("FAIL"));}
- bool Fail(const TCHAR* Why){Release();if(PC.IsValid())PC->ConsoleCommand(TEXT("golmok.path stop"),true);Test->AddError(FString::Printf(TEXT("ZoneWalk course%d step%d: %s"),Course,Step,Why));Log+=FString(TEXT("FAILED: "))+Why+TEXT("\n");Save();return true;}
+ bool Fail(const TCHAR* Why)
+ {
+  Release();
+  if(PC.IsValid())
+  {
+   auto* Debug=PC->GetWorld()->GetSubsystem<UGolmokDebugSubsystem>();
+   if(Debug && Debug->IsRecording())
+   {
+    // EndPlay discards the active recording. StopRecording would overwrite the last good walk_01.
+    const FString Warning=TEXT("ZoneWalk failure: active recording left unsaved for PIE teardown; existing path file preserved.");
+    Test->AddWarning(Warning);Log+=Warning+TEXT("\n");
+   }
+   else PC->ConsoleCommand(TEXT("golmok.path stop"),true);
+  }
+  Test->AddError(FString::Printf(TEXT("ZoneWalk course%d step%d: %s"),Course,Step,Why));
+  Log+=FString(TEXT("FAILED: "))+Why+TEXT("\n");Save();return true;
+ }
  FAutomationTestBase* Test;int32 Course,Step=0;double InsideAt=0,BaseExposure=0,FinalizedAt=0,PlacedAt=0,Started=0,Now=0,StepAt=0,SampleAt=0,WaitAt=0,PushAt=0,RecordAt=0,TargetDistance=0,MinGroundClearance=1e9;
  bool bOverlayChecked=false,bFinalized=false,bPlaced=false,bReady=false,bMoving=false,bWaiting=false,bPushMeasured=false,bEntered=false,bExited=false,bUnloaded=false,bExtraWest=true;
  TWeakObjectPtr<APlayerController> PC;TWeakObjectPtr<AGolmokCharacter> Character;

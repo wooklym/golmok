@@ -326,7 +326,7 @@ const TArray<FString>& UGolmokDebugSubsystem::GetHudLines()
 		HudLinesCache.Add(BuildPortalLine());
 		HudLinesCache.Add(BuildPathLine());
 		// [WP-13 hook]
-		for (const TFunction<FString()>& Provider : ExtraHudLineProviders) { HudLinesCache.Add(Provider()); }
+		for (const auto& Provider : ExtraHudLineProviders) { HudLinesCache.Add(Provider.Value()); }
 		// [/WP-13 hook]
 		// [WP-15 hook] travel line (WP-15a; not a provider: Golmok.Audio.StateMachine counts ExtraHudLineProviders)
 		if (const UGolmokTravelSubsystem* Travel = UGolmokTravelSubsystem::Get(GetWorld())) { HudLinesCache.Add(Travel->DescribeHudLine()); }

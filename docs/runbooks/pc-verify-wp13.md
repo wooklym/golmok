@@ -86,7 +86,7 @@ V-10 GUI는 다른 UE 세션 종료와 GUI 잠금 확인 뒤 수행한다. 낮/�
 | AssetImportTask / imported_object_paths | fake unreal 계약 및 UE5.8.3 실제7개 임포트·재임포트 확인 |
 | SoundWave looping·volume / save_loaded_asset | 실제7개 값 검증, 볼륨은 파형 정규화가 아님 |
 | Lighting 프리셋/실내 변경 이벤트 | 00:13Z Fable 승인 최소 훅 구현, 실제 이벤트→상태 자동화 통과 |
-| HUD audio: 줄 | 승인된 ExtraHudLineProviders 훅 구현; 바인딩/해제는 Audio 소유. 현재 공급자1개이며 추후 공급자를 추가할 때 배열 수명 계약 재검토 |
+| HUD audio: 줄 | 승인된 ExtraHudLineProviders 훅 구현; 바인딩/해제는 Audio 소유. FDelegateHandle 등록/해제로 다른 공급자 제거·중복 해제에도 등록이 유지됨(13c 헤드리스 회귀) |
 | audio.json UFS | 기존 DefaultGame.ini의 ../Config/Golmok 스테이징 사용 |
 | 배포 크레딧·SoundWave cook | Audio cook 등록 및 WP-05 목록 계약을 01:27Z 허용 범위로 반영. 크레딧 원본 메타데이터는 기존 UFS의 audio.json에 포함되며 `golmok.audio credits`가 읽어 출력한다. 독립 txt는 배포 문서용 생성물이고 별도 UFS에 넣지 않음. 패키징/게임 내 노출 미검증 |
 
@@ -127,7 +127,7 @@ $audioCookFiles.Count
 Get-ChildItem .\build\Windows -Recurse -Include *.pak,*.utoc
 ```
 
-cook 파일만으로 합격시키지 않는다. 컨테이너/stage manifest의 SoundWave7개·audio.json과 패키지 실행의 재생·크레딧도 확인한다. 에디터 Packaging 저장은 중복 ini 섹션을 재작성할 수 있으므로 Audio cook 훅 보존을 diff로 확인한다. PhysicalSurfaces1/2/3 이름은 Zone 에셋 단계에서 정의하며 현재 미지정 바닥은 default다. CC-BY 원본 채택 시 Shipping에서 도달 가능한 크레딧 UI/배포 표기를 확인한다(현 콘솔 노출은 Development 검사용).
+cook 파일만으로 합격시키지 않는다. 컨테이너/stage manifest의 SoundWave7개·audio.json과 패키지 실행의 재생·크레딧도 확인한다. 에디터 Packaging 저장은 중복 ini 섹션을 재작성할 수 있으므로 Audio cook 훅 보존을 diff로 확인한다. PhysicalSurfaces1/2/3 이름은 Zone 에셋 단계에서 정의한다. 13c는 audio.json에 번호 매핑이 있어도 프로젝트 PhysicalSurfaces에 이름이 없으면 default로 처리한다(명시 Course/Stairs 태그는 우선). CC-BY 원본 채택 시 Shipping에서 도달 가능한 크레딧 UI/배포 표기를 확인한다(현 콘솔 노출은 Development 검사용).
 
 ## 6. 결과 기록
 
@@ -150,3 +150,12 @@ cook 파일만으로 합격시키지 않는다. 컨테이너/stage manifest의 S
 | 패키징 | SW7개·audio.json 포함·재생/크레딧 | 미기록 |
 | 고친 API | 위 번호·변경/재검증 근거 | 미기록 |
 | STATUS 판정 | 통과/부분/차단·남은 항목 | 미기록 |
+
+
+### T6(13c) 후속 확인 범위
+
+ToD가 파괴되면 다음 재탐색(최대 0.25 s)에 프리셋·실내 상태를 초기화해 auto는 outdoor_day로 돌아간다. 새 ToD에 다시 바인딩하며 명시적인 강제 상태는 유지한다. 0.25 s 폴링은 Controller와 ToD의 수명·재탐색만 담당하고, 기존 ToD의 프리셋/실내 변경은 이벤트로 즉시 반영한다.
+
+실내 broadcast는 기존대로 EnsurePresets 성공 조건 안에 있다. 프리셋 로드 실패 시 오디오 이벤트도 발행하지 않는다(B-7, 코드 변경 없음). SoundWave는 패키지 존재를 먼저 검사하므로 임포트 전 파일 누락은 HUD의 missing SoundWave 진단으로 남는다. 실제 임포트 후 PIE를 다시 시작하고 패키징/청취는 별도로 확인한다.
+
+C-10: Packaging 설정을 에디터에서 저장한 뒤 DefaultGame.ini의 중복 ProjectPackagingSettings 섹션과 Audio cook 항목을 git diff로 확인한다. 훅 표지 유실이나 항목 제거를 그대로 커밋하지 않는다. C-2 Shipping 크레딧 UI는 이번 T6 배정에서 제외, 실제 음원 확정 뒤 별도 배정이다. D7 stride_scale_by_mesh도 로스터별 V-10 청취 뒤 결정하며 현재 고정 보폭을 유지한다.
