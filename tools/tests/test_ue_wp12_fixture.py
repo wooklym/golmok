@@ -848,6 +848,13 @@ def test_keep_height_without_vertical_input():
     assert "LocalConstraint.bKeepHeight = bKeepHeight;" in move
     flatten = move.index("Slide.Z = 0.0;")
     assert move.index("VectorPlaneProject") < flatten < move.index("PhotoMinSlideCm")
+    # V-09c (runbook section 7 item 7): off a sloped hit (ramp, step edge) the flattened slide drops the part
+    # that still goes into the hit's horizontal normal (one-sided; near-level hits keep the flattened slide)
+    assert re.search(r"constexpr\s+double\s+PhotoSlopeSlideMinHorizontal\s*=\s*0\.02;", pawn)
+    reproject = move.index("PhotoSlopeSlideMinHorizontal", flatten)
+    drop_into = move.index("Slide -= Into * IntoCm;")
+    assert flatten < reproject < drop_into < move.index("PhotoMinSlideCm", flatten)
+    assert "if (IntoCm < 0.0)" in move
     assert "void MoveConstrained(const FVector& InDesired, bool bKeepHeight = false);" in _read(PAWN_H)
     math_h = _read(MATH_H)
     assert "bool bKeepHeight = false;" in math_h and "inline bool ClampToSphereXY(" in math_h

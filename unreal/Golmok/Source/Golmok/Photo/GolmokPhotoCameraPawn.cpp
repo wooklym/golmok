@@ -22,6 +22,9 @@ namespace
 	constexpr int32 PhotoMaxSweeps = 2;
 	/** A slide shorter than this is dropped (a head-on push leaves only rounding noise). */
 	constexpr double PhotoMinSlideCm = 0.01;
+	/** Keep-height slide: a hit whose normal has a horizontal part at least this long (a slope steeper than ~1.1 degrees)
+	 * slides along its horizontal cross-section (V-09c, runbook section 7 item 7); flatter hits keep the flattened slide. */
+	constexpr double PhotoSlopeSlideMinHorizontal = 0.02;
 	/** |Q/E axis| at or below this counts as no vertical input (a resting gamepad trigger has no dead zone, D-013 decision 3). */
 	constexpr float PhotoUpDownDeadZone = 0.1f;
 } // namespace
@@ -228,6 +231,21 @@ void AGolmokPhotoCameraPawn::MoveConstrained(const FVector& InDesired, bool bKee
 			// D-013 decision 3: a blocked horizontal move slides in the horizontal plane only (a sloped or curved hit plane
 			// would otherwise lift or drop it); nothing left in that plane ends the move below.
 			Slide.Z = 0.0;
+			// V-09c (runbook section 7 item 7): flattening alone leaves the slide off a sloped hit (ramp, step edge) pointing
+			// back into it, so the second sweep stopped at once. Remove the part that still goes into the hit's horizontal
+			// normal: the move follows the obstacle's horizontal cross-section. A vertical wall is unchanged (its normal is
+			// already horizontal); a near-level hit (rough floor) keeps the flattened slide, so pushing along the ground does
+			// not wander sideways.
+			const FVector HorizontalNormal(Hit.Normal.X, Hit.Normal.Y, 0.0);
+			if (HorizontalNormal.SizeSquared() > FMath::Square(PhotoSlopeSlideMinHorizontal))
+			{
+				const FVector Into = HorizontalNormal.GetSafeNormal();
+				const double IntoCm = FVector::DotProduct(Slide, Into);
+				if (IntoCm < 0.0)
+				{
+					Slide -= Into * IntoCm;
+				}
+			}
 		}
 		if (Slide.SizeSquared() < FMath::Square(PhotoMinSlideCm))
 		{
