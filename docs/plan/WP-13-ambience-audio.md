@@ -187,3 +187,23 @@ Fable은 빠른 제3상태 최대50ms 교체, 70/110cm 보폭, 재질 default, P
 - **Fable 설계·품질**: 승인 가설(상태별 크로스페이드 JSON, ≤50 ms 조용한 슬롯 교체, 실내 우선, 보폭 70/110·달리기 250 cm/s, 재질 default·계단 태그, Photo mute/maintain)이 코드·런북에 그대로 반영. 합격은 V-10 청취(포털 1 s 왕복 3회 클릭, 진입 1 s/복귀 2 s 비교, 로스터별 보폭, 소유자 밸런스). `stride_scale_by_mesh`는 V-10 뒤 후속.
 - **(C) 옮긴 것**: STATUS 트랙 1A·병행 트랙 WP-13 행(🟡 코드 완료·PC V-10 대기), ROADMAP 1.6, DECISIONS D-002(합성 플레이스홀더 출처·cook 훅·의존성 없음), astra-tasks T3, 이 절. 병합 시 반영 문안의 칸별 분리(D1/D8)는 병합 세션이 처리.
 - 판정: **병합**. 실제 음질·패키징·볼륨 밸런스 합격이 아니며 V-10(PC)에서 판정한다. 원본 음원은 Freesound 계정 소유자 결정(STATUS 결정 필요 ③) 뒤 JSON+재임포트로 교체.
+
+
+## 13c 결과 — T6 리뷰 (B) 후속 (2026-09-29 KST)
+
+| 항목 | 반영 |
+|---|---|
+| A-4 | ToD 약한 참조가 파괴되어 null이 된 경우도 이전 바인딩 핸들로 감지. 프리셋·실내 상태 초기화, auto outdoor_day 복귀·새 ToD 재바인딩. 강제 상태는 유지 |
+| A-5/B-5 | Debug의 기존 WP-13 훅 안에서 공급자를 FDelegateHandle로 등록/제거. 순서가 바뀌거나 두 번 해제해도 다른 공급자를 지우지 않음. HUD 캐시 무효화 |
+| A-7/B-8 | SoundWave LoadObject 전에 패키지 존재 확인, 미임포트는 HUD 진단으로 안내 |
+| B-7 | Enter/ExitInterior broadcast가 이미 EnsurePresets 성공 조건 안임을 확인·문서화, Lighting 수정 없음 |
+| C-9 | 빈 imported_object_paths·SoundWave 아닌 객체 실패 회귀. 실패 시 기존 크레딧/ATTRIBUTION 유지 |
+| C-11 | 프로젝트에 이름이 정의되지 않은 PhysicalSurface 번호는 default. 명시 계단 태그 우선, 이름 있는 매핑만 적용 |
+| A-6/C-10/D7 | Controller+ToD 0.25 s 재탐색 범위, Packaging ini 재작성 주의, 메시 스케일 보폭은 V-10 청취 후 결정임을 런북에 명시 |
+| C-2 | Shipping 크레딧 UI 보류(이번 배정 제외, 실제 음원 확정 후) |
+
+검증: ruff check·format103·pytest818 passed/77 skipped·check_repo·diff check 통과. UE 최종 빌드4.92s 성공(최초128.95s), -SetupDevLevel -Filter Golmok.Audio 2 Success(경고1)·실패0. 전체 -SetupDevLevel 28 Success(20+경고8)·실패0·미실행0; 기본 RenderEvidence의 NOT EXECUTED를 제외한 실제27개. 기존 Audio.StateMachine/Footstep에 수명·HUD 핸들·미정의 표면 회귀 추가, 새 등록 없음. 청취/패키징/GUI 미실행, CI는 PR checks가 정본.
+
+## 병합 시 반영 — 13c T6
+
+STATUS 트랙 1A WP-13 행의 상태는 **🟡 코드 완료·PC V-10 대기** 유지. 근거 칸에 추가할 한 문장: “13c T6 리뷰 (B) 후속: ToD 수명 초기화·HUD 핸들·미임포트 패키지 선확인·미정의 물리 표면 default·임포트 실패 회귀, 헤드리스 검증; 청취·패키징 및 Shipping 크레딧 UI는 별도.”
