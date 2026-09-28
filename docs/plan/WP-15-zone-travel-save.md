@@ -143,3 +143,12 @@ WP-14a(PR #51)가 main에 들어온 뒤 오케스트레이터 결정(R49-7 / R51
 ### 병합 시 반영(오케스트레이터)
 - STATUS WP-15a 행: `🟡 코드 완료·PC V-14 대기(2026-09-28, PR #49): manifest schema 2(spawn·display_name, v1 호환)·GolmokTravelSubsystem(golmok.travel)·GolmokSaveSubsystem(golmok_auto, 복원 ①②③, PIE 자동 복원 끔, 시간대 {분, 모드} 저장/복원 — 모드별 즉시·구 세이브는 프리셋 폴백)·순수 헤더 2(g++)·자동화 +3(총 32) · 런북 runbooks/pc-verify-wp15a.md` + V-14 행(대기).
 - ROADMAP 게임 기능 줄에 한 줄: `지도·세이브 **WP-15** — 15a 🟡 코드 완료·PC V-14 대기(2026-09-28 PR #49: Zone 이동(선로드·페이드·스폰)·자동 세이브(경위도·방문·사진 색인·시간대 {분, 모드})·manifest v2), 15b 지도 UI·정사영상 텍스처는 D-009 자문·실제 zone 뒤`.
+
+## 병합 기록 — [PR #49](https://github.com/wooklym/golmok/pull/49) (2026-09-28)
+
+대상: `claude/wp15a-travel-save` 58b038d(세션 session_018Tn23KryyZ9XmYXMAa91Mb Opus 5.5 ultracode 구현 → Opus 읽기 전용 리뷰 R49-1~10 → Opus 수정 R49-1(A)·2/3/4/5/8/9 → WP-14a 병합 뒤 Opus 병합 준비: main 2e6b642 병합·자동화 32·시간대 {분, 모드} 연결). 병합: 오케스트레이터 결정(D-019).
+
+- **판정: 🟡 코드 완료·PC V-14 대기.** 게이트(병합 트리): ruff·format 통과, pytest 1132 passed/3 skipped, check_repo OK, `git diff --check origin/main...HEAD` 깨끗. C++·UE 자동화(32)는 미컴파일 — 런북 `pc-verify-wp15a.md`(§9 불확실 API #1~#12, §6 standalone 복원).
+- **리뷰 요약(R49)**: 레인·핫스팟 무변경, 훅은 별도 커밋 표식 블록, WP-13 훅 보존, v1 manifest 6개 validator·UE 파서 통과, 좌표 변환·세이브 내용(경위도 double·ENU yaw) 교차검증. (A) R49-1 reset 재방문 억제, (B) R49-2~5, note R49-8/9 반영; R49-6 `bRestoreInPIE=False` Fable 채택; R49-7은 병합 준비 커밋(자동화 32·시간대 연결); R49-10 허용.
+- **Fable 결정 기록**: DECISIONS D-014·D-017 진행(bRestoreInPIE, GeoOrigin 없는 travel 거절, 시간대 연결·복원 순서).
+- **(C) 옮긴 것**: STATUS 마지막 갱신·WP-15a 행·트랙 1B V-13/V-14 행·세션 로그, ROADMAP 게임 기능 줄, DECISIONS D-014/D-017, 이 절. 다음: V-14 PC 카드, 15b는 D-009 자문 뒤.

@@ -191,6 +191,7 @@
 - 리스크: 정사영상 파생물의 공개 배포 조건, 위치기반서비스 해당 여부 → 공개 전 자문 [확인 필요].
 - **결정(2026-09-25, 사용자)**: 승인. 시점은 제안대로 Phase 2 초반(Zone 2곳 이상·V-07 통과 뒤), D-017과 묶어 **WP-15**로 등록(착수 조건 충족 시 스펙 작성).
 - **오케스트레이터 결정(D-019, 2026-09-28)**: WP-15를 **15a**(manifest schema 2 `spawn`/`display_name`, `Map/GolmokTravelSubsystem` 이동, `Save/` 자동 세이브·복원 — 표현 방식·실제 zone 수와 무관, 합성 zone 2곳으로 테스트, 클라우드 Opus ultracode, PC 검증 V-14)와 **15b**(정사영상 지도 텍스처·Slate 지도 UI·미니맵 — D-009 정사영상 파생물 배포 조건 자문·실제 zone 뒤 PC)로 나누어 15a를 WP-14a와 병렬로 시작한다. 근거: V-07 통과, 클라우드 유휴 방지(소유자 지적 2026-09-28), 15a는 브랜치로 되돌릴 수 있음. 스펙 [`plan/WP-15-zone-travel-save.md`](plan/WP-15-zone-travel-save.md). WP-17 `sounds[]`는 v2에 넣지 않는다(V-10·첫 현장 녹음 뒤 결정).
+- **진행(2026-09-28, 오케스트레이터 D-019)**: **WP-15a 🟡 코드 완료·PC V-14 대기**([PR #49](https://github.com/wooklym/golmok/pull/49) 병합, session_018Tn23KryyZ9XmYXMAa91Mb). 리뷰 R49(Opus 읽기 전용): (A) 1건(`golmok.save reset` 뒤 1 s 방문 폴링이 현재 zone을 첫 방문으로 재기록 → 리셋 시점의 zone 집합은 떠나기 전까지 억제)·(B) 4건(종료 스냅샷 `OnWorldBeginTearDown` 강제 갱신, 보류 중 수동 저장은 현재 위치, 스펙 002 스폰 값, 런북 로그 줄) 반영. **Fable 판단**: R49-6 `bRestoreInPIE=False` 채택 — 기존 PIE 런북(V-03/07/09/10)의 PlayerStart 결정성을 지키고 제품 복원은 standalone/패키지에서 V-14 §6이 확인 · R49-8 GeoOrigin 없는 레벨(L_Dev)에서는 index zone travel을 거절하고 '다른 지역'은 레벨 원점 30 km 휴리스틱으로 둔다(판단 18) · **WP-14a 연결**: 세이브에 시간대 {분, 모드}를 저장하고 복원은 모드별 즉시(Fixed/Clock: 저장 시각 복원, Realtime: 모드만·로컬 시각), 구 세이브(분 -1)는 프리셋 이름 폴백, 복원 순서는 Fixed로 멈춘 뒤 즉시 점프·모드 설정(2 s 전환·중복 `OnPresetChanged` 없음). `SaveSchemaVersion` 1 유지(필드 추가만). 15b(지도 텍스처·UI)는 D-009 자문·실제 zone 2곳 뒤.
 
 ### D-015 | 승인 | 2026-09-25 — 시간대 폴리시·날씨
 - 제안: 시간대 폴리시(night look-dev, [`design/lighting-night-lookdev.md`](design/lighting-night-lookdev.md))는 **Phase 1 M7**, 날씨(비)는 **Phase 2 중반, D-010 결과를 본 뒤**. 눈은 제외.
@@ -211,6 +212,7 @@
 - 제안: **Phase 2 초반, D-014와 함께**. 자동 저장 슬롯 1개, 위치는 경위도·높이 + zone_id·버전으로 저장(UE 좌표 아님), 시간대·방문 zone·사진 목록.
 - 규모: C++ 1 WP(`USaveGame` + `AsyncSaveGameToSlot`), Opus 가능. 의존: D-014, WP-04 Geo, zone 버전 규약.
 - **결정(2026-09-25, 사용자)**: 승인. D-014와 함께 **WP-15**(Phase 2 초반).
+- **진행(2026-09-28, 오케스트레이터 D-019)**: 15a 세이브 구현 병합([PR #49](https://github.com/wooklym/golmok/pull/49)) — 슬롯 `golmok_auto` 1개, 경위도·타원체고·ENU yaw·zone id/버전·방문·사진 상대 경로(`Saved/` 기준, 절대/`..` 거절)·시간대 {분, 모드}, UE 좌표·개인정보 없음. 자동 저장 트리거: 이동 도착·첫 방문·사진·60 s·종료 동기(강제 스냅샷); 복원 규칙 ①②③·`-GolmokNoRestore`·레벨 불일치 시 위치 복원 안 함·PIE 자동 복원 끔. 상세는 D-014 진행 항목.
 
 ### D-018 | ① 승인·② 대기 | 2026-09-27 — 캐릭터 선택·교체와 고유 캐릭터 제작
 
