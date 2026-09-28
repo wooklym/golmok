@@ -53,7 +53,7 @@ KNOBS (install(**cfg) keywords = Fake attributes): obj_mapping=(100.0, M_OBJ) gl
     obj_routes_ok={"fbx","interchange","legacy_flag"} udim_merge=True texture_vt_default=True
     vt_settable=True importer_makes_materials=True slot_names_from_usemtl=True fail_import=set()
     bounds_offset={} pie=False screenshot_delay_s=0.3 csv_delay_s=0.5 csv_flush_s=1.0 csv_stop_s=0.2
-    screenshot_fallback_name=False
+    csv_lag_s=0.0 screenshot_fallback_name=False
     viewport_size=(1014, 550) (the level viewport a PIE from editor_request_begin_play plays in; V-03 size)
     nested_glb=False (True: V-03 Interchange layout, a .glb lands at <dest>/<source stem>/StaticMeshes/<name>
     and each glTF material as a MaterialInstanceConstant at <dest>/<source stem>/Materials/<material> that is
@@ -80,11 +80,13 @@ screenshot_delay_s of fake time, only while PIE runs; 'HighResShot <W>x<H> filen
 <Saved>/Golmok/Paths/<name>.json (version 1, monotonic samples, else an error log) and with --csv is a
 CsvProfile capture like the engine's (V-04 T5, runbook §11 handover 6): <Saved>/Profiling/CSV/Profile(<n>).csv
 is created csv_delay_s after the command and grows by a row every csv_flush_s (the write buffer; 0 = no
-writes in between) until the capture stops - csv_stop_s after the path's end (its last sample t), after
-"golmok.path stopplay" or after the end of PIE - which appends the last row and logs "GolmokDebugSubsystem:
-csv: <path>" (the C++ LogLatestCsv at the end of playback); "golmok.path stopplay"; "golmok.hud 0";
-"Interchange.FeatureFlags.Import.OBJ 0" arms the legacy_flag route. tick(fake, n, dt) runs the registered
-slate post-tick callbacks n times, advancing the clock by dt each time and creating the files that fell due.
+writes in between) until the capture stops - csv_stop_s after the path's end (its last sample t) plus
+csv_lag_s (hitches: game time lags wall time, so the playback outlasts the JSON length by that much; PR #44
+review F1), after "golmok.path stopplay" or after the end of PIE - which appends the last row and logs
+"GolmokDebugSubsystem: csv: <path>" (the C++ LogLatestCsv at the end of playback); "golmok.path stopplay";
+"golmok.hud 0"; "Interchange.FeatureFlags.Import.OBJ 0" arms the legacy_flag route. tick(fake, n, dt) runs
+the registered slate post-tick callbacks n times, advancing the clock by dt each time and creating the files
+that fell due.
 
 Libraries (EditorAssetLibrary, SystemLibrary, Paths, ...) are classes of static methods bound to the Fake, so
 monkeypatch.delattr(unreal.SystemLibrary, "get_engine_version") removes one for a hasattr test; subsystems
@@ -132,7 +134,7 @@ KNOBS = {
     "obj_routes_ok": frozenset({"fbx", "interchange", "legacy_flag"}), "udim_merge": True,
     "texture_vt_default": True, "vt_settable": True, "importer_makes_materials": True,
     "slot_names_from_usemtl": True, "fail_import": frozenset(), "bounds_offset": {}, "pie": False,
-    "screenshot_delay_s": 0.3, "csv_delay_s": 0.5, "csv_flush_s": 1.0, "csv_stop_s": 0.2,
+    "screenshot_delay_s": 0.3, "csv_delay_s": 0.5, "csv_flush_s": 1.0, "csv_stop_s": 0.2, "csv_lag_s": 0.0,
     "screenshot_fallback_name": False,
     "viewport_size": (1014, 550), "nested_glb": False, "engine_udim_regex": False,
     "zone_transform": ZONE_ROOT_CM, "begin_play_starts_pie": True, "level": DEFAULT_LEVEL, "lit": True,
@@ -1601,7 +1603,10 @@ class Fake:
                         "path": os.path.normpath(path),
                         "create_at": create_at,
                         "next_at": create_at + (self.csv_flush_s or 0.0),
-                        "stop_at": self.clock + _path_length_s(self.saved_dir, name) + self.csv_stop_s,
+                        "stop_at": self.clock
+                        + _path_length_s(self.saved_dir, name)
+                        + self.csv_lag_s
+                        + self.csv_stop_s,
                         "created": False,
                         "stopped": False,
                     }

@@ -51,7 +51,9 @@ PIE_RESTART_GAP_S = 1.0  # between the end of one tag's PIE and the next editor_
 QUIT_WAIT_S = 5.0  # quit_editor: at most this long for PIE to end (end_play is deferred) before quitting
 CSV_GRACE_S = 60.0  # WAIT_CSV timeout = path length + this
 CSV_SETTLE_S = 2.0  # WAIT_CSV: the newest Profile*.csv must not change for this long (_pure.csv_complete)
+CSV_SETTLE_MAX_S = 10.0  # ... or 1.5 x the writer's largest flush gap seen, at most this (_pure.csv_settle_s)
 CSV_END_SLACK_S = 1.0  # ... and must change at or after PLAY + path length - this (the CsvProfile Stop flush)
+CSV_POLL_S = 0.25  # WAIT_CSV lists and stats the CSV folders at most this often (review F3)
 LAYER_LEVEL_PREFIX = "/Game/Golmok/Maps/L_Spike_"
 MANUAL_WINDOW_HOW = "manual: Editor Preferences > Level Editor > Play > New Window Size (runbook #21)"
 PHOTO_EXTENSIONS = ("jpg", "jpeg", "png", "JPG", "JPEG", "PNG")
@@ -706,9 +708,12 @@ class _PieCapture(_PieSession):
 
 class _PiePerf(_PieSession):
     """CSV in PIE (reference only): per job PLAY (golmok.path play <walk> --csv) -> WAIT_CSV: the newest
-    Profile*.csv in the Saved candidates once it is written (_pure.csv_complete: unchanged for CSV_SETTLE_S
+    Profile*.csv in the Saved candidates once it is written (_pure.csv_complete: unchanged for the settle time
     and, for a path of known length, changed at or after the path's end - the engine creates the file at
-    CsvProfile Start and writes it until the path ends, V-04 T5); timeout = path length + CSV_GRACE_S."""
+    CsvProfile Start and writes it until the path ends, V-04 T5); timeout = path length + CSV_GRACE_S. The
+    settle time is CSV_SETTLE_S, or 1.5 x the largest gap seen between two changes of the same file in this
+    job up to CSV_SETTLE_MAX_S (_pure.csv_settle_s: a writer that flushes less often than CSV_SETTLE_S while
+    the playback outlasts the path length, PR #44 review F1). The folders are polled every CSV_POLL_S (F3)."""
 
     what = "perf (PIE, reference only)"
     first_job_state = "PLAY"
@@ -719,6 +724,9 @@ class _PiePerf(_PieSession):
         self.play_at = 0.0  # _now() at PLAY
         self.csv_stamp = None  # (path, mtime, size) of the newest Profile*.csv last seen
         self.csv_changed_at = None  # _now() when csv_stamp was first seen or last changed
+        self.csv_written_at = None  # _now() of that file's last change after it was first seen, or None
+        self.csv_max_gap = 0.0  # largest _now() gap between two consecutive changes of one file (this job)
+        self.csv_polled_at = None  # _now() of the last look at the CSV folders (this job), None = not yet
         super().__init__(jobs, quit_editor)
         self.root = os.path.join(self.saved_dir, "Profiling", "CSV")
         candidates = _pure.saved_dir_candidates(self.saved_dir, os.environ.get("LOCALAPPDATA"))
@@ -750,16 +758,27 @@ class _PiePerf(_PieSession):
         if s == "PLAY":
             self.not_before = time.time() - 1.0
             self.play_at = _now()
-            self.csv_stamp = self.csv_changed_at = None
+            self.csv_stamp = self.csv_changed_at = self.csv_written_at = self.csv_polled_at = None
+            self.csv_max_gap = 0.0
             _console(self.world, f"golmok.path play {walk} --csv")
             return self._wait(length + CSV_GRACE_S, "WAIT_CSV")
         if s == "WAIT_CSV":
             now = _now()
+            if self.csv_polled_at is not None and now - self.csv_polled_at < CSV_POLL_S:
+                return False  # no glob / stat between polls (F3); the timeout is checked at the next poll
+            self.csv_polled_at = now
             stamp = self._newest_csv()
             if stamp != self.csv_stamp:  # new file, another file, or the file grew / was touched
+                if stamp is not None and self.csv_stamp is not None and stamp[0] == self.csv_stamp[0]:
+                    if self.csv_written_at is not None:  # the file's appearance is not a writer flush
+                        self.csv_max_gap = max(self.csv_max_gap, now - self.csv_written_at)
+                    self.csv_written_at = now
+                else:
+                    self.csv_written_at = None
                 self.csv_stamp, self.csv_changed_at = stamp, (None if stamp is None else now)
+            settle = _pure.csv_settle_s(self.csv_max_gap, CSV_SETTLE_S, CSV_SETTLE_MAX_S)
             complete = _pure.csv_complete(
-                self.csv_changed_at, now, self.play_at, length, CSV_SETTLE_S, CSV_END_SLACK_S
+                self.csv_changed_at, now, self.play_at, length, settle, CSV_END_SLACK_S
             )
             if not complete and not self._elapsed():
                 return False
