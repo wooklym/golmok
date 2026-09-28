@@ -486,8 +486,11 @@ def test_register_path_b(fake, unreal, parent, zone, it, monkeypatch):
     ]
     # add_level_to_world made the sublevel current (V-03): sz makes the persistent level current again and
     # saves the persistent map by path; no save_current_level() after add_level_to_world (pc-findings #4)
-    assert fake.calls[i + 1 :] == [("set_current_level", DEFAULT_LEVEL), ("save_map", DEFAULT_LEVEL)]
-    assert fake.calls_of("save_map") == [("save_map", DEFAULT_LEVEL)]
+    assert fake.calls[i + 1 :] == [
+        ("set_current_level", DEFAULT_LEVEL),
+        ("save_map", DEFAULT_LEVEL, DEFAULT_LEVEL),
+    ]
+    assert fake.calls_of("save_map") == [("save_map", DEFAULT_LEVEL, DEFAULT_LEVEL)]
     # disk writes: persistent (before new_level), sublevel, persistent (step 10), persistent (register)
     assert fake.saved_levels == [DEFAULT_LEVEL, SUBLEVEL, DEFAULT_LEVEL, DEFAULT_LEVEL]
     # the persistent level is current when run() returns: a following zone_import.run(level=None) spawns there
@@ -505,7 +508,7 @@ def test_register_path_b(fake, unreal, parent, zone, it, monkeypatch):
     fake.logs.clear()
     _run(it, zone, register=True)
     assert fake.calls_of("add_level_to_world") == [] and ("get_streaming_level", SUBLEVEL) in fake.calls
-    assert fake.calls[-2:] == [("get_streaming_level", SUBLEVEL), ("save_map", DEFAULT_LEVEL)]
+    assert fake.calls[-2:] == [("get_streaming_level", SUBLEVEL), ("save_map", DEFAULT_LEVEL, DEFAULT_LEVEL)]
     assert entry.get_editor_property("initially_loaded") is False
     assert entry.get_editor_property("initially_visible") is False
     kept = (
@@ -520,7 +523,7 @@ def test_register_path_b(fake, unreal, parent, zone, it, monkeypatch):
         fake.calls.clear()
         fake.logs.clear()
         _run(it, zone, register=True)
-    assert fake.calls[-2:] == [("add_level_to_world", SUBLEVEL), ("save_map", DEFAULT_LEVEL)]
+    assert fake.calls[-2:] == [("add_level_to_world", SUBLEVEL), ("save_map", DEFAULT_LEVEL, DEFAULT_LEVEL)]
     warnings = fake.logged("warning")
     assert len(warnings) == 1 and "Window > Levels" in warnings[0] and DEFAULT_LEVEL in warnings[0]
     assert registered in fake.logged("log") and fake.current_level == SUBLEVEL
