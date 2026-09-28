@@ -67,17 +67,17 @@ $importFile = (Resolve-Path .\unreal\Golmok\Saved\wp13-import-check.py).Path
 .\tools\ue\test.ps1 -SetupDevLevel
 ```
 
-콘솔: `golmok.audio` 상태·슬롯·볼륨, `golmok.audio credits` JSON 출처/저자/라이선스/수정 내역, `golmok.audio.mute 1` / `0`, `golmok.audio.state outdoor_night` / `interior` / `outdoor_day` / `auto`. `auto`로 돌아와야 실제 Lighting 이벤트를 다시 따른다. HUD의 `audio:`는 Debug 공급자를 통해 갱신된다.
+콘솔: `golmok.audio` 상태·슬롯·볼륨·선택 발소리 세트(`steps=default/asphalt/tile/stairs`)·Photo 배율(`photo_gain`), `golmok.audio credits` JSON 출처/저자/라이선스/수정 내역, `golmok.audio.mute 1` / `0`, `golmok.audio.state outdoor_night` / `interior` / `outdoor_day` / `auto`. `auto`로 돌아와야 실제 Lighting 이벤트를 다시 따른다. HUD의 `audio:`는 Debug 공급자를 통해 갱신된다.
 
-`golmok.tod night`와 `clear_noon`, 포털 진입/퇴장으로 이벤트 연동을 검증한다. 실내 소스가 여러 개면 마지막 소스가 빠질 때까지 interior다. PhysicalMaterial surface0=default, 1=asphalt, 2=tile, 3=stairs 매핑은 audio.json에 있다. L_Dev의 Course/Stairs는 **에디터 폴더이며 런타임 태그가 아니다**. 기본 L_Dev 계단은 지정 재질이 없으면 default 소리가 맞다. 재질 비교 시 별도 테스트 복사 맵에서 해당 물리 재질 또는 명시적 actor tag `Course/Stairs`를 설정한다. 원본 setup_dev_level.py는 수정하지 않는다.
+`golmok.tod night`와 `clear_noon`, 포털 진입/퇴장으로 이벤트 연동을 검증한다. 실내 소스가 여러 개면 마지막 소스가 빠질 때까지 interior다. PhysicalMaterial surface0=default, 1=asphalt, 2=tile, 3=stairs 매핑은 audio.json에 있다. L_Dev의 Course/Stairs는 **에디터 폴더이며 런타임 태그가 아니다**. 기본 L_Dev 계단은 지정 재질이 없으면 default 소리가 맞다. 재질 비교 전 Project Settings → Physics → Physical Surfaces에 **1=asphalt, 2=tile, 3=stairs** 이름을 지정한다(세트 id와 대소문자 무관 일치). 이름이 없거나 다르면 HUD/`golmok.audio`의 `error: surface ...` 진단과 default fallback을 확인한다. 별도 테스트 복사 맵에서 해당 물리 재질 또는 명시적 actor tag `Course/Stairs`를 설정한다. 시험용 `DefaultEngine.ini` 이름 변경은 커밋하지 않고 시험 전 내용을 보관했다가 복구한다. 다른 세션의 기존 변경을 되돌리지 않는다. 원본 setup_dev_level.py는 수정하지 않는다.
 
-보폭은 걷기70/달리기110cm, 속도 기준250cm/s다. 실제 소리 재생은 한 프레임 최대1발이며 긴 프레임의 나머지 거리는 소비한다. 공중은 무음, 공중→지면 전환은 착지1회, 폰 변경/경로/포토 진입 뒤에는 누적거리를 초기화한다. pause_policy의 `mute`/`maintain`은 JSON을 바꾸고 PIE를 재시작해 각각 확인한다. 사용자 mute는 두 정책보다 우선한다. Photo 유지/뮤트 양쪽, 빠른 낮→밤→실내 재전환, 복수 포털 소스, 폰 교체/경로 재생, 걷기/달리기/공중/착지/텔레포트, 미지정 물리 재질 fallback을 확인한다.
+보폭은 `footsteps.stride_cm_by_character`의 로스터 id별 cm 값이다: manny/quinn 걷기67·달리기146, proxy135 54/142, proxy110 45/115. 누락 id는 기본70/110cm, 달리기 속도 기준250cm/s다. 같은 폰의 로스터 id가 바뀌어도 누적거리를 초기화한다. V-08 애니메이션 채택 뒤 노티파이 방식으로 재검토한다. 실제 소리 재생은 한 프레임 최대1발이며 긴 프레임의 나머지 거리는 소비한다. 공중은 무음, 공중→지면 전환은 착지1회, 폰 변경/경로/포토 진입 뒤에는 누적거리를 초기화한다. pause_policy의 `mute`/`maintain`은 JSON을 바꾸고 PIE를 재시작해 각각 확인한다. 사용자 mute는 두 정책보다 우선한다. Photo 유지/뮤트 양쪽, 빠른 낮→밤→실내 재전환, 복수 포털 소스, 폰 교체/경로 재생, 걷기/달리기/공중/착지/텔레포트, 미지정 물리 재질 fallback을 확인한다.
 
 V-10 GUI는 다른 UE 세션 종료와 GUI 잠금 확인 뒤 수행한다. 낮/밤·실내 전환 각3회, 재질별 걷기/달리기 각각10보, 점프/착지5회를 청취하고 clipping·루프 이음·발소리 중복·pause 뒤 복귀를 기록한다. 실제 청취와 자동화 로직 성공은 구분한다. 최종 야외 음원은 WP-17 현장 녹음 교체 대상이다.
 
-로스터별 확인: `golmok.character proxy135`, `golmok.character proxy110`, `golmok.character quinn`으로 각각 교체한 뒤 걷기/달리기10보씩 청취한다. 보폭 체감과 `stride_scale_by_mesh` 필요 여부를 기록한다. 현재 고정 보폭은 승인된 가설이며 옵션 도입 여부는 이 비교 뒤 판단한다.
+로스터별 확인: `golmok.character proxy135`, `golmok.character proxy110`, `golmok.character quinn`으로 각각 교체한 뒤 걷기/달리기10보씩 청취한다. 새 보폭과 발 딛기 횟수를 비교해 기록한다. 메시 Z 스케일 곱(`stride_scale_by_mesh`)은 V-10 뒤 기각됐고 파서가 거부한다. 자체 발소리·착지는 2D로 재생하므로 붐 길이에 따른 거리 감쇠가 없어야 한다. 기존 attenuation 설정은 다른 소스용으로 유지한다.
 
-소유자 청취: 재생 장치(헤드폰/스피커 모델·OS 출력 볼륨)를 적고 `master_volume`, 상태별 asset gain, 발소리 asset gain의 최종 값을 audio.json에 기록한다. 플레이스홀더의 비교는 잠정이며 실제 소스 교체 뒤 다시 듣는다. mute 플래그만 헤드리스 자동화로 확인하며 채널 볼륨0·재생 중 발소리 정지는 청취 항목이다.
+소유자 청취: 재생 장치(헤드폰/스피커 모델·OS 출력 볼륨)를 적고 `master_volume`, 상태별 asset gain, 발소리 asset gain의 최종 값을 audio.json에 기록한다. 플레이스홀더의 비교는 잠정이며 실제 소스 교체 뒤 다시 듣는다. 헤드리스 자동화는 mute 플래그와 GamePause 중 Photo 배율의 중간값·0 도달·복귀를 확인한다. 실제 출력 파형·재생 중 원샷 FadeOut·청취 밸런스는 PC 항목이다.
 
 ## 4. API·패키징 확인
 
@@ -93,17 +93,18 @@ V-10 GUI는 다른 UE 세션 종료와 GUI 잠금 확인 뒤 수행한다. 낮/�
 
 ## 5. 크로스페이드와 품질 확인
 
-A/B 볼륨은 현재 값에서 선형 보간한다. 제3의 상태가 빠르게 들어오면 두 슬롯만으로 세 파일을 유지할 수 없으므로 더 조용한 슬롯을 최대50ms 동안0으로 낮춘 뒤 교체하고 JSON의 목적 상태별 전환을 시작한다(기본2초). 요청 상태 변경은 이벤트와 같은 프레임이고 새 파일 시작은 이 경우 최대50ms 뒤다. 이 정책은 Fable 설계 가설 승인을 받았고 합격은 V-10 청취로 결정한다. 포털을 1초 안에 실내↔실외 왕복3회 통과하며 클릭/끊김이 없는지 확인한다. Photo 유지 정책은 UI sound로 월드 pause와 분리하고, mute는 컴포넌트 볼륨을0으로 만든다. 헤드리스 자동화는 청취 증거가 아니며 출력 장치·음색·최종 밸런스를 판정하지 않는다.
+T8은 슬롯 진폭 g를 전력 영역에서 보간한다: `g = sqrt(F² + (T² - F²) * alpha)`. 시작/목표가 상보적인 두 슬롯의 합산 전력은 일정하고, 전환 중 재타깃도 현재 진폭에서 연속으로 이어진다. 서로 다른 소스의 RMS·상관관계까지 일정한 청감을 보장하지 않으므로 청취로 확인한다. 제3의 상태가 빠르게 들어오면 두 슬롯만으로 세 파일을 유지할 수 없어 조용한 슬롯을 최대50ms 동안0으로 낮춘 뒤 교체한다. 이 교체 구간과 초기 무음에서의 시작은 일정 전력 주장 대상이 아니다. 요청 상태는 즉시 바뀌고 새 파일은 슬롯 감쇠 뒤 시작한다.
 
+포털 기준은 **0.5 s 간격 3왕복·클릭 없음**이다(`MinCrossingIntervalSeconds=0.25 s`). `crossfade_seconds_by_state`는 목적 상태별 0~30초이고 누락 시 전역 `crossfade_seconds`를 사용한다. T8 기본은 실내1.0초·실외2.0초다. Photo `pause_policy=mute` 진입/해제는 별도 `photo_mute_fade_seconds`(0~5초, 생략 .25초, 0이면 즉시) envelope로 앰비언스를 감쇠/복귀한다. 재생 중 원샷은 `FadeOut`으로 종료하고 새 원샷은 Photo 중 억제한다. `maintain`은 UI sound로 월드 pause와 분리하며 사용자 mute가 우선한다.
 
-`crossfade_seconds_by_state`는 진입할 상태별 초 단위 전환 시간이다. 누락한 상태는 `crossfade_seconds`를 사용하며 모두 0~30초다. 현재 세 상태 모두 2초를 유지한다. V-10에서 interior=1초, outdoor_day/outdoor_night=2초 가설을 JSON만 바꿔 비교하고 PIE를 재시작한다. 보폭에 메시 Z 스케일을 곱하는 `stride_scale_by_mesh` 제안은 이번 구현에 포함하지 않으며 로스터별 청취 뒤 후속으로 판단한다.
+T8 품질 정책은 [Fable 배정](https://github.com/wooklym/golmok/issues/30#issuecomment-5879528015)에 따른다. 아래 §6·§7은 **5f6c810의 V-10 실행 이력**이며 새 equal-power·Photo 페이드·2D 발소리·볼륨·보폭의 PC 합격 결과로 재사용하지 않는다. 새 정책의 청취·패키지 발소리는 C-07 해소 뒤 PC, 최종 밸런스는 소유자 C-08이다.
 
-패키징 확인(V-10 실행, §6·§7): 임포트 후 `.\tools\ue\package.ps1` 실행 → `build/Windows`의 패키징 로그/컨테이너 목록에서 Audio의 SoundWave 7개와 `Config/Golmok/audio.json`을 확인 → 패키지 실행에서 세 상태 전환과 `golmok.audio credits` 출처 출력 확인. pak은 엔진 `UnrealPak.exe <pak 경로> -List`로 조사한다. IoStore를 사용한 출력이면 해당 컨테이너 목록과 cook/stage manifest도 함께 확인한다. 파일 존재와 실제 재생/크레딧 출력을 각각 기록하고 미실행을 성공으로 표시하지 않는다.
+패키징 확인(V-10 실행, §6·§7): 임포트 후 `.\tools\ue\package.ps1` 실행 → `build/Windows`의 패키징 로그/컨테이너 목록에서 Audio의 SoundWave 7개와 `Config/Golmok/audio.json`을 확인 → 패키지 실행에서 세 상태 전환과 `golmok.audio credits` 출처 출력 확인. pak은 엔진 `UnrealPak.exe <pak 경로> -List`로 조사한다. IoStore를 사용한 출력이면 해당 컨테이너 목록과 cook/stage manifest도 함께 확인한다. 패키지 HUD/`golmok.audio` 출력에 **`error: missing SoundWave`가 없음**도 확인한다. 파일 존재와 실제 재생/크레딧 출력을 각각 기록하고 미실행을 성공으로 표시하지 않는다.
 
 
 ### 런타임 불확실 API
 
-컴파일/헤드리스 성공과 출력 장치·패키지 검증을 구분한다.
+아래 결과는 T8 이전 V-10 이력이다. T8은 A1의 자체 발소리 감쇠를 제거하고 A4를 SpawnSound2D로 바꿨으며 A3·A8의 mute에 0.25초 페이드를 추가했다. 해당 변경의 실제 출력은 재검증 대상이다. 컴파일/헤드리스 성공과 출력 장치·패키지 검증을 구분한다.
 
 | 번호 | API | 위험 | 대안 | 확인 단계 | 결과 |
 |---|---|---|---|---|---|
@@ -145,7 +146,7 @@ cook 파일만으로 합격시키지 않는다. 컨테이너/stage manifest의 S
 | 전체 자동화 | 28 Success, RenderEvidence 미실행 별도 | ✅ 28 Success(21 + 경고 7), failed 0/notRun 0, 167.5 s. `RenderEvidence`는 설계대로 NOT EXECUTED |
 | 콘솔/HUD | 상태·mute·auto·출처/확인일 | ✅ `golmok.audio` → `audio: outdoor_day [outdoor_day / ] vol 0.70`. `.mute 1`이면 ` muted`·무음, `.mute 0`이면 복귀. `.state outdoor_night/interior/outdoor_day/auto` 동작, 잘못된 값은 usage. `credits`는 7항목(제목—저자·URL·라이선스·`Verified: 2026-09-28`·수정 내역). HUD `audio:` 줄 표시(`pc-verify-wp13-hud.jpg`) |
 | 낮/밤·실내 | 각3회·실내 우선·복수 소스 | ✅ 키 1·4·2·4·3·F5·F5로 낮↔밤 3회씩: −50.3 ↔ −53.9 dBFS, 1 dB 안착 1.66~1.93 s(2 s 페이드, 12회 중 1회는 잡음으로 3.0 s), 중간 dip 1.6~2.1 dB. 포털을 걸어서 실내 3회 진입·복귀: −55.6 dBFS ↔ 낮. 제3상태(밤 전환 0.4 s 뒤 실내): 끊김 없이 이어짐(최저 −58, 실내 대비 −2.5 dB). 복수 포털 소스 GUI는 미실행(헤드리스가 검사) |
-| 포털 | 1초 안 왕복3회·클릭 없음 | ✅ 클릭 없음. 문 평면 순간이동으로 0.33 s 간격 6회 통과(3왕복 1.64 s)와 0.5 s 간격 3왕복(왕복당 1 s). `MinCrossingIntervalSeconds=0.25` 때문에 3왕복을 1.25 s 안에는 할 수 없음. 발소리를 끈 구간의 클릭 z 최댓값 4.2(판정 8, 자체 시험의 하드컷은 z 160). 레벨이 −50 → −53.7로 부드럽게 출렁였다가 복귀 |
+| 포털 | 0.5 s 간격 3왕복·클릭 없음 | ✅ 클릭 없음. 문 평면 순간이동으로 0.33 s 간격 6회 통과(3왕복 1.64 s)와 0.5 s 간격 3왕복(왕복당 1 s). `MinCrossingIntervalSeconds=0.25` 때문에 3왕복을 1.25 s 안에는 할 수 없음. 발소리를 끈 구간의 클릭 z 최댓값 4.2(판정 8, 자체 시험의 하드컷은 z 160). 레벨이 −50 → −53.7로 부드럽게 출렁였다가 복귀 |
 | 크로스페이드 | 기본2초 vs 실내1초/실외2초 | ✅ 측정: 2.0 s면 → 실내 안착 1.83 s, 1.0 s면 0.94 s(0.66 s에 dip 2.5 dB). → 실외 2.0 s는 1.84 s로 양쪽 같음. 1.0 s는 빠른 왕복에서 더 깊게 출렁임(−56.5). 차트 `pc-verify-wp13-crossfade.jpg`. **체감 판정은 소유자 청취**. Fable 설계 의견은 §7-3 |
 | 재질별 발소리 | default/asphalt/tile/stairs 걷기·달리기10보 | ✅ L_Dev Floor PIE 한정 override(§7-5): SurfaceType2 → `SW_tile`, 3 → `SW_stairs` 확인; 미지정·SurfaceType1은 둘 다 `SW_asphalt`(`audio.json`의 `sets.default`와 `sets.asphalt`가 같아 현 설정에서는 구분할 수 없음). 각각 걷기 11보(71.7 cm/보)·달리기 12보(109 cm/보). `Course/Stairs` 태그 계단 → `SW_stairs`(걷기 8보 중 계단 위 7보, 달리기 5+5보). 합성 Zone 충돌 바닥 → default `SW_asphalt` 10보 |
 | 로스터별 발소리 | proxy135/proxy110/Quinn 각10보·스케일 필요성 | ✅ 실행: 각 걷기 10~11보, 달리기 11~12보, 소리 보폭은 고정(걷기 72~77, 달리기 109~112 cm). 애니메이션 발 딛기와의 비율(소리 ÷ 애니)은 걷기 Manny/Quinn 0.92·proxy135 0.70·proxy110 0.59, 달리기(애니 보폭 ÷ 소리 보폭 109~112 cm) Manny/Quinn 1.30~1.34·proxy135 1.27~1.30·proxy110 1.03~1.06(비율 = 발소리 횟수 ÷ 애니 발 딛기 횟수 = 애니 보폭 ÷ 소리 보폭; 세션 기록의 1.27·1.22는 소리 보폭 115~116 cm 기준 값이었음). **`stride_scale_by_mesh`(Z 스케일 곱)는 권장하지 않음**: proxy 걷기는 1.03~1.05로 맞지만 달리기가 1.7배로 나빠짐. 대안은 §7-3 |
@@ -163,7 +164,7 @@ ToD가 파괴되면 다음 재탐색(최대 0.25 s)에 프리셋·실내 상태�
 
 실내 broadcast는 기존대로 EnsurePresets 성공 조건 안에 있다. 프리셋 로드 실패 시 오디오 이벤트도 발행하지 않는다(B-7, 코드 변경 없음). SoundWave는 패키지 존재를 먼저 검사하므로 임포트 전 파일 누락은 HUD의 missing SoundWave 진단으로 남는다. 실제 임포트 후 PIE를 다시 시작하고 패키징/청취는 별도로 확인한다.
 
-C-10: Packaging 설정을 에디터에서 저장한 뒤 DefaultGame.ini의 중복 ProjectPackagingSettings 섹션과 Audio cook 항목을 git diff로 확인한다. 훅 표지 유실이나 항목 제거를 그대로 커밋하지 않는다. C-2 Shipping 크레딧 UI는 이번 T6 배정에서 제외, 실제 음원 확정 뒤 별도 배정이다. D7 stride_scale_by_mesh도 로스터별 V-10 청취 뒤 결정하며 현재 고정 보폭을 유지한다.
+C-10: Packaging 설정을 에디터에서 저장한 뒤 DefaultGame.ini의 중복 ProjectPackagingSettings 섹션과 Audio cook 항목을 git diff로 확인한다. 훅 표지 유실이나 항목 제거를 그대로 커밋하지 않는다. C-2 Shipping 크레딧 UI는 이번 T6 배정에서 제외, 실제 음원 확정 뒤 별도 배정이다. D7은 당시 Fable이 V-10 뒤 재검토를 조건부 허용한 가설이었다. V-10 측정 뒤 T8에서 메시 스케일 곱을 기각하고 캐릭터별 보폭 데이터로 대체했다.
 
 ## 7. V-10 실행 기록 (2026-09-29, PC)
 
@@ -206,3 +207,11 @@ C-10: Packaging 설정을 에디터에서 저장한 뒤 DefaultGame.ini의 중�
 
 - PhysicalSurfaces 이름이 프로젝트에 없어서 Python에는 `unreal.PhysicalSurface.SURFACE_TYPE_DEFAULT`만 노출된다. 이 상태에서는 `set_editor_property("surface_type", …)`로 SurfaceType1~를 줄 수 없다. PIE 콘솔 `set <obj> SurfaceType SurfaceType2`도 GUI 에디터에서는 `ProcessUserConsoleInput`이 가로채 적용되지 않는다(헤드리스 commandlet에서만 적용됨). 재질 시험은 `DefaultEngine.ini`에 `[/Script/Engine.PhysicsSettings] +PhysicalSurfaces=(Type=SurfaceType1,Name="V10Asphalt")` 등 3줄을 **임시로** 넣고 한 뒤 `git checkout`한다. Zone 에셋 단계에서 이름을 정식으로 정의하면(B 항목 C-11) 이 문제는 없어진다.
 - 임포트로 생긴 `Content/Golmok/Audio/{ambience,footsteps}/SW_*.uasset`은 gitignore 대상이 아니라 untracked로 보인다. 커밋할 때 제외해야 한다(후속: ignore 규칙 검토).
+
+
+## 8. T8 재검증 범위 (13d, 2026-09-29)
+
+- 헤드리스: 전력 보간·재전환·50ms 교체, 설정 타입/범위와 선택 보폭, `audio:` 공급자 실제 줄·상대 개수, 표면 이름/세트 id 대조, GamePause 중 Photo envelope를 검사한다. 결과는 [WP-13 T8 결과](../plan/WP-13-ambience-audio.md)에 기록한다.
+- PC: T6 수명/HUD/누락에셋 스모크와 T8 보폭·2D 자체 발소리·Photo 원샷 FadeOut·빠른 포털·새 gain을 재녹음/청취한다. `steps=`로 default/asphalt를 구별하고 `error: missing SoundWave`가 없는지 확인한다. C-07 해소·GUI 잠금 확인 뒤 실행한다.
+- §7-5의 `V10Asphalt` 등은 이전 시험에서만 사용한 이름이다. T8 시험에는 §3의 정확한 세트 이름을 쓴다. 생성 `Audio/*/SW_*.uasset`은 PR #54부터 ignore되며 소스/JSON/임포터로 재생성한다.
+- R50-3: T6 전체 자동화의 경고 테스트 수 7→8은 `Audio.StateMachine`이 ToD 파괴/재생성을 검사할 때 기록된 `No AGolmokGeoOrigin in L_Dev: zones are placed with their own origin at the level origin (dev level mode). Place one AGolmokGeoOrigin at (0,0,0) with the basemap area origin for geo-referenced placement.`다. L_Dev 배치 경고이며 오디오 누락 경고가 아니다. ExpectedMessage로 감추지 않고 보고서에 남긴다.
