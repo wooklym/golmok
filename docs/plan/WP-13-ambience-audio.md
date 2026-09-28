@@ -176,3 +176,14 @@ Fable은 빠른 제3상태 최대50ms 교체, 70/110cm 보폭, 재질 default, P
 런북에 로스터별10보·소유자 gain/장치 기록, 런타임 API9개 위험/대안/단계/결과, 결과표, 빌드→에디터→임포트·헤드리스 재현, cook 목록 명령, 허용 라이선스/URL/확인일을 보완했다. cook 철회는 당시 이력으로 정정했다. (B) ToD도0.25초 재탐색, 임포트 선행·ini 재작성·PhysicalSurfaces·Shipping CC-BY 크레딧도 기록했다. 메시 스케일 보폭 옵션은 로스터 청취 근거를 얻은 뒤 판단한다.
 
 수정 게이트: ruff check/format103·check_repo·diff --check 통과, pytest **736 passed/68 skipped/208 warnings,33.34s**. UE 빌드 **7.47s 성공**, 전체 **28 Success(21+경고7), failed0/notRun0,167.10s**. RenderEvidence NOT EXECUTED1 제외 실제27개. 확인일 오류 거부·night에서 실패 프리셋 상태 유지 검사 실행 성공. 증거 Saved/Automation/WP13/full-review-report.json; 실제 청취/패키징 미실행.
+
+## 병합 기록 — 13b PR #34 (2026-09-28, 오케스트레이터 세션)
+
+대상: [PR #34](https://github.com/wooklym/golmok/pull/34) `astra/wp-13b-audio` 4808c5b(리뷰) → 수정 head(병합 세션이 diff로 (A) 반영 확인). 절차: DEVELOPMENT-PLAN §7.6 — Opus 5.5 ultracode 적대적 리뷰(리뷰어 4관점: 런타임 C++ / 훅·테스트·계약 / 데이터·Python / 라이선스·문서 → 지적 38건마다 회의론자 2명, 80 에이전트) + Fable 설계·품질 검토 → PR 코멘트(2026-09-28 02:50Z) → Astra 수정 → D-019에 따라 소유자 승인 없이 이 커밋(`WP-13: 병합 시 반영 (Fable)`) → merge commit. 전문은 PR #34 코멘트.
+
+- **BLOCKING 없음.** 훅 3커밋(527233c 델리게이트/HUD/등록부, 7be448d Audio cook, fd3a318 WP-12 런북 총계)은 허용 범위 안의 추가 전용. 수명·바인딩·크로스페이드 연속성·50 ms 교체·실내 우선·발소리 누적/재질/게인·Photo mute·콘솔/HUD·순수 헤더 코드상 정확. 라이선스·출처: WAV 7개를 재생성해 LFS 바이트 일치, ATTRIBUTION/크레딧이 JSON 재생성과 동일, CC URL 정확, research/10·공유 문서 무변경. tools pytest 795 passed, ruff·format·check_repo 통과, g++ 드라이버 -Werror -pedantic.
+- **(A) 10건 → 수정 반영**: C-1 asset `verified` 확인일 필드(D-002 요구)·B-1 실패 경로 단언(outdoor_night 전제 또는 broadcast 횟수)·B-2 mute 검사 강화 또는 문서 정정·A-3 슬롯 교체 직전 볼륨 0 적용(클릭 방지)·B-4 문서 102행 시점 정정·D3 V-10 로스터별 보폭 체감·소유자 볼륨 밸런스 항목·D4 런타임 UE API 불확실 표(Attenuation/Concurrency, SpawnSound2D+bIsUISound, PhysicalMaterial 트레이스, LoadObject 소프트 경로, OnPossessedPawnChanged, IsTickableWhenPaused)·D5 결과 기록 표·D9 빌드→에디터 순서·헤드리스 임포트 명령·패키징 확인 명령·라이선스 값/URL·D10 표기 파일 드리프트 테스트.
+- **(B) 비블로킹(V-10 뒤 후속 가능)**: A-4 ToD 파괴 시 상태 초기화, A-5/B-5 HUD 공급자 인덱스 제거(핸들 방식으로), A-6 0.25 s 폴링 범위 문구, A-7/B-8 임포트 전 PIE LoadObject 경고(DoesPackageExist 선확인), B-7 실내 broadcast가 EnsurePresets 조건 안, C-9 임포트 실패 테스트 2케이스, C-10 ini 중복 섹션 헤더 재작성 주의, C-11 `PhysicalSurfaces` 이름 미정의, C-2 Shipping 크레딧 노출(CC-BY 채택 시 게임 내 UI 필요), D7 보폭 옵션 문구. 반박: A-1, A-2, B-3, B-6, C-3~C-7, D2, D11.
+- **Fable 설계·품질**: 승인 가설(상태별 크로스페이드 JSON, ≤50 ms 조용한 슬롯 교체, 실내 우선, 보폭 70/110·달리기 250 cm/s, 재질 default·계단 태그, Photo mute/maintain)이 코드·런북에 그대로 반영. 합격은 V-10 청취(포털 1 s 왕복 3회 클릭, 진입 1 s/복귀 2 s 비교, 로스터별 보폭, 소유자 밸런스). `stride_scale_by_mesh`는 V-10 뒤 후속.
+- **(C) 옮긴 것**: STATUS 트랙 1A·병행 트랙 WP-13 행(🟡 코드 완료·PC V-10 대기), ROADMAP 1.6, DECISIONS D-002(합성 플레이스홀더 출처·cook 훅·의존성 없음), astra-tasks T3, 이 절. 병합 시 반영 문안의 칸별 분리(D1/D8)는 병합 세션이 처리.
+- 판정: **병합**. 실제 음질·패키징·볼륨 밸런스 합격이 아니며 V-10(PC)에서 판정한다. 원본 음원은 Freesound 계정 소유자 결정(STATUS 결정 필요 ③) 뒤 JSON+재임포트로 교체.
