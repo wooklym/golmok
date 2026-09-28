@@ -181,6 +181,15 @@ UE 실행에서 `FScopedMovementUpdate` include 경로와 부모 캡슐의 지�
 - **(C) 옮긴 것**: STATUS 병행 트랙 WP-18·V-11·V-12 행, V-09 행, ROADMAP 1.3 캐릭터 행, 이 절. DECISIONS 추가 없음.
 - 판정: **병합 가능(as-is)**. #22/#23의 자체 리뷰 예외를 확대해 표기하지 않는다. 이 리뷰는 코드·테스트·문서 검토이며 GUI 보행 영상·애니메이션/리타깃 품질·V-12 채점·D-018 ②의 합격이 아니다.
 
+### 2026-09-28 병합 전 Opus 리뷰 — T1 PR #32 (병합 세션 기록)
+
+대상: [PR #32](https://github.com/wooklym/golmok/pull/32) `astra/wp-18-review-fixes` 2339eab → 수정 76311d3(`Tests/GolmokCharacterRoster{Path,Movement}Test.cpp`, `WP-18-followup.md`, 런북 V-11). 절차: DEVELOPMENT-PLAN §7.6 — Opus 5.5 ultracode 적대적 리뷰(리뷰어 → 항목별 회의론자 2명) → PR 코멘트 → Astra 수정 → D-019에 따라 소유자 승인 없이 이 커밋(`WP-18: 병합 시 반영 (Fable)`) → merge commit. 설계·품질 가설 변경이 없어 Fable 설계 리뷰는 생략. 전문은 PR #32 코멘트.
+
+- **(A) 확정 결함 4건 → 76311d3에서 반영 확인**: A1 합성 경로의 마지막 샘플 XY가 정차점 (−500, 0)과 같아 XY-only 단언이 "경로 끝에 방치" 회귀를 못 잡음 → Y=300으로 전 구간 분리; B-D1 "병합 시 반영" 문안을 STATUS 칸별 원문→대체 형식으로; B-D2 런북 4곳의 T2 대기 문구 → T1 직접 실행 완료(EXECUTED 6/6, 경고 0); B-D4 PowerShell `entries` 배열 출력 → 메시지를 펼쳐 EXECUTED/NOT EXECUTED 출력.
+- **(B) 비블로킹**: A2 주석(자연 종료는 EndPlayback → Possess → `ACharacter::Restart()`가 이동 모드를 복원해 중력 재적용) 반영, A3 `_build_course()` 지목 반영, B-D5 `test.ps1` 판정 동작(succeeded/failed/notRun 출력, failed>0 또는 succeeded==0에서 예외) 확인, B-D7 엔진 헤더 줄번호는 PC 기록으로 유지. 반박: B-D3, B-D6.
+- **(C) 옮긴 것**: STATUS 병행 트랙 WP-18·V-11 행(전체 UE 26 = 실행 25 Success + NOT EXECUTED 1 `RenderEvidence`; B1·B2·B4~B7 T1 반영; `PhotoIntegration` 6조합 T1 직접 실행), ROADMAP 1.3 캐릭터 행, astra-tasks T1, 이 절. 상태 칸은 🟡 유지(GUI·시각 품질 대기).
+- 판정: **병합 가능**. GUI 보행 영상·애니메이션/리타깃 품질·V-12 채점·D-018 ②의 합격이 아니다.
+
 ## 병합 시 반영
 
 최종 병합 준비 기록(2026-09-27): 설계 #22는 **497566f**로 main에 병합했다. #23 base를 main으로 바꾸고 `git merge origin/main`으로 동기화했다. 이미 받은 설계442d52f와 같아 추가 파일 충돌/코드 변경은 없었다. 앞선 설계 동기화의 유일한 충돌은 이 문서 상태 머리말이며 구현 결과와 새 승인/리뷰 기록을 모두 보존했다. 최종 로컬 재검증: UE 빌드 성공·**19 Success(14+경고5), failed0/notRun0, 63.89s**, Python **608 passed/42 skipped/208 warnings, 33.27s**, ruff/format95개/check_repo/diff check 통과. 구현 소스/테스트는 이 재검증 이후 불변이며 최종 head CI 확인 뒤 merge commit으로 병합한다.

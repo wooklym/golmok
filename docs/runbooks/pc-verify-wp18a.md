@@ -1,10 +1,10 @@
 # V-11 — WP-18a 캐릭터 로스터 PC 검증
 
 2026-09-27 갱신 · 작성/헤드리스·standalone GUI 기초 검증 ChatGPT Astra · 지속 보행/품질 후속 Fable PC. 이번 #22/#23은 사용자 지시로 Astra 자체 리뷰·병합.
-**코드·UE 헤드리스/4종 지속 이동·지형 통과, GUI 교체·점프 확인. 보행 영상·WP-12 통합/룩 검증 대기.** D-018 ①은 승인됐으며 설계 PR → 구현 PR 병합 뒤 아래 남은 항목을 진행한다. V-12 채점과 대조군/야간 실패의 판정은 [WP-18](../plan/WP-18-characters.md)의 최신 절차를 따른다.
+**코드·UE 헤드리스/4종 지속 이동·지형 통과, GUI 교체·점프 확인. WP-12 통합 T1 직접 실행 완료(EXECUTED 6/6, 경고 0). T2는 GUI·시각 항목만 대기.** D-018 ①은 승인됐으며 설계 PR → 구현 PR 병합 뒤 아래 남은 항목을 진행한다. V-12 채점과 대조군/야간 실패의 판정은 [WP-18](../plan/WP-18-characters.md)의 최신 절차를 따른다.
 계약과 D-018은 [WP-18](../plan/WP-18-characters.md), 아트 판단은 [컨셉](../design/character-concept.md), 예산은 [제작 사양](../research/11-character-pipeline.md).
 
-병합 후 최신 진행: [WP-18 후속 기록](../plan/WP-18-followup.md). 실제 경로 재생/복귀 자동화는 실행 통과했고, WP-12 실통합은 상대 코드의 UE5.8 컴파일 오류를 재현했다. 아래 초기 결과표보다 후속 기록을 우선한다.
+병합 후 최신 진행: [WP-18 후속 기록](../plan/WP-18-followup.md). **2026-09-28 T1 기준 WP-12는 main에 병합돼 컴파일 차단이 해소됐고 PhotoIntegration 6조합을 T1에서 직접 실행 완료했다(EXECUTED 6/6, 경고 0). T2는 GUI·시각 항목만 남았다.** 아래 초기 결과표는 당시 기록이며 후속 기록을 우선한다. [V-09 PR #27](https://github.com/wooklym/golmok/pull/27)의 26/26·6조합 통과 보고는 [2차]이며 Astra T1 직접 검증 결과는 후속 기록의 T1 절에 있다.
 
 ## 1. 안전한 별도 PC 작업 폴더
 
@@ -94,14 +94,17 @@ V-12는 실제 Zone, 없으면 L_Basemap_Yeonnam에서 **프록시2종 × PBR/5.
 
 ## 6. 엔진 API·미확인 조합
 
-| 항목 | 2026-09-26 상태 | 근거/후속 |
+| 항목 | 확인 상태 (2026-09-28 보완) | 근거/후속 |
 |---|---|---|
 | `OnPossessedPawnChanged.AddDynamic/RemoveDynamic`, UFUNCTION | 확인 | 5.8.3 빌드·Runtime 자동 기본/임시 Pawn 복귀 성공 |
 | `FJsonObject::Values`/`TryGetField(FString)` | 확인 | Values는 개수만 읽고 TryGetField로 필수 키를 확인해 FSharedString 변환을 피함. 실제 JSON/잘못된 키 Config 테스트 성공 |
 | `UAnimBlueprintGeneratedClass::TargetSkeleton` 및 Quinn 같은 ABP | 확인(로드·설정) | Runtime 실제 Quinn mesh/ABP 경로 성공. 시각 애니메이션 품질은 GUI 대기 |
 | `FScopedMovementUpdate`, `CacheInitialMeshOffset` | 확인 | include는 `Engine/ScopedMovementUpdate.h`. 메시를 부모 캡슐 이동 전에 갱신한 뒤 proxy offsetZ−69와 고정 발밑 단언 성공 |
 | `OverlapBlockingTestByChannel`+capsule response | 확인(자동화) | 인공 천장과 합성 실내 표식 아래 확대 거절, 여유 지점 성공. 실제 포털과 교체3회 왕복 통과. GUI는 §4 대기 |
-| WP-12 실제 포토 actor/time dilation·앵커 | 미확인 통합 | Runtime의 별도 ViewTarget/paused 거절은 성공. WP-12 병합 뒤 §5 |
+| WP-12 실제 포토 actor/time dilation·앵커 | T1 직접 실행 완료(EXECUTED 6/6, 경고 0), T2는 GUI·시각 항목만 | `Enter()`에서 PauseMode 래치, `FGolmokPhotoRestoreState::PauseMode` 읽기 가능. Enter 전에 모드를 쓰는 기존 테스트 유지. T1 main d37720e에서 6조합 직접 실행 성공 |
+| `FScreenshotRequest::RequestScreenshot(..., FIntRect(), true)` | 5.8.3 헤더 확인·기존 D3D12 실행 확인 | 설치 `Engine/Source/Runtime/Engine/Public/UnrealClient.h:219`, 6번째 인자는 `bInRestrictToGameViewport`. §8 후속 렌더 12장 저장 기록. 실제 PNG 크기 확인은 매 실행 필요 |
+| `USpringArmComponent::IsCollisionFixApplied()` | 5.8.3 헤더 확인·기존 Locomotion 실행 확인 | `Engine/Source/Runtime/Engine/Classes/GameFramework/SpringArmComponent.h:132`, const 공개 API. 벽 앞 true/열린 방향 false를 검사함. 애니메이션 품질 판단과 별개 |
+| `FApp::CanEverRender()` | 5.8.3 헤더 확인 | `Engine/Source/Runtime/Core/Public/Misc/App.h:400`. 명시적 렌더 요청에 nullrhi를 같이 주면 RenderEvidence가 오류로 거절함. true가 캡처 성공을 보장하지 않으므로 파일 저장·디코딩을 따로 확인 |
 | 첫 soft load hitch·교체 peak VRAM·패키지 cook | 미확인 | nullrhi는 GPU 성능 근거 아님. JSON soft path만으로 cook 보장 안 됨. 18b 패키징 검증 별도 |
 | 4.5등신 GASP, Toon/Mutable, Nanite+모프/cloth, groom | 미확인 실작품 조합 | 문서 기능 존재와 별개. V-08/V-12/18b에서 실제 에셋으로 측정 |
 
@@ -127,15 +130,29 @@ V-12는 실제 Zone, 없으면 L_Basemap_Yeonnam에서 **프록시2종 × PBR/5.
 
 2026-09-27 자체 리뷰/설계 동기화 뒤 병합 전 재검증: UE 빌드 성공, 전체 **19 Success(14+경고5)/실패0/미실행0, 63.89s**, 실제 포털3회 왕복 완료. Python608 passed/42 skipped/208 warnings(33.27s), ruff/format95개/check_repo 성공. 이후 main497566f 동기화는 이미 받은 설계와 동일해 구현 코드 변화가 없었다.
 
-## 8. 후속 자동화와 화면 없는 렌더 증거
+## 8. 후속 자동화와 오프스크린 GPU 렌더 증거
 
 - `Golmok.Character.Locomotion`: 4종 각각 실제 `APlayerController::InputKey` → Enhanced Input으로 Shift+W 유지 중 교체, 달리기 속도/이동량, Shift 해제 뒤 걷기, 완전 정지, 점프/착지를 검사한다. 초기화의 키 해제와 재입력은 별도 틱에 처리한다. 테스트 시작점만 배치하며 코스 통과 중 위치를 지정하지 않는다.
 - 같은 검사에서25cm 턱 통과/40cm 장애물 차단,80cm 통로(84cm 성인 캡슐은 차단,67.2cm 프록시는 통과), 통로 안 확대 거절, L_Dev의17cm×10계단 상승·하강, 벽 앞 붐 수축·복귀를 확인한다. 임시 충돌 박스는 PIE에만 만들고 성공/실패/종료 시 정리한다. 속도 기대값은 JSON 재읽기 대신 계약 리터럴이며 ±10%, 높이는 캡슐 바닥과 지면 간 엔진 여유를 포함해 ±3cm다.
-- `Golmok.Character.PathRoundTrip`: 실제 Debug 경로를 2초 재생하고 자연 종료를 기다린다. 수동 Pawn 교체 모사와 달리 `StartPlayback`·`StopPlayback` 수명을 통과한다.
-- `Golmok.Character.PhotoIntegration`: WP-12가 함께 빌드될 때만 실제 Photo 서브시스템을 검사한다. main만 빌드하면 `NOT EXECUTED` 경고다. 이 상태를 사진 모드 통과로 보고하지 않는다. WP-12 `0806da8`의 컴파일 실패 위치는 [후속 기록](../plan/WP-18-followup.md)에 있다.
+- `Golmok.Character.PathRoundTrip`: 실제 Debug 경로를 2초 재생하고 자연 종료를 기다린다. 수동 Pawn 교체 모사와 달리 `StartPlayback`·`StopPlayback` 수명을 통과한다. 시작점 z=1000에서 재생 종료 뒤 걷기/중력이 재개될 수 있으므로 위치 보존은 **XY만 0.01cm 미만**으로 검사한다. 높이/접지는 Runtime·Locomotion의 별도 계약이다.
+- `Golmok.Character.PhotoIntegration`: 현재 main의 실제 Photo 서브시스템으로 6조합을 검사한다. Photo 소스가 없는 과거 브랜치에서만 `NOT EXECUTED` 경고다. WP-12 `0806da8`의 과거 컴파일 차단 기록을 현재 실패로 읽지 않는다. `DefaultEngine.ini`의 `[/Script/Engine.Engine]`는 파일 끝 `[WP-12 hook]` 안에 있으므로 설정을 검토할 때 그 절을 확인한다.
 - `Golmok.Character.RenderEvidence`: 아래 명시적 옵션과 GPU RHI가 필요하다. 일반 헤드리스 실행의 `NOT EXECUTED`는 정상이며 렌더 성공이 아니다. 옵션을 주고 `-nullrhi`를 같이 주면 명확한 오류로 실패한다.
 
 이동 기능만 재현하려면 `tools/ue/test.ps1 -SetupDevLevel -Filter Golmok.Character.Locomotion`을 사용한다. 실행 결과는 [후속 기록](../plan/WP-18-followup.md)을 확인한다. 이 물리·입력 자동화는 실제 키보드 플레이 영상, 발 미끄러짐·관절·리타깃 품질 검수를 대신하지 않는다.
+
+**L_Dev fixture 의존(B5)**: `GolmokCharacterRosterMovementTest.cpp`의 바닥·골목 벽·계단 좌표는 Claude 레인의 `Content/Python/golmok/setup_dev_level.py::_build_course()`에 의존한다. 계단 시작 `(500,-1500)`, 17cm×10단/디딤판30cm/폭200cm, 랜딩 x=800~1100·z=170; 벽 안쪽 y=±250이다. 테스트는 `(400,-1500)`에서 상승, x≥900에서 랜딩, x≤380에서 하강을 판정하고 `(1500,100)`에서 붐 충돌을 검사한다. 이 좌표가 바뀌면 생성기 담당자와 기대값을 함께 검토하고 L_Dev를 다시 생성해야 한다. 25/40cm 장애물과 80cm 통로는 테스트가 만드는 임시 박스라 기본 L_Dev의 15cm 연석과 다르다. 생성기를 이번 레인에서 수정하지 않는다.
+
+**단독 필터와 `Succeeded: 0`(B4)**: `test.ps1`은 nullrhi로 실행하고 `succeeded`만 출력/검사한다. 경고가 있는 성공은 `succeededWithWarnings`로 따로 집계된다. 따라서 RenderEvidence 단독(옵션 없음)이나 Photo 없는 브랜치의 PhotoIntegration 단독은 `state=Success`인데도 `succeeded=0` 예외가 날 수 있다. 실제 Photo 실행에도 경고가 하나라도 있으면 같은 현상이 가능하다. 스크립트는 타 레인이므로 이번에는 바꾸지 않으며, RenderEvidence의 ProductFilter도 전체 실행에서 누락을 드러내기 위해 유지한다.
+
+예외를 무조건 무시하지 않는다. **새로 생성된** `Saved/Automation/Report/index.json`에서 `failed`, `notRun`, `succeeded`, `succeededWithWarnings`, 개별 `state`와 entries를 확인한다. `NOT EXECUTED`면 미실행이며, PhotoIntegration은 `EXECUTED <id> / <mode>` 6줄이 전부 있어야 한다. RenderEvidence의 실제 실행은 아래 GPU 명령으로 12개 `CAPTURED`와 PNG 디코딩을 확인한다. 엔진 종료 코드/크래시, 보고서 누락, failed/notRun, 예상 항목 누락은 별도 실패로 남긴다. 예외를 성공 종료 코드로 바꾸거나 과거 보고서로 대체하지 않는다.
+
+```powershell
+# test.ps1 예외 후 진단용(통과 판정을 자동으로 덮어쓰지 않음)
+$wp18Result = Get-Content unreal/Golmok/Saved/Automation/Report/index.json -Raw -Encoding UTF8 | ConvertFrom-Json
+$wp18Result | Select-Object succeeded,succeededWithWarnings,failed,notRun,totalDuration
+$wp18Result.tests | Select-Object fullTestPath,state
+$wp18Result.tests | ForEach-Object { $_.entries.event.message } | Select-String '^(EXECUTED|NOT EXECUTED)'
+```
 
 ```powershell
 # 기존 빌드/L_Dev/마네킹 준비 뒤, 다른 검사와 같은 프로젝트를 동시에 실행하지 않는다.
@@ -154,4 +171,10 @@ V-12는 실제 Zone, 없으면 L_Basemap_Yeonnam에서 **프록시2종 × PBR/5.
 
 2026-09-27 Astra가 사용자 보안 창 처리 후 L_Dev의1280×720 게임 창에서4종 목록, Quinn→proxy135→proxy110→Manny 교체, 각4종 Space 점프·착지, 잘못된 ID 거절을 확인했다. 엔진 캡처4장(2560×1440)과 로그·검증 범위는 [후속 기록의 GUI 절](../plan/WP-18-followup.md#보안-창-처리-뒤-gui-검증)에 있다. 두 프록시의 기본 구도에서는 발끝이 하단에 잘렸다.
 
-이 결과는 §7 초기 표의 GUI 전부 미실행 상태를 **기초 동작 부분 확인**으로 갱신한다. 이후 §8 Locomotion에서 지속 키 입력·달리기 중 교체·턱/계단/붐 충돌은 물리 자동화로 확인했다. 보행 주기/관절/발 미끄러짐의 시각 검수, 포털 GUI 영상, PIE 재시작, 초기 메시 실패 후 GUI 복구는 아직 실행하지 않았다. WP-12 컴파일 차단 해소 뒤 사진 통합6조합을 실행하고, 품질 채점은 V-12에서 별도로 한다.
+이 결과는 §7 초기 표의 GUI 전부 미실행 상태를 **기초 동작 부분 확인**으로 갱신한다. 이후 §8 Locomotion에서 지속 키 입력·달리기 중 교체·턱/계단/붐 충돌은 물리 자동화로 확인했다. 보행 주기/관절/발 미끄러짐의 시각 검수, 포털 GUI 영상, PIE 재시작, 초기 메시 실패 후 GUI 복구는 아직 실행하지 않았다. 현재 WP-12 컴파일 차단은 해소됐으며 사진 통합6조합은 T1 직접 실행 완료(EXECUTED 6/6, 경고 0)다. T2는 GUI·시각 항목만 남았다. 품질 채점은 V-12에서 별도로 한다.
+
+## 10. 자동 재적용 실패와 Controller 바인딩 (B7 검토)
+
+`CurrentId`는 마지막 성공 선택을 기억한다. 새 캐릭터 폰으로 바뀔 때 `ApplyEntry`가 초기화/자산/캡슐 충돌 등으로 실패하면 실패 메시지만 로그에 남고 이전 ID가 유지된다. 따라서 `list current=proxy135`만으로 **새 폰에 프록시가 적용됐다고 판정하면 안 된다**. 기존 폰의 잘못된 수동 선택은 원자적으로 기존 상태를 유지하므로 이 경우와 구분한다. 재현 시 이전/새 폰·요청 ID·로그와 새 폰의 실제 메시/캡슐/속도를 함께 보고한다. 경로 폰 왕복은 이전 선택을 복원해야 하므로 이 소형 PR에서 ID를 지우거나 default로 바꾸지 않았다. 선택 의도와 적용된 폰/상태를 별도로 노출하는 것은 후속 API 설계 후보다.
+
+`RefreshController`의 0.25초 월드 타이머는 최초 Controller의 지연 생성·Controller 교체를 발견한다. 동일 Controller면 즉시 반환하고, 실제 Pawn 교체는 `OnPossessedPawnChanged` 델리게이트로 받는다. **타이머가 실패한 ApplyEntry를 0.25초마다 재시도하지는 않는다.** 타이머를 첫 바인딩 뒤 끄면 Controller 교체를 놓치며, 엔진 델리게이트로 완전히 대체하는 변경은 별도 수명주기 회귀 검사가 필요하다. 현재는 유지한다. 이 간격은 게임 월드 시간 기준으로 pause/time dilation에 영향을 받으므로 실시간 0.25초 복구 SLA나 성능 개선을 주장하지 않는다.

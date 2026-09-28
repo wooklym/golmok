@@ -1,6 +1,8 @@
 # WP-18 후속 — 이동·실제 경로·포토 통합·렌더 증거
 
-2026-09-27 · ChatGPT Astra · 기준 main `3c8f1b0` · 브랜치 `astra/wp-18-followup`
+2026-09-27 · ChatGPT Astra · 최초 기준 main `3c8f1b0` · 최초 브랜치 `astra/wp-18-followup`(PR #24 병합·닫힘)
+
+**2026-09-28 T1 현재 상태**: main `045cbe3`에서 시작해 `d37720e`를 병합한 새 `astra/wp-18-review-fixes`. WP-12는 main `939207e`에 병합됐고 당시 컴파일 차단은 해소됐다. 아래 2026-09-27 실행 기록은 그때의 결과로 보존한다. `PauseMode`는 `Enter()`에서 래치되며 `GetRestoreState().PauseMode`로 확인 가능하다. 현재 V-09 런북 자동화 총계는 26개다. [PR #27](https://github.com/wooklym/golmok/pull/27)은 26/26과 PhotoIntegration 6조합 실행을 보고한다 [2차: PC 세션 보고, Astra T2 직접 실행 결과 아님]. T1 처리·게이트는 문서 끝에 기록한다.
 
 사용자의 후속 작업 지시에 따라 [V-11 런북](../runbooks/pc-verify-wp18a.md)의 미검증 항목을 진행한다. 이번 변경은 캐릭터 레인의 검증 코드와 문서다. 게임 런타임·공유 설정·최종 룩·발주② 결정은 바꾸지 않는다.
 
@@ -9,7 +11,7 @@
 | 항목 | 검증 방법 | 결과 |
 |---|---|---|
 | 실제 경로 재생과 선택 유지 | `Golmok.Character.PathRoundTrip`: proxy135 선택 → 실제 `StartPlayback` → 경로 폰 빙의 중 교체 거절 → 2초 경로의 자연 종료 → 같은 원래 폰·선택·메시/캡슐·FOV·속도 복원 → Quinn 교체 | **실행 통과**. 임시 경로는 GUID 이름으로 Saved 아래 만들고 정리한다. 보행·영상 검수와는 구별 |
-| 실제 WP-12와 로스터 | `Golmok.Character.PhotoIntegration`: proxy135/proxy110/Quinn × GamePause/TimeDilation, 총6조합. 카메라 갱신 후 FOV/캡슐 앵커 상속, 실제 여러 틱에 걸친 교체 거절·숨김/위치/메시/시간 배율 보존, 종료 복원과 교체 재개 | **테스트 구현·통합 브랜치에서 해당 파일 컴파일 완료, 실행 차단**. WP-12 자체의 UE5.8 접근 오류는 아래 기록. main에는 Photo가 없어 `NOT EXECUTED` 경고 |
+| 실제 WP-12와 로스터 | `Golmok.Character.PhotoIntegration`: proxy135/proxy110/Quinn × GamePause/TimeDilation, 총6조합. 카메라 갱신 후 FOV/캡슐 앵커 상속, 실제 여러 틱에 걸친 교체 거절·숨김/위치/메시/시간 배율 보존, 종료 복원과 교체 재개 | **당시 해당 파일 오류 없음, 실행 전**. 전체 빌드는 WP-12 자체의 UE5.8 접근 오류로 실패(아래 기록). 당시 main에는 Photo가 없어 `NOT EXECUTED` 경고 |
 | 렌더 증거 | `Golmok.Character.RenderEvidence`: 명시적 실행 옵션으로만 두 프록시 × 조명4종, Quinn/Manny 정오 대조, 프록시 붐1.5배 진단 구도. 기존 템플릿 PBR·L_Dev·정면·원래 조명값. 게임 뷰포트만 저장 | **D3D12 실제 렌더12장 저장·디코딩 확인**, 대표 구도 육안 검토. 야간 미가시성 재현. 본 V-12의 실 배경·재질3안·얼굴/DOF·소유자 채점과 구별 |
 | GUI 조작 | `computer-use`로 L_Dev standalone 게임에서 콘솔·Space·F1 입력 | 사용자 보안 창 처리 후 **4종 교체·점프/착지·잘못된 ID 거절 확인**. 기본 카메라 구도와 HUD 좌표를 관찰하고 엔진 캡처4장 저장. 지속 보행·달리기·계단·포털 영상은 미완 |
 | 지속 입력·지형 통과 | `Golmok.Character.Locomotion`: 실제 InputKey/Enhanced Input으로4종의 달리기 중 교체·걷기 복귀, 점프,25cm 턱/40cm 장애물,80cm 통로, 계단 왕복, 카메라 충돌 | **실행 통과**, 필터1 Success/경고0/실패0,83.82s. 위치 배치는 코스 출발점에만 사용. nullrhi 물리 검사이며 GUI 보행 영상/애니메이션 품질 판정은 별도 |
@@ -21,7 +23,7 @@
 - 읽은 원격 [초안 PR #19](https://github.com/wooklym/golmok/pull/19): `0806da880d2fc7855b3ca6fd52be6a7143900411`, open/draft, 미병합.
 - 로컬 `astra/wp-18-photo-integration`의 `1d321fb`는 캐릭터 테스트 `ad57159`와 WP-12를 결합한 **검증용 병합**이다. 공개 main/상대 브랜치를 변경하지 않았다.
 - 충돌은 `docs/plan/STATUS.md` 한 곳이며 main 문안을 유지했다. 콘솔 목록의 photo·character 등록은 모두 보존했다.
-- UE5.8.3 `Build.bat ... -gather`: 새 `GolmokCharacterRosterPhotoTest.cpp` 컴파일 성공. WP-12 아래 7곳의 C2248 때문에 전체 빌드 실패. 런타임 검사는 시작하지 않았다.
+- UE5.8.3 `Build.bat ... -gather`: 새 `GolmokCharacterRosterPhotoTest.cpp`는 해당 파일 오류 없음, 실행 전. WP-12 아래 7곳의 C2248 때문에 전체 빌드 실패. 런타임 검사는 시작하지 않았다.
 
 | 원격 WP-12 소스 위치 | 원인 | 소유 레인 수정 시 필요한 조건 |
 |---|---|---|
@@ -105,3 +107,55 @@ V-11의 지속 이동·지형 항목은 이제 **물리/입력 자동화 확인,
 - 이번 변경의 최종 리뷰·병합 기록과 CI는 후속 PR에 남긴다. #22/#23에 한정한 자체 리뷰 예외를 독립 Fable 검토로 확대해 표기하지 않는다.
 
 반영 기록(2026-09-27, 병합 세션 Fable, §7.6 4단계): 위 문안은 `WP-18: 병합 시 반영 (Fable)` 커밋으로 STATUS 병행 트랙 WP-18·V-11·V-12·V-09 행, ROADMAP 1.3 캐릭터 행, `WP-18-characters.md` "리뷰" 절에 옮겼다. WP-12(#19)는 이보다 먼저 main 939207e에 병합됐으므로 `PhotoIntegration` 6조합은 V-09 PC 검증의 전체 실행에서 돈다. 마지막 항목(후속 PR에 남긴다)은 §7.6과 어긋나 적용하지 않았다(리뷰 B3).
+
+
+## T1 — PR #24 리뷰 후속 (2026-09-28)
+
+| 항목 | 조치 |
+|---|---|
+| B1 | PathRoundTrip의 z=1000 시작 폰은 재빙의 뒤 중력이 작용하므로 복귀 위치는 XY만 0.01cm 이내 단언. 메시·캡슐·선택·FOV·속도 복원 단언 유지 |
+| B2 | 이전 부분 컴파일 기록을 “해당 파일 오류 없음, 실행 전”으로 교정 |
+| B4 | RenderEvidence/PhotoIntegration 단독 필터의 succeededWithWarnings 및 Succeeded: 0 예외, NOT EXECUTED 구분과 JSON 진단을 런북 §8에 명시 |
+| B5 | Movement의 L_Dev 지형/좌표가 setup_dev_level.py에 의존함을 코드와 런북에 기록 |
+| B6 | 런북 §8 제목과 §6 엔진 API/래치 상태 표 갱신 |
+| B7 | 자동 재적용 실패의 CurrentId 잔류·실제 폰 확인 절차, 0.25s Controller 탐색과 Pawn 델리게이트 역할/한계를 §10에 보고. 런타임 변경 없음 |
+
+B3·B8은 PR #24 병합 세션 처리 범위다. 이번 PR은 테스트 2파일과 캐릭터 문서 2파일만 변경한다. main `d37720e` 병합 충돌 없음. 공유 등록부 훅·설정 변경 없음.
+
+### 직접 실행 근거
+
+- UE5.8.3: add-mannequin 뒤 최초 전체 빌드 성공(156.41s), 최신 main 병합 뒤 증분 빌드 성공(19.57s).
+- PathRoundTrip 단독: **1 Success, 경고0/실패0/미실행0**, 2.79s.
+- RenderEvidence 단독, 렌더 opt-in 없음: **Succeeded: 0 / succeededWithWarnings: 1 / failed: 0 / notRun: 0**, test.ps1 예외 재현. 개별 state는 Success지만 NOT EXECUTED이므로 렌더 검증 통과로 세지 않는다.
+- 최신 main 전체: **26 Success(19+경고7), failed0/notRun0**, 164.87s. RenderEvidence의 NOT EXECUTED 1개를 제외한 **실제 실행 성공 25개**. 나머지 경고는 Photo.MetaJson 및 synthetic Zone/Portal fixture 자산 관련이다.
+- PhotoIntegration: proxy135/proxy110/quinn × GamePause/TimeDilation **6조합 모두 EXECUTED**, 경고0. Locomotion 4종, PathRoundTrip, PortalRoundTrip 3회도 실제 실행 통과. 이는 T1 회귀 결과이며 T2 GUI·시각 품질 완료로 확장하지 않는다.
+- 로컬 증거(ignored): `Saved/Automation/T1/path-report.json`, `render-skip-report.json`, `full-report.json`, `build-main-log.txt`. 생성 L_Dev/Zone 테스트 맵과 로그는 커밋하지 않는다.
+
+Python 게이트: ruff check·format(98파일), pytest **694 passed / 63 skipped / 208 warnings, 43.20s**, check_repo 통과. g++ 미설치 검사는 CI에서 확인한다. 코드 리뷰 Opus ultracode 대기, 설계/품질 가설 변경 없음. push 후 정지하고 비동기 리뷰를 받는다.
+
+### 병합 시 반영 (T1, 완성 문안)
+
+> WP-18 T1: PR #24 리뷰 B1·B2·B4·B5·B6·B7 보완. PathRoundTrip XY 복귀 단언과 fixture 의존성, 필터 경고 판정·엔진 API·CurrentId 잔류/Controller 폴링 한계를 기록했다. main d37720e 기준 UE5.8.3 빌드 및 전체 26 Success(경고7, failed0/notRun0); RenderEvidence NOT EXECUTED 1개를 제외한 실제 실행25개. Character.PhotoIntegration 6조합 직접 실행 성공. V-11 GUI 잔여·시각 품질과 V-12는 대기. T2 GUI는 V-09 §7 세션 종료·PC 가용성·GUI 잠금 확인 후 진행한다.
+
+
+### PR #32 리뷰 수정 — STATUS 칸별 완성 문안
+
+대상은 main `c7fa296`의 `docs/plan/STATUS.md` 병행 트랙 WP-18·V-11 행이다. 공유 파일은 직접 수정하지 않는다.
+
+1. **WP-18 / 인계 메모**, 아래 문장을 교체한다.
+   - 원문: 전체 UE 실행 23(실행 21 Success + 설계상 NOT EXECUTED 2: `PhotoIntegration`·`RenderEvidence`).
+   - 대체: 전체 UE 26(실행 25 Success + NOT EXECUTED 1: `RenderEvidence`, main d37720e 기준 T1 [#32](https://github.com/wooklym/golmok/pull/32)).
+2. **WP-18 / 인계 메모**, 아래 문구를 교체한다.
+   - 원문: 비블로킹 B1~B8은 Astra T1(`astra-tasks.md`).
+   - 대체: B1·B2·B4~B7은 T1 [#32](https://github.com/wooklym/golmok/pull/32) 반영, B3·B8은 #24 병합 세션 처리.
+3. **V-11 / 인계 메모**, 대기 문장을 교체하고 통과 목록 끝에 한 문장을 추가한다.
+   - 원문: 대기: GUI 보행·계단·포털 영상, PIE 재시작, 포토 통합(`PhotoIntegration` 6조합 — WP-12 병합됐으므로 V-09 전체 실행에서 함께), hitch/VRAM.
+   - 대체: 대기: GUI 보행·계단·포털 영상, PIE 재시작, hitch/VRAM.
+   - 통과 목록 추가: `PhotoIntegration` 6조합(proxy135/proxy110/quinn × GamePause/TimeDilation) T1 직접 실행 EXECUTED·경고 0([#32](https://github.com/wooklym/golmok/pull/32)).
+4. **상태 칸 유지**: WP-18 `🟡 설계·코드·후속 자동화 완료·PC GUI 영상 대기`, V-11 `🟡 헤드리스·물리/입력 자동화 통과·GUI 영상 대기`. GUI·시각 품질이 남아 있으므로 🟢로 바꾸지 않는다.
+
+리뷰 A1은 합성 경로 Y를 300cm로 옮겨 원래 폰의 Y=0과 전 구간 분리했다. 따라서 경로 마지막 위치에 폰을 방치하는 회귀가 XY 복원 단언에 걸린다. B-D2의 런북 네 곳은 T1 EXECUTED 6/6·경고0, T2 GUI·시각 대기로 통일했고, B-D4는 entries 배열의 메시지를 펼쳐 EXECUTED/NOT EXECUTED를 출력한다. 비블로킹 A2 자연 종료/Restart 주석, A3 `_build_course()` 위치도 반영했다.
+
+수정 뒤 검증(main c7fa296): ruff check/format98·pytest **694 passed/63 skipped**(42.21s)·check_repo·diff --check 통과. UE5.8.3 빌드 성공(20.82s), 전체 **26 Success(19+경고7), failed0/notRun0**, 165.38s. 경로 XY 분리 후 PathRoundTrip 통과, PhotoIntegration EXECUTED6/6 유지, RenderEvidence NOT EXECUTED1은 실제 실행 수에서 제외. 증거 `Saved/Automation/T1/review-report.json`, `review-build.txt`(ignored).
+
+반영 기록(2026-09-28, 병합 세션 Fable, §7.6 4단계): 위 칸별 문안 1~4는 `WP-18: 병합 시 반영 (Fable)` 커밋으로 STATUS 병행 트랙 WP-18·V-11 행, ROADMAP 1.3 캐릭터 행, `astra-tasks.md` T1, `WP-18-characters.md` 리뷰 절에 옮겼다. D-019(2026-09-27)에 따라 소유자 승인 없이 병합했다.
