@@ -87,3 +87,31 @@ def test_failed_save_does_not_publish_credits(setup, tmp_path):
     with pytest.raises(RuntimeError, match="save failed"):
         module.run(config, tmp_path)
     assert not (tmp_path / "Credits/audio-credits.txt").exists()
+
+
+@pytest.mark.parametrize("failure", ["empty_paths", "not_soundwave"])
+def test_failed_import_does_not_replace_existing_credits(setup, tmp_path, failure):
+    module, fake, config, _, sounds, _ = setup
+    original_execute = fake.AssetToolsHelpers.get_asset_tools().import_asset_tasks
+    credits = tmp_path / "Credits/audio-credits.txt"
+    credits.parent.mkdir()
+    credits.write_text("previous credits", encoding="utf-8")
+    attribution = tmp_path / "ATTRIBUTION.md"
+    attribution.write_text("previous attribution", encoding="utf-8")
+
+    def execute(tasks):
+        original_execute(tasks)
+        if failure == "empty_paths":
+            tasks[0].properties["imported_object_paths"] = []
+        else:
+            path = tasks[0].properties["imported_object_paths"][0]
+            sounds[path] = object()
+
+    fake.AssetToolsHelpers.get_asset_tools = lambda: types.SimpleNamespace(import_asset_tasks=execute)
+    error, message = (
+        (RuntimeError, "audio import failed") if failure == "empty_paths" else (TypeError, "not a SoundWave")
+    )
+    with pytest.raises(error, match=message):
+        module.run(config, tmp_path)
+    assert credits.read_text(encoding="utf-8") == "previous credits"
+    assert attribution.read_text(encoding="utf-8") == "previous attribution"

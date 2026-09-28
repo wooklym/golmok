@@ -47,14 +47,14 @@ private:
 	FGolmokAudioConfig Config;
 	FString LoadError, State, ForcedState, Preset, PendingAsset;
 	bool bInterior = false, bMuted = false, bReady = false;
-	int32 PendingSlot = INDEX_NONE, HudIndex = INDEX_NONE;
+	int32 PendingSlot = INDEX_NONE;
 	double LastRealTime = 0.0, NextBindingTime = 0.0;
 	FString SlotIds[2];
 	GolmokAudioMath::Envelope Gains[2];
 	TWeakObjectPtr<AGolmokTimeOfDay> Lighting;
 	TWeakObjectPtr<APlayerController> Controller;
 	TWeakObjectPtr<UGolmokDebugSubsystem> Debug;
-	FDelegateHandle PresetHandle, InteriorHandle;
+	FDelegateHandle PresetHandle, InteriorHandle, HudHandle;
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<UAudioComponent>> Channels;
 	UPROPERTY(Transient)

@@ -9,6 +9,7 @@
 #include "HAL/IConsoleManager.h"
 #include "Kismet/GameplayStatics.h"
 #include "Lighting/GolmokTimeOfDay.h"
+#include "Misc/PackageName.h"
 #include "Photo/GolmokPhotoModeSubsystem.h"
 #include "Player/GolmokCharacter.h"
 #include "Sound/SoundAttenuation.h"
@@ -31,7 +32,7 @@ void UGolmokAmbienceSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	if (Debug.IsValid())
 	{
 		const TWeakObjectPtr<UGolmokAmbienceSubsystem> WeakThis(this);
-		HudIndex = Debug->ExtraHudLineProviders.Add([WeakThis]() { return WeakThis.IsValid() ? WeakThis->Describe() : FString(); });
+		HudHandle = Debug->AddExtraHudLineProvider([WeakThis]() { return WeakThis.IsValid() ? WeakThis->Describe() : FString(); });
 	}
 	Attenuation = NewObject<USoundAttenuation>(this);
 	Attenuation->Attenuation.bAttenuate = true;
@@ -48,7 +49,9 @@ void UGolmokAmbienceSubsystem::OnWorldBeginPlay(UWorld& InWorld)
 	if (!bReady) return;
 	for (const auto& Pair : Config.Assets)
 	{
-		USoundWave* Sound = LoadObject<USoundWave>(nullptr, *Pair.Value.Path);
+		// Generated SoundWaves may not have been imported in this checkout yet.
+		const FString Package = FPackageName::ObjectPathToPackageName(Pair.Value.Path);
+		USoundWave* Sound = FPackageName::DoesPackageExist(Package) ? LoadObject<USoundWave>(nullptr, *Pair.Value.Path) : nullptr;
 		if (Sound)
 		{
 			Sound->VirtualizationMode = EVirtualizationMode::PlayWhenSilent;
@@ -68,7 +71,8 @@ void UGolmokAmbienceSubsystem::Deinitialize()
 		Lighting->OnInteriorChanged.Remove(InteriorHandle);
 	}
 	if (Controller.IsValid()) Controller->OnPossessedPawnChanged.RemoveDynamic(this, &UGolmokAmbienceSubsystem::PawnChanged);
-	if (Debug.IsValid() && Debug->ExtraHudLineProviders.IsValidIndex(HudIndex)) Debug->ExtraHudLineProviders.RemoveAt(HudIndex);
+	if (Debug.IsValid()) Debug->RemoveExtraHudLineProvider(HudHandle);
+	HudHandle.Reset();
 	for (UAudioComponent* Channel : Channels) if (IsValid(Channel)) { Channel->Stop(); Channel->DestroyComponent(); }
 	for (UAudioComponent* Shot : OneShots) if (IsValid(Shot)) Shot->Stop();
 	OneShots.Empty();
@@ -85,21 +89,24 @@ void UGolmokAmbienceSubsystem::RefreshBindings()
 {
 	if (!bReady) return;
 	AGolmokTimeOfDay* Tod = AGolmokTimeOfDay::Find(GetWorld());
-	if (Tod != Lighting.Get())
+	// A destroyed weak target reads null; the retained handle detects that transition.
+	if (Tod != Lighting.Get() || (!Tod && PresetHandle.IsValid()))
 	{
 		if (Lighting.IsValid())
 		{
 			Lighting->OnPresetChanged.Remove(PresetHandle);
 			Lighting->OnInteriorChanged.Remove(InteriorHandle);
 		}
+		PresetHandle.Reset(); InteriorHandle.Reset();
+		Preset.Empty(); bInterior = false;
 		Lighting = Tod;
 		if (Tod)
 		{
 			Preset = Tod->CurrentPreset.ToString(); bInterior = Tod->InteriorSources.Num() > 0;
 			PresetHandle = Tod->OnPresetChanged.AddUObject(this, &UGolmokAmbienceSubsystem::PresetChanged);
 			InteriorHandle = Tod->OnInteriorChanged.AddUObject(this, &UGolmokAmbienceSubsystem::InteriorChanged);
-			ResolveState();
 		}
+		ResolveState();
 	}
 	APlayerController* PC = GetWorld()->GetFirstPlayerController();
 	if (Controller.Get() != PC)
