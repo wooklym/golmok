@@ -402,10 +402,38 @@ def test_path_play_and_csv(fake, unreal):
     csv = Path(fake.saved_dir) / "Profiling" / "CSV" / "Profile(1).csv"
     fake_unreal.tick(fake, 4)  # 0.4 s < csv_delay_s
     assert not csv.exists()
-    fake_unreal.tick(fake, 1)
+
+    def csv_lines():
+        return [t for t in fake.logged() if t.startswith("GolmokDebugSubsystem: csv: ")]
+
+    # V-04 T5: the engine creates the file right at CsvProfile Start and writes it until the path ends
+    fake_unreal.tick(fake, 1)  # 0.5 s
+    assert csv.read_bytes() == b"FrameTime\n" and csv_lines() == []
+    fake_unreal.tick(fake, 10)  # 1.5 s: a row every csv_flush_s while the path plays
+    assert csv.read_bytes() == b"FrameTime\n16.7\n"
+    fake_unreal.tick(fake, 36)  # 5.1 s: the 5 s path is over, CsvProfile Stop writes csv_stop_s later
+    assert csv.read_bytes().count(b"16.7\n") == 4 and csv_lines() == []
+    fake_unreal.tick(fake, 1)  # 5.2 s: the last row, then the C++ LogLatestCsv line
     kind, msg = fake.logs[-1]
-    assert csv.exists() and kind == "log" and msg.startswith("GolmokDebugSubsystem: csv: ")
+    assert csv.read_bytes().count(b"16.7\n") == 5
+    assert kind == "log" and msg.startswith("GolmokDebugSubsystem: csv: ")
     assert os.path.normpath(msg.removeprefix("GolmokDebugSubsystem: csv: ")) == os.path.normpath(csv)
+    fake_unreal.tick(fake, 30)
+    assert csv.read_bytes().count(b"16.7\n") == 5 and len(csv_lines()) == 1  # finished: no more writes
+    # golmok.path stopplay and the end of PIE stop a capture early (csv_stop_s later)
+    for stop in (
+        lambda: system.execute_console_command(world, "golmok.path stopplay"),
+        unreal.get_editor_subsystem(unreal.LevelEditorSubsystem).editor_request_end_play,
+    ):
+        system.execute_console_command(world, "golmok.path play walk_01 --csv")
+        path = os.path.normpath(csv.with_name(f"Profile({fake.csv_count}).csv"))
+        fake_unreal.tick(fake, 10)
+        stop()
+        fake_unreal.tick(fake, 1)
+        assert csv_lines()[-1] != f"GolmokDebugSubsystem: csv: {path}"
+        fake_unreal.tick(fake, 1)
+        assert csv_lines()[-1] == f"GolmokDebugSubsystem: csv: {path}"
+        assert Path(path).read_bytes() == b"FrameTime\n16.7\n"  # created at 0.5 s, stopped at 1.2 s
     sample = {"t": 1, "p": [0, 0, 0], "r": [0, 0, 0]}
     back = json.dumps({"version": 1, "samples": [sample, {**sample, "t": 0}]})
     for name, text, problem in (
@@ -417,7 +445,7 @@ def test_path_play_and_csv(fake, unreal):
         (paths_dir / f"{name}.json").write_text(text, encoding="utf-8")
         system.execute_console_command(world, f"golmok.path play {name} --csv")
         assert fake.logged("error")[-1].startswith(f"golmok.path play: ERROR {problem}")
-    assert fake.csv_count == 1
+    assert fake.csv_count == 3
 
 
 def test_pie_begin_end_and_worlds(fake, unreal):

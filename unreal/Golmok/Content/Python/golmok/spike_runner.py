@@ -9,6 +9,7 @@ performance numbers come from -game runs (D12); the PIE CSV is a reference value
     s.capture_all(tags=("a",), presets=("clear_noon", "night"), mode="editor")   # attended, editor viewport
     s.save_layer_levels(); s.game_scripts(paths=("walk_01",))   # -game CSV runs -> Saved/Golmok/spike/*.ps1
     s.game_scripts(paths=("walk_01",), res=(2560, 1440))        # labels *_1440p (label_suffix= for DLSS)
+    s.game_scripts(paths=("walk_01",), discover_from_index=False)   # synthetic zones: no WP-09 index zones
     s.perf_all(paths=("walk_01",))                 # PIE CSV (reference only)
     s.contact_sheet(); s.report_template(perf_markdown=open(...).read())
 
@@ -29,6 +30,7 @@ docs/runbooks/pc-verify-wp06.md section 12; log lines come from _pure.LOG (the r
 
 import glob
 import json
+import math
 import os
 import time
 
@@ -48,6 +50,8 @@ STOPPLAY_WAIT_S = 0.3
 PIE_RESTART_GAP_S = 1.0  # between the end of one tag's PIE and the next editor_request_begin_play
 QUIT_WAIT_S = 5.0  # quit_editor: at most this long for PIE to end (end_play is deferred) before quitting
 CSV_GRACE_S = 60.0  # WAIT_CSV timeout = path length + this
+CSV_SETTLE_S = 2.0  # WAIT_CSV: the newest Profile*.csv must not change for this long (_pure.csv_complete)
+CSV_END_SLACK_S = 1.0  # ... and must change at or after PLAY + path length - this (the CsvProfile Stop flush)
 LAYER_LEVEL_PREFIX = "/Game/Golmok/Maps/L_Spike_"
 MANUAL_WINDOW_HOW = "manual: Editor Preferences > Level Editor > Play > New Window Size (runbook #21)"
 PHOTO_EXTENSIONS = ("jpg", "jpeg", "png", "JPG", "JPEG", "PNG")
@@ -701,8 +705,10 @@ class _PieCapture(_PieSession):
 
 
 class _PiePerf(_PieSession):
-    """CSV in PIE (reference only): per job PLAY (golmok.path play <walk> --csv) -> WAIT_CSV (newest
-    Profile*.csv in the Saved candidates, timeout = path length + CSV_GRACE_S)."""
+    """CSV in PIE (reference only): per job PLAY (golmok.path play <walk> --csv) -> WAIT_CSV: the newest
+    Profile*.csv in the Saved candidates once it is written (_pure.csv_complete: unchanged for CSV_SETTLE_S
+    and, for a path of known length, changed at or after the path's end - the engine creates the file at
+    CsvProfile Start and writes it until the path ends, V-04 T5); timeout = path length + CSV_GRACE_S."""
 
     what = "perf (PIE, reference only)"
     first_job_state = "PLAY"
@@ -710,32 +716,67 @@ class _PiePerf(_PieSession):
     def __init__(self, jobs, lengths_s, quit_editor=False):
         self.lengths = dict(lengths_s)
         self.not_before = 0.0
+        self.play_at = 0.0  # _now() at PLAY
+        self.csv_stamp = None  # (path, mtime, size) of the newest Profile*.csv last seen
+        self.csv_changed_at = None  # _now() when csv_stamp was first seen or last changed
         super().__init__(jobs, quit_editor)
         self.root = os.path.join(self.saved_dir, "Profiling", "CSV")
         candidates = _pure.saved_dir_candidates(self.saved_dir, os.environ.get("LOCALAPPDATA"))
         self.csv_dirs = _pure.csv_dirs(candidates)
 
-    def _job_step(self):
-        s = self.state
-        tag, preset, walk = self.job
-        if s == "PLAY":
-            self.not_before = time.time() - 1.0
-            _console(self.world, f"golmok.path play {walk} --csv")
-            return self._wait(self.lengths.get(walk, 0.0) + CSV_GRACE_S, "WAIT_CSV")
-        if s == "WAIT_CSV":
+    def _length(self, walk):
+        """Path length in s; 0.0 (= unknown: no path condition) when missing, negative or not finite."""
+        try:
+            length = float(self.lengths.get(walk) or 0.0)
+        except (TypeError, ValueError):
+            return 0.0
+        return length if math.isfinite(length) and length > 0.0 else 0.0
+
+    def _newest_csv(self):
+        """(path, mtime, size) of the newest Profile*.csv written since PLAY, or None."""
+        try:
             path = _pure.newest_file(
                 self.csv_dirs, "Profile*.csv", self.not_before, os.path.isfile, os.path.getmtime, glob.glob
             )
-            if path is None and not self._elapsed():
+            st = None if path is None else os.stat(path)
+        except OSError:
+            return None  # a file removed between the listing and the stat: look again next tick
+        return None if st is None else (os.path.normpath(path), st.st_mtime, st.st_size)
+
+    def _job_step(self):
+        s = self.state
+        tag, preset, walk = self.job
+        length = self._length(walk)
+        if s == "PLAY":
+            self.not_before = time.time() - 1.0
+            self.play_at = _now()
+            self.csv_stamp = self.csv_changed_at = None
+            _console(self.world, f"golmok.path play {walk} --csv")
+            return self._wait(length + CSV_GRACE_S, "WAIT_CSV")
+        if s == "WAIT_CSV":
+            now = _now()
+            stamp = self._newest_csv()
+            if stamp != self.csv_stamp:  # new file, another file, or the file grew / was touched
+                self.csv_stamp, self.csv_changed_at = stamp, (None if stamp is None else now)
+            complete = _pure.csv_complete(
+                self.csv_changed_at, now, self.play_at, length, CSV_SETTLE_S, CSV_END_SLACK_S
+            )
+            if not complete and not self._elapsed():
                 return False
             label = _pure.perf_label(tag, preset, walk)
-            if path is not None:
-                path = os.path.normpath(path)
+            if complete:
+                path = stamp[0]
                 _log("sr.csv", path=path, label=label)
                 self.saved.append(path)
             else:
                 pattern = os.path.normpath(os.path.join(self.root, "Profile*.csv"))
-                unreal.log_warning(_pure.fmt("sr.missing", path=pattern, why=f"timeout, {label}"))
+                why = f"timeout, {label}"
+                if stamp is not None:
+                    why += (
+                        f"; {stamp[0]} not complete: last change"
+                        f" {self.csv_changed_at - self.play_at:.1f} s after play, path {length:.1f} s"
+                    )
+                unreal.log_warning(_pure.fmt("sr.missing", path=pattern, why=why))
                 self.missing.append(label)
             self.state = "JOB"
             return True
@@ -846,12 +887,16 @@ def game_scripts(
     base_level=None,
     timeout_s=900,
     label_suffix=None,
+    discover_from_index=None,
 ):
     """Write Saved/Golmok/spike/run_game_perf.ps1: one -game -RenderOffscreen CSV run per (tag, preset, path)
     on L_Spike_<tag> (tag a: the base level); returns the script path. Labels (CSV, game_<label>.log,
     golmok-perf --label) are <tag>_<preset>_<walk>[_<suffix>]: the suffix defaults to "<height>p" for a
     resolution other than 1920x1080 (so a 1440p run does not overwrite the 1080p CSVs); pass label_suffix
-    (e.g. "1440p_dlss") for DLSS runs, "" for none. Only the .ps1 itself is overwritten by the next call."""
+    (e.g. "1440p_dlss") for DLSS runs, "" for none. discover_from_index=False adds the -ini: override that
+    turns the WP-09 zone index discovery off for these runs (synthetic-zone checks: other indexed synthetic
+    zones would load over the zone under test, runbook #39); None (default) leaves DefaultGame.ini in charge
+    (the real spike keeps discovery on). Only the .ps1 itself is overwritten by the next call."""
     from . import synthetic_zone as sz
 
     saved = _saved_dir()
@@ -879,6 +924,7 @@ def game_scripts(
                     preset=preset,
                     res=res,
                     log_path=os.path.join(spike_dir, f"game_{label}.log"),
+                    discover_from_index=discover_from_index,
                 )
                 runs.append({"label": label, "argv": argv})
     candidates = _pure.saved_dir_candidates(saved, os.environ.get("LOCALAPPDATA"))

@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import time
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -875,9 +876,40 @@ def test_viewpoints_on_done_is_optional(fake, unreal):
 # ---- PIE perf, -game scripts -------------------------------------------------------------------------------
 
 
-def test_pie_perf_waits_for_csv(fake, unreal):
+def _csv(fake, n=1):
+    return os.path.normpath(os.path.join(fake.saved_dir, "Profiling", "CSV", f"Profile({n}).csv"))
+
+
+def _csv_line(path, label="a_clear_noon_walk_01"):
+    return ("log", f'spike_runner: csv {path} -> golmok-perf "{path}" --label {label} --markdown')
+
+
+def _until(fake, predicate, max_ticks=2000):
+    """Tick (0.1 s) until predicate() holds; returns the fake clock the deciding tick's callbacks ran at (the
+    state machine's _now then; files the fake writes in that tick carry the clock + 0.1)."""
+    for _ in range(max_ticks):
+        at = fake.clock
+        fake_unreal.tick(fake, 1)
+        if predicate():
+            return at
+    raise AssertionError(f"not reached after {max_ticks} ticks")
+
+
+def _perf_in_wait_csv(fake, monkeypatch, length_s=5.0):
+    """perf_all on walk_01 (tag a, clear_noon, no %LOCALAPPDATA% candidate) ticked up to WAIT_CSV."""
+    monkeypatch.delenv("LOCALAPPDATA", raising=False)
+    _write_walk(fake, "walk_01", length_s=length_s)
+    perf = sr.perf_all(paths=("walk_01",), tags=("a",), presets=("clear_noon",))
+    _until(fake, lambda: perf.state == "WAIT_CSV")
+    return perf
+
+
+def test_pie_perf_waits_for_csv(fake, unreal, monkeypatch):
+    """V-04 T5 (runbook §11 handover 6): the engine creates Profile(<stamp>).csv right at CsvProfile Start;
+    WAIT_CSV takes it only after the path's end (its Stop flush) and CSV_SETTLE_S without a change."""
     with pytest.raises(RuntimeError, match="record it first: golmok.path record walk_01"):
         sr.perf_all(paths=("walk_01",), tags=("a",))
+    monkeypatch.delenv("LOCALAPPDATA", raising=False)
     _write_walk(fake, "walk_01", length_s=5.0)
     perf = sr.perf_all(paths=("walk_01",), tags=("a",), presets=("clear_noon",))
     assert isinstance(perf, sr._PiePerf) and perf.lengths == {"walk_01": 5.0}
@@ -889,13 +921,15 @@ def test_pie_perf_waits_for_csv(fake, unreal):
         ("console", "golmok.path play walk_01 --csv"),
     ]
     assert not fake.logged("warning")
-    fake_unreal.tick(fake, 10)  # csv_delay_s 0.5 -> the CSV appears
-    csv = os.path.normpath(os.path.join(fake.saved_dir, "Profiling", "CSV", "Profile(1).csv"))
-    assert perf.saved == [csv]
-    assert (
-        "log",
-        f'spike_runner: csv {csv} -> golmok-perf "{csv}" --label a_clear_noon_walk_01 --markdown',
-    ) in fake.logs
+    play_at, csv = perf.play_at, _csv(fake)
+    fake_unreal.tick(fake, 10)  # csv_delay_s 0.5: the file exists and grows (T5 took it here, 2 frames)
+    assert os.path.isfile(csv) and perf.state == "WAIT_CSV" and perf.saved == []
+    stop = _until(fake, lambda: any(t.startswith("GolmokDebugSubsystem: csv:") for t in fake.logged()))
+    assert stop == pytest.approx(play_at + 5.0 + 0.2, abs=0.11)  # path end + the fake's csv_stop_s
+    assert perf.state == "WAIT_CSV" and perf.saved == []
+    done = _until(fake, lambda: perf.saved)
+    assert play_at + 5.2 + sr.CSV_SETTLE_S - 1e-6 <= done <= play_at + 5.2 + sr.CSV_SETTLE_S + 0.15
+    assert perf.saved == [csv] and _csv_line(csv) in fake.logs
     fake_unreal.tick(fake, 400)
     assert perf.done and fake.calls_of("end_play") == [("end_play",)] and fake.callbacks == {}
     root = os.path.join(os.path.normpath(fake.saved_dir), "Profiling", "CSV")
@@ -907,7 +941,9 @@ def test_pie_perf_waits_for_csv(fake, unreal):
 
 
 def test_pie_perf_csv_timeout(monkeypatch, tmp_path):
+    """No CSV at all: missing after path length + CSV_GRACE_S (unchanged)."""
     fake = fake_unreal.install(monkeypatch, tmp_path, csv_delay_s=10_000)
+    monkeypatch.delenv("LOCALAPPDATA", raising=False)
     _write_walk(fake, "walk_01", length_s=5.0)
     perf = sr.perf_all(paths=("walk_01",), tags=("a",), presets=("clear_noon",))
     fake_unreal.tick(fake, 600)  # 3 + 3 + (5 + 60) s
@@ -919,6 +955,77 @@ def test_pie_perf_csv_timeout(monkeypatch, tmp_path):
         f"spike_runner: missing {pattern} (timeout, a_clear_noon_walk_01)",
         f"spike_runner: done perf (PIE, reference only): 0 saved, 1 missing -> {os.path.dirname(pattern)}",
     ]
+
+
+def test_pie_perf_csv_still_written_at_timeout(monkeypatch, tmp_path):
+    """A CSV whose mtime keeps changing is never taken: missing at the timeout, naming the file."""
+    fake = fake_unreal.install(monkeypatch, tmp_path, csv_stop_s=10_000)  # the capture never stops
+    perf = _perf_in_wait_csv(fake, monkeypatch)
+    play_at, csv = perf.play_at, _csv(fake)
+    done = _until(fake, lambda: perf.state != "WAIT_CSV")
+    assert done == pytest.approx(play_at + 5.0 + sr.CSV_GRACE_S, abs=0.11)
+    assert perf.saved == [] and perf.missing == ["a_clear_noon_walk_01"] and os.path.getsize(csv) > 60
+    pattern = os.path.normpath(os.path.join(fake.saved_dir, "Profiling", "CSV", "Profile*.csv"))
+    warning = fake.logged("warning")[0]
+    assert warning.startswith(
+        f"spike_runner: missing {pattern} (timeout, a_clear_noon_walk_01; {csv} not complete: last change "
+    ) and warning.endswith(" s after play, path 5.0 s)")
+    last = float(re.search(r"last change (\d+\.\d) s after play", warning).group(1))
+    assert 5.0 + sr.CSV_GRACE_S - 1.0 - 0.15 <= last <= 5.0 + sr.CSV_GRACE_S  # written every csv_flush_s
+    assert not any(line[1].startswith("spike_runner: csv ") for line in fake.logs)
+
+
+@pytest.mark.parametrize(("length_s", "expect_done"), [(5.0, 5.2 + 2.0), (0.0, 0.5 + 2.0)])
+def test_pie_perf_quiet_capture(monkeypatch, tmp_path, length_s, expect_done):
+    """csv_flush_s=0: the engine writes nothing between creating the file and the Stop flush (a write buffer
+    that fills slower than CSV_SETTLE_S). A known path length waits for the flush after the path's end; length
+    0 (unknown) has no path condition, as before - only the settle time."""
+    fake = fake_unreal.install(monkeypatch, tmp_path, csv_flush_s=0)
+    if not length_s:
+        monkeypatch.setattr(sr, "_path_length_s", lambda path: 0.0)
+    perf = _perf_in_wait_csv(fake, monkeypatch)
+    assert perf.lengths == {"walk_01": length_s}
+    play_at = perf.play_at
+    done = _until(fake, lambda: perf.saved)
+    assert play_at + expect_done - 1e-6 <= done <= play_at + expect_done + 0.15
+    assert perf.saved == [_csv(fake)] and _csv_line(_csv(fake)) in fake.logs
+
+
+def test_pie_perf_two_candidate_folders(fake, unreal, monkeypatch, tmp_path):
+    """Profile*.csv in both Saved candidates: the newest (last written) file is the candidate and a switch of
+    file restarts the settle time; an earlier file in the other folder does not take the result."""
+    local = tmp_path / "LocalAppData"
+    other_dir = local / "UnrealEngine" / "5.8" / "Saved" / "Profiling" / "CSV"
+    other_dir.mkdir(parents=True)
+    other_1 = os.path.normpath(str(other_dir / "Profile(other1).csv"))
+    other_2 = os.path.normpath(str(other_dir / "Profile(other2).csv"))
+    _write_walk(fake, "walk_01", length_s=5.0)
+    monkeypatch.setenv("LOCALAPPDATA", str(local))
+    perf = sr.perf_all(paths=("walk_01",), tags=("a",), presets=("clear_noon", "night"))
+    # job 1: a file in the other folder written after PLAY, before the project file appears
+    _until(fake, lambda: perf.state == "WAIT_CSV")
+    play_at = perf.play_at
+    Path(other_1).write_text("FrameTime\n", encoding="utf-8")
+    stamp = time.time() - 0.5  # newer than PLAY - 1 s (not_before), older than the project file
+    os.utime(other_1, (stamp, stamp))
+    fake_unreal.tick(fake, 2)
+    assert perf.csv_stamp[0] == other_1 and perf.saved == []
+    done = _until(fake, lambda: len(perf.saved) == 1)
+    assert perf.saved == [_csv(fake, 1)] and done >= play_at + 5.2 + sr.CSV_SETTLE_S - 1e-6
+    # job 2: a file written in the other folder after the project file's Stop flush takes over
+    _until(fake, lambda: perf.state == "WAIT_CSV" and fake.csv_count == 2)
+    _until(fake, lambda: fake.logged()[-1].startswith("GolmokDebugSubsystem: csv:"))
+    fake_unreal.tick(fake, 10)
+    assert len(perf.saved) == 1  # the project file (stopped 1 s ago) has not settled yet
+    Path(other_2).write_text("FrameTime\n", encoding="utf-8")
+    stamp = time.time() + 5.0  # the newest file
+    os.utime(other_2, (stamp, stamp))
+    written = fake.clock
+    done = _until(fake, lambda: len(perf.saved) == 2)
+    assert perf.saved[1] == other_2 and done >= written + sr.CSV_SETTLE_S - 1e-6
+    assert _csv_line(other_2, "a_night_walk_01") in fake.logs
+    _run(fake, perf)
+    assert perf.missing == []
 
 
 def test_game_scripts_written(fake, unreal, monkeypatch):
@@ -952,6 +1059,17 @@ def test_game_scripts_written(fake, unreal, monkeypatch):
     assert body == expected
     assert body.count("\nInvoke-GolmokRun ") == 2 and "-csvCaptureFrames" not in body
     assert "UnrealEngine\\5.8\\Saved\\Profiling\\CSV" in body and f"{L_SPIKE}b" in body
+    # the path JSON already lives in the project Saved: only the %LOCALAPPDATA% candidate gets a copy
+    # (V-04 T5: Copy-Item onto itself warned)
+    lines = body.splitlines()
+    local_paths = "C:\\Users\\me\\AppData\\Local\\UnrealEngine\\5.8\\Saved\\Golmok\\Paths"
+    assert lines[2] == f"$pathDirs = @('{local_paths}')"
+    source = os.path.normpath(str(walk)).replace("/", "\\")
+    assert lines[4] == (
+        "foreach ($d in $pathDirs) { New-Item -ItemType Directory -Force -Path $d | Out-Null; "
+        f"Copy-Item -Force '{source}' $d }}"
+    )
+    assert "-ini:" not in body  # discover_from_index=None: DefaultGame.ini decides
     assert fake.logs[-1] == ("log", f"spike_runner: -game script -> {script} (2 runs)")
     # engine folder: Paths.engine_dir -> UE_ROOT -> error (runbook #27)
     monkeypatch.delattr(unreal.Paths, "engine_dir")
@@ -994,6 +1112,29 @@ def test_game_scripts_label_suffix(fake, unreal, monkeypatch):
     assert "a_clear_noon_walk_01.csv" in body(res=(2560, 1440), label_suffix="")  # explicit: no suffix
     with pytest.raises(ValueError):
         body(label_suffix="bad name")
+
+
+def test_game_scripts_no_self_copy_and_index_isolation(fake, unreal, monkeypatch):
+    """No %LOCALAPPDATA%: the only candidate already holds the path JSON, so the script has no copy block;
+    discover_from_index=False puts the -ini: override into every run before -ExecCmds (runbook #39)."""
+    monkeypatch.delenv("LOCALAPPDATA", raising=False)
+    _write_walk(fake, "walk_01")
+    script = sr.game_scripts(paths=("walk_01",), tags=("a", "b"), discover_from_index=False)
+    body = Path(script).read_text("utf-8-sig").replace("\r\n", "\n")
+    lines = body.splitlines()
+    assert lines[2] == "$pathDirs = @()" and lines[3].startswith("$csvDirs = @('")
+    assert not any(line.startswith("foreach ") for line in lines) and "Copy-Item -Force" not in body
+    assert lines[4].startswith("New-Item -ItemType Directory -Force -Path ")
+    ini = "'-ini:Game:[/Script/Golmok.GolmokZoneSubsystem]:bDiscoverFromIndex=False'"
+    assert pure.ps_quote(pure.discover_from_index_arg(False)) == ini  # no spaces: no inner double quotes
+    exec_cmds = "'-ExecCmds=\"golmok.hud 0, golmok.tod clear_noon, golmok.path play walk_01 --csv\"'"
+    runs = [line for line in lines if line.startswith("Invoke-GolmokRun ")]
+    assert len(runs) == 2
+    for run in runs:
+        assert f"'-nosplash', {ini}, {exec_cmds}, '-abslog=" in run
+        assert run.count("-ini:") == 1 and run.count("-ExecCmds") == 1
+    assert fake.logs[-1] == ("log", f"spike_runner: -game script -> {script} (2 runs)")
+    assert "-ini:" not in Path(sr.game_scripts(paths=("walk_01",), tags=("a",))).read_text("utf-8-sig")
 
 
 # ---- contact sheet, report ---------------------------------------------------------------------------------

@@ -3,7 +3,7 @@
 대상: PC Claude 세션(또는 사용자). 전제: V-03 통과(`runbooks/pc-verify-wp04.md` §1~§3, `runbooks/pc-verify-wp05.md` §1~§8 — 빌드 OK, `L_ZoneTest` 존재, `golmok.tod/path/screenshot` 콘솔 동작 확인).
 소요: 합성 zone 생성 1분 + 임포트·실내 20분 + PIE 걷기 15분 + spike_runner 리허설 30분 + -game 성능 20분. 결과는 이 문서 하단 §11 "결과 기록"과 `docs/plan/STATUS.md`(V-04 행, WP-06 행)에 적는다.
 
-클라우드 세션은 Unreal 에디터를 실행할 수 없었다. 모든 `unreal.*` 호출은 "🟡 PC 검증 대기"다. **에디터 Python이 예외를 내거나 기대 로그와 다르면 §12의 표(번호 #1~#30)를 보고 고친 뒤 커밋**한다(`WP-06: PC fix …`). 설계 의도를 바꾸는 수정이면 `docs/plan/WP-06-ue-python-automation.md` "결과"에 한 줄 적는다(DEVELOPMENT-PLAN §4 핸드오프 규칙: 검증 결과는 이 파일 하단, API 수정·설계 변경은 커밋 메시지와 STATUS에).
+클라우드 세션은 Unreal 에디터를 실행할 수 없었다. 모든 `unreal.*` 호출은 "🟡 PC 검증 대기"다. **에디터 Python이 예외를 내거나 기대 로그와 다르면 §12의 표(번호 #1~#39)를 보고 고친 뒤 커밋**한다(`WP-06: PC fix …`). 설계 의도를 바꾸는 수정이면 `docs/plan/WP-06-ue-python-automation.md` "결과"에 한 줄 적는다(DEVELOPMENT-PLAN §4 핸드오프 규칙: 검증 결과는 이 파일 하단, API 수정·설계 변경은 커밋 메시지와 STATUS에).
 
 규칙:
 - 이 문서의 기대 로그는 **코드의 `golmok/_pure.py` `LOG` 표에서 옮겨 적은 것**이다(`tools/tests/test_ue_python_pure.py::test_log_formats_are_quoted_in_runbook`이 양방향 드리프트를 잡는다). 로그 문자열을 바꾸면 `_pure.LOG`와 이 문서를 **함께** 고친다. 기대 로그는 항상 ```` ``` ```` 블록 안에 둔다.
@@ -27,7 +27,15 @@
 
 전제 확인:
 - [ ] `git pull` 후 `cd tools; .\.venv\Scripts\Activate.ps1; pip install -e ".[zone,mesh,dev]"; pytest -q` 초록(`test_ue_python_*.py`·`test_make_synthetic_zone.py` 포함). 여기서 빨간 것은 PC 문제가 아니라 코드 문제 — 클라우드 세션에 돌려보낸다.
-- [ ] 에디터 `.\tools\ue\open-editor.ps1` → **검증용 맵 사본 `L_ZoneTest06`**을 만든다. WP-04/05 픽스처 `z_synthetic_001`은 합성 zone과 **같은 원점·겹치는 footprint**라 한 맵에 두면 겹침 해소 규칙(우선순위·버전 동률 → zone id 순, `z_synthetic_001` < `z_synthetic_scan_001`)으로 WP-06 zone의 시각 레이어가 숨겨지고 WP-04 벽·포털이 §3/§5/§7에 섞인다. 원본 `L_ZoneTest`는 WP-05 `Golmok.Portal.*` 자동화 테스트가 계속 쓰므로 건드리지 않는다. Output Log → Python:
+- [ ] 에디터 실행 — **합성 검증에서는 에디터도 §8 `-game`과 같은 `-ini:` 인자로 띄운다**(`.\tools\ue\open-editor.ps1`은 인자를 안 받으므로 `UnrealEditor.exe "<uproject>" -ini:Game:[/Script/Golmok.GolmokZoneSubsystem]:bDiscoverFromIndex=False`). WP-09 zone 인덱스 발견(`Config/DefaultGame.ini` `bDiscoverFromIndex=True`)이 켜져 있으면 인덱스의 WP-04/05 합성 zone이 `L_ZoneTest06` PIE에 겹쳐 로드된다(V-04 T5, §12 #39). 설정 파일은 바꾸지 않는다(이 프로세스만):
+  ```powershell
+  cd <repo>
+  $ue = if ($env:UE_ROOT) { $env:UE_ROOT } else { "C:\Program Files\Epic Games\UE_5.8" }
+  $uproject = (Resolve-Path "unreal\Golmok\Golmok.uproject").Path
+  Start-Process (Join-Path $ue "Engine\Binaries\Win64\UnrealEditor.exe") -ArgumentList "`"$uproject`"", '-ini:Game:[/Script/Golmok.GolmokZoneSubsystem]:bDiscoverFromIndex=False'
+  ```
+  `-ini:` 인자는 작은따옴표로 감싼 채 둔다(PowerShell이 `-`로 시작하는 맨 인자를 매개변수 토큰으로 파싱하지 않게; 생성 `.ps1`도 같다). PIE에서 HUD 존 블록 첫 줄(= `golmok.zone.list` 첫 줄)이 `…, 0 discovered, …`면 격리된 것. 실 스파이크(`pc-spike.md`)는 이 인자 없이 띄운다(인덱스 발견 켬).
+- [ ] 위 에디터에서 → **검증용 맵 사본 `L_ZoneTest06`**을 만든다. WP-04/05 픽스처 `z_synthetic_001`은 합성 zone과 **같은 원점·겹치는 footprint**라 한 맵에 두면 겹침 해소 규칙(우선순위·버전 동률 → zone id 순, `z_synthetic_001` < `z_synthetic_scan_001`)으로 WP-06 zone의 시각 레이어가 숨겨지고 WP-04 벽·포털이 §3/§5/§7에 섞인다. 원본 `L_ZoneTest`는 WP-05 `Golmok.Portal.*` 자동화 테스트가 계속 쓰므로 건드리지 않는다. Output Log → Python:
   ```python
   import unreal
   les = unreal.get_editor_subsystem(unreal.LevelEditorSubsystem)
@@ -326,13 +334,15 @@ spike_runner: done capture: 20 saved, 0 missing -> <Project>\Saved\Screenshots\G
    ```
    - [ ] `/Game/Golmok/Maps/L_Spike_b`·`L_Spike_c`·`L_Spike_ac` 3개, 끝에 `L_ZoneTest06`로 복귀. `L_Spike_b`를 열면 `Zone_z_synthetic_scan_001`의 Visual 레이어가 꺼져 있고(충돌만) 디테일 `AutoManaged` ✖.
    - [ ] 에디터가 끝까지 살아 있다(fatal·`World Memory Leaks` 없음). 태그마다 `spike_runner: WARNING save_map left /Game/Golmok/Maps/L_ZoneTest06 open; opening /Game/Golmok/Maps/L_Spike_<tag> from disk (runbook #18)`가 찍히면 `save_map`이 열린 월드의 패키지 이름을 바꾸지 않는 것이다(동작은 정상; §12 #18 확인 결과로 §11에 적는다). 이 줄이 없으면 이름 바꾸기(Save As) 동작이 확인된 것. WARNING 뒤 fatal이면 로그를 §11에 붙이고 에디터를 다시 연 뒤 태그마다 수동: `L_ZoneTest06` 열기 → File › Save Current Level As로 `L_Spike_<tag>` 저장 → `s.apply_layers("<tag>")` → (b·c) `Zone_*` 디테일 `AutoManaged` 끄기 → 저장. 다른 오류·경고 문구는 §12 #18.
-3. 스크립트 생성·실행:
+3. 스크립트 생성·실행(`discover_from_index=False`: 합성 검증이라 `-game` 프로세스마다 WP-09 인덱스 발견을 끈다 — §0·§12 #39):
    ```python
-   s.game_scripts(paths=("walk_01",), tags=("a", "b"))
+   s.game_scripts(paths=("walk_01",), tags=("a", "b"), discover_from_index=False)
    ```
    ```
    spike_runner: -game script -> <Project>\Saved\Golmok\spike\run_game_perf.ps1 (2 runs)
    ```
+   - [ ] `.ps1`의 `Invoke-GolmokRun` 줄마다 `'-ini:Game:[/Script/Golmok.GolmokZoneSubsystem]:bDiscoverFromIndex=False'`가 `-ExecCmds` 바로 앞에 한 번. 셋째 줄 `$pathDirs`에 프로젝트 `Saved\Golmok\Paths`(경로 JSON 원본 폴더)가 없다 — `%LOCALAPPDATA%` 후보만, 후보가 없으면 `$pathDirs = @()`이고 `foreach` 복사 줄이 없다(T5의 Copy-Item 자기 복사 경고 제거).
+
    에디터를 **닫고** PowerShell:
    ```powershell
    & "<Project>\Saved\Golmok\spike\run_game_perf.ps1"
@@ -366,6 +376,9 @@ spike_runner: PIE end tag=a
 spike_runner: done perf (PIE, reference only): 1 saved, 0 missing -> <Project>\Saved\Profiling\CSV
 ```
 - [ ] PIE(에디터) CSV는 `<Project>\Saved\Profiling\CSV\`. `golmok-perf` 표 1행을 §8의 `-game` 값과 나란히 §11에(에디터 오버헤드만큼 낮다 — 참고치).
+- [ ] `spike_runner: csv …` 줄은 `> golmok.path play walk_01 --csv` 뒤 **경로 길이 + 약 2 s**에 찍힌다(엔진은 `CsvProfile Start` 즉시 `Profile(<stamp>).csv`를 만들고 경로가 끝날 때까지 쓴다 — `perf_all`은 경로가 끝난 뒤 쓰인 파일이 `CSV_SETTLE_S` 2 s 동안 안 바뀌어야 받는다; T5 인계 6의 0.3 s 조기 완료 수정). `golmok-perf` 프레임 수 ≈ 경로 길이 × fps(2프레임이면 조기 완료 재발 — §11에).
+
+실패 시: `spike_runner: missing <Project>\Saved\Profiling\CSV\Profile*.csv (timeout, a_clear_noon_walk_01; <csv> not complete: last change … s after play, path … s)` → CSV는 있지만 경로 길이 + 60 s 안에 완성되지 않았다: 마지막 변경이 타임아웃 직전(경로 길이 + 60 s 근처)이면 파일이 계속 쓰이는 중(`CsvProfile Stop`이 안 됨 — Output Log의 `GolmokDebugSubsystem: path play 'walk_01' finished …`·`csv: …` 줄 확인), 경로 길이보다 1 s 넘게 앞이면 캡처가 일찍 끝났다(경로 중단 — 같은 로그의 `stopped (…)` 사유). 파일 이름·두 수치를 §11에. `(timeout, …)`만 있으면 CSV가 아예 없다(§12 #15·#17).
 
 ## 10. `basemap_import` 보강 (선택; V-02 베이스맵이 있는 PC)
 `L_Basemap_Yeonnam`을 열고 WP-04 런북(V-02)과 같은 명령으로 재실행:
@@ -499,3 +512,4 @@ b는10:11:13.654Z CsvProfile Start→10:12:26.632Z csv→10:12:26.700Z ExitAfter
 | 36 | interior_setup·synthetic_zone | `register=True`(`sz.register_interior_sublevel`): `EditorLevelUtils.add_level_to_world` 뒤 current level이 서브레벨로 바뀐다(V-03) → `LevelEditorSubsystem.set_current_level_by_name(<영속 맵 짧은 이름>)`로 되돌린 뒤 영속 맵은 `EditorLoadingAndSavingUtils.save_map(world, persistent)`로 경로 저장(V-03 `84f33c5`, pc-findings #4); 등록은 `it.run`의 마지막 에디터 단계이고 그 뒤 `save_current_level()`은 부르지 않는다. 재실행(`register=True`)은 기존 Levels 항목을 `GameplayStatics.get_streaming_level`로 재사용한다(`initially_loaded/visible`만 False로 다시 설정 후 `save_map`) | `set_current_level_by_name`이 짧은 패키지 이름으로 영속 레벨을 찾는지(엔진 소스 기준 추정) | 실패하면 경고 `synthetic_zone: <sublevel> is still the current level; double-click <persistent> in Window > Levels …`(저장은 경로로 이미 됨) → Window › Levels에서 영속 레벨을 더블클릭해 current로 만들고 저장, 또는 `LevelEditorSubsystem.load_level(<영속 맵>)`로 다시 연다 |
 | 37 | zone_import | Interchange 에셋 배치: glTF는 `<destination_path>/<소스 파일명>/StaticMeshes/<메시명>`, 머티리얼은 형제 `Materials/`(V-03 확인, pc-findings #1); OBJ(fbx·interchange·legacy_flag route)와 PNG 텍스처의 배치는 미확인 | 폴더 규칙은 엔진 동작 | 모든 임포트(청크·충돌·텍스처·`T_ZoneScanDefault`)를 스크래치 `<폴더>/_import`(텍스처 `Textures/_import`)에 → `EditorAssetLibrary.rename_asset`으로 규약 경로(`SM_*`, `Textures/T_*`)로 이동(`zone_import: moved <src> -> <dst> (importer placement; runbook #37)`) → 남은 것(`imported_object_paths`에 없는 머티리얼 등)을 `zi.cleanup`으로 적고 `EditorAssetLibrary.delete_directory(_import)`. `moved` 줄의 `<src>` 형태를 route별로 §11에 기록; `_import`가 남으면 손으로 지우고 기록; 이동 실패면 #8 |
 | 38 | zone_import | 엔진 UDIM 이름 규칙: `UTextureFactory::UdimRegexPattern` 기본값 `(.+?)[._](\d{4})$`(API 문서: ".1001 또는 _1001로 끝나는 파일 이름"), 인덱스 ≥ 1001 — 계획 규칙 `BaseName.1001..1999.ext`보다 넓다(`wall_1002.png`·`photo.2048.png`도 UDIM 타일로 본다). 단일 텍스처는 `material_pipeline.texture_pipeline.import_udi_ms=False`로 임포트(계획 UDIM 세트만 True) | `AssetImportTask.options`의 `import_udi_ms=False`가 지켜지는지 미확인(#3) | 계획 경고 `'<file>' matches the engine UDIM name rule …`(이름 바꾸기 권장); 임포트 뒤 단일 텍스처 크기가 파일과 다르면 WARNING `engine imported <file> as a UDIM (… != file …); rename the file (runbook #38)` → 파일 이름에서 `_####`/`.####`를 빼고 MTL을 고친 뒤 재실행. PC에서 한 번 `x_1002.png` 하나로 확인해 결과(크기·UDIM 표시)를 §11에 |
+| 39 | spike_runner·런북 §0 | WP-09 zone 인덱스 발견(`Config/DefaultGame.ini` `[/Script/Golmok.GolmokZoneSubsystem]` `bDiscoverFromIndex=True`)을 프로세스 하나에서만 끄는 명령줄 ini 재정의 `-ini:Game:[/Script/Golmok.GolmokZoneSubsystem]:bDiscoverFromIndex=False` — 에디터(§0 실행 줄; PIE·`capture_all`·`perf_all`)와 `-game`(`s.game_scripts(..., discover_from_index=False)` → `.ps1`의 run마다 `-ExecCmds` 바로 앞) | **증상**: `L_ZoneTest06` PIE/`-game`에서 다른 합성 zone(WP-04/05 `z_synthetic_001` 등)이 WP-06 zone에 겹쳐 로드돼 zone 시각 레이어가 가려지고 레이어 캡처·성능 수치가 섞인다. HUD 존 블록·`golmok.zone.list` 첫 줄 `…, N discovered, …`의 N ≥ 1, 로그 `GolmokZoneSubsystem: zone <id> v<n> discovered from index (cell …)`. **원인**: 발견이 켜진 게임 월드는 `Content/Golmok/Zones/index`의 인덱스(WP-09, 합성 zone 포함)에서 플레이어 주변 zone을 스폰하고, 합성 검증 맵은 같은 원점을 쓴다(설계 밖 동작; V-04 T5 2026-09-28, §11 인계 7) | 합성 검증(이 런북)에서는 에디터·`-game` 모두 위 인자로 격리하고 `0 discovered`를 확인한다(T5가 이 인자로 격리·재측정; 제품 동작·ini 파일은 그대로). `discover_from_index=None`(기본)은 인자를 넣지 않는다 — **실 스파이크(`pc-spike.md`)는 인덱스 발견을 켜 둔다**(인덱스의 실제 zone이 측정 대상). 인자를 줬는데 N > 0이면 섹션·키 철자가 `Config/DefaultGame.ini`와 같은지 확인하고 §11에 |

@@ -52,7 +52,8 @@ RECORDS (fake.calls, design §5-0; "spawn" gets its label when set_actor_label i
 KNOBS (install(**cfg) keywords = Fake attributes): obj_mapping=(100.0, M_OBJ) glb_mapping=(100.0, M_GLB)
     obj_routes_ok={"fbx","interchange","legacy_flag"} udim_merge=True texture_vt_default=True
     vt_settable=True importer_makes_materials=True slot_names_from_usemtl=True fail_import=set()
-    bounds_offset={} pie=False screenshot_delay_s=0.3 csv_delay_s=0.5 screenshot_fallback_name=False
+    bounds_offset={} pie=False screenshot_delay_s=0.3 csv_delay_s=0.5 csv_flush_s=1.0 csv_stop_s=0.2
+    screenshot_fallback_name=False
     viewport_size=(1014, 550) (the level viewport a PIE from editor_request_begin_play plays in; V-03 size)
     nested_glb=False (True: V-03 Interchange layout, a .glb lands at <dest>/<source stem>/StaticMeshes/<name>
     and each glTF material as a MaterialInstanceConstant at <dest>/<source stem>/Materials/<material> that is
@@ -74,8 +75,12 @@ Console (SystemLibrary.execute_console_command): "golmok.tod <preset>" picks the
 by editor_request_begin_play() is the level viewport; "<name>00000.png" with screenshot_fallback_name) after
 screenshot_delay_s of fake time, only while PIE runs; 'HighResShot <W>x<H> filename="<stem>"' writes
 <stem>00000.png (next unused counter) at WxH the same way; "golmok.path play <name> [--csv]" needs
-<Saved>/Golmok/Paths/<name>.json (version 1, monotonic samples, else an error log) and with --csv writes
-<Saved>/Profiling/CSV/Profile(<n>).csv after csv_delay_s; "golmok.path stopplay"; "golmok.hud 0";
+<Saved>/Golmok/Paths/<name>.json (version 1, monotonic samples, else an error log) and with --csv is a
+CsvProfile capture like the engine's (V-04 T5, runbook §11 handover 6): <Saved>/Profiling/CSV/Profile(<n>).csv
+is created csv_delay_s after the command and grows by a row every csv_flush_s (the write buffer; 0 = no
+writes in between) until the capture stops - csv_stop_s after the path's end (its last sample t), after
+"golmok.path stopplay" or after the end of PIE - which appends the last row and logs "GolmokDebugSubsystem:
+csv: <path>" (the C++ LogLatestCsv at the end of playback); "golmok.path stopplay"; "golmok.hud 0";
 "Interchange.FeatureFlags.Import.OBJ 0" arms the legacy_flag route. tick(fake, n, dt) runs the registered
 slate post-tick callbacks n times, advancing the clock by dt each time and creating the files that fell due.
 
@@ -124,7 +129,8 @@ KNOBS = {
     "obj_routes_ok": frozenset({"fbx", "interchange", "legacy_flag"}), "udim_merge": True,
     "texture_vt_default": True, "vt_settable": True, "importer_makes_materials": True,
     "slot_names_from_usemtl": True, "fail_import": frozenset(), "bounds_offset": {}, "pie": False,
-    "screenshot_delay_s": 0.3, "csv_delay_s": 0.5, "screenshot_fallback_name": False,
+    "screenshot_delay_s": 0.3, "csv_delay_s": 0.5, "csv_flush_s": 1.0, "csv_stop_s": 0.2,
+    "screenshot_fallback_name": False,
     "viewport_size": (1014, 550), "nested_glb": False, "engine_udim_regex": False,
     "zone_transform": ZONE_ROOT_CM, "begin_play_starts_pie": True, "level": DEFAULT_LEVEL, "lit": True,
     "save_map_renames": True,
@@ -187,6 +193,12 @@ def _path_file_problem(path: str) -> str | None:
             return "samples need p[3] and r[3]"
         last = t
     return None
+
+
+def _path_length_s(saved_dir: str, name: str) -> float:
+    """Last sample t of <Saved>/Golmok/Paths/<name>.json (a file _path_file_problem accepted)."""
+    with open(os.path.join(saved_dir, "Golmok", "Paths", f"{name}.json"), encoding="utf-8") as f:
+        return float(json.load(f)["samples"][-1]["t"])
 
 
 # ---- value types -----------------------------------------------------------------------------------------
@@ -861,6 +873,7 @@ class LevelEditorSubsystem(_Bound):
     def editor_request_end_play(self):
         self._fake.calls.append(("end_play",))
         self._fake.pie, self._fake.playing = False, None
+        self._fake.stop_csv_captures()  # the PIE world ends: StopPlayback -> CsvProfile Stop
 
     def is_in_play_in_editor(self):
         return self._fake.pie
@@ -1393,6 +1406,7 @@ class Fake:
         self.callbacks: dict[int, object] = {}
         self._next_handle = 1
         self.pending_files: list[tuple[float, str, bytes, str | None]] = []
+        self.csv_captures: list[dict] = []  # golmok.path play --csv (see _write_csv_captures)
         self.clock = 0.0
         self.now = self._clock_now  # one bound method object: bind_clock() and tests compare it by identity
         self.legacy_flag = False
@@ -1475,6 +1489,36 @@ class Fake:
                 f.write(content)
             if message:
                 self.logs.append(("log", message))
+        self._write_csv_captures()
+
+    def _write_csv_captures(self):
+        """Create, grow and finish the CsvProfile files that fell due (see golmok.path play --csv)."""
+        now = self.clock + 1e-9
+        for cap in self.csv_captures:
+            if cap["stopped"] or now < cap["create_at"]:
+                continue
+            if not cap["created"]:
+                os.makedirs(os.path.dirname(cap["path"]), exist_ok=True)
+                with open(cap["path"], "wb") as f:
+                    f.write(b"FrameTime\n")
+                cap["created"] = True
+            rows = 0
+            while self.csv_flush_s and cap["next_at"] <= now and cap["next_at"] < cap["stop_at"]:
+                cap["next_at"] += self.csv_flush_s
+                rows += 1
+            final = now >= cap["stop_at"]
+            if rows or final:
+                with open(cap["path"], "ab") as f:
+                    f.write(b"16.7\n" * (rows + int(final)))
+            if final:
+                cap["stopped"] = True
+                self.logs.append(("log", f"GolmokDebugSubsystem: csv: {cap['path']}"))
+
+    def stop_csv_captures(self):
+        """CsvProfile Stop (golmok.path stopplay, end of PIE): running captures finish csv_stop_s from now."""
+        for cap in self.csv_captures:
+            if not cap["stopped"]:
+                cap["stop_at"] = min(cap["stop_at"], self.clock + self.csv_stop_s)
 
     # -- console command semantics --
 
@@ -1545,13 +1589,22 @@ class Fake:
             if "--csv" in args[2:]:
                 self.csv_count += 1
                 path = os.path.join(self.saved_dir, "Profiling", "CSV", f"Profile({self.csv_count}).csv")
-                self.schedule_file(
-                    self.csv_delay_s, path, b"FrameTime\n16.7\n", f"GolmokDebugSubsystem: csv: {path}"
+                create_at = self.clock + self.csv_delay_s
+                self.csv_captures.append(
+                    {
+                        "path": os.path.normpath(path),
+                        "create_at": create_at,
+                        "next_at": create_at + (self.csv_flush_s or 0.0),
+                        "stop_at": self.clock + _path_length_s(self.saved_dir, name) + self.csv_stop_s,
+                        "created": False,
+                        "stopped": False,
+                    }
                 )
         elif sub == "stopplay":
             if self.playing is None:
                 self.logs.append(("log", "golmok.path stopplay: ERROR not playing"))
             self.playing = None
+            self.stop_csv_captures()
 
 
 # ---- install / tick --------------------------------------------------------------------------------------
