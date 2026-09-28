@@ -1,9 +1,9 @@
 # WP-13 — 환경음 기본: 앰비언스·발소리·실내 전환 (D-016 (a))
 
-상태: 🔵 **진행 중 — 13b 런타임 구현·공유 검증 계약/패키징·청취 대기** (2026-09-28; 등록 2026-09-25) · 담당: **ChatGPT Astra**(2026-09-27 오디오 레인 배정, `plan/astra-tasks.md` T3; 코드 리뷰 Opus ultracode, 설계·최종 품질 Fable, 병합 오케스트레이터, DEVELOPMENT-PLAN §7.6) · 의존: WP-05(포털·시간대), WP-04(Zone), V-08 결과는 **불필요**(발소리는 이동 거리 기반으로 시작, 애니메이션 노티파이 연동은 채택안 뒤) · 검증: G2(`runbooks/pc-verify-wp13.md`, V-10)
+상태: 🟡 **코드 완료·PC V-10 대기** (2026-09-28; 등록 2026-09-25) · 담당: **ChatGPT Astra**(2026-09-27 오디오 레인 배정, `plan/astra-tasks.md` T3; 코드 리뷰 Opus ultracode, 설계·최종 품질 Fable, 병합 오케스트레이터, DEVELOPMENT-PLAN §7.6) · 의존: WP-05(포털·시간대), WP-04(Zone), V-08 결과는 **불필요**(발소리는 이동 거리 기반으로 시작, 애니메이션 노티파이 연동은 채택안 뒤) · 검증: G2(`runbooks/pc-verify-wp13.md`, V-10)
 
 ## 목표
-소리 없는 골목을 "장소"로 만든다(D-016 (a), 사용자 승인 2026-09-25): 전역 앰비언스(도시 원경, 낮/밤), 발소리(바닥 재질 2~3종), 실내 진입 시 앰비언스 전환, 시간대별 전환. 현재 코드에는 오디오가 전혀 없다. 근거: [`design/game-features-proposal.md`](../design/game-features-proposal.md) D-016.
+소리 없는 골목을 "장소"로 만든다(D-016 (a), 사용자 승인 2026-09-25): 전역 앰비언스(도시 원경, 낮/밤), 발소리(바닥 재질 2~3종), 실내 진입 시 앰비언스 전환, 시간대별 전환. WP 착수 당시 코드에는 오디오가 없었다. 근거: [`design/game-features-proposal.md`](../design/game-features-proposal.md) D-016.
 
 ## 배경(코드에서 확인할 것)
 - 실내/실외 상태는 WP-05 `Portals/GolmokPortal`·`GolmokLevelStreaming`(실내 오버레이·노출 전환)에 있다. 시간대 프리셋 전환은 `Lighting/GolmokTimeOfDay`(프리셋 JSON 단일 소스, 이름으로 낮/밤 구분 — 프리셋 JSON에 `ambience` 키를 **추가하지 않고** 오디오 JSON 쪽에서 프리셋 이름 → 상태를 매핑).
@@ -151,3 +151,19 @@ Python에서 런타임 추가 뒤 **1 failed,722 passed,67 skipped**(37.34s)를 
 최종 런타임 빌드 **성공10.82s**, 음소거 시 이미 재생 중인 발소리 정지까지 보완한 Audio 필터 **2 Success, 경고0/실패0/notRun0,0.92s**. 직전 전체 회귀 **28 Success(21+경고7),167.19s**, RenderEvidence 제외 실제27개. 최종 Python **1 failed/722 passed/68 skipped/208 warnings,38.15s**이며 실패는 위 WP-12 런북 총계 계약1개뿐이다. ruff check/format103·check_repo·diff --check 통과. CI를 초록 또는 WP-13 완료로 보고하지 않는다.
 
 소유 레인에 제안하는 최소 반영 문안: WP-12 런북 §1 두 번째 명령의 현재 총계 `**26개**`를 `**28개**`로 갱신하고 열거 끝에 `+ WP-13 2개(`Audio.StateMachine/Footstep`)`를 추가한다. 같은 §1에 `현재 코드 기준 헤드리스 자동화 28개(Photo 3 + 기존 25). 아래 §13의26개는 당시 PC 실행 이력이다.`를 추가해 기존 결과표를 보존한다. WP-05 fixture의 cook 등록 검사는 기존 Zones와 새 Audio2개를 확인하도록 확장한다. 이 수정은 권한 응답 뒤만 반영한다.
+
+
+## 13b 최종 계약 반영 (2026-09-28)
+
+[오케스트레이터 01:27Z 응답](https://github.com/wooklym/golmok/pull/34#issuecomment-5861681375)으로 위 두 계약 대기를 해소했다. WP-12 런북 §1 현재 총계를 28개로 갱신했으며 §13의 26/26 실행 이력은 보존했다(`fd3a318`). DefaultGame.ini 끝 Audio cook 훅과 WP-05 fixture의 허용된 두 줄 예외를 별도 커밋으로 반영했다(`7be448d`). UFS 항목은 추가하지 않았다.
+
+Fable은 빠른 제3상태 최대50ms 교체, 70/110cm 보폭, 재질 default, Photo mute/maintain의 설계 가설을 승인했다. 상태별 `crossfade_seconds_by_state` JSON 값을 추가해 목적 상태별 튜닝을 지원한다. 누락 상태는 전역 crossfade_seconds로 돌아가며 기본값은 모두2초다. 실내1초/실외2초 비교 및 1초 안에 포털 왕복3회 청취는 V-10 런북에 남긴다. 메시 Z 스케일 보폭 옵션은 선택 제안이므로 V-10 청취 뒤 후속으로 판단한다. 실제 소리 품질·패키징 합격을 뜻하지 않는다.
+
+### 병합 시 반영 — 최종 문안 (앞의 중간 단계 문안 대체)
+
+- STATUS의 WP-13 작업 행: **🟡 코드 완료·PC V-10 대기** — 13a 출처 조사·후보 채택, 13b JSON/합성 WAV/임포트·출처/크레딧, 이벤트 기반 환경음 A/B·발소리·HUD/콘솔·헤드리스 검증 완료. 패키징/청취는 V-10.
+- STATUS의 Astra 병행 트랙 WP-13 행: **🟡 코드 완료·PC V-10 대기** — PR #34, 기본2초·상태별 JSON 튜닝, Audio cook 훅, 원본 Freesound 계정은 소유자 결정 대기. 리뷰·병합은 오케스트레이터.
+- ROADMAP: WP-13 환경음/발소리 코드 완료, 소스 교체는 audio.json+재임포트. V-10에서 패키지 포함·상태 전환/포털·발소리·볼륨·포토 청취 검증 대기.
+- D-002 출처 기록: WP-13 현재 WAV7개는 프로젝트의 결정적 합성 플레이스홀더(numpy 기존 의존성, 48kHz PCM16, 합계1,280,308바이트). `project-generated`는 출처 표기이며 외부 라이선스 채택/CC0 권리 포기 선언이 아니다. Freesound CC0 청취 후보7개 조사·채택은 13a 기록 유지, 실제 원본 다운로드/계정 약정은 하지 않음. 출처·저자·라이선스 URL·수정 내역은 audio.json→ATTRIBUTION.md/크레딧 파이프라인으로 보존.
+
+최종 계약 반영 로컬 게이트: ruff check/format103, check_repo, diff --check 통과. pytest **730 passed/68 skipped/208 warnings,34.12s**. UE5.8.3 빌드 **성공12.51s**; 전체 자동화 **28 Success(21+경고7), failed0/notRun0**, 166.97073364257812s. RenderEvidence NOT EXECUTED1 제외 실제27개, Audio2개·PhotoIntegration6조합 실행 성공. 증거는 Saved/Automation/WP13/full-contract-report.json. 패키징/청취는 미실행이며 V-10으로 남긴다. CI 결과는 PR #34의 현재 head 검사 및 최종 코멘트에 기록한다.
