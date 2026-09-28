@@ -14,15 +14,30 @@ Input is a master-submix recording (``unreal.AudioMixerLibrary.start_recording_o
   of the span (V-10 saw one 3.0 s case among 12); read it with the level trace.
 - ``click_score``: first difference of the mono signal divided by a local robust sigma
   (1.4826 × MAD over ±``window_ms``, centred), maximum |z| outside excluded ranges (footstep one-shots).
-  The runbook threshold is z ≥ 8 (``CLICK_Z``). On a continuous bed z stays at a few units and a spike
-  or a large level jump stands out. Two limits of the method, measured on synthetic beds:
-  (1) where half or more of the ±window is digital silence the MAD collapses and z is inflated: an
-  abrupt stop/start saturates against ``sigma_floor`` (z in the hundreds or thousands; the PC self-test's
-  hard cut z 160), but a fade into silence reads high as well (250 ms: z ≈ 7–11, 20 ms: 10–20), so the
-  report gives the silence fraction at the maximum and such boundaries need the level trace or ``exclude``;
-  (2) a hard switch between two uncorrelated beds of similar level is a step of about one bed amplitude,
-  only a few times the bed's own sample-to-sample change for 32-tap moving-average noise (z ≈ 2–13), so
-  a low z does not show that a crossfade happened; the settle time does.
+  The runbook threshold is z ≥ 8 (``CLICK_Z``). On a continuous bed z stays at a few units (placeholder
+  beds: 2.3) and a spike or a large level jump stands out (a one-sample 0.3 spike: z ≈ 22). Digital
+  silence is kept out of the sigma: a sample is silent when |x| < ``silence_floor`` (1e-4 ≈ −80 dBFS),
+  the MAD uses only differences between two non-silent samples, and a sample is scored only when at least
+  ``min_audible`` (25 %) of its ±window are such differences. Measured on placeholder beds (six seeds):
+  a 20 ms and a 250 ms linear fade to silence read z ≈ 2.5 and 2.9 (without the rule 12–16 and 7–11,
+  because the MAD collapsed once half the window was silence), and a hard cut to silence is the step
+  against the bed's own sigma, z ≈ 3.7 × |x at the cut| / bed RMS (2.4–6.5; without the rule thousands,
+  the PC self-test's hard cut 160). A cut on a sample above about 2.1 × the RMS (~3 % of random cut
+  points) still reads ≥ 8, which is a real step; ``abrupt_stop`` lists cuts either way. Material quieter
+  than the floor counts as silence, and on beds close to it the waveform's near-zero samples drop out as
+  well (bed at −65 dBFS RMS: 14 % of samples, z 6–8 % higher). A remaining limit: a hard switch
+  between two uncorrelated beds of similar level is a step of about one bed amplitude, only a few times
+  the bed's own sample-to-sample change for 32-tap moving-average noise (z ≈ 2–13), so a low z does not
+  show that a crossfade happened; the settle time does.
+- ``abrupt_stop``: level drops of ≥ 20 dB (``drop_db``) that complete within ≤ 10 ms (``within_ms``) on
+  5 ms RMS windows (``window_ms``): hard cuts, cuts to silence or to a much quieter bed, and dropouts of
+  about 5 ms or more. "Within 10 ms" is judged as an equivalent linear ramp: the 10 ms before the quiet
+  onset must still carry at least 1/3 of the reference power (the 100 ms before them), which is what a
+  linear ramp to silence of exactly 10 ms leaves; ``duration_ms`` is that equivalent ramp length. Linear
+  ramps to silence on placeholder beds (300 seeds each): hard cut flagged 300/300 (0–9.4 ms; 2998/3000 in
+  a larger run), 5 ms ramp 95 %, 10 ms 43 %, 12 ms 13 %, 15 ms 1 %, 20, 40 and 250 ms 0 %. The drop is
+  read on one 5 ms window, so it scatters by about ±2 dB there (a hard cut to a bed 15 dB quieter was
+  listed 2 times in 100, one 30 dB quieter 100 times).
 - ``dip``: largest drop of the envelope below the straight line (in dB) between the levels before and
   after a transition (the crossfade "중간 dip": 3 dB for a linear-amplitude crossfade of two uncorrelated
   equal-level beds, 0 dB for equal-power). On the placeholder beds the ±0.4 dB window scatter alone
@@ -32,6 +47,7 @@ Input is a master-submix recording (``unreal.AudioMixerLibrary.start_recording_o
 Usage (run from ``tools/``; deliberately no console script, pyproject is a shared file)::
 
     python -m golmok_tools.audio_analysis rec.wav --event 12.3 40.2 --fade 2 --exclude 30.1:30.5 [--json]
+    [--silence-floor 1e-4]
 
 ``--event`` times are key presses/state changes in seconds from the start of the file. For each event the
 settle time is measured over ``[event, event + --span]`` (default: crossfade + 1 s with ``--fade``, else
@@ -56,6 +72,12 @@ CLICK_Z = 8.0  # runbook §7-1: z >= 8 is a click
 FLOOR_DB = -120.0
 LEVEL_S = 0.3  # steady level before/after a transition: energy mean over this many seconds
 MAD_TO_SIGMA = 1.4826  # MAD of a normal distribution × 1.4826 = sigma
+SILENCE_FLOOR = 1e-4  # |x| below this (−80 dBFS) is digital silence for the click sigma
+MIN_AUDIBLE = 0.25  # a sample is click-scored only if this share of its ±window is non-silent
+STOP_DROP_DB = 20.0  # abrupt stop: level drop of at least this …
+STOP_WITHIN_MS = 10.0  # … completed within this (as an equivalent linear ramp)
+STOP_WINDOW_MS = 5.0  # short-window RMS for abrupt stops
+STOPS_LISTED = 5  # the report lists this many abrupt stops (and counts all)
 
 _WAVE_FORMAT_PCM = 0x0001
 _WAVE_FORMAT_IEEE_FLOAT = 0x0003
@@ -232,8 +254,11 @@ def dip(times: np.ndarray, env_db: np.ndarray, t0: float, t1: float, level_s: fl
 # Clicks, clipping
 
 
-def _mad_sigma(d: np.ndarray, centre: int, half: int) -> float:
-    seg = d[max(0, centre - half) : centre + half + 1]
+def _mad_sigma(d: np.ndarray, usable: np.ndarray, centre: int, half: int) -> float:
+    lo, hi = max(0, centre - half), centre + half + 1
+    seg = d[lo:hi][usable[lo:hi]]
+    if seg.size == 0:
+        return 0.0
     return MAD_TO_SIGMA * float(np.median(np.abs(seg - np.median(seg))))
 
 
@@ -247,42 +272,63 @@ def click_score(
     exclude: Iterable[tuple[float, float]] = (),
     window_ms: float = 100.0,
     sigma_floor: float = 1e-5,
+    silence_floor: float = SILENCE_FLOOR,
+    min_audible: float = MIN_AUDIBLE,
 ) -> tuple[float, float | None]:
     """Largest click z outside ``exclude`` → (max |z|, its time in s; ``None`` if nothing was evaluated).
 
     z = (x[i] - x[i-1]) / max(1.4826 × MAD of the first difference over ±``window_ms`` centred on i,
-    ``sigma_floor``). The MAD is evaluated exactly on a grid of window/4 steps; samples whose grid bound
-    could exceed the running maximum are then re-scored with their own centred window, so the reported
-    maximum uses the exact centred sigma. ``sigma_floor`` (1e-5 ≈ −100 dBFS) keeps digital silence finite.
-    ``exclude`` ranges are inclusive, in seconds; the difference x[i] - x[i-1] is timed at sample i.
+    ``sigma_floor``). Digital silence is left out of the MAD: a sample is silent when |x| <
+    ``silence_floor``, and only differences between two non-silent samples enter it. A sample whose
+    ±window holds fewer than ``min_audible`` (a share) of such differences is not scored, so the inside of
+    a silence and its edges far from sound are skipped, while the step into or out of silence is scored
+    against the audible side's sigma. The MAD is evaluated exactly on a grid of window/4 steps; samples
+    whose grid bound could exceed the running maximum are then re-scored with their own centred window, so
+    the reported maximum uses the exact centred sigma. ``sigma_floor`` (1e-5 ≈ −100 dBFS) keeps the
+    division finite. ``exclude`` ranges are inclusive, in seconds; x[i] - x[i-1] is timed at sample i.
     """
     x = to_mono(samples)
     if x.size < 2:
         return 0.0, None
     d = np.diff(x)
     n = d.size
+    audible = np.abs(x) >= silence_floor
+    usable = audible[:-1] & audible[1:]
     half = max(1, int(round(sr * window_ms / 1000.0)))
+    width = 2 * half + 1
+    # Usable differences in each ±half window: a cumulative count over the usable mask padded by half.
+    count = np.zeros(n + width, dtype=np.int32)
+    np.cumsum(usable, dtype=np.int32, out=count[half + 1 : half + 1 + n])
+    count[half + 1 + n :] = count[half + n]
+    in_window = np.full(n, width, dtype=np.int32)  # the window's length inside the file
+    left = np.arange(min(half, n))
+    in_window[left] -= half - left
+    right = np.arange(max(0, n - half), n)
+    in_window[right] -= right + half + 1 - n
+    scored = (count[width:] - count[:n]) >= min_audible * in_window
+    del count, in_window
     hop = max(1, half // 4)
     grid = np.arange(0, n, hop)
     if grid[-1] != n - 1:
         grid = np.append(grid, n - 1)
-    grid_sigma = np.array([_mad_sigma(d, int(c), half) for c in grid])
+    grid_sigma = np.array([_mad_sigma(d, usable, int(c), half) for c in grid])
     # Sample i lies between grid[i // hop] and the next grid point; bound its centred sigma from below.
     pair_min = np.minimum(grid_sigma[:-1], grid_sigma[1:]) if grid.size > 1 else grid_sigma
     bound_sigma = np.repeat(pair_min, hop)[:n]
     if bound_sigma.size < n:  # n - 1 is itself a grid point
         bound_sigma = np.append(bound_sigma, grid_sigma[-1:])
     z_bound = np.abs(d) / np.maximum(_BOUND_SLACK * bound_sigma, sigma_floor)
+    z_bound[~scored] = -1.0
     for a, b in exclude:
-        lo = max(0, math.ceil(a * sr) - 1)
-        hi = min(n, math.floor(b * sr))
-        if hi > lo:
-            z_bound[lo:hi] = -1.0
+        lo_i = max(0, math.ceil(a * sr) - 1)
+        hi_i = min(n, math.floor(b * sr))
+        if hi_i > lo_i:
+            z_bound[lo_i:hi_i] = -1.0
     if not (z_bound >= 0).any():
         return 0.0, None
 
     def exact(i: int) -> float:
-        return float(abs(d[i]) / max(_mad_sigma(d, i, half), sigma_floor))
+        return float(abs(d[i]) / max(_mad_sigma(d, usable, i, half), sigma_floor))
 
     best_i = int(np.argmax(z_bound))
     best_z = exact(best_i)
@@ -299,13 +345,83 @@ def click_score(
     return best_z, (best_i + 1) / sr
 
 
-def silence_fraction(samples: np.ndarray, sr: int, t: float, window_ms: float = 100.0) -> float:
-    """Share of exactly-zero samples of the mono mix within ±``window_ms`` of time ``t``."""
+def silence_fraction(
+    samples: np.ndarray, sr: int, t: float, window_ms: float = 100.0, silence_floor: float = SILENCE_FLOOR
+) -> float:
+    """Share of silent samples (|x| < ``silence_floor``) of the mono mix within ±``window_ms`` of ``t``."""
     x = to_mono(samples)
     half = max(1, int(round(sr * window_ms / 1000.0)))
     i = int(round(t * sr))
     seg = x[max(0, i - half) : i + half + 1]
-    return float(np.mean(seg == 0.0)) if seg.size else 0.0
+    return float(np.mean(np.abs(seg) < silence_floor)) if seg.size else 0.0
+
+
+_STOP_HOP_MS = 0.25  # grid of the short windows
+_STOP_REF_MS = 100.0  # reference: energy mean over this span, ending within_ms before the quiet onset
+_STOP_POST_MS = 20.0  # the post-drop level is the lowest window within within_ms + this after the drop
+_STOP_QUIET_DB = 10.0  # quiet onset: the first window within this of that lowest window
+# Runs of candidate windows that start less than within_ms after a measured quiet onset are skipped, so a
+# drop is listed once; two cuts further apart than that are listed separately.
+
+
+def abrupt_stop(
+    samples: np.ndarray,
+    sr: int,
+    drop_db: float = STOP_DROP_DB,
+    within_ms: float = STOP_WITHIN_MS,
+    window_ms: float = STOP_WINDOW_MS,
+) -> list[tuple[float, float, float]]:
+    """Level drops of ≥ ``drop_db`` completed within ≤ ``within_ms`` → [(t s, drop dB, duration ms), …].
+
+    Levels are ``window_ms`` RMS of the mono mix in dB (windows [t, t + window) on a 0.25 ms grid,
+    floored at −120). The reference R(t) is the energy mean over the 100 ms that end ``within_ms`` before
+    t. A drop begins at the first window at or below R − ``drop_db``; its quiet onset t (reported) is the
+    first window from there within 10 dB of the lowest window of the next ``within_ms`` + 20 ms, which for
+    a cut to silence is where the silence starts (a gap has to last about ``window_ms`` to be seen). The
+    drop is abrupt when the ``within_ms`` just before t still carry at least 1/3 of R's power: a linear
+    ramp from R to silence of exactly ``within_ms`` leaves 1/3 there, a shorter ramp or a cut more.
+    ``duration_ms`` is the length of the linear ramp that leaves the same power ratio p there,
+    1.5 × within × (1 − p) (p clipped at 1, so a cut reads 0 ms up to the bed's scatter), and drop dB is R
+    minus the level at t (floored at −120 dB, so a cut to silence reads about 120 dB + R). Boundary with
+    the defaults: a 10 ms linear ramp to silence sits on it; a 20 ms ramp leaves p = 1/12 (6 dB under the
+    boundary) and a 250 ms fade about 1/130 of the 100 ms before its last 10 ms, so neither is listed; the
+    module docstring has the measured rates. Only drops are looked for: an abrupt start is not listed.
+    """
+    x = to_mono(samples)
+    w = max(1, int(round(sr * window_ms / 1000.0)))
+    step = max(1, int(round(sr * _STOP_HOP_MS / 1000.0)))
+    within = max(1, int(round(sr * within_ms / 1000.0)))
+    ref = max(1, int(round(sr * _STOP_REF_MS / 1000.0)))
+    first = within + ref // 2  # the reference must cover at least half its span
+    if x.size < first + w:
+        return []
+    energy = np.concatenate(([0.0], np.cumsum(x * x)))
+    g = np.arange(first, x.size - w + 1, step)  # window starts
+    level = _db_power((energy[g + w] - energy[g]) / w)
+    ref_lo = np.maximum(0, g - within - ref)
+    ref_power = (energy[g - within] - energy[ref_lo]) / (g - within - ref_lo)
+    ref_db = _db_power(ref_power)
+    cand = level <= ref_db - drop_db
+    if not cand.any():
+        return []
+    span = int(round(sr * (within_ms + _STOP_POST_MS) / 1000.0 / step))  # in grid steps
+    edges = np.flatnonzero(np.diff(np.concatenate(([False], cand, [False])).astype(np.int8)))
+    runs = edges.reshape(-1, 2)  # [start, end) of each run of candidate windows
+    out = []
+    skip_to = -1
+    for k0, _ in runs:
+        if k0 < skip_to:  # a later piece of a drop already measured: its last within_ms hold that drop
+            continue
+        stop_k = min(level.size, k0 + span + 1)
+        quiet = min(ref_db[k0] - drop_db, float(level[k0:stop_k].min()) + _STOP_QUIET_DB)
+        k = k0 + int(np.argmax(level[k0:stop_k] <= quiet))
+        skip_to = k + -(-within // step) + 1
+        p = (energy[g[k]] - energy[g[k] - within]) / within / max(ref_power[k], 10.0 ** (FLOOR_DB / 10.0))
+        drop = float(ref_db[k] - level[k])
+        if p >= 1.0 / 3.0 and drop >= drop_db:
+            duration = 1.5 * within_ms * (1.0 - min(p, 1.0))
+            out.append((float(g[k] / sr), drop, float(duration)))
+    return out
 
 
 def clipping(samples: np.ndarray, thresh: float = 0.999) -> tuple[int, float]:
@@ -330,14 +446,16 @@ def analyse(
     span_s: float | None = None,
     tol_db: float = 1.0,
     tail_s: float = 1.0,
+    silence_floor: float = SILENCE_FLOOR,
 ) -> dict:
     """The CLI report as a dict (levels in dBFS, times in s); see the module docstring for the spans."""
     samples = np.asarray(samples)
     mono = to_mono(samples)
     count, peak = clipping(samples)
     times, env = rms_envelope(mono, sr, window_ms)
-    z, z_t = click_score(mono, sr, exclude=exclude, window_ms=window_ms)
-    silent = 0.0 if z_t is None else silence_fraction(mono, sr, z_t, window_ms)
+    z, z_t = click_score(mono, sr, exclude=exclude, window_ms=window_ms, silence_floor=silence_floor)
+    silent = 0.0 if z_t is None else silence_fraction(mono, sr, z_t, window_ms, silence_floor)
+    stops = abrupt_stop(mono, sr)
     report = {
         "sample_rate": sr,
         "channels": 1 if samples.ndim == 1 else int(samples.shape[1]),
@@ -352,6 +470,14 @@ def analyse(
             "threshold": CLICK_Z,
             "click": z >= CLICK_Z,
             "silence_fraction": silent,
+            "silence_floor": silence_floor,
+        },
+        "abrupt_stops": {
+            "count": len(stops),
+            "drop_db": STOP_DROP_DB,
+            "within_ms": STOP_WITHIN_MS,
+            "window_ms": STOP_WINDOW_MS,
+            "first": [{"t": t, "drop_db": drop, "duration_ms": dur} for t, drop, dur in stops[:STOPS_LISTED]],
         },
         "exclude": [list(r) for r in exclude],
         "events": [],
@@ -406,9 +532,19 @@ def format_report(report: dict, name: str = "") -> str:
     if click["silence_fraction"] >= 0.3:
         lines.append(
             f"             {click['silence_fraction']:.0%} of the ±{report['window_ms']:g} ms window is"
-            " digital silence: z is inflated at silence boundaries (a fade into silence also reads 7-20),"
-            " check the level trace or exclude it"
+            f" silence (|x| < {click['silence_floor']:g}): z is the step against the audible side's sigma"
         )
+    stops = report["abrupt_stops"]
+    listed = ", ".join(
+        f"{s['t']:.3f} s (drop {s['drop_db']:.0f} dB, ramp {s['duration_ms']:.1f} ms)" for s in stops["first"]
+    )
+    more = stops["count"] - len(stops["first"])
+    lines.append(
+        f"abrupt stops {stops['count']} (drop >= {stops['drop_db']:g} dB within <= {stops['within_ms']:g} ms,"
+        f" {stops['window_ms']:g} ms RMS)"
+        + (f": {listed}" if listed else "")
+        + (f", +{more} more" if more > 0 else "")
+    )
     if report["events"]:
         lines.append(
             f"events ({report['window_ms']:g} ms RMS; settle = within ±1 dB of the final level, the energy"
@@ -437,7 +573,7 @@ def _range(text: str) -> tuple[float, float]:
 def main(argv: Sequence[str] | None = None) -> int:
     p = argparse.ArgumentParser(
         prog="python -m golmok_tools.audio_analysis",
-        description="V-10 WAV analysis: peak/clipping, RMS, click z, and settle/dip per event.",
+        description="V-10 WAV analysis: peak/clipping, RMS, click z, abrupt stops, and settle/dip per event.",
     )
     p.add_argument("wav", type=Path)
     p.add_argument("--window-ms", type=float, default=100.0, help="RMS window and ±MAD window (default 100)")
@@ -467,6 +603,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         metavar="S",
         help="settle span after each event (default: fade + 1 s with --fade, else 3 s)",
     )
+    p.add_argument(
+        "--silence-floor",
+        type=float,
+        default=SILENCE_FLOOR,
+        metavar="A",
+        help=f"|x| below this is silence for the click sigma (default {SILENCE_FLOOR:g}, about -80 dBFS;"
+        " 0 counts every sample, the V-10 behaviour)",
+    )
     p.add_argument("--json", action="store_true", help="print the report as JSON")
     args = p.parse_args(argv)
     try:
@@ -474,7 +618,16 @@ def main(argv: Sequence[str] | None = None) -> int:
     except (OSError, ValueError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
-    report = analyse(samples, sr, args.event, args.exclude, args.window_ms, args.fade, args.span)
+    report = analyse(
+        samples,
+        sr,
+        args.event,
+        args.exclude,
+        args.window_ms,
+        args.fade,
+        args.span,
+        silence_floor=args.silence_floor,
+    )
     if args.json:
         print(json.dumps({"file": str(args.wav), **report}, indent=2, ensure_ascii=False))
     else:

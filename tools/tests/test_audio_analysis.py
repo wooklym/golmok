@@ -14,10 +14,13 @@ import pytest
 
 from golmok_tools.audio_analysis import (
     CLICK_Z,
+    STOP_WITHIN_MS,
+    abrupt_stop,
     analyse,
     click_score,
     clipping,
     dip,
+    format_report,
     main,
     read_wav,
     rms_envelope,
@@ -42,6 +45,13 @@ def crossfade(a, b, start, fade, curve="linear", sr=SR):
     if curve == "linear":
         return (1.0 - x) * a + x * b
     return np.cos(0.5 * np.pi * x) * a + np.sin(0.5 * np.pi * x) * b
+
+
+def cut(y, at, ramp=0.0, sr=SR):
+    """``y`` faded linearly to digital silence from ``at`` over ``ramp`` s (0 = hard cut)."""
+    t = np.arange(len(y)) / sr
+    a = np.clip(1.0 - (t - at) / ramp, 0.0, 1.0) if ramp > 0 else (t < at).astype(float)
+    return a * y
 
 
 def settle_of(fade, seed):
@@ -107,17 +117,73 @@ def test_dip_uses_levels_either_side_and_validates_span():
         dip(times, ramp, 2.0, 2.0)
 
 
-def test_click_hard_stop_vs_fades():
-    a, b = bed(5, 4.0), bed(6, 4.0)
-    stop = a * (np.arange(len(a)) < 2 * SR)  # the bed cut to digital silence at 2.0 s, no ramp
-    z, t = click_score(stop, SR)
-    assert z > 50  # the ±100 ms MAD collapses at the silence boundary (PC self-test: z 160)
+def test_hard_cut_to_silence_is_an_abrupt_stop_not_an_inflated_click():
+    y = cut(bed(5, 3.0), 2.0)  # the bed cut to digital silence at 2.0 s, no ramp
+    ((t, drop, ramp),) = abrupt_stop(y, SR)
     assert t == pytest.approx(2.0, abs=0.001)
-    assert silence_fraction(stop, SR, t) == pytest.approx(0.5, abs=0.02)
+    assert drop > 60  # −26 dBFS bed to silence (levels are floored at −120 dB)
+    assert 0.0 <= ramp <= STOP_WITHIN_MS
+    # Silence is left out of the MAD, so the step at the cut is scored against the bed's own sigma:
+    # |x| before the cut is 0.048 (0.93 × the bed RMS), z 3.5. With the silent half of the window in
+    # the MAD it was 4769 (the PC self-test's hard cut: 160).
+    z, zt = click_score(y, SR)
+    assert z < CLICK_Z
+    assert zt == pytest.approx(2.0, abs=0.001)
+    assert silence_fraction(y, SR, zt) == pytest.approx(0.5, abs=0.02)
+    y[int(1.95 * SR)] += 0.3  # a click in the audible material next to the silence still stands out
+    z, zt = click_score(y, SR)
+    assert z > 2 * CLICK_Z
+    assert zt == pytest.approx(1.95, abs=0.001)
+
+
+@pytest.mark.parametrize("ramp", [0.02, 0.25])
+def test_fade_to_silence_is_neither_click_nor_abrupt_stop(ramp):
+    y = cut(bed(6, 3.0), 2.0, ramp)
+    assert abrupt_stop(y, SR) == []
+    z, _ = click_score(y, SR)
+    assert z < 5  # 2.6 and 2.8; with the silent part in the MAD 12.0 (20 ms) and 7.6 (250 ms)
+
+
+def test_crossfades_stay_low():
+    a, b = bed(5, 4.0), bed(6, 4.0)
     for fade in (2.0, 1.0):
-        z, _ = click_score(crossfade(a, b, 1.0, fade), SR)
-        assert z < CLICK_Z
+        y = crossfade(a, b, 1.0, fade)
+        z, _ = click_score(y, SR)
         assert z < 5  # steady placeholder beds stay at a few units
+        assert abrupt_stop(y, SR) == []
+
+
+@pytest.mark.parametrize(("ramp_ms", "listed"), [(0, True), (2, True), (5, True), (8, True), (12, False)])
+def test_abrupt_stop_boundary_is_an_equivalent_linear_ramp(ramp_ms, listed):
+    # A drop is abrupt when the 10 ms before the silence keep >= 1/3 of the reference power, which a
+    # 10 ms linear ramp leaves; the duration is the ramp with the same power. White noise keeps 10 ms of
+    # power within about ±0.3 dB, so the reported duration is the ramp itself.
+    y = cut(bed(8, 0.5, taps=1), 0.3, ramp_ms / 1000.0)
+    stops = abrupt_stop(y, SR)
+    if not listed:
+        assert stops == []
+        return
+    ((t, drop, dur),) = stops
+    assert t == pytest.approx(0.3 + ramp_ms / 1000.0, abs=0.0005)  # where the silence starts
+    assert dur == pytest.approx(ramp_ms, abs=1.0)
+    assert drop > 60
+
+
+def test_abrupt_stop_to_quieter_bed_and_dropout():
+    a, b = bed(9, 1.0), bed(10, 1.0)
+    t = np.arange(len(a)) / SR
+    ((ts, drop, _),) = abrupt_stop(np.where(t < 0.5, a, 10 ** (-30 / 20) * b), SR)
+    assert ts == pytest.approx(0.5, abs=0.001)
+    assert 25.0 < drop < 35.0
+    assert abrupt_stop(np.where(t < 0.5, a, 10 ** (-10 / 20) * b), SR) == []  # a 10 dB step is no stop
+    assert abrupt_stop(np.where(t < 0.5, a, b), SR) == []  # nor is a hard switch between equal beds
+    gap = a.copy()
+    gap[int(0.5 * SR) : int(0.51 * SR)] = 0.0  # a 10 ms dropout
+    ((ts, drop, _),) = abrupt_stop(gap, SR)
+    assert ts == pytest.approx(0.5, abs=0.001)
+    assert drop > 60
+    assert abrupt_stop(np.zeros(SR), SR) == []
+    assert abrupt_stop(a[:100], SR) == []
 
 
 def test_click_spike_and_exclude():
@@ -244,6 +310,13 @@ def test_cli_json_and_text(tmp_path, capsys):
     assert report["channels"] == 2 and report["clipping_count"] == 0
     assert report["rms_dbfs"] == pytest.approx(-26.0, abs=1.0)
     assert report["click"]["max_z"] < CLICK_Z and not report["click"]["click"]
+    assert report["abrupt_stops"] == {
+        "count": 0,
+        "drop_db": 20.0,
+        "within_ms": STOP_WITHIN_MS,
+        "window_ms": 5.0,
+        "first": [],
+    }
     (event,) = report["events"]
     assert event["settle_span"] == [1.0, 4.0]
     assert 1.5 <= event["settle_s"] <= 2.3
@@ -252,15 +325,24 @@ def test_cli_json_and_text(tmp_path, capsys):
     assert main([wav, "--event", "1.0"]) == 0
     text = capsys.readouterr().out
     assert "click z max" in text and "(threshold 8: click;" in text  # the spike is not excluded here
+    assert "abrupt stops 0 (" in text
     assert "1.000" in text
+    assert main([wav, "--silence-floor", "0.5", "--json"]) == 0  # everything below the floor: nothing scored
+    report = json.loads(capsys.readouterr().out)
+    assert report["click"]["max_z"] == 0.0 and report["click"]["t"] is None
     assert main([str(tmp_path / "missing.wav")]) == 2
     assert "error:" in capsys.readouterr().err
 
 
-def test_report_flags_silence_boundary():
-    y = bed(14, 3.0)
-    y[int(1.5 * SR) :] = 0.0
-    report = analyse(y, SR)
-    assert report["click"]["click"]
+def test_report_lists_abrupt_stop_at_silence_boundary():
+    report = analyse(cut(bed(5, 3.0), 2.0), SR)
+    assert not report["click"]["click"]
+    assert report["click"]["t"] == pytest.approx(2.0, abs=0.001)
     assert report["click"]["silence_fraction"] > 0.3
+    stops = report["abrupt_stops"]
+    assert stops["count"] == 1
+    assert stops["first"][0]["t"] == pytest.approx(2.0, abs=0.001)
     assert report["events"] == [] and report["channels"] == 1
+    text = format_report(report, "cut.wav")
+    assert "is silence (|x| < 0.0001)" in text
+    assert "abrupt stops 1 (drop >= 20 dB within <= 10 ms, 5 ms RMS): 2.000 s (drop 95 dB, ramp" in text
