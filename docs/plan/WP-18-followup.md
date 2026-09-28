@@ -159,3 +159,73 @@ Python 게이트: ruff check·format(98파일), pytest **694 passed / 63 skipped
 수정 뒤 검증(main c7fa296): ruff check/format98·pytest **694 passed/63 skipped**(42.21s)·check_repo·diff --check 통과. UE5.8.3 빌드 성공(20.82s), 전체 **26 Success(19+경고7), failed0/notRun0**, 165.38s. 경로 XY 분리 후 PathRoundTrip 통과, PhotoIntegration EXECUTED6/6 유지, RenderEvidence NOT EXECUTED1은 실제 실행 수에서 제외. 증거 `Saved/Automation/T1/review-report.json`, `review-build.txt`(ignored).
 
 반영 기록(2026-09-28, 병합 세션 Fable, §7.6 4단계): 위 칸별 문안 1~4는 `WP-18: 병합 시 반영 (Fable)` 커밋으로 STATUS 병행 트랙 WP-18·V-11 행, ROADMAP 1.3 캐릭터 행, `astra-tasks.md` T1, `WP-18-characters.md` 리뷰 절에 옮겼다. D-019(2026-09-27)에 따라 소유자 승인 없이 병합했다.
+
+
+## T2 V-11 착수 기록 (2026-09-28 05시 UTC)
+
+브랜치 astra/wp-18-v11-gui, main c16b5a7 기준. 이슈 #30의 V-09 §7 종료 통보 뒤 GUI 잠금·다른 UE 프로세스 없음 확인, 전용 worktree에서 실행했다.
+
+| 항목 | 실제 실행 결과 |
+|---|---|
+| 빌드 | UE5.8.3 성공1.15s |
+| PhotoIntegration | 1 Success, 경고/실패/notRun0, 5.38s. proxy135/proxy110/Quinn × GamePause/TimeDilation EXECUTED6줄 확인 |
+| PIE 재시작 | L_Dev 에디터 GUI에서 Alt+P → 기본 캐릭터 화면 → 게임 콘솔 proxy135 교체 → Escape 종료 → Alt+P 재시작 → 캐릭터 화면 확인 → Escape 종료. 크래시 없음. 선택 유지/품질 채점은 별도 단언하지 않음 |
+| 지속 보행/계단/포털 영상 | 미실행. 현 computer-use sky API는 press_key 탭만 제공하고 key-down/up·hold duration·영상 녹화 API가 없음. 단발 키를 지속 키 검증으로 대체하지 않음 |
+| 초기 메시 실패→GUI 복구 | 미실행 |
+
+증거는 로컬 Saved/Automation/WP18T2/photo-report.json 및 gui-session.log, GUI 스냅샷은 이 세션 도구 결과에 있다. 완성 영상/스크린샷 산출물 없음. **T2 부분 진행**, V-11 전체 완료/애니메이션 품질 합격 아님. native 입력 지속/녹화 대신 UE 드라이버로 렌더된 실행을 기록해도 되는지 또는 PC 세션에 영상 항목을 인계할지 오케스트레이터에 요청한다. GUI 종료 후 잠금을 해제하며 다른 세션은 건드리지 않는다.
+
+
+## T2 엔진 입력 드라이버 렌더 근거 (2026-09-28 06시 UTC)
+
+이슈 #30 코멘트 5863958089의 대체 증거 조건에 따라 main b0f583d에서 실행했다. **엔진 입력 드라이버 렌더 근거(실제 키보드 지속 입력·영상 아님)**다. WP-18/V-11은 🟡 유지하며, 보행 주기·관절·발 미끄러짐은 Fable 시각 리뷰 대기다. hitch/프레임 시간·VRAM 판정은 하지 않았다.
+
+| 검증 | 결과와 한계 |
+|---|---|
+| D3D12 렌더 실행 | RenderEvidence opt-in에 `-GolmokCharacterSequence` 추가. D3D12_SM6, RTX5060, fixed sim dt=1/60, 1 Success·경고/실패/notRun0, 71.51s. nullrhi 사용 안 함 |
+| 캡처 | 3종×3코스, PNG 총577장 디코딩 성공. 실제1014×550(요청960×540와 다름), 인접 sim 간격0.1s±0.002 확인. 코스당6초 이상 |
+| 걷기→달리기 | W down부터3초 뒤 Shift down, 총6초. 시작 배치 뒤 실제 CharacterMovement로 이동 |
+| 계단·포털 | L_Dev 계단 상승/하강 도착 및 캡슐 바닥 높이 단언 통과, L_ZoneTest 포털 안/밖 상태 왕복 단언 통과. 이동 중 순간이동 없음 |
+| 초기 메시 실패 GUI | DefaultGame.ini 메시 경로를 임시 `/Game/Missing/T2Missing.T2Missing`로 바꾸고 L_Dev PIE 실행. `not found; showing capsule` 로그 재현. 로스터 기본 Manny가 BeginPlay(첫 프레임 전)에서 대체 캡슐을 덮고 숨기므로 ini만 바꾸는 절차로는 캡슐 화면이 재현되지 않는다. 콘솔 `golmok.character quinn` 입력·실행 뒤 Quinn 표시 확인. 오케스트레이터 D-019 결정(2026-09-28 #39 리뷰): 헤드리스 `Golmok.Character.Runtime` ApplyEntry 복구 검사와 T2 ini 실패 로그로 **대체·종결**, PC 카드로 넘기지 않음 |
+| 정리 | PIE·검증 에디터 정상 종료, ini를 바이트 백업으로 복원(diff 없음), Astra GUI 잠금 해제. 타 세션 변경 없음 |
+
+카메라는 진단용 붐1.5배·pitch−10, HUD off·clear_noon이다. 파일명의 sim은 코스 시작 기준 elapsed sim time이며 manifest에는 월드 sim과 elapsed를 함께 적었다. 첫 시도의 첫 구간0.0833초를 후처리 검사에서 발견해 첫 요청을0.1초로 고친 뒤 **전9코스를 재실행**했다. 아래는 재실행 결과만이다. 원본 PNG와 자동화 보고서는 로컬 `Saved/Automation/WP18T2Sequence/` 및 `WP18T2SequenceReport2/index.json`에 보관한다. GUI 로그는 `Saved/Automation/WP18T2/initial-mesh-gui.log`다.
+
+콘택트 시트는 코스별 4×3 프레임 2장(전체 구간 균등 샘플 / 연속 = elapsed 1.1~2.2s 12프레임(걷기 코스는 걷기 구간만; 전체 달리기·계단 하강 연속 프레임은 로컬 PNG)), 긴 변1600px·각300KB 이하 JPG다. 선택된 샘플이므로 전체 움직임의 연속 영상으로 읽지 않는다. `capture.txt`의 해상도와 디코딩/간격 확인 줄은 실제 PNG를 읽은 후처리 결과다.
+
+| 캐릭터·코스 | 길이/프레임 | 콘택트 시트 | 입력·프레임 기록 |
+|---|---|---|---|
+| proxy135 걷기/달리기 | 6.0000s / 60 | [전체](../images/characters/v11-sequence/proxy135_course0_1.jpg) · [연속](../images/characters/v11-sequence/proxy135_course0_2.jpg) | [capture.txt](../images/characters/v11-sequence/proxy135_course0-capture.txt) |
+| proxy135 계단 왕복 | 7.1667s / 71 | [전체](../images/characters/v11-sequence/proxy135_course1_1.jpg) · [연속](../images/characters/v11-sequence/proxy135_course1_2.jpg) · [하강4.1~5.2s](../images/characters/v11-sequence/proxy135_course1_3.jpg) | [capture.txt](../images/characters/v11-sequence/proxy135_course1-capture.txt) |
+| proxy135 포털 왕복 | 6.0000s / 60 | [전체](../images/characters/v11-sequence/proxy135_course2_1.jpg) · [연속](../images/characters/v11-sequence/proxy135_course2_2.jpg) | [capture.txt](../images/characters/v11-sequence/proxy135_course2-capture.txt) |
+| proxy110 걷기/달리기 | 6.0000s / 60 | [전체](../images/characters/v11-sequence/proxy110_course0_1.jpg) · [연속](../images/characters/v11-sequence/proxy110_course0_2.jpg) | [capture.txt](../images/characters/v11-sequence/proxy110_course0-capture.txt) |
+| proxy110 계단 왕복 | 8.6167s / 86 | [전체](../images/characters/v11-sequence/proxy110_course1_1.jpg) · [연속](../images/characters/v11-sequence/proxy110_course1_2.jpg) | [capture.txt](../images/characters/v11-sequence/proxy110_course1-capture.txt) |
+| proxy110 포털 왕복 | 6.0000s / 60 | [전체](../images/characters/v11-sequence/proxy110_course2_1.jpg) · [연속](../images/characters/v11-sequence/proxy110_course2_2.jpg) | [capture.txt](../images/characters/v11-sequence/proxy110_course2-capture.txt) |
+| quinn 걷기/달리기 | 6.0000s / 60 | [전체](../images/characters/v11-sequence/quinn_course0_1.jpg) · [연속](../images/characters/v11-sequence/quinn_course0_2.jpg) · [달리기3.1~4.2s](../images/characters/v11-sequence/quinn_course0_3.jpg) | [capture.txt](../images/characters/v11-sequence/quinn_course0-capture.txt) |
+| quinn 계단 왕복 | 6.0000s / 60 | [전체](../images/characters/v11-sequence/quinn_course1_1.jpg) · [연속](../images/characters/v11-sequence/quinn_course1_2.jpg) | [capture.txt](../images/characters/v11-sequence/quinn_course1-capture.txt) |
+| quinn 포털 왕복 | 6.0000s / 60 | [전체](../images/characters/v11-sequence/quinn_course2_1.jpg) · [연속](../images/characters/v11-sequence/quinn_course2_2.jpg) | [capture.txt](../images/characters/v11-sequence/quinn_course2-capture.txt) |
+
+### 병합 시 반영 (T2, STATUS 칸별 완성 문안)
+
+- **WP-18 / 상태**: 🟡 설계·코드·후속 자동화 완료·엔진 렌더 근거 확보·PC 영상/시각 판정 대기
+- **WP-18 / 인계 메모 추가**: T2에서 proxy135/proxy110/quinn의 걷기3초→달리기3초·계단 왕복·포털 왕복 D3D12 InputKey 렌더 시퀀스9코스(577프레임)를 확보했다. 실제 키보드 지속 입력·영상 아님. 코스별 시트와 입력 타임라인은 WP-18-followup T2 절. 최종 시각 판정은 Fable 대기.
+- **V-11 / 상태**: 🟡 헤드리스·물리/입력 자동화·엔진 렌더 근거 확인·PC 영상/시각 판정 대기
+- **V-11 / 인계 메모 추가**: T2 PhotoIntegration 6조합 EXECUTED·경고0, GUI PIE 재시작·Quinn 콘솔 선택 확인. 로스터 기본이 BeginPlay에서 캡슐을 덮으므로 ini만으로 GUI 캡슐 복구를 재현할 수 없다. D-019 결정으로 Runtime 헤드리스 복구 검사와 T2 ini 실패 로그로 대체·종결했다. 실제 키보드 지속 입력·영상·사람 눈 검수는 PC 카드로 인계하며 hitch/VRAM은 미판정.
+
+검증 게이트(T2 최종): UE5.8.3 증분 빌드 성공5.17s. `test.ps1 -SetupDevLevel` 전체 **28 Success(21+경고7), failed0/notRun0,166.99s**; opt-in 없는 RenderEvidence NOT EXECUTED1을 제외한 실제 실행27개. 별도 D3D12 시퀀스는 위와 같이 실제 실행 성공. PhotoIntegration은 전체에서도6조합 EXECUTED·경고0. Python ruff check/format103·pytest **736 passed/68 skipped/208 warnings,51.63s**·check_repo·diff --check 통과. 로컬 `Saved/Automation/WP18T2/full-report.json`에 보고서를 보관했다. 열린 pc/v08-animation #21과 변경 파일 겹침 없음, 신규 공유 훅 없음. PR CI와 Opus 코드/Fable 시각 리뷰는 별도다.
+
+
+PR #39 (A) 수정: D1 GUI 캡슐 복구를 Runtime+ini 실패 로그로 대체·종결, D5 상태·§9 표기 갱신, D3/C6 실제 명령·후처리 접두와 규칙 기록, D4/C7 연속 구간 명시, C2 Sequence 단독/nullrhi 오류 처리, Fable 요청 달리기·하강 연속 시트2장 추가. Fable은 기존18장을 🟡 근거로 채택했으며 타일당60~80px 한계로 발 접지·관절·발 미끄러짐은 사람 눈 검수 대기다. 비블로킹 C1/C3/C4/C5는 별도 후속으로 남긴다.
+
+수정 후 게이트: UE build 성공7.02s, Sequence 단독+nullrhi 및 두 플래그+nullrhi는 각각 failed1로 명시적 오류 확인. 전체28 Success(21+경고7), failed0/notRun0, 167.06s; RenderEvidence NOT EXECUTED1 제외실제27, Runtime 복구 검사 통과. pytest736 passed/68 skipped(45.03s), ruff check/format103·check_repo·diff check 통과. 추가 JPG2장195866/201429bytes, post-processed 접두9개 확인.
+
+## 병합 기록 — T2 PR #39 (2026-09-28, 오케스트레이터 세션)
+
+대상: [PR #39](https://github.com/wooklym/golmok/pull/39) `astra/wp-18-v11-gui` 4b34ca1(리뷰) → f9819c7(수정; 병합 세션이 diff로 (A) 6건 반영 확인). 절차: DEVELOPMENT-PLAN §7.6 — Opus 5.5 ultracode 코드/증거 리뷰 + 문서/기록 리뷰(major 지적 회의론자 검증) + Fable 시각 판정 → PR 코멘트(2026-09-28 06:53Z) → Astra 수정 → D-019에 따라 소유자 승인 없이 이 커밋(`WP-18: 병합 시 반영 (Fable)`) → merge commit. 전문은 PR #39 코멘트.
+
+- **BLOCKING 없음.** 레인 준수(Tests/GolmokCharacter*·WP-18 문서·런북·images만, 런타임/공유 문서/훅 무변경), 등록 테스트 28 = 28(RenderEvidence opt-in 분기만), nullrhi 게이팅(두 플래그 + nullrhi → 오류), InputKey 유지/해제·fixed dt 1/60 설정·복원, 0.1 s sim 요청 간격(577 프레임 줄 전부 정확), 파일명·teleport 1회·계단 좌표(런북 §8)·속도 계약(quinn 180/500, proxy135 145/380, proxy110 120/310)·포털 평면 통과·JPG 18장 1600×750 ≤ 229,038 B(LFS oid 일치)·capture.txt 9개·'엔진 입력 드라이버 렌더 근거(실제 키보드 지속 입력·영상 아님)' 표기·🟡 유지·hitch/fps 무판정을 코드와 산출물로 확인.
+- **(A) 6건 → 수정 반영**: D1 초기 메시 실패→GUI 복구 원인 정정(로스터 기본 manny가 BeginPlay에서 ini 대체 캡슐을 덮어 GUI로는 재현되지 않음, `GolmokCharacterSubsystem.cpp` :286/:307/:384) + **오케스트레이터 결정(D-019): 이 GUI 항목은 헤드리스 `Golmok.Character.Runtime`(ApplyEntry 복구 검사)과 T2의 ini 실패 로그 재현으로 대체·종결, PC 카드로 넘기지 않음**(회의론자: 인과 확인, minor); D5 런북 4·7·104·174행 잔존 문구·§9 표기; D3/C6 §11 실제 명령줄(960×540·보고서 경로)·후처리 규칙·capture.txt `post-processed:` 접두; D4/C7 '연속 12프레임 = elapsed 1.1~2.2 s' 정정; C2 `-GolmokCharacterSequence` 단독 사용 시 오류 처리; Fable 판정 보강 시트 2장(달리기 3.1~4.2 s·계단 하강 연속).
+- **(B) 후속 가능**: C1 300 s timeout 누적(코스별로), C3 맵 존재 사전 검사, C4 capture.txt에 포털 `bPlayerInside`·단언 결과·`Feet()`, C5 manifest에 RHI·프리셋 결과·TargetArmLength·명령줄. D2(병합 시 반영 칸별 문안)는 이 커밋에서 병합 세션이 조립.
+- **Fable 시각 판정(시트)**: 걷기→달리기 전환에서 보폭·팔 스윙이 깨끗하게 바뀌고 0.1 s 연속 구간의 다리 교대가 끊김 없음; 계단 상승·랜딩·회전·하강이 단차를 따라 연속, 부유·침하 없음; 포털 진입·회전·복귀 연속. 보강 시트(quinn 달리기 3.1~4.2 s·proxy135 계단 하강 4.1~5.2 s 연속 12프레임): 달리기 주기의 공중 위상·팔 스윙과 하강의 단차 추종이 끊김 없이 이어짐. T-pose·팝 없음, 3종 동일 품질. 한계: 타일당 캐릭터 60~80 px라 발 접지·관절·미끄러짐은 판정 불가 → **사람 눈 검수는 PC 카드 유지**. 참고: L_Dev 실내 상자 과노출(눈 적응 스윙)은 WP-14 조명 look-dev 메모. **판정: 🟡 근거로 채택, WP-18/V-11 🟡 유지.**
+- **(C) 옮긴 것**: STATUS 병행 트랙 WP-18·V-11 행(상태 칸·메모: T2 근거·PC 카드 인계·D1 종결)·마지막 갱신, ROADMAP 1.3, astra-tasks T2 완료·우선순위, 이 절.
+- 판정: **병합**. 실제 키보드 지속 입력·영상·사람 눈 검수(보행 주기·관절·발 미끄러짐)는 다음 PC 카드(V-09c와 합침)에서.
