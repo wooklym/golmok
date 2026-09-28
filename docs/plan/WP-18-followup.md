@@ -218,3 +218,14 @@ Python 게이트: ruff check·format(98파일), pytest **694 passed / 63 skipped
 PR #39 (A) 수정: D1 GUI 캡슐 복구를 Runtime+ini 실패 로그로 대체·종결, D5 상태·§9 표기 갱신, D3/C6 실제 명령·후처리 접두와 규칙 기록, D4/C7 연속 구간 명시, C2 Sequence 단독/nullrhi 오류 처리, Fable 요청 달리기·하강 연속 시트2장 추가. Fable은 기존18장을 🟡 근거로 채택했으며 타일당60~80px 한계로 발 접지·관절·발 미끄러짐은 사람 눈 검수 대기다. 비블로킹 C1/C3/C4/C5는 별도 후속으로 남긴다.
 
 수정 후 게이트: UE build 성공7.02s, Sequence 단독+nullrhi 및 두 플래그+nullrhi는 각각 failed1로 명시적 오류 확인. 전체28 Success(21+경고7), failed0/notRun0, 167.06s; RenderEvidence NOT EXECUTED1 제외실제27, Runtime 복구 검사 통과. pytest736 passed/68 skipped(45.03s), ruff check/format103·check_repo·diff check 통과. 추가 JPG2장195866/201429bytes, post-processed 접두9개 확인.
+
+## 병합 기록 — T2 PR #39 (2026-09-28, 오케스트레이터 세션)
+
+대상: [PR #39](https://github.com/wooklym/golmok/pull/39) `astra/wp-18-v11-gui` 4b34ca1(리뷰) → f9819c7(수정; 병합 세션이 diff로 (A) 6건 반영 확인). 절차: DEVELOPMENT-PLAN §7.6 — Opus 5.5 ultracode 코드/증거 리뷰 + 문서/기록 리뷰(major 지적 회의론자 검증) + Fable 시각 판정 → PR 코멘트(2026-09-28 06:53Z) → Astra 수정 → D-019에 따라 소유자 승인 없이 이 커밋(`WP-18: 병합 시 반영 (Fable)`) → merge commit. 전문은 PR #39 코멘트.
+
+- **BLOCKING 없음.** 레인 준수(Tests/GolmokCharacter*·WP-18 문서·런북·images만, 런타임/공유 문서/훅 무변경), 등록 테스트 28 = 28(RenderEvidence opt-in 분기만), nullrhi 게이팅(두 플래그 + nullrhi → 오류), InputKey 유지/해제·fixed dt 1/60 설정·복원, 0.1 s sim 요청 간격(577 프레임 줄 전부 정확), 파일명·teleport 1회·계단 좌표(런북 §8)·속도 계약(quinn 180/500, proxy135 145/380, proxy110 120/310)·포털 평면 통과·JPG 18장 1600×750 ≤ 229,038 B(LFS oid 일치)·capture.txt 9개·'엔진 입력 드라이버 렌더 근거(실제 키보드 지속 입력·영상 아님)' 표기·🟡 유지·hitch/fps 무판정을 코드와 산출물로 확인.
+- **(A) 6건 → 수정 반영**: D1 초기 메시 실패→GUI 복구 원인 정정(로스터 기본 manny가 BeginPlay에서 ini 대체 캡슐을 덮어 GUI로는 재현되지 않음, `GolmokCharacterSubsystem.cpp` :286/:307/:384) + **오케스트레이터 결정(D-019): 이 GUI 항목은 헤드리스 `Golmok.Character.Runtime`(ApplyEntry 복구 검사)과 T2의 ini 실패 로그 재현으로 대체·종결, PC 카드로 넘기지 않음**(회의론자: 인과 확인, minor); D5 런북 4·7·104·174행 잔존 문구·§9 표기; D3/C6 §11 실제 명령줄(960×540·보고서 경로)·후처리 규칙·capture.txt `post-processed:` 접두; D4/C7 '연속 12프레임 = elapsed 1.1~2.2 s' 정정; C2 `-GolmokCharacterSequence` 단독 사용 시 오류 처리; Fable 판정 보강 시트 2장(달리기 3.1~4.2 s·계단 하강 연속).
+- **(B) 후속 가능**: C1 300 s timeout 누적(코스별로), C3 맵 존재 사전 검사, C4 capture.txt에 포털 `bPlayerInside`·단언 결과·`Feet()`, C5 manifest에 RHI·프리셋 결과·TargetArmLength·명령줄. D2(병합 시 반영 칸별 문안)는 이 커밋에서 병합 세션이 조립.
+- **Fable 시각 판정(시트)**: 걷기→달리기 전환에서 보폭·팔 스윙이 깨끗하게 바뀌고 0.1 s 연속 구간의 다리 교대가 끊김 없음; 계단 상승·랜딩·회전·하강이 단차를 따라 연속, 부유·침하 없음; 포털 진입·회전·복귀 연속. 보강 시트(quinn 달리기 3.1~4.2 s·proxy135 계단 하강 4.1~5.2 s 연속 12프레임): 달리기 주기의 공중 위상·팔 스윙과 하강의 단차 추종이 끊김 없이 이어짐. T-pose·팝 없음, 3종 동일 품질. 한계: 타일당 캐릭터 60~80 px라 발 접지·관절·미끄러짐은 판정 불가 → **사람 눈 검수는 PC 카드 유지**. 참고: L_Dev 실내 상자 과노출(눈 적응 스윙)은 WP-14 조명 look-dev 메모. **판정: 🟡 근거로 채택, WP-18/V-11 🟡 유지.**
+- **(C) 옮긴 것**: STATUS 병행 트랙 WP-18·V-11 행(상태 칸·메모: T2 근거·PC 카드 인계·D1 종결)·마지막 갱신, ROADMAP 1.3, astra-tasks T2 완료·우선순위, 이 절.
+- 판정: **병합**. 실제 키보드 지속 입력·영상·사람 눈 검수(보행 주기·관절·발 미끄러짐)는 다음 PC 카드(V-09c와 합침)에서.
