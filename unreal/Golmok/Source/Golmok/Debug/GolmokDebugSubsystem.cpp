@@ -32,6 +32,7 @@
 #include "HighResScreenshot.h"
 #include "Kismet/GameplayStatics.h"
 #include "Lighting/GolmokTimeOfDay.h"
+#include "Map/GolmokTravelSubsystem.h" // [WP-15 hook]
 #include "Materials/Material.h"
 #include "Materials/MaterialInterface.h"
 #include "Misc/App.h"
@@ -325,8 +326,11 @@ const TArray<FString>& UGolmokDebugSubsystem::GetHudLines()
 		HudLinesCache.Add(BuildPortalLine());
 		HudLinesCache.Add(BuildPathLine());
 		// [WP-13 hook]
-		for (const TFunction<FString()>& Provider : ExtraHudLineProviders) { HudLinesCache.Add(Provider()); }
+		for (const auto& Provider : ExtraHudLineProviders) { HudLinesCache.Add(Provider.Value()); }
 		// [/WP-13 hook]
+		// [WP-15 hook] travel line (WP-15a; not a provider: Golmok.Audio.StateMachine counts ExtraHudLineProviders)
+		if (const UGolmokTravelSubsystem* Travel = UGolmokTravelSubsystem::Get(GetWorld())) { HudLinesCache.Add(Travel->DescribeHudLine()); }
+		// [/WP-15 hook]
 		HudLinesCache.Add(FString::Printf(TEXT("collision: %s   keys: F1 hud  F2 col  1-4 tod  F5 next  F9 rec  F10 play"),
 			bCollisionVisible ? TEXT("on") : TEXT("off")));
 		HudLinesTime = Now;
@@ -355,7 +359,8 @@ FString UGolmokDebugSubsystem::BuildLightingLine() const
 	{
 		return TEXT("tod: -");
 	}
-	return FString::Printf(TEXT("tod: %s"), *Tod->Describe());
+	// WP-14a: the clock (" HH:MM mode[ xrate]") after the WP-05 text; the "tod:" prefix stays.
+	return FString::Printf(TEXT("tod: %s%s"), *Tod->Describe(), *Tod->DescribeClock());
 }
 
 FString UGolmokDebugSubsystem::BuildPlayerLine() const

@@ -1,9 +1,10 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "zone_id": "z_synthetic_001_interior",
   "version": 1,
   "kind": "interior",
   "parent_zone": "z_synthetic_001",
+  "display_name": "합성 골목 1 실내",
   "origin": {
     "lat": 37.56211712862789,
     "lon": 126.92505659128055,
@@ -61,6 +62,10 @@
       "kind": "door"
     }
   ],
+  "spawn": {
+    "position_enu": [0.0, -1.5, 0.0],
+    "yaw_deg": 90.0
+  },
   "priority": 20,
   "quality": {
     "icp_rmse_m": null,

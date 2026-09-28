@@ -18,7 +18,9 @@ enum class EGolmokZoneRequestSource : uint8
 	Console,
 	Portal,
 	/** Reserved (logs only). */
-	Discovery
+	Discovery,
+	/** WP-15a UGolmokTravelSubsystem: pinned like the console, not portal-managed; spawns the actor from the index when it is not in the level yet. */
+	Travel
 };
 
 /** Bookkeeping for one registered zone. */
@@ -171,6 +173,12 @@ public:
 	/** Console / portal entry points. bPin keeps the zone loaded regardless of distance; Source = Portal marks the record bPortalManaged. */
 	bool RequestLoad(const FString& ZoneId, bool bPin, FString& OutMessage, EGolmokZoneRequestSource Source = EGolmokZoneRequestSource::Console);
 	bool RequestUnload(const FString& ZoneId, FString& OutMessage, EGolmokZoneRequestSource Source = EGolmokZoneRequestSource::Console);
+
+	/** WP-15a: drop the pin of a RequestLoad(bPin) without unloading (the distance rules take over; not "blocked"). False when unknown. */
+	bool ReleasePin(const FString& ZoneId);
+
+	/** WP-15a: true while ZoneId's record is pinned (tests / golmok.travel status). */
+	bool IsZonePinned(const FString& ZoneId) const;
 
 	/** Called by AGolmokZone after a successful Load() / Unload() (any caller): re-resolve overlaps and basemap. */
 	void NotifyZoneLoaded(AGolmokZone* Zone);

@@ -55,7 +55,7 @@ def _mutated(fn):
     [
         (lambda d: d.pop("transform"), "transform"),
         (lambda d: d.update(transform=d["transform"][:15]), "transform"),
-        (lambda d: d.update(schema_version=2), "schema_version"),
+        (lambda d: d.update(schema_version=3), "schema_version"),  # fixture is v2 (WP-15a)
         (lambda d: d.update(zone_id="Zone-1"), "zone_id"),
         (lambda d: d.update(version=0), "version"),
         (lambda d: d.update(kind="rooftop"), "kind"),

@@ -118,10 +118,12 @@ UE 에디터와 실데이터 없이도 만들 수 있고, 합성 데이터로 �
 | **WP-10** | 애니메이션 평가·게임 기능 제안(문서) | `research/09-animation-ue58.md`, `runbooks/pc-verify-animation.md`, `design/game-features-proposal.md`(D-013~ 제안), `design/lighting-night-lookdev.md` | 링크 검사, 출처 인용 | PC 평가(런북), 사용자 승인 | — |
 | **WP-12** | 포토 모드 최소판(D-013) | `Photo/`(포토 모드 서브시스템·자유 카메라 폰, 반경·footprint 클램프, FOV·노출·DOF·롤, 캐릭터/오버레이 숨김), `Config/Golmok/photo.json`, `golmok.photo*` 콘솔, 사진 PNG + 메타 JSON, 순수 헤더 g++ 교차검증 | UE 자동화 `Golmok.Photo.*`, pytest, 런북 | **빌드 + PIE**(V-09) | WP-05, WP-09 |
 | **WP-13** | 환경음 기본(D-016 (a)) | `research/10-ambience-sources.md`(라이선스 원문 인용), `Audio/`(앰비언스 서브시스템 크로스페이드, 발소리 컴포넌트, 콘솔), `Config/Golmok/audio.json`, `audio_import.py`, WAV(LFS, ≤ 40 MB) 또는 플레이스홀더 생성기 | UE 자동화 `Golmok.Audio.*`, pytest, 런북 | **빌드 + PIE**(V-10) | WP-05, WP-12 |
+| **WP-14a** | 시간대 폴리시 14a — 연속 시각·시계 모드(D-015 (a), D-010 독립; 2026-09-28 D-019) | `Lighting/GolmokClockMath.h`(g++ 교차검증), `GolmokTimeOfDay` 시각·모드 fixed/clock/realtime·보간·`OnNightChanged`·콘솔 `golmok.tod time/mode/rate/status`·HUD, `Config/Golmok/lighting_presets.json` schema 2(`time`), `lighting.py`, 런북 `pc-verify-wp14a.md`; 스펙 `plan/WP-14-time-of-day-policy.md`. 14b(night look-dev·발광 에셋)는 D-010 뒤 PC | UE 자동화 `Golmok.Lighting.Clock`(+PresetsFile/PresetApply 유지), pytest, 런북 | **빌드 + PIE**(V-13) | WP-05, WP-12, WP-13(이벤트 계약) |
+| **WP-15a** | Zone 이동·세이브·manifest v2(D-014·D-017 중 지도 UI 제외; 2026-09-28 D-019) | `docs/spec/zone-manifest.md` schema 2(`spawn`·`display_name`, v1 호환)·validator·CLI·생성기, `AGolmokZone::GetSpawnUE`, `Map/GolmokTravelSubsystem`(선로드→페이드→텔레포트, `golmok.travel`), `Save/GolmokSaveGame`·`GolmokSaveSubsystem`(자동 슬롯 1·경위도·방문·사진 색인·복원 폴백, `golmok.save/load`), 순수 헤더 `GolmokTravelMath.h`·`GolmokMapMath.h`, 런북 `pc-verify-wp15a.md`; 스펙 `plan/WP-15-zone-travel-save.md`. 15b 지도 UI·텍스처는 D-009 자문·실제 zone 뒤 | UE 자동화 `Golmok.Zone.ManifestV2`·`Golmok.Travel.Teleport`·`Golmok.Save.RoundTrip`, pytest, 런북 | **빌드 + PIE**(V-14) | WP-04, WP-09(V-07), WP-12(사진 훅), WP-14a(시간대 API) |
 | **WP-11** | 웹 검수 뷰어 2차: 충돌·blocker 오버레이 | `tools/viewer` collision.glb/blockers.glb 오버레이·토글(Cesium.Model, glTF Y-up 변환), 서버 GLB 서빙(경로 탈출 금지), Playwright 스모크 | `npm test`, pytest | 브라우저 | WP-03, WP-06, WP-08 |
 
 - **후속(M1 이후, 2026-09-25 등록)**: 계획서에 남아 있던 항목을 WP-09(Zone Index 런타임 발견·비동기 로드 + V-03 디버그 표시 정리, Fable ultracode), WP-11(뷰어 충돌·blocker 오버레이, Opus), WP-10(애니메이션 평가·게임 기능 제안 문서, Opus)으로 묶었다. 순서 WP-09 → WP-11 → WP-10. `replaces.building_ids` 단위 런타임 숨김은 제외(베이스맵 타일이 건물을 병합하므로 빌드 단계 `golmok-zone exclude`가 정본, D-012).
-- **게임 기능(D-013~D-017 승인 2026-09-25, 권장 우선순위대로)**: WP-12 포토 모드 → WP-13 환경음 기본(둘 다 Fable ultracode, 1.6 폴리시의 선택 항목이며 MVP 범위 §1.3은 그대로) → **WP-14** 시간대 폴리시(D-015 (a), D-010 확정 뒤; night look-dev는 PC) → **WP-15** Zone 지도·이동 + 세이브(D-014·D-017, Phase 2 초반: Zone 2곳 이상·V-07 통과) → **WP-16** 날씨 비(D-015 (b), Phase 2 중반, D-010 뒤) → **WP-17** 현장 녹음 절차·Zone별 소리(D-016 (b), 문서·촬영 가이드, Opus). WP-14 이후 스펙은 착수 조건이 충족될 때 쓴다.
+- **게임 기능(D-013~D-017 승인 2026-09-25, 권장 우선순위대로)**: WP-12 포토 모드 → WP-13 환경음 기본(둘 다 Fable ultracode, 1.6 폴리시의 선택 항목이며 MVP 범위 §1.3은 그대로) → **WP-14** 시간대 폴리시(D-015 (a); 2026-09-28 오케스트레이터 결정 D-019로 분할 — **14a** 연속 시각·시계 모드는 D-010과 무관해 먼저(클라우드, `plan/WP-14-time-of-day-policy.md`), **14b** night look-dev·발광 에셋은 D-010 확정 뒤 PC) → **WP-15** Zone 지도·이동 + 세이브(D-014·D-017; 2026-09-28 D-019로 분할 — **15a** 이동·세이브·manifest v2는 V-07 통과·합성 zone 2곳으로 먼저(클라우드, `plan/WP-15-zone-travel-save.md`), **15b** 지도 UI·정사영상 텍스처는 D-009 자문·실제 zone 뒤 PC) → **WP-16** 날씨 비(D-015 (b), Phase 2 중반, D-010 뒤) → **WP-17** 현장 녹음 절차·Zone별 소리(D-016 (b), 문서·촬영 가이드, Opus). WP-14 이후 스펙은 착수 조건이 충족될 때 쓴다.
 - WP-08은 ROADMAP 1.6의 "(웹, 선택)"이었으나 2026-09-24에 CesiumJS 기반으로 **완료**했다(`tools/viewer`, `golmok-viewer`). UE 디버그 도구(WP-05)는 그대로 진행한다.
 - Phase 2 서버 파이프라인(COLMAP+gsplat)은 이 트랙에 넣지 않는다(D-005: MVP는 수동).
 - **병행(ChatGPT Astra, §7.6 캐릭터 레인, 2026-09-26 등록)**: **WP-18** 플레이어 캐릭터 — 설계(`design/character-concept.md`, `research/11-character-pipeline.md`, `plan/WP-18-characters.md`, D-018 제안) → 18a(`Characters/`, `Config/Golmok/characters.json`, 플레이스홀더 마네킹 교체·콘솔, 핫스팟은 훅만; pytest·g++ 교차검증·UE 자동화 `Golmok.Character.*`, 검증 V-11) → 18b(실제 에셋·리타깃·이모트, V-08·V-12 룩 검증·D-018 ② 뒤).
@@ -226,7 +228,7 @@ docs/plan/STATUS.md, docs/plan/WP-0N-<name>.md를 먼저 읽고, WP-0N을 처음
 | 브랜치 | `claude/*`(WP 통합 브랜치 `claude/hopeful-allen-f0a0jb`), PC는 `pc/*` | `astra/<wp>-<주제>`(예: `astra/wp-18-design`) |
 | 병합 | §7.4 오케스트레이션 | 스스로 병합하지 않는다. Claude 리뷰(Opus 코드 + 필요 시 Fable 설계) → (A) 해소·CI 초록 → 병합 세션이 merge commit으로 병합. 사용자 승인은 되돌릴 수 없는 일이 얽힌 PR에만(D-019, 2026-09-27) |
 
-**레인(파일 소유)**: 레인 주인만 그 파일을 고친다. 새 레인은 사용자나 오케스트레이터가 WP를 배정할 때 이 표에 더한다.
+**레인(파일 소유)**: 레인 주인만 그 파일을 고친다. 새 레인은 사용자나 오케스트레이터가 WP를 배정할 때 이 표에 더한다. 예외(D-019, 2026-09-28): PC 검증 세션은 레인 런북(`docs/runbooks/pc-verify-*.md`)의 결과 칸·확인 명령·실행 기록 절을 고칠 수 있다(코드·설정·에셋은 아님).
 
 | 레인 | 주인 | 경로 |
 |---|---|---|
@@ -264,6 +266,7 @@ docs/plan/STATUS.md, docs/plan/WP-0N-<name>.md를 먼저 읽고, WP-0N을 처음
 | 파일 | 해결 |
 |---|---|
 | 상대 레인 파일 | 레인 주인의 버전을 그대로 쓴다. 내 의도가 필요하면 훅이나 후속 PR로 다시 넣는다 |
+| 레인 런북의 PC 결과 칸·확인 명령·실행 기록 절 | 양쪽을 살린다 — PC 세션이 채운 결과·§7 실행 기록은 버리지 않고, 레인 주인의 절차 문장 변경도 유지한다(V-10 [#54](https://github.com/wooklym/golmok/pull/54) 방식) |
 | 핫스팟의 훅 블록 | 양쪽을 다 살린다(서로 독립된 추가 줄이다). main 쪽 블록을 먼저 둔다 |
 | STATUS·DECISIONS·ROADMAP·DEVELOPMENT-PLAN | main 버전을 받고 내 행·항목만 다시 넣는다 |
 | 생성물·픽스처 | 손으로 합치지 않고 생성기로 다시 만든다(예: `tools/scripts/make_index_fixture.py`, `make_synthetic_zone.py`) |

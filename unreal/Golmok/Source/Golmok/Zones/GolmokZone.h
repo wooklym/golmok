@@ -185,6 +185,16 @@ public:
 	FTransform GetPortalWorldTransform(const FGolmokZonePortal& Portal) const;
 	static double PortalRadiusCm(const FGolmokZonePortal& Portal) { return Portal.RadiusM * 100.0; }
 
+	/**
+	 * WP-15a travel target (spec §1): the feet point (level UE, cm) and UE Yaw (deg) a travel puts the player at.
+	 * Manifest spawn (schema 2): zone root * (100x, -100y, 100z), UE Yaw of the zone-local heading yaw_deg (UE Yaw =
+	 * -yaw_deg, turned by the root). Without spawn (v1 or absent) the fallback: a line trace (ECC_WorldStatic) from
+	 * zone-local (0,0,0) + 3 m straight down; the hit, else (0,0,0) itself; heading yaw_deg 0. The caller adds the
+	 * capsule half height (GolmokTravelMath::StandingLocationUE). False only when the manifest cannot be read.
+	 * bOutFromManifest (optional): true when the manifest spawn was used.
+	 */
+	bool GetSpawnUE(FVector& OutFeetUE, float& OutYawUE, bool* bOutFromManifest = nullptr);
+
 	/** Path helpers exposed for tools and tests (spec §5). */
 	FString GetManifestFilePath() const;
 

@@ -110,6 +110,10 @@ namespace GolmokPhotoJson
 	bool LoadConfigFile(const FString& InFilePath, FGolmokPhotoConfig& Out, FString& OutError);
 } // namespace GolmokPhotoJson
 
+// [WP-15 hook] photo saved event for the save index (WP-15a GolmokSaveSubsystem); path relative to <Project>/Saved/
+DECLARE_MULTICAST_DELEGATE_OneParam(FGolmokOnPhotoSaved, const FString& /*RelativePath*/);
+// [/WP-15 hook]
+
 /**
  * Photo mode (WP-12, D-013): a free camera around the player character with the game paused, camera-style
  * parameters (FOV, EV, focus, f-stop, roll, DOF), and a high-resolution screenshot plus a <stamp>.json sidecar
@@ -408,4 +412,8 @@ private:
 	TArray<FString> OverlayLines;
 	double OverlayLinesRealSeconds = -1.0;
 	bool bOverlayDirty = true;
+	// [WP-15 hook] broadcast when a capture window closes with the png on disk ("Screenshots/Golmok/photo/<stem>.png")
+public:
+	FGolmokOnPhotoSaved OnPhotoSaved;
+	// [/WP-15 hook]
 };

@@ -25,7 +25,10 @@
     "sources"
   ],
   "properties": {
-    "schema_version": { "const": 1 },
+    "schema_version": {
+      "description": "1 or 2. v2 adds the optional top-level keys spawn and display_name (not allowed in v1).",
+      "enum": [1, 2]
+    },
     "zone_id": { "$ref": "#/$defs/zone_id" },
     "version": { "type": "integer", "minimum": 1 },
     "kind": { "enum": ["exterior", "interior"] },
@@ -151,6 +154,28 @@
       }
     },
     "attribution": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+    "spawn": {
+      "description": "v2 only, optional. Where the player stands (feet) and faces on arrival (travel), zone-local m, Z-up; same convention as portal pose_enu. Absent: zone-local (0,0,0) + ground trace, yaw 0.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["position_enu", "yaw_deg"],
+      "properties": {
+        "position_enu": { "$ref": "#/$defs/vec3" },
+        "yaw_deg": {
+          "description": "Facing direction, counter-clockwise from +x (east) seen from above. UE yaw = -yaw_deg.",
+          "type": "number",
+          "minimum": -360,
+          "maximum": 360
+        }
+      }
+    },
+    "display_name": {
+      "description": "v2 only, optional. Name for the map and HUD; absent = zone_id.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "pattern": "\\S"
+    },
     "sources": {
       "description": "Captures this zone was built from (IDs from docs/captures/INDEX.md).",
       "type": "array",
@@ -170,6 +195,15 @@
       "if": { "properties": { "kind": { "const": "interior" } } },
       "then": { "properties": { "parent_zone": { "$ref": "#/$defs/zone_id" } } },
       "else": { "properties": { "parent_zone": { "type": "null" } } }
+    },
+    {
+      "if": { "properties": { "schema_version": { "const": 1 } } },
+      "then": {
+        "properties": {
+          "spawn": { "not": { "description": "schema_version 2 only" } },
+          "display_name": { "not": { "description": "schema_version 2 only" } }
+        }
+      }
     }
   ],
   "$defs": {
