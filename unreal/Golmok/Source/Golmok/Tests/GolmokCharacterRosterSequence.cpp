@@ -18,6 +18,9 @@
 #include "Misc/App.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
+#include "Misc/PackageName.h"
+#include "Misc/CommandLine.h"
+#include "DynamicRHI.h"
 #include "Player/GolmokCharacter.h"
 #include "Portals/GolmokPortal.h"
 #include "Tests/AutomationEditorCommon.h"
@@ -29,11 +32,13 @@ class FSequence : public IAutomationLatentCommand
 {
 public:
  FSequence(FAutomationTestBase* InTest, FString InId, int32 InCourse)
- : Test(InTest), Id(MoveTemp(InId)), Course(InCourse), WallStart(FPlatformTime::Seconds()) {}
+ : Test(InTest), Id(MoveTemp(InId)), Course(InCourse) {}
  ~FSequence() override { Release(); if (bClockChanged) { FApp::SetFixedDeltaTime(OldDelta); FApp::SetUseFixedTimeStep(bOldFixed); } }
  bool Update() override
  {
-  if (FPlatformTime::Seconds()-WallStart > 300) return Fail(TEXT("sequence timeout"));
+  if (!bStarted) { WallStart=FPlatformTime::Seconds(); bStarted=true; }
+  const double WallElapsed=FPlatformTime::Seconds()-WallStart;
+  if (WallElapsed > 300) return Fail(*FString::Printf(TEXT("sequence timeout after %.2fs (course limit 300s)"),WallElapsed));
   UWorld* World=GEditor?GEditor->PlayWorld.Get():nullptr;
   PC=World?World->GetFirstPlayerController():nullptr;
   Character=PC.IsValid()?Cast<AGolmokCharacter>(PC->GetPawn()):nullptr;
@@ -54,7 +59,10 @@ public:
    if (!Roster || !Roster->SelectCharacter(Id,Message)) return Fail(*Message);
    Character->GetCameraBoom()->TargetArmLength*=1.5;
    if(auto* Debug=World->GetSubsystem<UGolmokDebugSubsystem>()) Debug->SetHudVisible(false);
-   if(auto* Light=AGolmokTimeOfDay::Find(World)) Light->ApplyPreset(TEXT("clear_noon"),true);
+   auto* Light=AGolmokTimeOfDay::Find(World);
+   const bool bLightApplied=Light && Light->ApplyPreset(TEXT("clear_noon"),true);
+   Manifest+=FString::Printf(TEXT("environment rhi=%s preset=clear_noon applied=%s arm_length=%.3f command_line=%s\n"),GDynamicRHI?GDynamicRHI->GetName():TEXT("none"),bLightApplied?TEXT("true"):TEXT("false"),Character->GetCameraBoom()->TargetArmLength,FCommandLine::Get());
+   if(!bLightApplied) return Fail(TEXT("clear_noon lighting preset not applied"));
    if(Course==2 && (!Zones || !Zones->RequestLoad(TEXT("z_synthetic_001"),true,Message))) return Fail(*Message);
    Phase=1; PhaseAt=Now; return false;
   }
@@ -80,18 +88,18 @@ public:
   if(Phase==4)
   {
    for(const FString& File:Files) if(IFileManager::Get().FileSize(*File)<=0) return false;
-   Manifest+=FString::Printf(TEXT("COMPLETE frames=%d duration=%.4f\n"),Files.Num(),End-Start);
+   Manifest+=FString::Printf(TEXT("COMPLETE frames=%d duration=%.4f assertions=%s\n"),Files.Num(),End-Start,bAssertionsPassed?TEXT("PASS"):TEXT("FAIL"));
    Save(); Test->AddInfo(TEXT("SEQUENCE ")+Folder); return true;
   }
   const double Elapsed=Now-Start;
   if(Course==0 && !bShift && Elapsed>=3){Key(EKeys::LeftShift,true); bShift=true;}
   if(Course==1 && !bReturn && Character->GetActorLocation().X>=900)
   {
-   Test->TestTrue(TEXT("stairs reached landing"),FMath::Abs(Feet()-170)<4);
+   Check(TEXT("stairs reached landing"),FMath::Abs(Feet()-170)<4,Feet());
    Key(EKeys::W,false); Key(EKeys::S,true); bReturn=true;
   }
   if(Course==1 && bReturn && !bStopped && Character->GetActorLocation().X<=380 && !Character->GetCharacterMovement()->IsFalling())
-  {Key(EKeys::S,false); bStopped=true; Test->TestTrue(TEXT("stairs returned to ground"),FMath::Abs(Feet())<4);}
+  {Key(EKeys::S,false); bStopped=true; Check(TEXT("stairs returned to ground"),FMath::Abs(Feet())<4,Feet());}
   if(Course==2)
   {
    if(!Portal) return Fail(TEXT("portal disappeared"));
@@ -107,27 +115,38 @@ public:
    FScreenshotRequest::RequestScreenshot(File,false,false,false,FIntRect(),true);
    Files.Add(File);
    Manifest+=FString::Printf(TEXT("frame sim=%.4f elapsed=%.4f id=%s course=%d position=%s velocity=%s file=%s\n"),Now,Elapsed,*Id,Course,*Character->GetActorLocation().ToString(),*Character->GetVelocity().ToString(),*FPaths::GetCleanFilename(File));
+   Manifest+=FString::Printf(TEXT("state sim=%.4f feet=%.3f portal_present=%d inside=%d entered=%d exited=%d\n"),Now,Feet(),Portal?1:0,Portal && Portal->bPlayerInside?1:0,bEntered?1:0,bExited?1:0);
    NextCapture+=.1; Save();
   }
   if((Course==0 && Elapsed>=6) || (Course==1 && bStopped && Elapsed>=6) || (Course==2 && Elapsed>=6))
   {
-   if(Course==2){Test->TestTrue(TEXT("portal inward on foot"),bEntered);Test->TestTrue(TEXT("portal outward on foot"),bExited);}
+   if(Course==2){Check(TEXT("portal inward on foot"),bEntered,bEntered?1.0:0.0);Check(TEXT("portal outward on foot"),bExited,bExited?1.0:0.0);}
    Release(); End=Now; Phase=4; return false;
   }
   return false;
  }
 private:
- void Save(){FFileHelper::SaveStringToFile(Manifest,*(Folder/TEXT("capture.txt")),FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);}
+ void Check(const TCHAR* Label,bool Passed,double Value){Test->TestTrue(Label,Passed);bAssertionsPassed &= Passed;Manifest+=FString::Printf(TEXT("assert sim=%.4f result=%s label=%s value=%.3f\n"),Now,Passed?TEXT("PASS"):TEXT("FAIL"),Label,Value);}
+ void Save(){if(Folder.IsEmpty()) return; FFileHelper::SaveStringToFile(Manifest,*(Folder/TEXT("capture.txt")),FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);}
  double Feet()const{return Character->GetActorLocation().Z-Character->GetCapsuleComponent()->GetScaledCapsuleHalfHeight();}
  void Key(const FKey& K,bool Down){if(PC.IsValid()) PC->InputKey(FInputKeyEventArgs::CreateSimulated(K,Down?IE_Pressed:IE_Released,Down?1.f:0.f));Manifest+=FString::Printf(TEXT("input sim=%.4f key=%s %s\n"),Now,*K.ToString(),Down?TEXT("down"):TEXT("up"));}
  void Release(){Key(EKeys::W,false);Key(EKeys::S,false);Key(EKeys::LeftShift,false);}
  bool Fail(const TCHAR* Message){Test->AddError(FString::Printf(TEXT("%s course%d phase%d: %s"),*Id,Course,Phase,Message));Release();Save();return true;}
- FAutomationTestBase* Test; FString Id,Folder,Manifest; int32 Course,Phase=0; double WallStart,Now=0,Start=0,End=0,PhaseAt=0,NextCapture=0,OldDelta=0;
- bool bOldFixed=false,bClockChanged=false,bShift=false,bReturn=false,bStopped=false,bEntered=false,bExited=false;
+ FAutomationTestBase* Test; FString Id,Folder,Manifest; int32 Course,Phase=0; double WallStart=0,Now=0,Start=0,End=0,PhaseAt=0,NextCapture=0,OldDelta=0;
+ bool bStarted=false,bAssertionsPassed=true,bOldFixed=false,bClockChanged=false,bShift=false,bReturn=false,bStopped=false,bEntered=false,bExited=false;
  TWeakObjectPtr<APlayerController> PC; TWeakObjectPtr<AGolmokCharacter> Character; TArray<FString> Files;
 };
 void Enqueue(FAutomationTestBase* Test)
 {
+ // Check all fixtures before queuing any PIE or map loads.
+ for(const TCHAR* Map : {TEXT("/Game/Golmok/Maps/L_Dev"), TEXT("/Game/Golmok/Maps/L_ZoneTest"), TEXT("/Game/Golmok/Zones/z_synthetic_001_interior/v1/L_z_synthetic_001_interior")})
+ {
+  if(!FPackageName::DoesPackageExist(Map))
+  {
+   Test->AddError(FString::Printf(TEXT("Sequence fixture missing: %s; prepare L_Dev and synthetic_zone first."),Map));
+   return;
+  }
+ }
  for(const TCHAR* Id:{TEXT("proxy135"),TEXT("proxy110"),TEXT("quinn")}) for(int32 Course=0;Course<3;++Course)
  {
   ADD_LATENT_AUTOMATION_COMMAND(FEditorLoadMap(Course==2?TEXT("/Game/Golmok/Maps/L_ZoneTest"):TEXT("/Game/Golmok/Maps/L_Dev")));

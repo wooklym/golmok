@@ -201,3 +201,10 @@ T2 실제 실행 명령(2026-09-28, offscreen):
 ```
 
 후처리: 최신 완료 GUID 폴더별 PNG를 모두 Pillow로 디코딩하고 manifest 프레임 수와 일치, 크기 단일값1014×550, 인접 elapsed 차이가0.1s±0.002인지 검사했다. `post-processed:` 해상도 줄은 엔진 코드가 아닌 후처리에서 추가했다. `_1`은 전체 프레임 인덱스 `round(i*(N-1)/11)`(i=0..11) 균등12장, `_2`는 elapsed1.1~2.2s 연속12장(걷기 구간만)이다. 추가 `_3`은 Quinn course0 달리기3.1~4.2s, proxy135 course1 하강4.1~5.2s 연속12장이다. 1600×750 캔버스에4×3 배치, 이미지396×220 내 종횡비 유지, 파일명 라벨을 넣고 JPEG quality86/optimize=True로 저장했다. 300000bytes 초과 시 quality를5씩 낮추며, 추가2장은86에서 제한 통과. 원본 PNG는 그대로 로컬 보관한다.
+
+
+### #39 비블로킹 후속: 캡처 진단
+
+시퀀스는 큐 등록 전 L_Dev·L_ZoneTest·합성 실내 서브레벨 패키지 존재를 확인한다. 누락이면 PIE를 시작하지 않고 경로와 준비 안내를 오류로 남긴다. 300초 타임아웃은 각 코스 latent command의 **첫 Update부터** 계산하며 큐 생성 뒤 앞 코스에서 보낸 시간은 포함하지 않는다. 제한 대상은 해당 command 수명이며, 별도 맵 로드/PIE 시작 command의 시간 제한은 아니다.
+
+새 capture.txt에는 실제 RHI 이름, 실행 명령줄, clear_noon 적용 성공 여부, 진단 카메라 TargetArmLength를 적는다. 조명 액터/프리셋 적용 실패는 테스트 실패다. 매 프레임 feet(캡슐 바닥), portal_present/inside/entered/exited를 기록하고 계단 랜딩/지면 높이·포털 진입/복귀 단언은 PASS/FAIL과 값을 남긴다. COMPLETE의 assertions는 이 코스 단언 결과이며 이미지 품질 합격 표시가 아니다. 전체 명령줄이 로컬 파일에 있으므로 외부에 전달할 때 민감한 인자가 없는지 확인한다. 기존 T2 시트/capture.txt는 당시 실행 근거라 소급해서 덮어쓰지 않는다.
