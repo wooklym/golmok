@@ -730,11 +730,24 @@ def test_clamp_to_polygon_concave_rings(driver):
     ]
 
 
-def walk(driver: Path, anchor, r, inset, ring, start, step, ticks: int) -> list[tuple[int, np.ndarray]]:
+@pytest.fixture(params=("walk", "walkh"))
+def walk_cmd(request) -> str:
+    """PR #40 review M3: the PR #29 regression walks run on both constraint paths - `walk` (Q/E held: the
+    3D sphere clamp) and `walkh` (no vertical input: bKeepHeight, the pawn Tick's default runtime path)."""
+    return request.param
+
+
+def walk(
+    driver: Path, anchor, r, inset, ring, start, step, ticks: int, cmd: str = "walk"
+) -> list[tuple[int, np.ndarray]]:
     text = f"{nums(*anchor)} {r!r} {inset!r} {ring_text(ring)} {nums(*start)} {nums(*step)} {ticks}"
-    rows = run_lines(driver, "walk", text)
+    rows = run_lines(driver, cmd, text)
     assert len(rows) == ticks
-    return [(int(row[0]), np.array(row[1:])) for row in rows]
+    path = [(int(row[0]), np.array(row[1:])) for row in rows]
+    if cmd == "walkh" and step[2] == 0.0:
+        # D-013 decision 3: a horizontal push on the keep-height path never changes Z, whatever binds
+        assert all(p[2] == start[2] for _c, p in path), [p[2] for _c, p in path if p[2] != start[2]][:3]
+    return path
 
 
 def assert_settles(path, axis: int, limit: float, sign: float, name: str):
@@ -749,7 +762,7 @@ def assert_settles(path, axis: int, limit: float, sign: float, name: str):
     return first
 
 
-def test_walk_into_the_edge_stops_inset_inside_and_slides(driver):
+def test_walk_into_the_edge_stops_inset_inside_and_slides(driver, walk_cmd):
     pytest.importorskip("shapely")
     from shapely.geometry import Point, Polygon
 
@@ -757,17 +770,31 @@ def test_walk_into_the_edge_stops_inset_inside_and_slides(driver):
     # the V-09 case: 1.5 m/s at 120 Hz = 1.25 cm a tick toward the south edge (level y 1000): 980.0 and
     # nothing else
     rect = [(-500.0, -1000.0), (500.0, -1000.0), (500.0, 1000.0), (-500.0, 1000.0)]
-    path = walk(driver, (0.0, 0.0, 0.0), far, 20.0, rect, (0.0, 900.0, 0.0), (0.0, 1.25, 0.0), 120)
+    path = walk(
+        driver, (0.0, 0.0, 0.0), far, 20.0, rect, (0.0, 900.0, 0.0), (0.0, 1.25, 0.0), 120, cmd=walk_cmd
+    )
     first = assert_settles(path, 1, 980.0, +1.0, "south edge")
     assert first == 63 and all(c >= 0 for c, _ in path)
     assert all(p[0] == 0.0 and p[2] == 0.0 for _c, p in path)  # no sideways drag
     # same with the anchor off the edge normal (the old nudge pulled toward the anchor on every bounce)
-    path = walk(driver, (-400.0, -600.0, 0.0), far, 20.0, rect, (300.0, 960.0, 0.0), (0.0, 1.25, 0.0), 60)
+    path = walk(
+        driver,
+        (-400.0, -600.0, 0.0),
+        far,
+        20.0,
+        rect,
+        (300.0, 960.0, 0.0),
+        (0.0, 1.25, 0.0),
+        60,
+        cmd=walk_cmd,
+    )
     assert_settles(path, 1, 980.0, +1.0, "off-normal anchor")
     assert all(p[0] == 300.0 for _c, p in path)
     # diagonal push: the normal part stops, the tangential part keeps going along the edge, then the corner
     # holds
-    path = walk(driver, (0.0, 0.0, 0.0), far, 20.0, SQUARE, (0.0, 0.0, 0.0), (1.25, 0.5, 0.0), 300)
+    path = walk(
+        driver, (0.0, 0.0, 0.0), far, 20.0, SQUARE, (0.0, 0.0, 0.0), (1.25, 0.5, 0.0), 300, cmd=walk_cmd
+    )
     xs = [float(p[0]) for _c, p in path]
     ys = [float(p[1]) for _c, p in path]
     assert_settles(path, 0, 80.0, +1.0, "diagonal x")
@@ -782,7 +809,7 @@ def test_walk_into_the_edge_stops_inset_inside_and_slides(driver):
     cy = sum(p[1] for p in fixture) / len(fixture)
     for angle in range(0, 360, 30):
         step = (1.25 * math.cos(math.radians(angle)), 1.25 * math.sin(math.radians(angle)), 0.0)
-        path = walk(driver, (cx, cy, 0.0), far, 20.0, fixture, (cx, cy, 0.0), step, 2000)
+        path = walk(driver, (cx, cy, 0.0), far, 20.0, fixture, (cx, cy, 0.0), step, 2000, cmd=walk_cmd)
         dists = [shape.exterior.distance(Point(p[0], p[1])) for _c, p in path]
         assert all(shape.contains(Point(p[0], p[1])) for _c, p in path), angle
         assert min(dists) >= 20.0 - TOL, (angle, min(dists))
@@ -794,7 +821,7 @@ def test_walk_into_the_edge_stops_inset_inside_and_slides(driver):
         assert max(moves) <= 1.25 + 1e-6, angle  # no jump
 
 
-def test_clamp_cost_on_a_finely_tessellated_ring(driver):
+def test_clamp_cost_on_a_finely_tessellated_ring(driver, walk_cmd):
     """Review round 2: a 200-gon pushed at its wall cost ~3 ms a tick (every piece pair tested); the local
     seed keeps it well under that (1000 ticks, two walks, generous bound for slow CI machines)."""
     import time
@@ -804,33 +831,45 @@ def test_clamp_cost_on_a_finely_tessellated_ring(driver):
     ]
     step = (7.0 * math.cos(math.radians(70)), 7.0 * math.sin(math.radians(70)), 0.0)
     t0 = time.perf_counter()
-    path = walk(driver, (0.0, 0.0, 0.0), 1.0e6, 20.0, ring, (128.7, 357.5, 0.0), step, 1000)
-    path += walk(driver, (0.0, 0.0, 0.0), 390.0, 20.0, ring, (0.0, 0.0, 0.0), (5.0, 1.0, 0.3), 1000)
+    path = walk(driver, (0.0, 0.0, 0.0), 1.0e6, 20.0, ring, (128.7, 357.5, 0.0), step, 1000, cmd=walk_cmd)
+    path += walk(
+        driver, (0.0, 0.0, 0.0), 390.0, 20.0, ring, (0.0, 0.0, 0.0), (5.0, 1.0, 0.3), 1000, cmd=walk_cmd
+    )
     elapsed = time.perf_counter() - t0
     assert all(c >= 0 for c, _p in path)
     assert elapsed < 1.5, elapsed  # the quadratic version needed about 3 s for the first walk alone
 
 
-def test_walk_starts_on_the_boundary_in_the_band_and_in_acute_corners(driver):
+def test_walk_starts_on_the_boundary_in_the_band_and_in_acute_corners(driver, walk_cmd):
     pytest.importorskip("shapely")
     from shapely.geometry import Point, Polygon
 
     far = 1.0e6
     # start inside the 0..20 band (spring-arm camera near the edge): no jump; parallel moves keep the
     # distance, outward moves stop where it is, inward moves ratchet the margin back up to 20
-    path = walk(driver, (0.0, 0.0, 0.0), far, 20.0, SQUARE, (95.0, 0.0, 0.0), (0.0, 1.0, 0.0), 20)
+    path = walk(
+        driver, (0.0, 0.0, 0.0), far, 20.0, SQUARE, (95.0, 0.0, 0.0), (0.0, 1.0, 0.0), 20, cmd=walk_cmd
+    )
     assert all(p[0] == 95.0 for _c, p in path) and path[-1][1][1] == pytest.approx(20.0)
-    path = walk(driver, (0.0, 0.0, 0.0), far, 20.0, SQUARE, (95.0, 0.0, 0.0), (1.0, 0.0, 0.0), 10)
+    path = walk(
+        driver, (0.0, 0.0, 0.0), far, 20.0, SQUARE, (95.0, 0.0, 0.0), (1.0, 0.0, 0.0), 10, cmd=walk_cmd
+    )
     assert all(p[0] == 95.0 for _c, p in path)
-    path = walk(driver, (0.0, 0.0, 0.0), far, 20.0, SQUARE, (95.0, 0.0, 0.0), (-1.0, 0.0, 0.0), 10)
+    path = walk(
+        driver, (0.0, 0.0, 0.0), far, 20.0, SQUARE, (95.0, 0.0, 0.0), (-1.0, 0.0, 0.0), 10, cmd=walk_cmd
+    )
     assert [round(float(p[0]), 9) for _c, p in path] == [94.0 - i for i in range(10)]
     # start on the boundary (not inside for sure): the first move snaps inset inside, then it stays
-    path = walk(driver, (0.0, 0.0, 0.0), far, 20.0, SQUARE, (100.0, 0.0, 0.0), (1.0, 0.0, 0.0), 10)
+    path = walk(
+        driver, (0.0, 0.0, 0.0), far, 20.0, SQUARE, (100.0, 0.0, 0.0), (1.0, 0.0, 0.0), 10, cmd=walk_cmd
+    )
     assert all(c >= 0 for c, _ in path) and all(p[0] == pytest.approx(80.0, abs=1e-9) for _c, p in path)
     # acute apex (about 20 degrees): converges into the inset apex or stops short, never oscillates or leaves
     # S
     shape = Polygon(WEDGE)
-    path = walk(driver, (100.0, 0.0, 0.0), far, 20.0, WEDGE, (100.0, 0.0, 0.0), (1.25, 0.3, 0.0), 400)
+    path = walk(
+        driver, (100.0, 0.0, 0.0), far, 20.0, WEDGE, (100.0, 0.0, 0.0), (1.25, 0.3, 0.0), 400, cmd=walk_cmd
+    )
     for _c, p in path:
         assert shape.contains(Point(p[0], p[1])) and shape.exterior.distance(Point(p[0], p[1])) >= 20.0 - TOL
     xs = [float(p[0]) for _c, p in path]
@@ -840,7 +879,9 @@ def test_walk_starts_on_the_boundary_in_the_band_and_in_acute_corners(driver):
     # sphere and polygon both active: reaches the inset edge x = 80, slides along it into the sphere, stops
     # there (within 1 cm of the exact junction (80, 41.23): the sphere clamp pulls toward the anchor) without
     # bouncing
-    path = walk(driver, (0.0, 0.0, 0.0), 90.0, 20.0, SQUARE, (0.0, 0.0, 0.0), (1.25, 0.5, 0.0), 300)
+    path = walk(
+        driver, (0.0, 0.0, 0.0), 90.0, 20.0, SQUARE, (0.0, 0.0, 0.0), (1.25, 0.5, 0.0), 300, cmd=walk_cmd
+    )
     codes = {c for c, _p in path}
     assert -1 not in codes and 2 in codes and 3 in codes, codes
     ys = [float(p[1]) for _c, p in path]
@@ -876,7 +917,7 @@ TIP_STAR = [
 L_BIG = [(0.0, 0.0), (1000.0, 0.0), (1000.0, 400.0), (400.0, 400.0), (400.0, 1000.0), (0.0, 1000.0)]
 
 
-def test_walk_short_duplicate_collinear_edges_and_junctions(driver):
+def test_walk_short_duplicate_collinear_edges_and_junctions(driver, walk_cmd):
     pytest.importorskip("shapely")
     from shapely.geometry import Point, Polygon
 
@@ -891,14 +932,32 @@ def test_walk_short_duplicate_collinear_edges_and_junctions(driver):
     for speed in (2.5, 7.5, 15.0):
         for deg in range(0, 360, 15):
             step = (speed * math.cos(math.radians(deg)), speed * math.sin(math.radians(deg)), 0.0)
-            path = walk(driver, (-26.9, -346.4, 0.0), far, 20.0, SHORT_EDGE, (-141.0, -470.0, 0.0), step, 300)
+            path = walk(
+                driver,
+                (-26.9, -346.4, 0.0),
+                far,
+                20.0,
+                SHORT_EDGE,
+                (-141.0, -470.0, 0.0),
+                step,
+                300,
+                cmd=walk_cmd,
+            )
             assert all(c >= 0 for c, _p in path), (speed, deg)
             end = path[-1][1]
             assert in_eroded(shape, end[:2], 20.0), (speed, deg)
             # still in a corner, or sliding along an edge at no more than the input speed
             assert settled(path) <= 1e-9 or settled(path) <= 30 * speed + 1e-6, (speed, deg)
     path = walk(
-        driver, (-26.9, -346.4, 0.0), far, 20.0, SHORT_EDGE, (-141.0, -470.0, 0.0), (-0.647, -2.415, 0.0), 300
+        driver,
+        (-26.9, -346.4, 0.0),
+        far,
+        20.0,
+        SHORT_EDGE,
+        (-141.0, -470.0, 0.0),
+        (-0.647, -2.415, 0.0),
+        300,
+        cmd=walk_cmd,
     )
     assert settled(path) <= 1e-9
     # collinear / duplicate vertex 10 cm from a 53 degree apex: reaches the inset apex like the plain triangle
@@ -909,12 +968,32 @@ def test_walk_short_duplicate_collinear_edges_and_junctions(driver):
         [(-1000.0, -1000.0), (1000.0, 0.0), (1000.0, 0.0), (-1000.0, 1000.0)],
     ):
         for speed in (7.5, 20.0):
-            path = walk(driver, (0.0, 0.0, 0.0), far, 20.0, ring, (0.0, 0.0, 0.0), (speed, 0.0, 0.0), 200)
+            path = walk(
+                driver,
+                (0.0, 0.0, 0.0),
+                far,
+                20.0,
+                ring,
+                (0.0, 0.0, 0.0),
+                (speed, 0.0, 0.0),
+                200,
+                cmd=walk_cmd,
+            )
             assert all(c >= 0 for c, _p in path), (ring, speed)
             assert path[-1][1][:2] == pytest.approx(apex, abs=1e-6), (ring, speed)
     # sphere (R 300) against the reflex edge of an L: slides into their junction (380, 574.95) instead of
     # freezing
-    path = walk(driver, (500.0, 300.0, 0.0), 300.0, 20.0, L_BIG, (300.0, 450.0, 0.0), (0.0, 20.0, 0.0), 60)
+    path = walk(
+        driver,
+        (500.0, 300.0, 0.0),
+        300.0,
+        20.0,
+        L_BIG,
+        (300.0, 450.0, 0.0),
+        (0.0, 20.0, 0.0),
+        60,
+        cmd=walk_cmd,
+    )
     junction = (380.0, 300.0 + math.sqrt(300.0**2 - 120.0**2))
     assert math.dist(path[-1][1][:2], junction) < 0.01, path[-1]
     assert settled(path, 10) <= 1e-9
@@ -950,6 +1029,7 @@ def test_walk_short_duplicate_collinear_edges_and_junctions(driver):
         a18,
         (-6.22209372173394, 17.623752436951676, 4.503916132933126),
         10,
+        cmd=walk_cmd,
     )
     assert all(c >= 0 for c, _p in path), [c for c, _p in path]
     assert math.dist(path[4][1][:2], (-2.8924, 27.8998)) > 10.0  # the old freeze point is left behind
@@ -961,7 +1041,7 @@ def test_walk_short_duplicate_collinear_edges_and_junctions(driver):
     (code, x, y) = poly(driver, TIP_STAR, (0.0, 0.0), 20.0, [(141.55909975125141, -58.22838805036114)])[0]
     assert code == 1 and (x, y) == pytest.approx((139.4245, -56.3554), abs=0.05)
     step = (3.0 * math.cos(5.885), 3.0 * math.sin(5.885), 0.0)
-    path = walk(driver, (0.0, 0.0, 0.0), 1.0e4, 20.0, TIP_STAR, (0.0, 0.0, 0.0), step, 600)
+    path = walk(driver, (0.0, 0.0, 0.0), 1.0e4, 20.0, TIP_STAR, (0.0, 0.0, 0.0), step, 600, cmd=walk_cmd)
     assert all(c >= 0 for c, _p in path[:50])
     assert settled(path) <= 1e-9 and in_eroded(star, path[-1][1][:2], 20.0)
     assert star.buffer(-20.0, quad_segs=64).distance(Point(path[-1][1][:2])) < 0.05
@@ -1212,7 +1292,7 @@ def test_meta_round_trips_random_values(driver):
     assert '"exposure_ev": 0.00,' in text and '"rotation": [0.000, 0.000, 0.000],' in text
 
 
-def test_walk_anchor_inside_the_inset_band_at_a_sphere_junction_settles(driver):
+def test_walk_anchor_inside_the_inset_band_at_a_sphere_junction_settles(driver, walk_cmd):
     """PR #29 review A1: with the anchor closer to the boundary than InsetCm the effective inset is the
     anchor's distance; MoveInsetCm must compare against that capped value, or every tick lowers the inset
     to the current distance and the 1e-6 cm ring tolerance ratchets the margin away at the sphere/polygon
@@ -1238,7 +1318,7 @@ def test_walk_anchor_inside_the_inset_band_at_a_sphere_junction_settles(driver):
     assert 5.0 < eff < 60.0, eff
     for step in ((13.05, 6.99, -2.42), (-9.0, 11.0, 3.0), (12.0, -1.0, -4.0)):
         # start at the anchor (boundary distance = effective inset, so nothing legitimately lowers the inset)
-        path = walk(driver, anchor, 100.0, 60.0, ring, anchor, step, 3000)
+        path = walk(driver, anchor, 100.0, 60.0, ring, anchor, step, 3000, cmd=walk_cmd)
         pts = [p for _c, p in path]
         margins = [shape.exterior.distance(Point(float(p[0]), float(p[1]))) for p in pts]
         assert min(margins) >= eff - 1e-6, (step, min(margins), eff)
@@ -1328,8 +1408,9 @@ def test_walk_keep_height_pure_sphere_push(driver):
 
 
 def test_walk_keep_height_with_a_pitched_move_and_outside_the_slab(driver):
-    """bKeepHeight leaves the desired move's own Z (W with pitch, design §5-2) alone and adds none; a desired
-    height beyond the sphere's slab keeps the current plane instead."""
+    """bKeepHeight leaves the desired move's own Z alone and adds none; a desired height beyond the sphere's
+    slab keeps the current plane instead. Since D-013 decision 3 final (PR #40 review M1/M2) the pawn's W/S
+    are yaw only, so Tick's desired Z equals the current Z: this is the guard for any other caller."""
     anchor = (0.0, 0.0, 0.0)
     r = 300.0
     # pitched down 45 degrees on the sphere: Z drops exactly by the commanded 2 cm a tick while the XY clamp

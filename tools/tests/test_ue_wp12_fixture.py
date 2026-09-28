@@ -794,6 +794,12 @@ def test_camera_moveable_when_paused_is_saved_set_and_restored():
     refused = enter.index('TEXT("cannot enter: pause refused")', pause)
     set_true = enter.index("World->bIsCameraMoveableWhenPaused = true;")
     assert save < pause < refused < set_true
+    # #67: a restore still pending from the previous exit keeps the value saved then (the flag is ours, true),
+    # and is dropped only once this Enter cannot fail any more (a failed Enter leaves it waiting)
+    guard = enter.index("if (!bRestoreCameraMoveableOnUnpause)")
+    assert guard < save < enter.index("}", save)
+    assert refused < enter.index("CancelCameraMoveableRestore();") < set_true
+    assert enter.count("CancelCameraMoveableRestore()") == 1
     restore = _function_body(code, "UGolmokPhotoModeSubsystem::RestoreAll")
     unpause = restore.index("ApplyPause(false)")
     assert restore.index("World->bIsCameraMoveableWhenPaused = bSavedCameraMoveableWhenPaused;") > unpause
@@ -812,10 +818,15 @@ def test_restore_cuts_the_camera_after_the_view_target():
     # refreshes the cached POV itself, then cuts: the frame that consumes the cut is the player camera's
     refresh = restore.index("CameraManager->UpdateCamera(0.f);")
     cut = restore.index("CameraManager->SetGameCameraCutThisFrame();")
-    assert view < control < refresh < cut
+    unpause = restore.index("ApplyPause(false);")
+    # PR #40 review R1 (#67): after the unpause, a world that stays paused keeps the camera-moveable flag true
+    # (deferred), otherwise the saved value comes back right away
+    paused = restore.index("if (UGameplayStatics::IsGamePaused(World) && !bSavedCameraMoveableWhenPaused)")
+    deferred = restore.index("bRestoreCameraMoveableOnUnpause = true;")
+    immediate = restore.index("World->bIsCameraMoveableWhenPaused = bSavedCameraMoveableWhenPaused;")
+    assert view < control < refresh < cut < unpause < paused < deferred < immediate
     assert restore.count("SetGameCameraCutThisFrame") == 1
     # the pause / full-tick restore does not undo it: both come after, and nothing re-targets the view later
-    assert refresh < restore.index("ApplyPause(false);")
     assert restore.count("SetViewTargetWithBlend") == 1
 
 
@@ -829,6 +840,10 @@ def test_keep_height_without_vertical_input():
     assert "(FMath::Abs(UpDownInput) > PhotoUpDownDeadZone) ? UpDownInput : 0.f" in tick
     assert "FVector::UpVector * UpDown)" in tick
     assert re.search(r"MoveConstrained\([^;]*,\s*UpDown == 0\.f\);", tick)
+    # decision 3 final (PR #40 review M1/M2): W/S/A/D are yaw only, so without Q/E the desired move is
+    # horizontal (the old pitched forward climbed the sphere to its pole on the keep-height path)
+    assert "const FVector Forward = FRotator(0.f, Look.Yaw, 0.f).Vector();" in tick
+    assert "Look.Vector()" not in tick
     move = _function_body(pawn, "AGolmokPhotoCameraPawn::MoveConstrained")
     assert "LocalConstraint.bKeepHeight = bKeepHeight;" in move
     flatten = move.index("Slide.Z = 0.0;")
@@ -879,3 +894,100 @@ def test_runbook_multiplier_bound_and_slide_rows_match_the_code():
         assert mention in text, mention
     test_cpp = (SOURCE / "Tests" / "GolmokPhotoTest.cpp").read_text(encoding="utf-8")
     assert 'TEXT("slide: from %s to %s' in test_cpp
+
+
+# ---- PR #40 review (R1 / M3 / T3 / T1) -----------------------------------------------------------------
+
+
+def test_camera_moveable_restore_waits_for_the_unpause():
+    """R1 (runbook section 12 #67): an exit that leaves the world paused keeps
+    UWorld::bIsCameraMoveableWhenPaused true (otherwise the paused views' history is read-only again and the
+    photo camera's last TSR / Lumen history reprojects into the player view); the first end of frame that
+    sees the world unpaused restores the saved value. Deinitialize / the dead-world teardown / a re-Enter
+    drop a pending restore."""
+    header = _strip_comments(_read(SUBSYSTEM_H))
+    code = _strip_comments(_read(SUBSYSTEM_CPP))
+    assert re.search(r"\bbool\s+bRestoreCameraMoveableOnUnpause\s*=\s*false;", header)
+    assert re.search(r"\bFDelegateHandle\s+CameraMoveableRestoreHandle;", header)
+    restore = _function_body(code, "UGolmokPhotoModeSubsystem::RestoreAll")
+    handler = "&UGolmokPhotoModeSubsystem::OnEndFrameCameraMoveableRestore"
+    bind = f"FCoreDelegates::OnEndFrame.AddUObject(this, {handler})"
+    deferred = restore.index("bRestoreCameraMoveableOnUnpause = true;")
+    other = restore.index("else", deferred)
+    assert deferred < restore.index(bind) < other < restore.index("World->bIsCameraMoveableWhenPaused =")
+    assert restore.count("World->bIsCameraMoveableWhenPaused =") == 1
+    on_end = _function_body(code, "UGolmokPhotoModeSubsystem::OnEndFrameCameraMoveableRestore")
+    still_paused = on_end.index("if (World && UGameplayStatics::IsGamePaused(World))")
+    back = on_end.index("World->bIsCameraMoveableWhenPaused = bSavedCameraMoveableWhenPaused;")
+    assert still_paused < on_end.index("return;") < back < on_end.index("CancelCameraMoveableRestore();")
+    cancel = _function_body(code, "UGolmokPhotoModeSubsystem::CancelCameraMoveableRestore")
+    assert "FCoreDelegates::OnEndFrame.Remove(CameraMoveableRestoreHandle);" in cancel
+    assert "bRestoreCameraMoveableOnUnpause = false;" in cancel
+    assert (
+        "bIsCameraMoveableWhenPaused" not in cancel
+    )  # dropping a pending restore leaves the world flag alone
+    for name in ("Deinitialize", "TeardownForDeadWorld", "Enter"):
+        body = _function_body(code, "UGolmokPhotoModeSubsystem::" + name)
+        assert "CancelCameraMoveableRestore();" in body, name
+    # the capture window's own end-of-frame delegate is untouched by the pending restore
+    assert "EndFrameHandle" not in on_end and "EndFrameHandle" not in cancel
+    # Golmok.Photo.EnterExit: flag forced to false before the pre-existing pause Enter, true right after the
+    # Exit while paused, false one end of frame after the unpause, then put back
+    test_cpp = _strip_comments(_read(PHOTO_TEST_CPP))
+    forced = test_cpp.index("World->bIsCameraMoveableWhenPaused = false;")
+    assert forced < test_cpp.index('TEXT("Enter() while already paused")')
+    kept = test_cpp.index(
+        'while the pre-existing pause lasts (#67)"), World->bIsCameraMoveableWhenPaused != 0);'
+    )
+    unpause = test_cpp.index("UGameplayStatics::SetGamePaused(World, false);", kept)
+    assert kept < unpause < test_cpp.index("UnpauseFrame = GFrameCounter;", unpause)
+    phase = test_cpp.index("case EEnterExitPhase::PrePausedRestore:")
+    wait = test_cpp.index("if (GFrameCounter < UnpauseFrame + 2)", phase)
+    back_test = test_cpp.index('after the unpause (#67)"), World->bIsCameraMoveableWhenPaused != 0);', wait)
+    assert back_test < test_cpp.index(
+        "World->bIsCameraMoveableWhenPaused = bCameraMoveableBefore;", back_test
+    )
+    # the runbook lists the call in section 12 and quotes both log lines
+    text = _runbook_text()
+    row = next(ln for ln in text.splitlines() if ln.startswith("| 67 |"))
+    assert "bIsCameraMoveableWhenPaused" in row and "OnEndFrame" in row
+    for fmt in re.findall(r'TEXT\("(photo: [^"]*camera-moveable-when-paused[^"]*)"\)', _read(SUBSYSTEM_CPP)):
+        assert fmt.split("%s")[0].split("(")[0].strip() in text, fmt
+
+
+def test_photo_test_info_lines_are_logged_and_quoted_in_the_runbook():
+    """T3 / M3: the exit-camera values and both keep-height checks are AddInfo lines (TestTrue messages only
+    print on failure), and the runbook's section 1 Info list / V-09c quote them by their prefix."""
+    test_cpp = _read(PHOTO_TEST_CPP)
+    assert test_cpp.count('TEXT("exit camera: before %.1f cm, after %.2f cm, cut %d")') == 2
+    assert (
+        'TEXT("keep height: from %s to %s, max |dz| %.4f, horizontal %.2f / slice %.2f (R %.1f)")' in test_cpp
+    )
+    wall = 'TEXT("keep height wall slide: from %s to %s, lateral %.1f, |dz| %.4f, face distance %.1f")'
+    assert wall in test_cpp
+    # (c2) keep-height run: the desired target is levelled to the start height and moved with bKeepHeight
+    code = _strip_comments(test_cpp)
+    assert "KeepTarget.Z = KeepStart.Z;" in code
+    assert re.search(r"Pawn->MoveConstrained\(KeepTarget,\s*true\);", code)
+    text = _runbook_text()
+    info = text[text.index("## 1. 빌드") : text.index("## 2.")]
+    for prefix in (
+        "[Info] exit camera: before",
+        "[Info] keep height: from",
+        "[Info] keep height wall slide: from",
+    ):
+        assert prefix in info, prefix
+    v09c = text[text.index("### V-09c") :]
+    for prefix in ("exit camera: before", "keep height: from", "keep height wall slide: from", "①~⑦"):
+        assert prefix in v09c, prefix
+
+
+def test_runbook_section_7_height_items_have_no_pitch_precondition():
+    """T1 / M2: with yaw-only W/S/A/D the 'z does not change' expectation holds at any pitch, so section 7
+    keeps no 'pitch level' precondition; item 5 expects no z change with a pitched-down W, item 6 names how
+    to read the Q/E axis (T6)."""
+    text = _runbook_text()
+    item = next(ln for ln in text.splitlines() if "**접합 수평 입력 시 높이 불변**" in ln)
+    assert "0°±2°" not in item and '피치 포함)" 유지' not in item
+    for mark in ("①", "②", "③", "④", "⑤", "⑥", "⑦", "showdebug enhancedinput", "IA_GolmokPhotoUpDown"):
+        assert mark in item, mark

@@ -4,11 +4,13 @@
 //                         it, hides the debug HUD and suspends the debug keys; the pawn ticks while paused; playback
 //                         and recording refuse each other; a running lighting transition resumes where it was after
 //                         Exit(); Exit() leaves the camera manager at the player camera with a camera cut (#64); a
-//                         pause that pre-dates photo mode is kept; golmok.photo 1 / 0 round-trip.
+//                         pause that pre-dates photo mode is kept, and so is bIsCameraMoveableWhenPaused (true) until
+//                         the first end of frame after the unpause (#67); golmok.photo 1 / 0 round-trip.
 // Golmok.Photo.Clamp:     the pure constraint math (sphere / footprint polygon / Constrain / parameter steps), then
 //                         on L_Dev the pawn stays inside the sphere and a test footprint, stops on the floor, stops
 //                         at a transient blocking box and passes once the box is gone; a horizontal push keeps the
-//                         height (D-013 decision 3); SetParam / Reset.
+//                         height at the sphere / footprint junction and along the box face (D-013 decision 3);
+//                         SetParam / Reset.
 // Golmok.Photo.MetaJson:  FormatPhotoMetaJson matches the design section 2-2 layout byte for byte (null groups, string
 //                         escapes, FJsonSerializer round trip); GolmokPhotoJson::ParseConfigText rejects the design
 //                         section 2-1 violations and accepts Config/Golmok/photo.json; on L_Dev BuildMeta / Shoot()
@@ -231,6 +233,7 @@ namespace GolmokPhotoTest
 		Paused,
 		Exited,
 		PrePausedExit,
+		PrePausedRestore,
 		Refusals,
 		Console,
 		Done,
@@ -361,10 +364,11 @@ namespace GolmokPhotoTest
 					return false;
 				}
 				APlayerCameraManager* CameraManager = PC->PlayerCameraManager;
+				double AwayCm = -1.0;
 				if (CameraManager)
 				{
 					// Precondition: the check after Exit only discriminates when the cached POV is the (moved) photo camera now.
-					const double AwayCm = FVector::Dist(CameraManager->GetCameraLocation(), CameraLocationBefore);
+					AwayCm = FVector::Dist(CameraManager->GetCameraLocation(), CameraLocationBefore);
 					Test->TestTrue(FString::Printf(TEXT("precondition: camera manager POV at the photo camera before Exit (%.1f cm > 20)"), AwayCm), AwayCm > 20.0);
 				}
 				Test->TestTrue(TEXT("Exit(test)"), Photo->Exit(TEXT("test")));
@@ -373,6 +377,9 @@ namespace GolmokPhotoTest
 				if (CameraManager)
 				{
 					const double CameraDelta = FVector::Dist(CameraManager->GetCameraLocation(), CameraLocationBefore);
+					// Logged on success too: the runbook (section 1, V-09c) records the measured values.
+					Test->AddInfo(FString::Printf(TEXT("exit camera: before %.1f cm, after %.2f cm, cut %d"), AwayCm, CameraDelta,
+						static_cast<int32>(CameraManager->bGameCameraCutThisFrame)));
 					Test->TestTrue(FString::Printf(TEXT("camera manager POV back at the player camera right after Exit (%.2f cm <= 2)"), CameraDelta), CameraDelta <= 2.0);
 					Test->TestTrue(TEXT("camera cut set on the exit frame"), CameraManager->bGameCameraCutThisFrame != 0);
 				}
@@ -397,6 +404,10 @@ namespace GolmokPhotoTest
 				// caches the photo POV through the full-tick flag) before the Exit in the next phase (#63 (b) / #64).
 				if (UGameplayStatics::SetGamePaused(World, true))
 				{
+					// #67: Enter saves UWorld::bIsCameraMoveableWhenPaused; start from false (put back after PrePausedRestore) so the
+					// exit below can show the flag staying true while the pause lasts and the restore after the unpause.
+					bCameraMoveableBefore = World->bIsCameraMoveableWhenPaused != 0;
+					World->bIsCameraMoveableWhenPaused = false;
 					FString Message;
 					Test->TestTrue(TEXT("Enter() while already paused"), Photo->Enter(Message));
 					Test->TestTrue(TEXT("Enter() message says 'already paused'"), Message.Contains(TEXT("already paused")));
@@ -417,9 +428,10 @@ namespace GolmokPhotoTest
 					return false;
 				}
 				APlayerCameraManager* CameraManager = PC->PlayerCameraManager;
+				double AwayCm = -1.0;
 				if (CameraManager)
 				{
-					const double AwayCm = FVector::Dist(CameraManager->GetCameraLocation(), CameraLocationBefore);
+					AwayCm = FVector::Dist(CameraManager->GetCameraLocation(), CameraLocationBefore);
 					Test->TestTrue(FString::Printf(TEXT("precondition: camera manager POV at the photo camera before Exit (pre-existing pause, %.1f cm > 20)"), AwayCm), AwayCm > 20.0);
 				}
 				Test->TestTrue(TEXT("Exit() after a pre-existing pause"), Photo->Exit(TEXT("test")));
@@ -428,10 +440,28 @@ namespace GolmokPhotoTest
 				{
 					// #63 (b): the world stays paused, so no world tick refreshes the camera; Exit itself must have.
 					const double CameraDelta = FVector::Dist(CameraManager->GetCameraLocation(), CameraLocationBefore);
+					Test->AddInfo(FString::Printf(TEXT("exit camera: before %.1f cm, after %.2f cm, cut %d"), AwayCm, CameraDelta,
+						static_cast<int32>(CameraManager->bGameCameraCutThisFrame)));
 					Test->TestTrue(FString::Printf(TEXT("camera manager POV back at the player camera while still paused (%.2f cm <= 2)"), CameraDelta), CameraDelta <= 2.0);
 					Test->TestTrue(TEXT("camera cut set on the exit frame (pre-existing pause)"), CameraManager->bGameCameraCutThisFrame != 0);
 				}
+				// #67 (PR #40 review R1): while the pause lasts the flag stays true (the views keep writing their history, so the
+				// photo camera's last TSR / Lumen history is not reprojected into the player view); Enter saved false above.
+				Test->TestTrue(TEXT("camera-moveable-when-paused flag still true while the pre-existing pause lasts (#67)"), World->bIsCameraMoveableWhenPaused != 0);
 				UGameplayStatics::SetGamePaused(World, false);
+				UnpauseFrame = GFrameCounter;
+				return Next(static_cast<int32>(EEnterExitPhase::PrePausedRestore));
+			}
+
+			case EEnterExitPhase::PrePausedRestore:
+			{
+				// At least one full end of frame (FCoreDelegates::OnEndFrame) after the unpause.
+				if (GFrameCounter < UnpauseFrame + 2)
+				{
+					return Fail(TEXT("no frame after the unpause"), 10.0);
+				}
+				Test->TestFalse(TEXT("camera-moveable-when-paused flag back at the saved value (false) after the unpause (#67)"), World->bIsCameraMoveableWhenPaused != 0);
+				World->bIsCameraMoveableWhenPaused = bCameraMoveableBefore;
 				return Next(static_cast<int32>(EEnterExitPhase::Refusals));
 			}
 
@@ -537,6 +567,9 @@ namespace GolmokPhotoTest
 		float FovBefore = 0.f;
 		bool bFullTickBefore = false;
 		bool bDriftStarted = false;
+		/** #67: UWorld::bIsCameraMoveableWhenPaused before the pre-existing pause block forces it to false (put back after it). */
+		bool bCameraMoveableBefore = false;
+		uint64 UnpauseFrame = 0;
 		FString RecordFile;
 		FString PlayFile;
 	};
@@ -705,6 +738,26 @@ namespace GolmokPhotoTest
 				Test->TestTrue(TEXT("slide keeps the sweep radius from the box faces"), SlideFace >= Sweep - 1.0);
 				Test->TestTrue(TEXT("slide did not pass the box face"), SlideAlong < 50.0);
 				Test->TestTrue(TEXT("slide stays inside the sphere"), FVector::Dist(Location, Anchor) <= Photo->GetEffectiveRadiusCm() + 1.0);
+
+				// (c2) again on the default runtime path (PR #40 review M3): no Q/E = bKeepHeight, and the desired move is
+				// horizontal (D-013 decision 3: W/S/A/D are yaw only). The slide along the face stays in that plane.
+				{
+					Pawn->MoveConstrained(Anchor + Forward * 20.0);
+					const FVector KeepStart = Pawn->GetActorLocation();
+					FVector KeepTarget = Anchor + Forward * 120.0 + Right * 40.0;
+					KeepTarget.Z = KeepStart.Z;
+					Pawn->MoveConstrained(KeepTarget, /*bKeepHeight*/ true);
+					Location = Pawn->GetActorLocation();
+					const FVector KeepLocal = BoxRotation.UnrotateVector(Location - BoxCenter);
+					const double KeepFace = FMath::Max3(FMath::Abs(KeepLocal.X) - 50.0, FMath::Abs(KeepLocal.Y) - 50.0, FMath::Abs(KeepLocal.Z) - 50.0);
+					const double KeepLateral = FVector::DotProduct(Location - KeepStart, Right);
+					const double KeepDz = FMath::Abs(Location.Z - KeepStart.Z);
+					Test->AddInfo(FString::Printf(TEXT("keep height wall slide: from %s to %s, lateral %.1f, |dz| %.4f, face distance %.1f"),
+						*KeepStart.ToString(), *Location.ToString(), KeepLateral, KeepDz, KeepFace));
+					Test->TestTrue(TEXT("keep height: oblique push slides along the box face (lateral > 20 cm)"), KeepLateral > 20.0);
+					Test->TestTrue(TEXT("keep height: the wall slide keeps the height (|dz| <= 0.01 cm)"), KeepDz <= 0.01);
+					Test->TestTrue(TEXT("keep height: slide keeps the sweep radius from the box faces"), KeepFace >= Sweep - 1.0);
+				}
 
 				BoxActor->Destroy();
 				Pawn->MoveConstrained(Target);

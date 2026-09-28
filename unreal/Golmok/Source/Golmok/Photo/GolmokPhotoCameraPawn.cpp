@@ -263,8 +263,9 @@ void AGolmokPhotoCameraPawn::Tick(float DeltaSeconds)
 	MouseDelta = FVector2D::ZeroVector;
 	ApplyLook(NewLook);
 
-	// Move: forward includes the pitch, right is yaw only, up is world up; unit direction times the owner's speed.
-	const FVector Forward = Look.Vector();
+	// Move: forward and right are yaw only (D-013 decision 3: W/S/A/D move in the horizontal plane, only Q/E changes the
+	// height), up is world up; unit direction times the owner's speed.
+	const FVector Forward = FRotator(0.f, Look.Yaw, 0.f).Vector();
 	const FVector Right = FRotator(0.f, Look.Yaw, 0.f).RotateVector(FVector::RightVector);
 	const float UpDown = (FMath::Abs(UpDownInput) > PhotoUpDownDeadZone) ? UpDownInput : 0.f;
 	const FVector Direction =
@@ -275,8 +276,8 @@ void AGolmokPhotoCameraPawn::Tick(float DeltaSeconds)
 		return;
 	}
 	const float SpeedCmPerSec = LocalOwner->MoveSpeedMps * 100.f * (bFast ? UGolmokPhotoModeSubsystem::FastMultiplier : 1.f);
-	// D-013 decision 3: only Q/E (UpDown past the dead zone) may change the height through the constraint / slide; W/S keep
-	// their pitch.
+	// D-013 decision 3: only Q/E (UpDown past the dead zone) changes the height. Without it the desired move is horizontal
+	// (yaw-only W/S/A/D) and bKeepHeight makes the constraint / slide keep it in that plane (a guard: Desired.z == Z).
 	MoveConstrained(GetActorLocation() + Direction * (SpeedCmPerSec * LocalDt), /*bKeepHeight*/ UpDown == 0.f);
 }
 

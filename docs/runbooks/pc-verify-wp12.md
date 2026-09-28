@@ -55,19 +55,23 @@ git pull
 - [ ] 첫 명령: 3개 전부 `Success`(`-nullrhi`). 기대 `[Info]` 줄(테스트 코드 `AddInfo`; L_Dev에는 zone·GeoOrigin이 없다):
   ```
   Golmok.Photo.EnterExit   [Info] photo mode on (fov 80.0, no zone, paused)          (Enter() 메시지; fov는 캐릭터 FollowCamera FOV — 80이 아니면 그 값)
+                           [Info] exit camera: before … cm, after … cm, cut 1          (일반 종료, §12 #64: before > 20 — 포토 카메라를 80 cm 올린 뒤, after ≤ 2, cut 1)
+                           [Info] exit camera: before … cm, after … cm, cut 1          (사전 정지 종료 — 같은 기준. 이어서 #67 단언은 성공하면 줄이 없다)
                            [Info] ApplyPreset(clear_noon) started no transition; drift assertion skipped   (나오면 안 됨 — §12 #50; "lighting presets file missing; drift block skipped"도 마찬가지)
                            [Info] SetGamePaused(true) refused; pre-existing pause block skipped           (나오면 안 됨 — §12 #1)
   Golmok.Photo.Clamp       [Info] after +1000 x: X=… Y=… Z=… (anchor X=… Y=… Z=…)     (구 300 cm 안·정사각형 ±200 cm 안)
                            [Info] after -500 z: X=… Y=… Z=… (floor z …)                (바닥 스윕 — §12 #49)
+                           [Info] keep height: from X=… Y=… Z=… to X=… Y=… Z=…, max |dz| 0.0000, horizontal … / slice … (R …)   ((b2) 구∩정사각형 접합 수평 밀기: max |dz| ≤ 0.01, horizontal = slice −3..+0.01 — D-013 결정 3)
                            [Info] box at X=… Y=… Z=…: pawn X=…, face distance …, along …   (face distance ≥ 15 − 1, along < 100 — §12 #47)
                            [Info] slide: from X=… to X=…, lateral …, face distance …, along …   ((c2) 비스듬한 밀기: lateral > 20, face distance ≥ 15 − 1, along < 50 — §12 #62)
+                           [Info] keep height wall slide: from X=… to X=…, lateral …, |dz| 0.0000, face distance …   ((c2)를 bKeepHeight로 한 번 더, PR #40 리뷰 M3: lateral > 20, |dz| ≤ 0.01, face distance ≥ 15 − 1)
                            [Info] box destroyed: pawn X=…, along …                    (along > 100)
   Golmok.Photo.MetaJson    [Info] Describe(): active fov 80.0 ev +0.00 focus 3.000 m f/2.80 dof off roll +0.0 (no zone)
                            [Info] shooting -> <Saved>/Screenshots/Golmok/photo/<stamp>.png (2x, meta <stamp>.json)
                            [Info] capture window closed after 3.xx s                  (-nullrhi는 PNG를 쓰지 않으므로 3 s 타임아웃 경로)
                            [Info] the clock rolled over between the marker and the second shot; _2 suffix not asserted   (초 경계에 걸리면 1회 — 무해)
   ```
-  MetaJson의 로그에는 `photo: screenshot requested via HighResShot -> <Saved>/Screenshots/Golmok/photo/<stamp>00000.png (no viewport size; written on the next frame)`와 `photo: capture window closed (<stamp>.png timeout 3.0 s, png absent)`가 찍힌다(nullrhi 폴백 — 정상). 테스트가 만든 `<stamp>.json`·`_2.json`은 소멸자가 지운다(남아 있으면 §13에).
+  EnterExit의 로그에는 사전 정지 종료 뒤 `photo: world still paused; camera-moveable-when-paused flag kept true until the unpause`와 정지 해제 뒤 `photo: camera-moveable-when-paused flag restored after the unpause (false)`가 한 번씩 찍힌다(§12 #67). MetaJson의 로그에는 `photo: screenshot requested via HighResShot -> <Saved>/Screenshots/Golmok/photo/<stamp>00000.png (no viewport size; written on the next frame)`와 `photo: capture window closed (<stamp>.png timeout 3.0 s, png absent)`가 찍힌다(nullrhi 폴백 — 정상). 테스트가 만든 `<stamp>.json`·`_2.json`은 소멸자가 지운다(남아 있으면 §13에).
 - [ ] 두 번째 명령: **28개** 전부 `Success` = WP-09까지 16개(`Golmok.Player.Movement`, `Lighting.PresetsFile/PresetApply`, `Debug.StatsMath/PathFormat/PathRoundTrip/HudStats`, `Portal.SpawnFromManifest/RoundTrip/PawnSwap/SharedInterior`, `Zone.IndexParse/IndexDiscover/AsyncLoad/AsyncCancel/InteriorNotBlocked`) + WP-18 병합분 7개(`Golmok.Character.Config/Runtime/PortalRoundTrip` — `Tests/GolmokCharacterRosterTest.cpp`·`GolmokCharacterRosterPortalTest.cpp`; PR #24 `Character.PathRoundTrip/Locomotion/PhotoIntegration/RenderEvidence` — `GolmokCharacterRoster{Path,Movement,Photo,Render}Test.cpp`. `PhotoIntegration`은 Photo가 있는 이 빌드에서 실제 6조합(proxy135/proxy110/Quinn × GamePause/TimeDilation)을 돌리고, `RenderEvidence`는 명시적 실행 옵션 없이는 설계상 `NOT EXECUTED` Warning 1개로 끝난다 — 둘 다 상태 열은 `Success`) + WP-13 2개(`Audio.StateMachine/Footstep` — `Tests/GolmokAudioTest.cpp`) + 위 3개. 현재 코드 기준 헤드리스 자동화 28개(Photo 3 + 기존 25); 아래 §13의 26개는 V-09 PC 실행 당시 이력이다. `test.ps1` 요약 줄 `Succeeded:`는 Warning이 있는 테스트를 따로 세므로(V-03) 상태 열이 전부 `Success`인지로 본다.
 - [ ] `Golmok.log`에 `photo:` 접두 `[Error]` 0건(`photo: ERROR cannot write meta …`·`photo: ERROR screenshot request failed: …`·`photo: config not loaded from …`가 없어야 한다). 실패한 테스트는 `unreal\Golmok\Saved\Logs\Golmok.log`의 `[Error]` 줄을 §13에 옮겨 적는다.
 
@@ -119,10 +123,13 @@ PIE 시작(PlayerStart = 001 zone-local (0, −5, 0) m, `Zone_z_synthetic_001` L
   ```
   LogGolmok: photo: photo mode on (fov 80.0, zone z_synthetic_001 v1, already paused)
   LogGolmok: P: photo mode on (fov 80.0, zone z_synthetic_001 v1, already paused)
+  LogGolmok: photo: world still paused; camera-moveable-when-paused flag kept true until the unpause
   LogGolmok: photo: photo mode off (restored, left paused, tod shift 0.000 s)
   LogGolmok: P: photo mode off
+  pause
+  LogGolmok: photo: camera-moveable-when-paused flag restored after the unpause (false)
   ```
-  P가 안 먹으면(정지 상태에서 풀틱이 아직 꺼져 있어 입력이 안 옴) `golmok.photo 1`로 진입해 나머지를 진행하고 §12 #4에 "사전 정지 P 불가"로 기록.
+  `camera-moveable` 두 줄은 PR #40 리뷰 R1(§12 #67): 정지가 유지되는 동안 플래그를 true로 두고 정지 해제 뒤 첫 프레임에 저장값으로 되돌린다(진입 전 값이 true였으면 두 줄 모두 없다). P가 안 먹으면(정지 상태에서 풀틱이 아직 꺼져 있어 입력이 안 옴) `golmok.photo 1`로 진입해 나머지를 진행하고 §12 #4에 "사전 정지 P 불가"로 기록.
 - [ ] **전환 중 진입**(시간대 드리프트): `1` 키(또는 `golmok.tod clear_noon`; `TransitionSeconds` 기본값으로 전환 시작) 직후 P → 10 s 대기 → P → HUD `tod: <from> -> <to> NN%`의 진행률이 **진입 전 값에서 이어서** 끝난다(`ShiftTransitionStart`). 로그의 `tod shift x.xxx s`: 정지 중 월드 시계가 멈추면 `0.000`, 흐르면 ≈ 10 — 어느 쪽이든 정상이고 값을 §13에(§12 #11 관찰).
 
 ## 3. 정지 중 입력·틱·카메라
@@ -196,7 +203,7 @@ PIE 시작(PlayerStart = 001 zone-local (0, −5, 0) m, `Zone_z_synthetic_001` L
   1. **GamePause · 즉시 종료**(P) — V-09b 실패 경로. 가장 중요.
   2. **GamePause · 지연 종료**(Space 다음 틱에 P → `photo: exit deferred until the capture window closes (toggle)` → 창이 닫힌 뒤 `photo mode off (restored, unpaused, …)`) — V-09b ✅ 회귀 확인(종료 프레임부터 기준 ±5).
   3. **TimeDilation · 즉시 종료**: `Config\DefaultGame.ini` `PauseMode=TimeDilation` → **에디터 재시작** → 같은 절차(TimeDilation은 EV가 화면에 안 먹으므로(#61) 기준과 같으면 통과, 구도만 판정). 끝나면 `GamePause`로 되돌려 `git diff` 비어 있게.
-  4. **사전 정지 (b)**(§12 #63 (b)): 콘솔 `pause` → P(`already paused`) → EV `+3`·카메라 이동 → P(`left paused`) → **정지가 유지된 채 종료 프레임부터 플레이어 구도·진입 전 밝기**(V-09b: `pause` 해제까지 포토 구도·221.7 고정 → 이번 수정의 기대는 즉시 플레이어 화면). 0.24 s 간격 10장에서 노이즈·깜빡임 없음, `pause` 해제 뒤에도 밝기 변화 없음.
+  4. **사전 정지 (b)**(§12 #63 (b)): 콘솔 `pause` → P(`already paused`) → EV `+3`·카메라 이동 → P(`left paused`) → **정지가 유지된 채 종료 프레임부터 플레이어 구도·진입 전 밝기**(V-09b: `pause` 해제까지 포토 구도·221.7 고정 → 이번 수정의 기대는 즉시 플레이어 화면). 0.24 s 간격 10장에서 노이즈·깜빡임 없음, `pause` 해제 뒤에도 밝기 변화 없음. **정지가 유지되는 동안 둘째~10번째 프레임에 포토 구도 잔상·고스트 없음**(종료 프레임과 비교 — PR #40 리뷰 R1: 정지 중 `bIsCameraMoveableWhenPaused`가 false로 돌아가면 뷰 이력이 읽기 전용이라 포토 마지막 프레임의 TSR·Lumen 이력이 컷 1프레임 뒤 다시 보일 수 있어, 이제 정지가 풀릴 때까지 true로 둔다: P 뒤 로그 `photo: world still paused; camera-moveable-when-paused flag kept true until the unpause`, `pause` 해제 뒤 `photo: camera-moveable-when-paused flag restored after the unpause (false)` — §12 #67). 4가 ✗(잔상·고스트·깜빡임)면: §13에 관찰(프레임별 휘도·잔상 위치·로그 두 줄 유무)을 적고 §12 #67을 본 뒤 #64 대안 ②(다음 프레임 컷)를 검토한다.
   결과는 §13 "V-09c 재검증" 표에. 1이 여전히 ✗면 §12 #64 대안 ②(다음 프레임 컷)로.
 - [ ] **화질 관찰**(§12 #8): 정지 상태에서 카메라를 움직이는 동안·멈춘 직후의 TSR 고스팅·Lumen 노이즈·눈 적응 정지 여부를 §13에 적고(스크린샷 ①에 담기게), 심하면 `PreCaptureFrames`를 올려 §5·§6에서 비교.
 
@@ -279,7 +286,7 @@ golmok.photo.set mult 0      → golmok.photo.set: ERROR multiplier must be 1..2
 - 벽(#60): 파사드에 대고 **W+D·W+A 대각선** → 표면 15 cm 앞 유지하며 벽을 따라 이동(V-09: 1 s 0.3 cm → 기대: 1 s에 1.5 m/s × sin(입사각)만큼, 45°면 ≈ 1.06 m). 모서리(두 벽)에서는 멈춤, 진동·관통 없음. 둔각(≈135°) 안쪽 꺾임에 W+D로 밀 때 두 번째 벽을 따라 이동하는지도 적는다(스윕 2회 제한이라 멈출 수 있음 — 멈추면 §13에 기록, 후속: 세 번째 스윕 또는 두 법선 각 < 90°면 재투영, PR #29 리뷰 B-1). 슬라이드가 footprint 경계에 닿으면 경계 20 cm 안쪽에서 멈춤(벽 → 다각형 재클램프).
 - [ ] **벽**: 파사드·blocker(`glass_1`) 앞으로 밀기 → 표면에서 `CollisionRadiusCm`(15 cm) 앞에 정지, 관통 0(§12 #16). 밀착 상태에서 다른 방향으로 이동이 계속 된다(`bStartPenetrating` 후퇴가 매 틱 반복되면 §12 #40). **대각선으로 밀면 벽을 따라 미끄러진다**(위 기대값, §12 #60·#62). 스크린샷 ③.
 - [ ] **구**: 캐릭터에서 3 m 밖으로 밀기 → 구 표면에서 정지, 오버레이 1행 거리 = 분모(`3.0 / 3.0 m`, 진입 카메라가 3 m 밖이었으면 그 거리로 넓어진 유효 반경, 예 `3.3 / 3.3 m` — `GetEffectiveRadiusCm()`). 첫 이동에서 카메라가 앵커 쪽으로 튀지 않는다. 위로도 같다(높이 상한 없음, 구만).
-- [ ] **접합 수평 입력 시 높이 불변**(D-013 결정 3, V-09b 관찰 "구∩경계 접합에서 밀면 구면을 따라 내려감 −44 cm" 후속 수정 2): 카메라를 앵커(캐릭터 중심)보다 **50 cm 이상 높이**(E) 두고, 피치를 **수평(0°±2°)** 으로 맞춘 뒤 ① 구∩footprint 경계 접합으로 W+D(또는 해당 대각) Shift 2 s, ② 경계 없는 쪽에서 구 표면으로 W Shift 2 s, ③ 파사드 벽에 대각선 2 s. 기대: **틱 샘플 z가 입력 내내 변동 0**(±0.01 cm; V-09b ①은 1.6 s에 −44 cm), 수평면 안에서 미끄러지다 더 갈 수 없으면 정지(변동 0). ④ 같은 자리에서 **E 또는 Q를 같이 누르면** z가 변한다(구면을 따라 미끄러져도 됨). ⑤ 피치를 −30°로 숙이고 W만: z는 시선 방향대로 내려간다(설계 §5-2 "전방(피치 포함)" 유지 — 제약이 z를 더하지 않는지만 본다: 구에 닿은 뒤 틱당 z 변화가 자유 이동 때와 같다). ⑥ (게임패드가 있으면) 트리거에 손가락을 살짝 얹은 채(축 ≤ 0.1, 데드존 `PhotoUpDownDeadZone`) 스틱으로 ①을 반복 → z 변동 0. 틱 샘플(틱·x·y·z·dt)을 §13에.
+- [ ] **접합 수평 입력 시 높이 불변**(D-013 결정 3 확정판 — W/S/A/D는 항상 yaw 기준 수평면 이동, 높이(Z)는 Q/E만; V-09b 관찰 "구∩경계 접합에서 밀면 구면을 따라 내려감 −44 cm" 후속 수정 2 + PR #40 리뷰 M1/M2): 카메라를 앵커(캐릭터 중심)보다 **50 cm 이상 높이**(E) 둔다. 피치는 어떤 값이든 된다(전방이 yaw만이라 피치가 z에 들어가지 않는다). ① 구∩footprint 경계 접합으로 W+D(또는 해당 대각) Shift 2 s, ② 경계 없는 쪽에서 구 표면으로 W Shift 2 s, ③ 파사드 벽에 대각선 2 s. 기대(①~③): **틱 샘플 z 변동 0(±0.01 cm)**(V-09b ①은 1.6 s에 −44 cm), 수평면 안에서 미끄러지다 더 갈 수 없으면 정지(변동 0). ④ 같은 자리에서 **E 또는 Q를 같이 누르면** z가 변한다(구면을 따라 미끄러져도 됨). ⑤ 피치를 −30°로 숙이고 W만: **z 변동 0**(전방은 yaw만; 예전 설계 '피치 포함'은 결정 3 확정판으로 폐기) — 구·벽에 닿아도 같다. ⑥ (게임패드가 있으면) 트리거에 손가락을 살짝 얹은 채 스틱으로 ①을 반복 → z 변동 0. 콘솔 `showdebug enhancedinput`으로 `IA_GolmokPhotoUpDown` 값이 0 < |축| ≤ 0.1(데드존 `PhotoUpDownDeadZone`)인 구간이었는지 확인해 적는다(0이면 트리거에 닿지 않은 것 — 다시; 0.1을 넘으면 ④와 같은 3D 경로라 z가 변해도 정상; 표시가 안 나오면 §13에 '축 확인 불가'). ⑦ Q로 카메라를 낮게(바닥 근처) 두고 경사로(없으면 계단·기울어진 면, 그것도 없으면 벽)에 수평으로 정면으로 밀면 그 자리에서 정지하고 비스듬히 밀면 수평으로만 미끄러진다 — z 변동 0(경사를 타고 오르지 않는다, 올리려면 E). 틱 샘플(틱·x·y·z·dt)을 §13에.
 - [ ] **바닥**: 아래로(Q) → 바닥 15 cm 위에서 정지(로우 앵글 허용; 뚫고 내려가면 §12 #49).
 - [ ] **footprint**: 캐릭터를 001 footprint 경계 1 m 안에 세우고(`golmok.collision 1`로 충돌 메시·blocker·트리거를 보며 경계 확인 → `golmok.collision: …`) P → 카메라를 바깥으로 → 경계 `FootprintMarginM`(0.2 m) 안쪽에서 **톱니 없이** 정지하고 대각선 입력이면 경계를 따라 미끄러진다(위 틱 샘플 기대값; 다각형 클램프, 구와 동시에 걸리면 둘 다 만족하는 점 또는 이동 취소 = 그 자리 유지). 예각 꼭짓점·20 cm의 두 배보다 좁은 목에서 멈추는 것은 설계 §11-7의 남은 한계 — 있었는지만 §13에.
 - [ ] **zone 밖**: footprint 밖 도로(001 서쪽 등, `golmok.zone.list`의 어느 loaded zone에도 포함되지 않는 곳)에서 P →
@@ -406,7 +413,8 @@ golmok.photo.set mult 0      → golmok.photo.set: ERROR multiplier must be 1..2
 | 64 | (V-09b PC) `RestoreAll`의 `SetGameCameraCutThisFrame()`이 플레이어 뷰가 처음 그려지는 프레임에 닿지 않음(P 종료 경로) | P 입력은 정지로 시작한 월드 틱의 PC 틱에서 처리된다. `UWorld::Tick`은 `bIsPaused`를 틱 시작에 읽고(`LevelTick.cpp` 1565) 정지 중에는 풀틱 PC만 `UpdateCameraManager`(1845) — `RestoreAll`이 풀틱 플래그를 되돌리므로 그 틱은 카메라 갱신을 건너뛰고 옛 포토 POV·PP(EV 바이어스·20 EV/s)로 그려지며 컷을 소비한다(`GameViewportClient.cpp` 1922~1924에서 지움). 다음 프레임(플레이어 POV)엔 컷이 없어 눈 적응이 포토 노출에서 이어짐. 지연 종료(`OnEndFrame` 복원 → 다음 틱은 정지 없이 시작)는 정상. `UpdateCameraPhotographyOnly`(정지 틱의 else 분기, `PlayerCameraManager.cpp` 1015)는 컷을 `=`로 덮지만 포토그래피 제공자가 없어 여기선 비활성 | ① (1순위) `RestoreAll`에서 뷰 타깃 복원·풀틱 복원 뒤 `PC->PlayerCameraManager->UpdateCamera(0.f)`로 같은 틱에 카메라 캐시를 플레이어 POV·PP로 갱신 → 종료 프레임부터 플레이어 뷰 + 컷(사전 정지 종료의 옛 구도 고정 #3도 풀릴 수 있음 — 확인 필요). ② 컷을 다음 프레임에 한 번 더(종료 프레임 1장은 옛 포토 화면으로 남음). ③ P 종료도 `OnEndFrame`에서 복원(지연 종료와 같은 경로) | §4 종료 밝기 EV ±3(종료 프레임 포함), #63 (b); 틱 추적(뷰 타깃·카메라 매니저 위치·`bGameCameraCutThisFrame`) | V-09b: P 종료 틱 post-tick에서 뷰 타깃 = 캐릭터, 카메라 매니저 위치 = 포토 카메라 자리, 컷 이미 지워짐; 종료 프레임 220.3(포토 구도·노출) → 0.23 s 182.9 → 3.55 s 126.6(기준 126.6). `r.Test.CameraCut 1`이면 즉시 126.0, post-tick에서 컷을 한 번 더 걸면 첫 플레이어 프레임부터 126.0(②의 실측). 클라우드 후속 → **후속 수정 2(2026-09-28, 클라우드)**: ① 채택 — `RestoreAll`에서 `SetViewTargetWithBlend` → `SetControlRotation` → `PlayerCameraManager->UpdateCamera(0.f)` → `SetGameCameraCutThisFrame()` 순서(풀틱·정지 복원보다 앞; 정지 틱이든 아니든 캐시가 바로 플레이어 POV). 정지 없이 시작한 틱(TimeDilation, 지연 종료 뒤 다음 틱)은 월드 틱이 같은 틱에 dt로 한 번 더 갱신 — 뷰 타깃이 이미 캐릭터라 결과 같음. UE 자동화 `Golmok.Photo.EnterExit`가 GamePause 종료와 사전 정지 종료(새 단계 `PrePausedExit`: 정지 유지 중 0.5 s 포토 카메라 이동 뒤 Exit) 둘 다에서 `Exit()` 직후 카메라 매니저 위치 = 진입 전 플레이어 카메라(2 cm)·`bGameCameraCutThisFrame` 켜짐을 검사하고, 그 전제(Exit 직전 카메라 매니저가 포토 카메라 자리, > 20 cm)도 단언(테스트 이름 추가 없음). **재검증**: §4 "종료 밝기" 1~4(EV ±3), 틱 추적으로 종료 틱 post-tick 카메라 매니저 위치 = 플레이어 카메라 확인. 컴파일·동작 문제면 #65·#66 |
 | 65 | (V-09b 후속 수정 2, #64) `APlayerCameraManager::UpdateCamera(float DeltaTime)` — public virtual(`ENGINE_API`), 로컬 PC면 `DoUpdateCamera` → `FillCameraCache`(뷰 타깃 `CalcCamera` → 카메라 컴포넌트 POV·PP 블렌드) | 이름·접근성; 월드 틱 밖(`OnEndFrame` 지연 종료)·정지 틱 안에서 호출해도 안전한지; dt 0에서 카메라 셰이크·모디파이어가 한 번 더 도는 부작용 | 없거나 보호면 `PC->UpdateCameraManager(0.f)`(public virtual, 같은 동작); 둘 다 안 되면 #64 대안 ②(다음 프레임에 `SetGameCameraCutThisFrame()` 한 번 더 — `OnEndFrame` 한 번 등록) | §4 종료 밝기 1~4, `Golmok.Photo.EnterExit` "camera manager POV back at the player camera right after Exit" | 미확인 |
 | 66 | (V-09b 후속 수정 2, 테스트) `APlayerCameraManager::bGameCameraCutThisFrame`(`uint32 : 1`, public UPROPERTY로 가정 — `LocalPlayer.cpp` `CalcSceneView`가 직접 읽음) — `GolmokPhotoTest.cpp`가 `Exit()` 직후 읽음 | 접근성(protected면 C2248) | 게터가 있으면 그것으로(`GetGameCameraCutThisFrame()` 등), 없으면 해당 두 `TestTrue` 줄을 지우고 §4 틱 추적으로만 확인(§13에 기록) | 빌드, `Golmok.Photo.EnterExit` | 미확인 |
-| 65+ | (PC 세션 추가) | | | | |
+| 67 | (PR #40 리뷰 R1) 사전 정지 종료 (b)(GamePause에서 `bWasPausedBefore`, 또는 진입 전부터 정지였던 TimeDilation): `RestoreAll`이 `ApplyPause(false)` 뒤에도 `UGameplayStatics::IsGamePaused(World)`면 `UWorld::bIsCameraMoveableWhenPaused`를 저장값(false)으로 바로 되돌리지 않고 true로 둔 채 `FCoreDelegates::OnEndFrame`(`OnEndFrameCameraMoveableRestore`)이 정지 해제를 본 첫 프레임에 복원(`CancelCameraMoveableRestore`로 해제; `Deinitialize`·`TeardownForDeadWorld`·재진입 `Enter`는 대기 중 복원을 버리고 `Enter`는 앞 세션의 저장값을 유지). 정지가 유지되지 않는 경로(즉시·지연 종료, 일반 TimeDilation)는 전처럼 즉시 복원 | 정지 유지 중 플래그를 false로 되돌리면 뷰 이력이 읽기 전용(`SceneVisibility` `bStatePrevViewInfoIsReadOnly = bWorldIsPaused`, #57 메커니즘)이라 포토 마지막 프레임의 TSR·Lumen 이력이 컷 1프레임 뒤 재투영될 수 있다 — **추론, PIE/-game에서 잔상 여부 미확인**(패키지 빌드는 #57처럼 해당 없음 예측). 정지 중 플래그가 true인 동안의 부작용(정지 월드가 비정지처럼 이력을 갱신 — 포토 중과 같은 상태)도 미확인. `OnEndFrame` 브로드캐스트 중 핸들 제거는 기존 캡처 창과 같은 패턴 | 잔상은 없는데 부작용이 보이면 즉시 복원으로 되돌린다(`RestoreAll`의 분기 제거). 잔상이 여전하면 #64 대안 ②(다음 프레임 컷)·컷을 정지 해제까지 반복 검토 | §4 종료 밝기 4(사전 정지 (b), 둘째~10번째 프레임·로그 두 줄), `Golmok.Photo.EnterExit` `PrePausedExit`·`PrePausedRestore` | 미확인 |
+| 68+ | (PC 세션 추가) | | | | |
 
 ## 13. 결과 기록
 V-09 PC 세션(Claude Desktop 워크트리 `upbeat-rosalind-95c87c`, 사용자 PC, 모델 Claude Fable 5.1로 시작 — 세션 중 Opus 5.5로 바뀜, 커밋 서명 기준), 날짜 2026-09-28. UE 5.8.3, VS 18 Community(MSVC 14.51), GPU RTX 5060 8 GB(드라이버 617.14, 2560×1440 모니터), 뷰포트 **2554×1354**(PIE 새 창 2560×1392 — 작업 표시줄 때문에 1440 불가), 브랜치 `pc/v09-verify-wp12`(main a4764c8 = PR #24 병합 뒤).
@@ -489,8 +497,8 @@ PC 세션(Claude Desktop 워크트리 `clever-goldstine-ec6dec`, 모델 Claude F
 
 스크린샷: ③ `docs/runbooks/pc-verify-wp12-clamp.jpg`를 **V-09b 남동 모서리 정지 장면**(카메라 (1979.99, 980.00), 정지 뒤 캐릭터·파사드 쪽으로 돌아봄, 오버레이 `1.9 / 3.3 m`)으로 교체(1600×912, 105 KB, 아래 설명 줄 포함). ①②④는 V-09 그대로.
 
-### V-09c 재검증 — WP-12 후속 수정 2(#64 종료 카메라·D-013 결정 3 높이 불변) (대기)
-범위(이것만 한다): §1 빌드 → `test.ps1 -Filter Golmok.Photo` 3/3(`EnterExit`에 새 줄 "precondition: camera manager POV at the photo camera before Exit (x.x cm > 20)"·"camera manager POV back at the player camera right after Exit (x.xx cm <= 2)"·"camera cut set on the exit frame"과 사전 정지 쪽 "… (pre-existing pause, …)"·"camera manager POV back at the player camera while still paused (x.xx cm <= 2)", `Clamp`에 새 Info 줄 `keep height: from … to …, max |dz| 0.0000, horizontal … / slice … (R …)` — 구 단면 원과 정사각형 여백 선이 만나는 접합(시작 높이 0.5 R)) → `Golmok.` 전체 28/28 → §4 "종료 밝기" 1~4(EV ±3) → §7 "접합 수평 입력 시 높이 불변" ①~⑤. 드라이버는 V-09b 것(틱 샘플·종료 틱 추적)을 그대로 쓴다. 컴파일 오류는 §12 #65·#66.
+### V-09c 재검증 — WP-12 후속 수정 2(#64 종료 카메라·D-013 결정 3 높이 불변)·PR #40 리뷰 반영(결정 3 확정판·#67) (대기)
+범위(이것만 한다): §1 빌드 → `test.ps1 -Filter Golmok.Photo` 3/3(`EnterExit`에 새 Info 줄 `exit camera: before x.x cm, after x.xx cm, cut 1` 2줄 — 일반 종료·사전 정지 종료, 각각 before > 20·after ≤ 2·cut 1(실패하면 같은 값이 TestTrue 메시지 "precondition: camera manager POV at the photo camera before Exit (x.x cm > 20)"·"camera manager POV back at the player camera right after Exit (x.xx cm <= 2)"·"camera cut set on the exit frame"과 사전 정지 쪽 "… (pre-existing pause, …)"·"camera manager POV back at the player camera while still paused (x.xx cm <= 2)"로 `[Error]`에 찍힌다), 사전 정지 쪽 #67 단언(성공 시 줄 없음; 로그 `photo: world still paused; camera-moveable-when-paused flag kept true until the unpause` → `photo: camera-moveable-when-paused flag restored after the unpause (false)`), `Clamp`에 새 Info 줄 `keep height: from … to …, max |dz| 0.0000, horizontal … / slice … (R …)` — 구 단면 원과 정사각형 여백 선이 만나는 접합(시작 높이 0.5 R) — 와 `keep height wall slide: from … to …, lateral …, |dz| 0.0000, face distance …` — (c2) 벽 대각 슬라이드를 bKeepHeight로) → `Golmok.` 전체 28/28 → §4 "종료 밝기" 1~4(EV ±3; 4는 정지 유지 중 둘째~10번째 프레임 잔상 판정 포함) → §7 "접합 수평 입력 시 높이 불변" ①~⑦(⑥은 게임패드가 있으면; 피치 전제 없음 — 결정 3 확정판). 드라이버는 V-09b 것(틱 샘플·종료 틱 추적)을 그대로 쓴다. 컴파일 오류는 §12 #65·#66·#67.
 
 | 항목 | 결과 | 실측 |
 |---|---|---|
@@ -498,6 +506,6 @@ PC 세션(Claude Desktop 워크트리 `clever-goldstine-ec6dec`, 모델 Claude F
 | §4 종료 밝기 1 GamePause·즉시(EV +3 / −3) | | |
 | §4 종료 밝기 2 GamePause·지연 | | |
 | §4 종료 밝기 3 TimeDilation·즉시 | | |
-| §4 종료 밝기 4 사전 정지 (b) | | |
-| §7 접합 수평 입력 높이 불변 ①~⑤ | | |
+| §4 종료 밝기 4 사전 정지 (b)(둘째~10번째 프레임 잔상·#67 로그 두 줄) | | |
+| §7 접합 수평 입력 높이 불변 ①~⑦ | | |
 | STATUS | | |

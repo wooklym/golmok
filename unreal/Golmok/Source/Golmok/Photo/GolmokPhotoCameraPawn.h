@@ -57,7 +57,8 @@ public:
 	/**
 	 * Constrain + sweep toward InDesired, then at most one constrained slide sweep along the hit plane (public test hook; Tick
 	 * calls it with Location + Velocity * dt). bKeepHeight (Tick: no Q/E input, D-013 decision 3): the constraint clamps in the
-	 * horizontal plane and the slide is flattened, so only the desired move itself changes Z.
+	 * horizontal plane and the slide is flattened, so only the desired move itself changes Z (Tick's is horizontal then:
+	 * W/S/A/D are yaw only, decision 3 final).
 	 */
 	void MoveConstrained(const FVector& InDesired, bool bKeepHeight = false);
 	int32 GetTickCount() const { return TickCount; }
