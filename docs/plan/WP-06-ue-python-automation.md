@@ -378,7 +378,7 @@ def apply_layers(tag, world=None) -> dict
     # AGolmokZone → set_visual_visible(state["zone_visual"]); 라벨 _pure.spike_actor_group ∈ {spike_b, spike_c} → set_actor_hidden_in_game(not state[group]) + (에디터에서만) set_is_temporarily_hidden_in_editor(not state[group]);
     # 실패 시 set_editor_property("hidden", …) 폴백. sr.layers(where="editor"|"pie"). 반환 {"zone_visual","spike_b","spike_c","actors": n}
 def save_layer_levels(tags=("b", "c", "ac"), base_level=None) -> list[str]
-    # base = base_level or sz._current_level_path(); 태그마다 dst=f"/Game/Golmok/Maps/L_Spike_{tag}": EditorAssetLibrary.duplicate_asset(base, dst)(있으면 delete 후) → load_level(dst) → apply_layers(tag)
+    # base = base_level or sz._current_level_path(); 태그마다 dst=f"/Game/Golmok/Maps/L_Spike_{tag}": EditorAssetLibrary.duplicate_asset(base, dst)(있으면 delete 후) → load_level(dst) → apply_layers(tag) (2026-09-28 Save As로 대체 — 결과 절)
     # → AGolmokZone.set_editor_property("auto_managed", state["zone_visual"])(b/c는 False: -game에서 거리 로드 금지) → save_current_level → sr.level; 끝에 load_level(base). 반환 패키지 목록
 def capture_all(tags=_pure.TAGS, presets=_pure.DEFAULT_PRESETS, names=None, mode="pie") -> object
     # names None → prepare()가 missing 없을 때 VIEWPOINT_NAMES, 있으면 저장된 것 중 names 교집합 + sr.warn. mode="pie": _PieCapture(jobs); mode="editor": 태그별 apply_layers → viewpoints.capture(tag, names, presets, on_done=next_tag) 연쇄
@@ -815,7 +815,7 @@ def tick(fake, n: int, dt: float = 0.1)           # 등록된 slate 콜백을 n�
 | `test_editor_capture_chains_tags` | `viewpoints.capture` monkeypatch(즉시 on_done) → 태그 4개 순서·apply_layers 4회 |
 | `test_pie_perf_waits_for_csv` | `golmok.path play walk_01 --csv` 후 CSV 생성까지 대기 → `sr.csv` 명령 문자열 `golmok-perf "<path>" --label a_clear_noon_walk_01 --markdown` |
 | `test_game_scripts_written` | `.ps1` utf-8-sig·`\r\n`, run 수 = tags×presets×paths, 본문 == `powershell_script(...)`; 경로 파일 없으면 RuntimeError |
-| `test_save_layer_levels` | duplicate_asset(L_ZoneTest → L_Spike_b) → load → 레이어 → auto_managed False → save → 원 레벨 load 순서 |
+| `test_save_layer_levels` | duplicate_asset(L_ZoneTest → L_Spike_b) → load → 레이어 → auto_managed False → save → 원 레벨 load 순서 (2026-09-28 Save As로 대체 — 결과 절) |
 | `test_contact_sheet_and_report_written` | HTML 존재·`a/clear_noon/far_01.png` 상대경로; report md에 research/08 헤더 |
 
 #### 5-6. Windows CI 위험과 회피
@@ -945,7 +945,7 @@ def tick(fake, n: int, dt: float = 0.1)           # 등록된 slate 콜백을 n�
 | 15 | spike_runner | `unreal.SystemLibrary.execute_console_command(get_game_world(), cmd)`가 PIE 콘솔에 닿는지 | citations에 시그니처만 | `unreal.UnrealEditorSubsystem.get_game_world()` None이면 `unreal.EditorLevelLibrary.get_pie_worlds(False)`(deprecated) + warn; 최후 `viewpoints.capture` 에디터 모드 |
 | 16 | spike_runner | `LevelEditorSubsystem.editor_request_begin_play()/editor_request_end_play()/is_in_play_in_editor()` 뒤 PIE가 뜨는 틱 수·기본 플레이 모드 | 비동기; 모드는 `LevelEditorPlaySettings` 마지막 값 | 60 s 폴링; 시작 안 되면 `_finish`+런북(Alt+P 대신 수동 New Editor Window 실행 뒤 `mode="editor"`) |
 | 17 | spike_runner | `-game -ExecCmds` 실행 시점(맵 로드 전이면 `golmok.*` 월드 명령 무효), `-ExitAfterCsvProfiling`이 콘솔 `CsvProfile Stop`에도 종료하는지 | 엔진 동작 | `.ps1` 타임아웃 kill + 로그 `GolmokDebugSubsystem: csv:` 검사; 실패면 PIE `perf_all()` 참고치 |
-| 18 | spike_runner | `EditorAssetLibrary.duplicate_asset(level, "/Game/Golmok/Maps/L_Spike_<tag>")`로 맵 복제 | 월드 파티션·외부 액터 | 실패 시 수동 "Save Current Level As" 안내 |
+| 18 | spike_runner | `EditorAssetLibrary.duplicate_asset(level, "/Game/Golmok/Maps/L_Spike_<tag>")`로 맵 복제 (2026-09-28 Save As로 대체 — 결과 절) | 월드 파티션·외부 액터 | 실패 시 수동 "Save Current Level As" 안내 |
 | 19 | spike_runner | `set_is_temporarily_hidden_in_editor` / `set_actor_hidden_in_game` on Cesium3DTileset·XGRIDS 액터 | 플러그인 액터 가시성 구현 | `set_editor_property("hidden", True)`; Cesium은 `set_editor_property("enabled", False)`(있으면) |
 | 20 | basemap_import | `unreal.GolmokGeoOrigin` 프로퍼티 `latitude/longitude/height_ellipsoidal` | WP-04 sz와 동일 | sz 재사용 |
 | 21 | spike_runner | `unreal.get_default_object(unreal.LevelEditorPlaySettings)`의 `new_window_width/new_window_height`, `last_executed_play_mode_type=unreal.PlayModeType.PLAY_MODE_TYPE_PLAY_IN_EDITOR_FLOATING` | 클래스·속성·enum 노출(추정) | Editor Preferences > Level Editor > Play > New Window Size 1280×720, Play 모드 "New Editor Window (PIE)" 수동; `sr.captured`의 실제 크기로 확인 |
@@ -1114,5 +1114,5 @@ V-04/V-05 메모(코드 미변경): (B3) `ResolveOverlaps`는 로드/언로드 �
 - §1 생성기 → §2 `zi.run(...)`(route·매핑 실측·UDIM 병합 표기·Nanite 청크 bbox를 결과 표에) → §3 PIE 걷기 → §4 `it.run(...)` → §5 포털 왕복 → §6 재실행 → §7 `capture_all` 리허설(에디터 창 뒤로 보낸 채 한 번 더) → §8 `-game` 성능 스크립트 → §11 결과 표. 컴파일/실행 오류는 §12 표 번호로 고치고 `WP-06: PC fix …` 커밋.
 - 미검증 2라운드 소견 6건(위 표)은 병합 전 Opus 보완 리뷰 또는 V-04에서 판정. 특히 ③(TIF UDIM)·④(MI 이름 충돌)는 실데이터에서 먼저 드러날 수 있다.
 - 스파이크(V-05)는 `pc-spike.md` S0~S15; `night` 프리셋 화면 검정·HUD render ms 0·언로드 뒤 `blocked` 표시는 WP-09/D-010 몫(V-03 발견).
-- 2026-09-28 T5 PC 재현: save_layer_levels의 duplicate_asset→load_level이 World Memory Leaks fatal → Save As로 수정(PR 번호는 오케스트레이터가 채움). `spike_runner.save_layer_levels`는 태그마다 원본을 다시 열고 `EditorLoadingAndSavingUtils.save_map`으로 `L_Spike_<tag>`에 저장한 뒤 그 맵이 열린 상태에서만 레이어를 적용한다; `save_map`이 열린 월드 이름을 바꾸는지는 V-04 §8 2단계·런북 §12 #18에서 확인.
+- 2026-09-28 (PR #43): 런북 §0의 duplicate_asset→load_level fatal(Astra T5 2026-09-28, EditorServer.cpp:2544 World Memory Leaks) — save_layer_levels가 같은 패턴이라 Save As로 선제 수정, PC 미검증(V-04 §8 2단계에서 확인). `spike_runner.save_layer_levels`는 태그마다 원본을 다시 열고 `EditorLoadingAndSavingUtils.save_map`으로 `L_Spike_<tag>`에 저장한 뒤 그 맵이 열린 상태에서만 레이어를 적용하며, 원본은 쓰지 않는다: 에디터 호출 전에 태그를 검사하고 `L_Spike_*` 원본은 오류, 원본(외부 액터·오브젝트 패키지 포함)에 저장 안 된 변경이 있으면 오류(`capture_all`이 남긴 레이어 플래그가 사용자 맵에 저장되지 않게, J26), 열린 맵이 원본과 다르면 경고 후 진행, `base_level`은 객체 경로도 받는다(`_current_level_path`와 같은 정규화). `save_map`이 열린 월드 이름을 바꾸는지는 V-04 §8 2단계·런북 §12 #18에서 확인(V-07 wp09 §4 사전 단계가 이름 바꾸기 쪽 근거).
 

@@ -316,25 +316,29 @@ def _dirty_map_packages():
     return {str(p.get_path_name()).split(".")[0] for p in utils.get_dirty_map_packages()}
 
 
-def _save_base_if_dirty(base):
-    """The layer levels come from the base map on disk (it is reopened for every tag), so unsaved edits of
-    the open base are saved first rather than dropped or carried into one copy only. Saved by path (save_map
-    to its own package, V-03), not save_current_level(): the current level may be a sublevel."""
+def _require_base_saved(base):
+    """Nothing here writes the base: every layer level is saved from the base as it is on disk (load_level
+    per tag), so unsaved changes of the base or of its one-file-per-actor packages stop the run instead of
+    being saved from here or silently dropped (J26: layer flags capture_all left on the open map must not
+    reach the user's map). Another open map is only warned about: load_level(base) replaces it."""
     from . import synthetic_zone as sz
 
     dirty = _dirty_map_packages()
     if dirty is None:
         _warn(f"cannot check {base} for unsaved changes (runbook #18); using its saved state")
-        return
-    root, _, rest = base.lstrip("/").partition("/")
-    external = tuple(f"/{root}/{kind}/{rest}/" for kind in _EXTERNAL)
-    if not any(p == base or p.startswith(external) for p in dirty) or sz._current_level_path() != base:
-        return
-    if not unreal.EditorLoadingAndSavingUtils.save_map(_editor_world(), base):
-        raise RuntimeError(
-            f"{base} has unsaved changes and could not be saved; save it and rerun (runbook #18)"
+    else:
+        root, _, rest = base.lstrip("/").partition("/")
+        external = tuple(f"/{root}/{kind}/{rest}/" for kind in _EXTERNAL)
+        if any(p == base or p.startswith(external) for p in dirty):
+            raise RuntimeError(
+                f"{base} has unsaved changes; save or discard them, then rerun save_layer_levels"
+                " (runbook #18)"
+            )
+    if (current := sz._current_level_path()) != base:
+        _warn(
+            f"open map {current} is not {base}; its unsaved changes will be discarded by load_level({base})"
+            " (runbook #18)"
         )
-    _warn(f"{base} had unsaved changes; saved it first so the layer levels derive from it")
 
 
 def save_layer_levels(tags=("b", "c", "ac"), base_level=None):
@@ -346,15 +350,26 @@ def save_layer_levels(tags=("b", "c", "ac"), base_level=None):
     garbage collection", World Memory Leaks, EditorServer.cpp:2544; PC 2026-09-28). Every tag reopens the
     saved base and saves it as the layer level (EditorLoadingAndSavingUtils.save_map to the other path:
     FEditorFileUtils::SaveMap renames the open world's package; if the base is still open afterwards, the
-    saved copy is opened from disk). Actors are touched only once the layer level is the open world, so the
-    base is never modified."""
+    saved copy is opened from disk). Actors are touched only once the layer level is the open world, and the
+    base is never written: unknown tags, a layer level as the base and a base with unsaved changes stop the
+    run before the first load_level (_require_base_saved). base_level may be a package or object path."""
     from . import synthetic_zone as sz
 
-    base = base_level or sz._current_level_path()
+    tags = tuple(tags)
+    for tag in tags:
+        _pure.layer_state(tag)  # unknown tag: ValueError before anything in the editor is touched
+    if not tags:
+        return []
+    base = str(base_level or sz._current_level_path()).replace("\\", "/").split(".")[0]
+    if base.startswith(LAYER_LEVEL_PREFIX):
+        raise RuntimeError(
+            f"{base} is a layer level (it would be deleted and overwritten); open the base map or pass"
+            " base_level=, then rerun save_layer_levels (runbook #18)"
+        )
+    _require_base_saved(base)  # before try: nothing to reopen if it fails
     level_editor = _level_editor()
     library = unreal.EditorAssetLibrary
     out = []
-    _save_base_if_dirty(base)  # before try: nothing to reopen if it fails
     try:
         for tag in tags:
             state = _pure.layer_state(tag)
