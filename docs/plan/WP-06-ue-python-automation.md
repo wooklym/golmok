@@ -1142,3 +1142,18 @@ V-04/V-05 메모(코드 미변경): (B3) `ResolveOverlaps`는 로드/언로드 �
 - (F3, note) WAIT_CSV가 캡처 내내 매 틱 두 폴더를 glob·stat(0.18 ms/폴 Linux, Windows는 더 느림) — 참고치 CSV라 그대로 둠; 0.25 s 간격 폴링은 (B) 후속.
 
 **병합**: 오케스트레이터 결정(D-019). `WP-06: 병합 시 반영 (Fable)` 커밋으로 F2·F1 런북 반영 뒤 merge commit. PC 확인 항목: 다음 PC 세션의 §8(`.ps1` `$pathDirs`·`-ini:`)·§9(`csv` 줄 시각 ≈ 길이 + 2 s, 프레임 수).
+
+## 병합 기록 — V-04b [#67](https://github.com/wooklym/golmok/pull/67) → [#68](https://github.com/wooklym/golmok/pull/68) (2026-09-29, 오케스트레이터 세션)
+
+**V-04b 결과**: 🟢. Claude PC 세션(워크트리 `wonderful-herschel-567471`, 브랜치 `pc/v04b-verify-wp06-followup`, head 4f7b7c1)이 후속 #28 [#44](https://github.com/wooklym/golmok/pull/44)·#29 [#47](https://github.com/wooklym/golmok/pull/47)을 main `5f6c810`과 `87e13d8` 두 빌드에서 §8·§9로 확인했다: §12 #39 격리(HUD `0 discovered`, `-game` 로그에 `discovered from index` 없음), §8 3단계 `.ps1`(`$pathDirs`는 경로 JSON 원본 폴더를 제외해 `%LOCALAPPDATA%` 항목만·`-ini:…bDiscoverFromIndex=False`가 run마다 `-ExecCmds` 앞 1회·`-csvCaptureFrames` 없음·자기 복사 경고 0줄·a/b CSV 생성·`ExitAfterCsvProfiling` 자기 종료, 두 빌드 생성본 바이트 동일), §8 2단계 b·c·ac 저장·`L_Spike_b` `Auto Managed` ✖ 눈 확인, §9 `csv` 수락 = 경로 73.0 s + 2.1 s(`5f6c810`)/2.3 s(`87e13d8`)·`golmok-perf` 8,348/8,381프레임. 문서만 커밋(STATUS 자기 행·런북 §11 인계 8).
+
+**병합 전 리뷰(Opus 읽기 전용, R67-1~15, 2026-09-29)**: (A) 없음. 확인: 변경 2파일과 5묶음 규칙 준수, PR 본문·런북·STATUS 수치 일치, main 코드와 일치(`_pure.game_command_line`·`copy_path_dirs`·`csv_complete`, settle = max(2, 1.5 × 최대 간격)·폴링 0.25 s), 프레임 수 산술(perf 프레임/평균 fps ≈ 73 − 2 s), D1 관찰이 옳음(`bVisualVisible`은 UPROPERTY가 아니고 `bAutoManaged`만 저장). 정정(R67-3): #47 적응형 settle 확대는 이 PC에서 발동하지 않았다(기본 경로 확인). 리뷰 게이트 pytest 1211 passed/3 skipped·CI 10/10. UE 실행 산출물은 클라우드에서 확인 불가.
+
+**준비 단계 결함(V-04b 판정 범위 밖, `zone_import` Claude 레인) → 후속 과제 "WP-06 후속 V-04b F1~F3"(Opus ultracode, V-05 전)**
+- **F1** zone_import UDIM 폴백 안전화: `-nullrhi`(`unreal.SystemLibrary.get_command_line()`)이거나 크기를 판정할 수 없으면 `_pack_udim_tiles`를 생략하고 `how="merged by importer (size unverifiable without RHI)"` + WARNING(#4); 타일은 work 폴더의 UDIM 규칙(`[._]####`) 밖 이름 사본(예: `<name>_u0v0.png`)에서 임포트; `FakeUdimLibrary`가 multi-block 입력에 예외를 내도록 해 엔진 assert를 흉내 내고 테스트 추가. **보완 리뷰 ① 판정 번복**: "타일 크기를 돌려줘도 중복 팩 1회뿐(무해)"는 틀렸다 — 헤드리스에서 중복 팩은 엔진 assert(appError)로 끝나고, 폴백 경로는 PC에서 성공한 적이 없다(T5·V-04b 모두 importer 병합). 임시 조치: 런북 §2 주의(GUI 전용).
+- **F2** zone_import·interior_setup 작업 경로 절대화: `_saved_dir`/`_content_dir`(`unreal.Paths.project_*_dir()`의 `..` 상대 경로, CWD `Engine\Binaries\Win64` 기준 269자 > 260)를 `spike_runner._abs`(§12 #31) 규칙으로 공용화(`convert_relative_path_to_full` + `normpath(abspath)`), `interior_setup._parent_manifest`에도 적용, FakePaths 상대 경로 테스트, 런북 §12 #31 파일 칸 확대.
+- **F3** zone_import 재임포트 교체 경로 보강: `_ensure_path`에서 강제 삭제 뒤 `does_asset_exist(target)` 재검사·잔존 시 rename/duplicate 대신 명확한 ERROR와 우회(#8); 텍스처는 규약 경로에 `replace_existing=True` 제자리 재임포트(스크래치·rename 불필요, MI 참조 유지 — PNG가 `<dest>/<name>`에 바로 놓이는 것이 V-04·V-04b 로그로 확인돼 #37 텍스처 의문 해소), 메시는 스크래치 유지; fake "삭제 뒤 잔존" 시나리오; PC 재현 카드(새 에디터에서 §6 3단계). `reimport_textures=True` 기본값은 유지.
+- **F4**(Astra 레인 `Tests/GolmokCharacterRosterZoneWalk.cpp`): 창 포커스를 잃으면 `FlushPressedKeys`로 W가 떼져 `waypoint blocked or no input`로 멈춤 → Astra T7 RHI 실행 과제에 포함(astra-tasks T7 행, 이슈 #30).
+- D1·D2·R67-1/3/11 문구는 이 병합 커밋에서 런북·STATUS·ROADMAP에 반영. R67-12(`87e13d8` §9 원시 시각)는 PC 세션 코멘트 대기(병합을 막지 않음). R67-15(추적 안 되는 `M_ZoneScan`·`T_ZoneScanDefault` 커밋 여부)는 V-05/V-06에서 결정.
+
+**병합**: 오케스트레이터 결정(D-019). PC 브랜치 push 없음; 클라우드 병합 브랜치 `claude/v04b-merge`에 `V-04b: 병합 시 반영 (Fable)` 커밋 뒤 merge commit, PC PR #67은 close. 다음: F1~F3 후속(클라우드, V-05 전) → V-05 `runbooks/pc-spike.md`; Astra T7 RHI는 C-07 뒤.
