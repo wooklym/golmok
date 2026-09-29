@@ -22,7 +22,7 @@ namespace GolmokAudio
 	}
 	bool String(const FObject& Parent, const TCHAR* Key, FString& Out)
 	{
-		return Parent.IsValid() && Parent->TryGetStringField(Key, Out) && !Out.IsEmpty() && !Out.Contains(TEXT("\n"));
+		return Parent.IsValid() && Parent->HasTypedField<EJson::String>(Key) && Parent->TryGetStringField(Key, Out) && !Out.IsEmpty() && !Out.Contains(TEXT("\n"));
 	}
 	bool Range(const FObject& Parent, const TCHAR* Key, double& Low, double& High, double Min, double Max)
 	{
@@ -77,15 +77,17 @@ namespace GolmokAudio
 			FString Title, Author, Source, License, LicenseUrl, Changes, Verified;
 			double Gain = 0;
 			if (!String(Item, TEXT("asset"), Asset.Path) || !Asset.Path.StartsWith(TEXT("/Game/Golmok/Audio/"))
-				|| Asset.Path.Contains(TEXT("..")) || !Item->TryGetBoolField(TEXT("loop"), Asset.bLoop)
+				|| Asset.Path.Contains(TEXT("..")) || !Item->HasTypedField<EJson::Boolean>(TEXT("loop"))
+				|| !Item->TryGetBoolField(TEXT("loop"), Asset.bLoop)
 				|| !Number(Item, TEXT("gain"), Gain, 0, 1) || !String(Item, TEXT("title"), Title)
 				|| !String(Item, TEXT("author"), Author) || !String(Item, TEXT("source_url"), Source)
 				|| !String(Item, TEXT("verified"), Verified) || !VerifiedDate(Verified)
 				|| !String(Item, TEXT("license"), License) || !String(Item, TEXT("changes"), Changes)
+				|| !Item->HasTypedField<EJson::String>(TEXT("license_url"))
 				|| !Item->TryGetStringField(TEXT("license_url"), LicenseUrl) || Paths.Contains(Asset.Path.ToLower())) return false;
 			if (License != TEXT("project-generated") && License != TEXT("CC0-1.0") && License != TEXT("CC-BY-4.0")) return false;
 			bool bPlaceholder = false;
-			if (!Item->TryGetBoolField(TEXT("placeholder"), bPlaceholder) || !Source.StartsWith(TEXT("https://"))) return false;
+			if (!Item->HasTypedField<EJson::Boolean>(TEXT("placeholder")) || !Item->TryGetBoolField(TEXT("placeholder"), bPlaceholder) || !Source.StartsWith(TEXT("https://"))) return false;
 			if (License == TEXT("project-generated") && (!bPlaceholder || !LicenseUrl.IsEmpty())) return false;
 			if (License == TEXT("CC0-1.0") && LicenseUrl != TEXT("https://creativecommons.org/publicdomain/zero/1.0/")) return false;
 			if (License == TEXT("CC-BY-4.0") && LicenseUrl != TEXT("https://creativecommons.org/licenses/by/4.0/")) return false;

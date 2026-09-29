@@ -4,6 +4,7 @@ import copy
 import importlib
 import json
 import sys
+import warnings
 from pathlib import Path
 
 import pytest
@@ -154,4 +155,29 @@ def test_optional_stride_and_photo_fade_contract():
     audio.parse_config(data)
     data["footsteps"]["stride_scale_by_mesh"] = True
     with pytest.raises(ValueError, match="superseded"):
+        audio.parse_config(data)
+
+
+def test_stride_ids_match_character_roster():
+    roster = json.loads((audio.CONFIG.parent / "characters.json").read_text(encoding="utf-8"))
+    ids = {entry["id"] for entry in roster["characters"]}
+    configured = set(audio.load_config()["footsteps"].get("stride_cm_by_character", {}))
+    assert configured <= ids, f"Unknown audio stride ids: {sorted(configured - ids)}"
+    missing = ids - configured
+    if missing:
+        warnings.warn(
+            f"Character ids without audio strides use 70/110 cm fallback: {sorted(missing)}",
+            UserWarning,
+            stacklevel=1,
+        )
+
+
+@pytest.mark.parametrize("field", ["loop", "placeholder", "author"])
+@pytest.mark.parametrize("value", [1, "true"])
+def test_asset_field_types_reject_coercion(field, value):
+    if field == "author" and value == "true":
+        value = True
+    data = audio.load_config()
+    data["assets"]["tile"][field] = value
+    with pytest.raises(ValueError):
         audio.parse_config(data)
