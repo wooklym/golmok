@@ -629,7 +629,7 @@ def test_residue_after_delete_is_an_error(fake, unreal, zone, zi, monkeypatch):
     assert not [c for c in fake.calls if c[0] in ("rename", "duplicate_asset") and c[-1] == target]
     assert not fake.calls_of("duplicate_asset")
     uasset = Path(fake.content_dir) / "Golmok" / "Zones" / ZONE / "v1" / "SM_c_e000_n000.uasset"
-    folder = Path(fake.content_dir) / "Golmok" / "Zones" / ZONE
+    folder = Path(fake.content_dir) / "Golmok" / "Zones" / ZONE / "v1"  # that version only (R69-1)
     message = (
         f"{target} still exists after delete_asset returned True (does_asset_exist=True; on disk {uasset}: "
         f"absent); {FOLDER}/_import/SM_c_e000_n000 was not renamed or duplicated over it. Work-around "
@@ -651,7 +651,10 @@ def test_texture_reimport_in_place_keeps_references(fake, unreal, zone, zi):
     before = {n: fake.registry[f"{FOLDER}/Textures/{n}"] for n in ("T_facade", "T_ground")}
     fake.calls.clear()
     fake.tasks.clear()
+    fake.logs.clear()
     result = _run(zi, zone)  # default reimport_textures=True
+    moved = [t for t in fake.logged("log") if t.startswith("zone_import: moved ")]
+    assert len(moved) == 4  # chunks 2 + collision 2 (runbook §6 step 3); T_ZoneScanDefault exists already
     png = [t for t in fake.tasks if t.filename.endswith(".png")]
     assert [(Path(t.filename).name, t.destination_path, t.destination_name) for t in png] == [
         ("facade.1001.png", f"{FOLDER}/Textures", "T_facade"),
@@ -750,13 +753,30 @@ def test_gui_editor_packs_as_before_and_reads_the_command_line(monkeypatch, tmp_
         and result["warnings"] == []
     )
     monkeypatch.delattr(fake.module.SystemLibrary, "get_command_line")
+    real_plan = zi.make_plan
+
+    def two_udim_textures(zone_dir, version=None):  # a second UDIM texture: still one WARNING (R69-7)
+        plan, manifest = real_plan(zone_dir, version)
+        facade = next(t for t in plan["textures"] if t["name"] == "T_facade")
+        plan["textures"].append(dict(facade, name="T_facade2", asset=f"{FOLDER}/Textures/T_facade2"))
+        return plan, manifest
+
+    monkeypatch.setattr(zi, "make_plan", two_udim_textures)
     fake.calls.clear()
+    fake.logs.clear()
     result = _run(zi, zone)
-    assert len(fake.calls_of("make_udim")) == 1
-    assert result["warnings"] == [
+    assert [c[1] for c in fake.calls_of("make_udim")] == [
+        f"{FOLDER}/Textures/T_facade",
+        f"{FOLDER}/Textures/T_facade2",
+    ]
+    message = (
         "SystemLibrary.get_command_line unavailable: -nullrhi not detectable; UDIM pack fallback for "
         "T_facade runs on the size test alone (runbook #4)"
-    ]
+    )
+    assert result["warnings"] == [message]
+    assert fake.logged("warning") == [f"zone_import: WARNING {message}"]
+    fake.logs.clear()
+    assert _run(zi, zone)["warnings"] == [message]  # once per call, not once per process
 
 
 @pytest.mark.parametrize(
@@ -765,9 +785,23 @@ def test_gui_editor_packs_as_before_and_reads_the_command_line(monkeypatch, tmp_
         ('"C:/p/Golmok.uproject" -log', False),
         ('"C:/p/Golmok.uproject" -NullRHI -unattended', True),
         ('"C:/p/Golmok.uproject" "-nullrhi"', True),
+        ('"C:/p/Golmok.uproject" /nullrhi', True),
         ('"C:/p/Golmok.uproject" -run=pythonscript -script="x.py"', True),  # commandlet: no rendering
         ('"C:/p/Golmok.uproject" -run=pythonscript -AllowCommandletRendering', False),
         ('"C:/p/Golmok.uproject" -nullrhiX', False),
+        ('"C:/p/Golmok.uproject" -nullrhi=1', False),  # FParse::Param does not take a value either
+        ("", False),
+    ],
+    ids=[
+        "gui",
+        "nullrhi-mixed-case",
+        "nullrhi-quoted",
+        "nullrhi-slash",
+        "commandlet",
+        "commandlet-rendering",
+        "nullrhi-suffix",
+        "nullrhi-value",
+        "empty",
     ],
 )
 def test_without_rhi_reads_the_command_line(fake, unreal, zi, monkeypatch, command_line, no_rhi):

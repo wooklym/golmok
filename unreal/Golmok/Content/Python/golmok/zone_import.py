@@ -50,6 +50,7 @@ from __future__ import annotations
 import contextlib
 import json
 import os
+import re
 import shutil
 import struct
 import zlib
@@ -74,6 +75,7 @@ NULLRHI_FLAG = "-nullrhi"  # headless editor: texture sizes are not measurable (
 HOW_NO_RHI = "merged by importer (size unverifiable without RHI)"
 
 _warnings: list[str] = []  # messages of the zi.warn lines of the current import_assets() call
+_warned_once: set[str] = set()  # once-per-call warnings already given in the current import_assets() call
 
 
 class ZoneImportError(RuntimeError):
@@ -437,9 +439,9 @@ def _residue_error(target: str, current: str) -> None:
     duplicate is tried over it; one ERROR line with the on-disk state and the work-around, then the step fails."""
     disk = _disk_path(target)
     on_disk = "unknown" if disk is None else ("present" if os.path.isfile(disk) else "absent")
-    parts = target.split("/")
-    if parts[2:4] == ["Golmok", "Zones"] and len(parts) > 4:
-        folder = os.path.join(_content_dir(), "Golmok", "Zones", parts[4])
+    parts = target.split("/")  # /Game/Golmok/Zones/<zone>/v<n>/...: only that version folder (R69-1)
+    if parts[2:4] == ["Golmok", "Zones"] and len(parts) > 6 and re.fullmatch(r"v\d+", parts[5]):
+        folder = os.path.join(_content_dir(), "Golmok", "Zones", parts[4], parts[5])
     else:
         folder = os.path.dirname(disk) if disk else target.rsplit("/", 1)[0]
     message = (
@@ -613,9 +615,10 @@ def _force_texture_settings(texture) -> tuple[bool, bool]:
 
 def _without_rhi() -> bool | None:
     """True when the editor runs without RHI (-nullrhi, or a -run= commandlet without
-    -AllowCommandletRendering), None when SystemLibrary.get_command_line is not exposed (runbook #4, #40). Without RHI a texture's size comes from its source, and a merged UDIM then seems to
-    report its first block (the tile size) [unverified on 5.8.3 source]: the size test cannot tell merged from
-    unmerged, and packing a merged texture again ends the editor (V-04b F1)."""
+    -AllowCommandletRendering), None when SystemLibrary.get_command_line is not exposed (runbook #4, #40).
+    Without RHI a texture's size comes from its source, and a merged UDIM then seems to report its first
+    block (the tile size) [unverified on 5.8.3 source]: the size test cannot tell merged from unmerged, and
+    packing a merged texture again ends the editor (V-04b F1)."""
     lib = getattr(unreal, "SystemLibrary", None)
     if lib is None or not hasattr(lib, "get_command_line"):
         return None
@@ -718,7 +721,8 @@ def _import_texture(tex: dict, asset_folder: str, reimport: bool, work: str) -> 
                     "skipped - check the texture in a GUI editor (runbook #4)"
                 )
             elif size == tile:
-                if no_rhi is None:
+                if no_rhi is None and "get_command_line" not in _warned_once:  # once per call (R69-7)
+                    _warned_once.add("get_command_line")
                     _warn(
                         "SystemLibrary.get_command_line unavailable: -nullrhi not detectable; UDIM pack "
                         f"fallback for {tex['name']} runs on the size test alone (runbook #4)"
@@ -981,6 +985,7 @@ def import_assets(plan: dict, work_dir: str, remeasure=False, reimport_textures=
     plus the zi.warn messages of this call. Levels, GeoOrigin and zone actors are not touched.
     """
     del _warnings[:]
+    _warned_once.clear()
     work = os.path.normpath(str(work_dir))
     for sub in ("visual", "collision"):
         os.makedirs(os.path.join(work, sub), exist_ok=True)
