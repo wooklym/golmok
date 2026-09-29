@@ -35,6 +35,7 @@ void UGolmokAmbienceSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 		const TWeakObjectPtr<UGolmokAmbienceSubsystem> WeakThis(this);
 		HudHandle = Debug->AddExtraHudLineProvider([WeakThis]() { return WeakThis.IsValid() ? WeakThis->Describe() : FString(); });
 	}
+	// Reserved for future nonlocal sources; local footsteps use 2D playback.
 	Attenuation = NewObject<USoundAttenuation>(this);
 	Attenuation->Attenuation.bAttenuate = true;
 	Attenuation->Attenuation.AttenuationShapeExtents = FVector(100.f, 0.f, 0.f);
@@ -187,7 +188,7 @@ void UGolmokAmbienceSubsystem::StartSlot(int32 Slot, const FString& AssetId, boo
 	if (USoundWave* Sound = Sounds.FindRef(AssetId))
 	{
 		Channels[Slot] = UGameplayStatics::SpawnSound2D(this, Sound, 0.f, 1.f, 0.f, nullptr, false, false);
-		if (Channels[Slot]) Channels[Slot]->bIsUISound = true; // Explicit Photo mute/maintain policy below.
+		// SpawnSound2D sets UI sound before playback; Photo policy is applied below.
 	}
 }
 
@@ -209,7 +210,7 @@ void UGolmokAmbienceSubsystem::Tick(float DeltaTime)
 		PhotoGain.Set(bPhotoMuted ? 0 : 1, Config.PhotoMuteFadeSeconds);
 		if (bPhotoMuted) for (UAudioComponent* Shot : OneShots) if (IsValid(Shot))
 		{
-			if (Config.PhotoMuteFadeSeconds > 0) Shot->FadeOut(static_cast<float>(Config.PhotoMuteFadeSeconds), 0.f);
+			if (Config.PhotoMuteFadeSeconds > 0) Shot->FadeOut(static_cast<float>(Config.PhotoMuteFadeSeconds), 0.f, EAudioFaderCurve::SCurve);
 			else Shot->Stop();
 		}
 	}
@@ -228,7 +229,7 @@ void UGolmokAmbienceSubsystem::Tick(float DeltaTime)
 	OneShots.RemoveAll([](const TObjectPtr<UAudioComponent>& Shot) { return !IsValid(Shot) || !Shot->IsPlaying(); });
 }
 
-void UGolmokAmbienceSubsystem::PlayFootstep(const FString& Set, bool bLanding, const FVector& Location)
+void UGolmokAmbienceSubsystem::PlayFootstep(const FString& Set, bool bLanding)
 {
 	LastFootstepSet = Config.Sets.Contains(Set) ? Set : TEXT("default");
 	if (!bReady || IsMuted()) return;
@@ -242,7 +243,17 @@ void UGolmokAmbienceSubsystem::PlayFootstep(const FString& Set, bool bLanding, c
 		UAudioComponent* Shot = UGameplayStatics::SpawnSound2D(this, Sound,
 			static_cast<float>(Config.MasterVolume * PhotoGain.Value * FMath::FRandRange(Config.VolumeMin, Config.VolumeMax)),
 			static_cast<float>(FMath::FRandRange(Config.PitchMin, Config.PitchMax)), 0.f, Concurrency, false, true);
-		if (Shot) { Shot->bIsUISound = true; OneShots.Add(Shot); }
+		if (Shot) OneShots.Add(Shot);
+	}
+}
+
+void UGolmokAmbienceSubsystem::SetSurfaceDiagnostic(int32 Surface, const FString& Message)
+{
+	SurfaceError = Message;
+	if (!Message.IsEmpty() && !WarnedSurfaces.Contains(Surface))
+	{
+		WarnedSurfaces.Add(Surface);
+		UE_LOG(LogGolmok, Warning, TEXT("audio: %s"), *Message);
 	}
 }
 

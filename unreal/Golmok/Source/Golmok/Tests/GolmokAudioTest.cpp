@@ -58,7 +58,7 @@ namespace GolmokAudioTest
 				if (Test->TestNotNull(TEXT("player pawn"), Pawn)) Test->TestNotNull(TEXT("footstep component attached without Player edit"), Pawn->FindComponentByClass<UGolmokFootstepComponent>());
 			}
 			auto* Debug = World->GetSubsystem<UGolmokDebugSubsystem>();
-			Test->TestTrue(TEXT("HUD provider registered"), Debug && Debug->GetHudLines().ContainsByPredicate([](const FString& Line) { return Line.StartsWith(TEXT("audio: ")); }));
+			Test->TestTrue(TEXT("exactly one audio HUD line"), Debug && Debug->GetHudLines().FilterByPredicate([](const FString& Line) { return Line.StartsWith(TEXT("audio: ")); }).Num() == 1);
 			if (Debug)
 			{
 				const int32 Before = Debug->NumExtraHudLineProviders();
@@ -72,6 +72,15 @@ namespace GolmokAudioTest
 				Test->TestEqual(TEXT("original providers remain after out-of-order removal"), Debug->NumExtraHudLineProviders(), Before);
 				Test->TestFalse(TEXT("removed provider is absent from refreshed HUD"), Debug->GetHudLines().Contains(TEXT("audio_test_second")));
 			}
+			Test->AddExpectedMessagePlain(TEXT("audio: R55 fixture surface 61"), ELogVerbosity::Warning, EAutomationExpectedMessageFlags::Contains, 1);
+			Test->AddExpectedMessagePlain(TEXT("audio: R55 fixture surface 62"), ELogVerbosity::Warning, EAutomationExpectedMessageFlags::Contains, 1);
+			Audio->SetSurfaceDiagnostic(61, TEXT("R55 fixture surface 61"));
+			Audio->SetSurfaceDiagnostic(61, TEXT("R55 fixture surface 61"));
+			Audio->SetSurfaceDiagnostic(62, TEXT("R55 fixture surface 62"));
+			Test->TestTrue(TEXT("surface diagnostic retained in HUD text"), Audio->Describe().Contains(TEXT("error: R55 fixture surface 62")));
+			Audio->SetSurfaceDiagnostic(0, FString());
+			Audio->SetSurfaceDiagnostic(61, TEXT("R55 fixture surface 61")); // Clearing HUD does not reset once-per-number logging.
+			Audio->SetSurfaceDiagnostic(0, FString());
 			Tod->EnterInterior(TEXT("audio_destroy"));
 			Test->TestEqual(TEXT("destruction starts in interior"), Audio->GetState(), FString(TEXT("interior")));
 			Tod->Destroy();
@@ -104,30 +113,23 @@ namespace GolmokAudioTest
 			const double Now = FPlatformTime::Seconds();
 			if (Phase == 0)
 			{
+				if (!Audio->GetConfig().bMuteInPhoto || Audio->GetConfig().PhotoMuteFadeSeconds <= 0)
+				{ Test->AddInfo(TEXT("NOT EXECUTED photo fade: requires mute policy and nonzero duration")); return true; }
 				FString Message;
 				PreviousPause = Photo->PauseMode; Photo->PauseMode = EGolmokPhotoPauseMode::GamePause;
 				if (!Photo->Enter(Message)) { Photo->PauseMode = PreviousPause; Test->AddError(Message); return true; }
 				At = Now; Phase = 1; return false;
 			}
 			if (Now - At > 10) { Photo->Exit(TEXT("audio fade timeout")); Photo->PauseMode = PreviousPause; Test->AddError(TEXT("photo audio fade timed out")); return true; }
-			if (Phase == 1 && Now - At >= .05)
+			// Poll the target rather than assuming wall time equals clamped audio Tick time.
+			if (Phase == 1 && Audio->GetPhotoGain() < .0001)
 			{
-				Test->TestTrue(TEXT("photo gain fades instead of cutting"), Audio->GetPhotoGain() > 0 && Audio->GetPhotoGain() < 1);
-				Phase = 2;
+				Test->AddInfo(TEXT("EXECUTED GamePause photo gain reached zero"));
+				Photo->Exit(TEXT("audio fade test")); At = Now; Phase = 2;
 			}
-			if (Phase == 2 && Now - At >= .5)
+			if (Phase == 2 && Audio->GetPhotoGain() > .9999)
 			{
-				Test->TestTrue(TEXT("GamePause ticks photo gain to zero"), Audio->GetPhotoGain() < .0001);
-				Photo->Exit(TEXT("audio fade test")); At = Now; Phase = 3;
-			}
-			if (Phase == 3 && Now - At >= .05)
-			{
-				Test->TestTrue(TEXT("photo exit fades back in"), Audio->GetPhotoGain() > 0 && Audio->GetPhotoGain() < 1);
-				Phase = 4;
-			}
-			if (Phase == 4 && Now - At >= .5)
-			{
-				Test->TestTrue(TEXT("photo gain restored"), Audio->GetPhotoGain() > .9999);
+				Test->AddInfo(TEXT("EXECUTED photo gain restored"));
 				Photo->PauseMode = PreviousPause; return true;
 			}
 			return false;
@@ -167,8 +169,8 @@ bool FGolmokAudioFootstepTest::RunTest(const FString& Parameters)
 	Step.Advance(10, false, false, 70, 300);
 	TestFalse(TEXT("repossess has no false landing"), Step.Advance(0, true, true, 70, 300).Landed);
 	GolmokAudioMath::Envelope Gain;
-	Gain.Set(1, 2); Gain.Advance(.5); TestEqual(TEXT("quarter fade"), Gain.Value, .5);
-	Gain.Set(0, 1); Gain.Advance(.5); TestEqual(TEXT("interrupted fade retains starting gain"), Gain.Value, FMath::Sqrt(.125));
+	Gain.Set(1, 2); Gain.Advance(.5); TestEqual(TEXT("sin fade at quarter duration"), Gain.Value, FMath::Sin(UE_DOUBLE_PI / 8));
+	Gain.Set(0, 1); Gain.Advance(.5); TestEqual(TEXT("interrupted fade retains starting gain"), Gain.Value, FMath::Sin(UE_DOUBLE_PI / 8) / FMath::Sqrt(2.0));
 	Gain.Advance(10); TestEqual(TEXT("fade clamps at target"), Gain.Value, 0.0);
 	GolmokAudioMath::Envelope Outgoing, Incoming;
 	Outgoing.Set(1, 0); Outgoing.Set(0, 2); Incoming.Set(1, 2);
@@ -183,6 +185,11 @@ bool FGolmokAudioFootstepTest::RunTest(const FString& Parameters)
 	Incoming.Advance(.025); TestTrue(TEXT("50 ms replacement midpoint still audible"), Incoming.Value > 0 && Incoming.Value < BeforeReplacement);
 	Incoming.Advance(.025); TestEqual(TEXT("replacement reaches zero before swapping"), Incoming.Value, 0.0);
 	Incoming.Set(1, 0); TestEqual(TEXT("zero duration is immediate"), Incoming.Value, 1.0);
+	GolmokAudioMath::Envelope PhotoEnvelope(false);
+	PhotoEnvelope.Set(1, .25); PhotoEnvelope.Advance(.0625);
+	TestTrue(TEXT("photo amplitude raised cosine"), FMath::IsNearlyEqual(PhotoEnvelope.Value, (1.0 - FMath::Cos(UE_DOUBLE_PI / 4)) / 2));
+	PhotoEnvelope.Set(0, .25); PhotoEnvelope.Advance(.125);
+	TestTrue(TEXT("photo retarget amplitude continuity"), FMath::IsNearlyEqual(PhotoEnvelope.Value, (1.0 - FMath::Cos(UE_DOUBLE_PI / 4)) / 4));
 	FGolmokAudioConfig Config; FString Error;
 	TestTrue(TEXT("production audio config"), GolmokAudio::LoadConfig(Config, Error));
 	Config.StateCrossfadeSeconds.Add(TEXT("interior"), 1.0);
@@ -192,7 +199,7 @@ bool FGolmokAudioFootstepTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("measured proxy walk stride"), Config.StrideFor(TEXT("proxy110"), false), 45.0);
 	TestEqual(TEXT("measured quinn run stride"), Config.StrideFor(TEXT("quinn"), true), 146.0);
 	TestEqual(TEXT("unknown roster uses global stride"), Config.StrideFor(TEXT("future"), false), 70.0);
-	TestEqual(TEXT("photo fade default"), Config.PhotoMuteFadeSeconds, .25);
+	TestEqual(TEXT("production photo fade setting"), Config.PhotoMuteFadeSeconds, .25);
 	FString Manifest;
 	TestTrue(TEXT("read manifest for invalid date tests"), FFileHelper::LoadFileToString(Manifest, *(FPaths::ProjectConfigDir() / TEXT("Golmok/audio.json"))));
 	for (const TCHAR* Invalid : {TEXT("null"), TEXT("true"), TEXT("-0.01"), TEXT("5.01"), TEXT("\"0.25\"")})

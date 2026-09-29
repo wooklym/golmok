@@ -7,6 +7,8 @@ namespace GolmokAudioMath
 
 	struct Envelope
 	{
+		explicit Envelope(bool bPower = true) : Power(bPower) {}
+		bool Power;
 		double Value = 0.0, From = 0.0, To = 0.0, Elapsed = 0.0, Seconds = 0.0;
 		void Set(double Target, double Duration)
 		{
@@ -19,8 +21,10 @@ namespace GolmokAudioMath
 			if (!std::isfinite(Dt) || Dt < 0.0) return;
 			Elapsed += Dt;
 			const double Alpha = Seconds > 0.0 ? Clamp01(Elapsed / Seconds) : 1.0;
-			// Interpolate power, retaining the current amplitude when retargeting.
-			Value = std::sqrt(From * From * (1.0 - Alpha) + To * To * Alpha);
+			// Raised-cosine progress gives sin/cos crossfades and smooth amplitude fades.
+			const double Shaped = 0.5 - 0.5 * std::cos(3.14159265358979323846 * Alpha);
+			Value = Power ? std::sqrt(From * From * (1.0 - Shaped) + To * To * Shaped)
+				: From + (To - From) * Shaped;
 		}
 		bool Done() const { return Seconds == 0.0 || Elapsed >= Seconds; }
 	};

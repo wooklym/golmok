@@ -44,28 +44,30 @@ void UGolmokFootstepComponent::TriggerFootstep(bool bLanding)
 	AGolmokCharacter* Character = Cast<AGolmokCharacter>(GetOwner());
 	UGolmokAmbienceSubsystem* Audio = GetWorld() ? GetWorld()->GetSubsystem<UGolmokAmbienceSubsystem>() : nullptr;
 	if (!Character || !Audio) return;
+	const FGolmokAudioConfig& Config = Audio->GetConfig();
 	FHitResult Hit;
 	const FVector Start = Character->GetActorLocation();
 	const FVector End = Start - FVector(0, 0, Character->GetCapsuleComponent()->GetScaledCapsuleHalfHeight() + 30.f);
 	FCollisionQueryParams Params(SCENE_QUERY_STAT(GolmokAudioFloor), true, Character);
 	Params.bReturnPhysicalMaterial = true;
 	FString Set = TEXT("default");
-	FVector Point = End;
-	Audio->SetSurfaceDiagnostic(FString());
+	Audio->SetSurfaceDiagnostic(0, FString());
 	if (GetWorld()->LineTraceSingleByChannel(Hit, Start, End, ECC_Visibility, Params))
 	{
-		Point = Hit.ImpactPoint;
-		Audio->SetSurfaceDiagnostic(SurfaceDiagnostic(Audio->GetConfig(), static_cast<int32>(UGameplayStatics::GetSurfaceType(Hit))));
-		Set = ResolveSurfaceSet(Audio->GetConfig(), static_cast<int32>(UGameplayStatics::GetSurfaceType(Hit)),
-			Hit.GetActor() && Hit.GetActor()->ActorHasTag(TEXT("Course/Stairs")));
+		const int32 Surface = static_cast<int32>(UGameplayStatics::GetSurfaceType(Hit));
+		const FString Diagnostic = SurfaceDiagnostic(Config, Surface);
+		Audio->SetSurfaceDiagnostic(Surface, Diagnostic);
+		Set = ResolveSurfaceSet(Config, Surface,
+			Hit.GetActor() && Hit.GetActor()->ActorHasTag(TEXT("Course/Stairs")), &Diagnostic);
 	}
-	Audio->PlayFootstep(Set, bLanding, Point);
+	Audio->PlayFootstep(Set, bLanding);
 }
 
-FString UGolmokFootstepComponent::ResolveSurfaceSet(const FGolmokAudioConfig& Config, int32 Surface, bool bStairs)
+FString UGolmokFootstepComponent::ResolveSurfaceSet(const FGolmokAudioConfig& Config, int32 Surface, bool bStairs, const FString* Diagnostic)
 {
 	// SurfaceType numbers alone do not define an authored physical surface in this project.
-	const FString* Mapped = SurfaceDiagnostic(Config, Surface).IsEmpty() ? Config.Surfaces.Find(Surface) : nullptr;
+	const FString Error = Diagnostic ? *Diagnostic : SurfaceDiagnostic(Config, Surface);
+	const FString* Mapped = Error.IsEmpty() ? Config.Surfaces.Find(Surface) : nullptr;
 	const auto Choice = GolmokAudioMath::ChooseSurface(Mapped != nullptr, bStairs);
 	if (Choice == GolmokAudioMath::SurfaceChoice::StairsTag) return TEXT("stairs");
 	return Choice == GolmokAudioMath::SurfaceChoice::PhysicalMaterial ? *Mapped : FString(TEXT("default"));

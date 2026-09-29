@@ -16,7 +16,7 @@ public:
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 	void TriggerFootstep(bool bLanding);
 	static FString SurfaceDiagnostic(const FGolmokAudioConfig& Config, int32 Surface);
-	static FString ResolveSurfaceSet(const FGolmokAudioConfig& Config, int32 Surface, bool bStairs);
+	static FString ResolveSurfaceSet(const FGolmokAudioConfig& Config, int32 Surface, bool bStairs, const FString* Diagnostic = nullptr);
 private:
 	GolmokAudioMath::DistanceStepper Stepper;
 	FString LastRosterId;

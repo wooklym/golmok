@@ -34,10 +34,10 @@ public:
 	bool ForceState(const FString& InState);
 	void SetMuted(bool bValue) { bMuted = bValue; }
 	bool IsMuted() const;
-	void PlayFootstep(const FString& Set, bool bLanding, const FVector& Location);
+	void PlayFootstep(const FString& Set, bool bLanding);
 	void RefreshBindings();
 	double GetPhotoGain() const { return PhotoGain.Value; }
-	void SetSurfaceDiagnostic(const FString& Message) { SurfaceError = Message; }
+	void SetSurfaceDiagnostic(int32 Surface, const FString& Message);
 private:
 	void PresetChanged(FName Name, bool bInstant);
 	void InteriorChanged(bool bValue);
@@ -52,7 +52,9 @@ private:
 	int32 PendingSlot = INDEX_NONE;
 	double LastRealTime = 0.0, NextBindingTime = 0.0;
 	FString SlotIds[2];
-	GolmokAudioMath::Envelope Gains[2], PhotoGain;
+	GolmokAudioMath::Envelope Gains[2];
+	GolmokAudioMath::Envelope PhotoGain{false};
+	TSet<int32> WarnedSurfaces;
 	TWeakObjectPtr<AGolmokTimeOfDay> Lighting;
 	TWeakObjectPtr<APlayerController> Controller;
 	TWeakObjectPtr<UGolmokDebugSubsystem> Debug;
