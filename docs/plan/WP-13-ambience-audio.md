@@ -157,7 +157,7 @@ Python에서 런타임 추가 뒤 **1 failed,722 passed,67 skipped**(37.34s)를 
 
 [오케스트레이터 01:27Z 응답](https://github.com/wooklym/golmok/pull/34#issuecomment-5861681375)으로 위 두 계약 대기를 해소했다. WP-12 런북 §1 현재 총계를 28개로 갱신했으며 §13의 26/26 실행 이력은 보존했다(`fd3a318`). DefaultGame.ini 끝 Audio cook 훅과 WP-05 fixture의 허용된 두 줄 예외를 별도 커밋으로 반영했다(`7be448d`). UFS 항목은 추가하지 않았다.
 
-Fable은 빠른 제3상태 최대50ms 교체, 70/110cm 보폭, 재질 default, Photo mute/maintain의 설계 가설을 승인했다. 상태별 `crossfade_seconds_by_state` JSON 값을 추가해 목적 상태별 튜닝을 지원한다. 누락 상태는 전역 crossfade_seconds로 돌아가며 기본값은 모두2초다. 실내1초/실외2초 비교 및 1초 안에 포털 왕복3회 청취는 V-10 런북에 남긴다. 메시 Z 스케일 보폭 옵션은 선택 제안이므로 V-10 청취 뒤 후속으로 판단한다. 실제 소리 품질·패키징 합격을 뜻하지 않는다.
+Fable은 빠른 제3상태 최대50ms 교체, 70/110cm 보폭, 재질 default, Photo mute/maintain의 설계 가설을 승인했다. 상태별 `crossfade_seconds_by_state` JSON 값을 추가해 목적 상태별 튜닝을 지원한다. 누락 상태는 전역 crossfade_seconds로 돌아가며 기본값은 모두2초다. 실내1초/실외2초 비교 및 1초 안에 포털 왕복3회 청취는 V-10 런북에 남긴다. 당시 Fable은 메시 Z 스케일 보폭 옵션을 V-10 로스터 비교 뒤 재검토하도록 조건부 허용했다. 이후 V-10 측정/T8에서 기각하고 캐릭터별 보폭으로 대체했다(아래 13d). 실제 소리 품질·패키징 합격을 뜻하지 않는다.
 
 ### 병합 시 반영 — 최종 문안 (앞의 중간 단계 문안 대체)
 
@@ -224,3 +224,56 @@ STATUS 트랙 1A WP-13 행의 상태는 **🟡 코드 완료·PC V-10 대기** �
 - **소유자 항목(비차단)**: C-07 Windows 보안 대화상자(패키지 발소리 청취·이후 PC GUI 카드 차단), C-08 볼륨·크로스페이드 청취·최종 gain.
 - **Fable 설계 판단 → Astra T8**(`astra-tasks.md`, D-016 진행 2026-09-28): ① 실내 크로스페이드 1.0 s 채택 ② equal-power(sin/cos) 곡선 채택 ③ Photo mute 0.25 s 페이드 채택 ④ `stride_scale_by_mesh` 기각 → 캐릭터별 걷기/달리기 보폭 데이터(임시; V-08 뒤 노티파이) ⑤ 볼륨 후보(master 1.0·낮 0.5·밤 0.36·실내 0.30·발소리/착지 1.0) 임시 적용 ⑥ 생성 `Content/Golmok/Audio/*/SW_*.uasset` ignore(이 PR). T8에는 PR #50 리뷰 (B) R50-1~8도 포함.
 - **(C) 옮긴 것**: STATUS 마지막 갱신·WP-13 행 2개·V-10 행(PC 세션 작성)·C-07·C-08, DECISIONS D-016 진행 (a), ROADMAP 1.x WP-13 🟢, astra-tasks T8·우선순위, `.gitignore`.
+
+
+## 13d 결과 — T8 V-10 후속 (2026-09-29 KST)
+
+배정: [이슈 #30 Fable T8](https://github.com/wooklym/golmok/issues/30#issuecomment-5879528015). main `f759bf8`에서 착수 후 WP-14a 병합 `2e6b642`를 충돌 없이 반영했다. WP-14a의 프리셋/실내 이벤트 계약은 그대로 사용하며 Lighting/Debug/Player·ini 변경과 새 훅은 없다.
+
+| 항목 | 반영·판정 |
+|---|---|
+| 목적 상태 전환 | 실내1.0초·실외2.0초, 슬롯별 전력 보간 `sqrt(F² + (T²-F²)*alpha)`. 상보 슬롯 합산 전력·중간 재타깃·50ms 교체 수학 회귀. 제3슬롯 교체/초기 시작의 일정 전력이나 서로 다른 음원의 같은 청감을 주장하지 않음 |
+| Photo | 별도 0.25초 envelope, JSON `photo_mute_fade_seconds`(0~5, 생략 .25, 0 즉시). GamePause에서 진입 중간값→0→종료 중간값→1 실제 헤드리스 검사. 원샷 FadeOut·새 원샷 억제. 출력 파형은 PC 미검증 |
+| 로스터 보폭 | `footsteps.stride_cm_by_character`: manny/quinn 67/146, proxy135 54/142, proxy110 45/115cm, 없으면70/110. 같은 폰에서 id 변경 시 거리 리셋. `stride_scale_by_mesh` 기각·입력 거부. V-08 이후 노티파이 재검토 |
+| 볼륨·발소리 | master1.0, 낮.5·밤.36·실내.30, 발소리/착지1.0. 자체 발소리/착지는 SpawnSound2D로 카메라 붐 감쇠 제거. 다른 소스용 attenuation 설정 유지. 최종 청취/밸런스는 C-08 |
+| R50-1·2·5·6 | 표면 이름↔세트 id 대소문자 무관 대조, 누락/불일치 HUD 오류와 fallback. `steps=`로 default/asphalt 진단. HUD 실제 `audio:` 줄·Before+2→Before 공급자 수 검사. 런북에 임시 Physics 이름·복사 맵·ini 원상복구 및 패키지 `error: missing SoundWave` 부재 확인 |
+| R50-3 | T6 추가 경고는 Audio.StateMachine의 ToD 파괴/재생성 중 L_Dev GeoOrigin 부재 안내(런북 §8에 전문). 누락 SoundWave 경고가 아니며 숨기지 않음 |
+| R50-4·7·8 | 이번 훅 없음(향후 의존 훅 우선); D-019 기록은 오케스트레이터가 이미 반영. D7 당시 조건부 허용→V-10 뒤 기각 이력 정정 |
+| 스키마/출처 | Python/C++ 새 필드 타입·범위·기본값 일치. UE의 bool/숫자 문자열 자동 변환을 발견해 Number/Range에서 숫자 타입 요구. 실패 파싱의 기존 설정 보존 검사. source/출처는 변경하지 않았으며 실제 임포트·재임포트7+7, gain/loop 확인·크레딧 동일 |
+| 런북 | 포털 기준을 0.5 s 간격3왕복으로 정정. §6·§7의 V-10 원래 측정값·PC cook 명령·이력을 보존하고 T8 검증 범위를 별도 표기 |
+
+검증: ruff check/format104·check_repo·diff --check 통과. pytest **881 passed/185 skipped/208 warnings,34.43s**(로컬 g++ 등 건너뜀; CI 교차검증 별도). UE5.8.3 빌드 **32.24s 성공**(엔진 C4996 경고), 실제 SoundWave **7개 임포트+재임포트7개**, loop/gain 일치·**0 errors/0 warnings**·ATTRIBUTION/크레딧 diff 없음. `test.ps1 -SetupDevLevel -Filter Golmok.Audio`: **2 Success(경고1), failed0/notRun0,1.88s**. 전체 `test.ps1 -SetupDevLevel`: **29 Success(21+경고8), failed0/notRun0,172.34s**; RenderEvidence NOT EXECUTED1 제외 실제28개. WP-14a Lighting.Clock·PhotoIntegration6조합 포함. 근거는 로컬 tools/.venv/t8-{import.log,audio-report.json,full-report.json,pytest.log}. CI 결과는 PR checks/이슈 보고가 정본.
+
+제한: 기존 WP-13/V-10 🟢는 `5f6c810` 녹음 파형/루프백 근거다. 이번 T8과 T6의 런타임 PC 스모크·청취·패키지 발소리는 새 결과가 없으며 C-07 뒤 실행한다. C-08 최종 gain·크로스페이드 체감은 소유자 판단, C-2 Shipping 크레딧 UI는 실제 소스 확정 뒤 별도 배정이다. 새 음원 채택·구매·약정·외부 의존성 없음.
+
+## 병합 시 반영 — 13d T8 (병합 커밋에서 적용, 2026-09-29)
+
+- STATUS 트랙 1A WP-13 및 병행 트랙 WP-13 행: **🟢 V-10 PC 검증 통과(5f6c810 파형·루프백 근거)** 유지 + "13d T8 [PR #55](https://github.com/wooklym/golmok/pull/55): 실내 1.0/실외 2.0 s·전력 보간(sin² 성형)·Photo 0.25 s·로스터별 보폭·2D 자체 발소리·임시 gain·표면 이름=세트 id 계약·R50 후속 구현·헤드리스 검증. T6/T8 런타임 PC 스모크·새 설정 청취·패키지 발소리는 C-07 뒤 V-11 카드, 최종 밸런스 C-08 대기."
+- STATUS C-08 행: T8 적용 완료, C-07 뒤 같은 장치·OS 볼륨으로 재녹음·청취(착지/발소리 −1.6 dB, 2D 추가 상승 추정 유의).
+- astra-tasks T8 행: "병합(#55, 2026-09-29; 헤드리스·UE 빌드) — 런타임 출력·청취·패키지 발소리는 C-07 뒤 PC"; 우선순위 줄: ~~T8~~ → T7 RHI(C-07 뒤) + 다음 오디오 push(R55-5/7/9).
+- 런북 §6 소유자 밸런스 행: PR 본문 문안으로 교체(V-10 측정값 보존, T8 임시 값, +9.1/+7.5 dB 산술, 2D 추정).
+- D-016 진행: T8 병합, 곡선 결정(sin² 성형·Photo S-curve), 표면 이름=세트 id 계약, 최종 음질/밸런스 합격 미포함.
+- 자동화 총수: main 병합 뒤 기대값 **32**(Audio 2 불변); PR의 29는 base 2e6b642 기준.
+
+## PR #55 리뷰 보완 — R55 (2026-09-29 KST)
+
+[리뷰](https://github.com/wooklym/golmok/pull/55#issuecomment-5880728596)·[배정](https://github.com/wooklym/golmok/issues/30#issuecomment-5880730532)에 따라 같은 브랜치에서 R55-1/2·권장 R55-4/6/8을 한 번의 push로 반영한다. 위 13d 초기 구현 설명 중 곡선/진단/Photo 테스트는 이 절로 갱신한다.
+
+- **R55-1(Fable 결정)**: 전력 보간의 진행값을 `u = (1 - cos(pi * alpha)) / 2`로 성형한다. 0↔1은 sin/cos 법칙이며 상보 전력·재타깃 연속성·50ms 교체를 유지한다. Photo는 같은 진행값으로 **진폭**을 보간하고 원샷은 `FadeOut(D, 0, SCurve)`를 사용한다. g++ 드라이버에 Photo 모드와 60fps 첫 틱/끝점 검사를 추가하고 C++ 기대값도 갱신했다.
+- **R55-2**: 서브시스템의 `WarnedSurfaces`로 월드별 표면 번호당 Warning 한 번을 남긴다. 발걸음 진단을 한 번 계산해 매핑과 HUD에 재사용한다. Physics 표면 이름은 세트 id와 대소문자 무관하게 같아야 매핑되며, 아니면 default + HUD error + 1회 로그(명시 계단 태그 우선). 자동화는 서로 다른 2번호 및 반복·HUD 초기화 후 재호출에 정확히 각1회 로그를 요구한다. 이 의도적 경고만 ExpectedMessage로 검증하고 L_Dev GeoOrigin 경고는 그대로 보고한다.
+- **R55-4**: 미사용 Location/Point 전달 제거, attenuation은 비로컬 소스 예약 주석으로 목적 명시. SpawnSound2D가 Play 전에 UI sound를 설정하므로 사후 bIsUISound 대입 제거.
+- **R55-6**: Photo 시나리오는 mute/양수 fade일 때만 실행하고 다른 설정은 NOT EXECUTED 안내. 목표0/1 도달을 폴링하며 각 단계10초 타임아웃으로 제한한다. 고정 시각 중간값은 순수 곡선 검사로 옮겼다. HUD audio 줄 정확히1개 단언, 테스트 라벨 수정.
+- **R55-8**: 런북 C-11·§7-5의 이름/세트 계약, §6 포털 원문과 T8 정정 병기, 불확실 API A10(FadeOut/UI sound/GamePause 실제 출력 미검증)을 추가했다. 기존 PC 수치는 보존했다.
+
+검증: ruff check/format104·check_repo·diff --check 통과, pytest **881 passed/187 skipped/208 warnings,34.77s**(로컬 g++ 없음, 새 순수 검사2개 포함 skip; CI 별도). UE5.8.3 최종 빌드 **4.94s 성공**, Audio **2 Success(경고1), failed0/notRun0,1.40s**. 전체 **29 Success(21+경고8), failed0/notRun0,171.73s**; 기본 RenderEvidence NOT EXECUTED1 제외 실제28개. GamePause fade 목표0/1 실제 도달 및 표면 로그 개수 회귀 통과. 근거는 로컬 tools/.venv/r55-*.log·*-report.json, CI는 PR 체크/보고 코멘트가 정본.
+
+R55-3 공유 문안/큐·C-08·소유자 밸런스 행과 main 통합은 오케스트레이터 병합 커밋 담당(요청 순서). 따라서 이 수정의 전체 UE 실측은 기반 `2e6b642`의29개이며 현재 main 기대값32와 구분한다. R55-5/7/9는 배정대로 다음 오디오 push에 남긴다. C-07·C-08 및 실제 출력 청취 제한은 그대로다.
+
+## 병합 기록 — 13d T8 [PR #55](https://github.com/wooklym/golmok/pull/55) (2026-09-29)
+
+대상: `astra/wp-13d-v10-followups` ef3ace7(Astra push 정지) + 오케스트레이터 병합 커밋(main 6872583 병합·충돌 없음·위 병합 시 반영). 리뷰: Opus 5.5 읽기 전용 적대 검증 R55-1~9 + Fable 설계 검토(#55 코멘트). 병합: 오케스트레이터 결정(D-019).
+
+- **판정: 병합(A 없음).** T8 ①~⑨ 전부 구현, R50-1/2/5/6 후속 포함. (B) R55-1(Fable 결정: 전력 보간 α=sin²(πα/2) 성형·Photo 진폭 S-curve·원샷 SCurve)·R55-2(표면 번호당 1회 Warning·진단 1회 계산) 및 (C) R55-4/6/8을 Astra가 한 번의 push(bf9522d·ef3ace7)로 반영; R55-3(공유 문안)은 이 병합 커밋; R55-5(bool/문자열 타입 엄격성)·R55-7(보폭 id 교차 검사)·R55-9(밸런스 추정 문안 — 런북 §6에 반영)는 다음 오디오 push.
+- **Fable 설계 검토**: 전력 영역 보간·실내 1.0 s·Photo 0.25 s·캐릭터별 보폭·SpawnSound2D 자체 발소리·임시 gain은 T8 결정과 일치. 새 계약(표면 이름=세트 id)은 V-10 §7-5의 임시 이름(`V10Asphalt` 등)이 더 이상 매핑되지 않으므로 다음 PC 카드는 세트 id 이름을 쓴다.
+- **검증 범위**: 헤드리스·UE 5.8.3 빌드·`Golmok.Audio` 2/2·전체 29(base 2e6b642; main은 32)·CI 10/10. 실제 파형·음색·밸런스·패키지 발소리는 미실행 — C-07 뒤 V-11 카드(T6/T8 스모크, §7-1a 도구 재녹음), C-08 소유자 청취.
+- **(C) 옮긴 것**: STATUS 마지막 갱신·WP-13 행 2개·C-08, astra-tasks T8·우선순위, 런북 §6 소유자 밸런스 행, DECISIONS D-016 (a) 진행, 이 절.

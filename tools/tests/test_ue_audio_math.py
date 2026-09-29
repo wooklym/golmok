@@ -1,5 +1,6 @@
 """Production audio math, independently exercised in g++ CI."""
 
+import math
 import random
 import shutil
 import subprocess
@@ -93,9 +94,70 @@ def test_retarget_continuity_and_endpoints(driver):
             "advance 0",
         ],
     )
-    assert [v[0] for v in values] == pytest.approx([0.25, 0.25, 0.125, 0, 1])
+    assert [v[0] for v in values] == pytest.approx(
+        [math.sin(math.pi / 8), math.sin(math.pi / 8), math.sin(math.pi / 8) / math.sqrt(2), 0, 1]
+    )
 
 
 def test_surface_priority(driver):
     values = run(driver, ["surface 0 0", "surface 1 0", "surface 0 1", "surface 1 1"])
     assert [v[0] for v in values] == [0, 1, 2, 2]
+
+
+def test_complementary_power_and_interrupted_reversal(driver):
+    incoming = run(driver, ["target 1 2", "advance .5", "target 0 1", "advance .25"])
+    outgoing = run(driver, ["target 1 0", "target 0 2", "advance .5", "target 1 1", "advance .25"])
+    for first, second in zip(incoming, outgoing, strict=True):
+        assert first[0] ** 2 + second[0] ** 2 == pytest.approx(1)
+
+
+def test_third_clip_replacement_reaches_zero_in_50ms(driver):
+    values = run(
+        driver,
+        [
+            "target 1 2",
+            "advance .5",
+            "target 0 .05",
+            "advance 0",
+            "advance .025",
+            "advance .025",
+            "target 1 1",
+            "advance 0",
+            "advance .25",
+        ],
+    )
+    assert [v[0] for v in values] == pytest.approx(
+        [
+            math.sin(math.pi / 8),
+            math.sin(math.pi / 8),
+            math.sin(math.pi / 8) / math.sqrt(2),
+            0,
+            0,
+            math.sin(math.pi / 8),
+        ]
+    )
+
+
+def test_photo_amplitude_s_curve_and_retarget(driver):
+    values = run(
+        driver,
+        [
+            "photo_target 1 .25",
+            "photo_advance .0625",
+            "photo_target 0 .25",
+            "photo_advance 0",
+            "photo_advance .125",
+            "photo_advance 1",
+        ],
+    )
+    quarter = (1 - math.cos(math.pi / 4)) / 2
+    assert [v[0] for v in values] == pytest.approx([quarter, quarter, quarter / 2, 0])
+
+
+def test_sin_cos_endpoints_at_60fps(driver):
+    incoming = run(driver, ["target 1 1", "advance 0", "advance .016666666666666666", "advance 1"])
+    outgoing = run(
+        driver, ["target 1 0", "target 0 1", "advance 0", "advance .016666666666666666", "advance 1"]
+    )
+    assert [v[0] for v in incoming] == pytest.approx([0, math.sin(math.pi / 120), 1])
+    assert [v[0] for v in outgoing] == pytest.approx([1, math.cos(math.pi / 120), 0])

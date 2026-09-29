@@ -16,7 +16,9 @@ namespace GolmokAudio
 	}
 	bool Number(const FObject& Parent, const TCHAR* Key, double& Out, double Low, double High)
 	{
-		return Parent.IsValid() && Parent->TryGetNumberField(Key, Out) && FMath::IsFinite(Out) && Out >= Low && Out <= High;
+		// UE converts JSON booleans/strings to numbers; the Python manifest contract rejects them.
+		return Parent.IsValid() && Parent->HasTypedField<EJson::Number>(Key)
+			&& Parent->TryGetNumberField(Key, Out) && FMath::IsFinite(Out) && Out >= Low && Out <= High;
 	}
 	bool String(const FObject& Parent, const TCHAR* Key, FString& Out)
 	{
@@ -26,6 +28,7 @@ namespace GolmokAudio
 	{
 		const TArray<TSharedPtr<FJsonValue>>* Values = nullptr;
 		return Parent.IsValid() && Parent->TryGetArrayField(Key, Values) && Values->Num() == 2
+			&& (*Values)[0]->Type == EJson::Number && (*Values)[1]->Type == EJson::Number
 			&& (*Values)[0]->TryGetNumber(Low) && (*Values)[1]->TryGetNumber(High)
 			&& FMath::IsFinite(Low) && FMath::IsFinite(High) && Low >= Min && High >= Low && High <= Max;
 	}
@@ -49,6 +52,7 @@ namespace GolmokAudio
 			|| !Number(Root, TEXT("crossfade_seconds"), Next.CrossfadeSeconds, 0, 30)
 			|| !String(Root, TEXT("pause_policy"), Pause) || (Pause != TEXT("mute") && Pause != TEXT("maintain"))) return false;
 		Next.bMuteInPhoto = Pause == TEXT("mute");
+		if (Root->HasField(TEXT("photo_mute_fade_seconds")) && !Number(Root, TEXT("photo_mute_fade_seconds"), Next.PhotoMuteFadeSeconds, 0, 5)) return false;
 		if (Root->HasField(TEXT("crossfade_seconds_by_state")))
 		{
 			const FObject Durations = Object(Root, TEXT("crossfade_seconds_by_state"));
@@ -110,6 +114,22 @@ namespace GolmokAudio
 			|| !Range(Steps, TEXT("pitch_range"), Next.PitchMin, Next.PitchMax, .5, 2)
 			|| !Range(Steps, TEXT("volume_range"), Next.VolumeMin, Next.VolumeMax, 0, 1)
 			|| !String(Steps, TEXT("landing"), Next.Landing)) return false;
+		if (Steps->HasField(TEXT("stride_scale_by_mesh"))) return false; // Superseded by measured roster strides.
+		if (Steps->HasField(TEXT("stride_cm_by_character")))
+		{
+			const FObject Strides = Object(Steps, TEXT("stride_cm_by_character"));
+			if (!Strides.IsValid()) return false;
+			for (const auto& Pair : Strides->Values)
+			{
+				const FString Id(*Pair.Key);
+				if (Id.IsEmpty() || Id.Len() > 48 || Id[0] < 'a' || Id[0] > 'z') return false;
+				for (const TCHAR C : Id) if (!(C >= 'a' && C <= 'z') && !(C >= '0' && C <= '9') && C != '_') return false;
+				const FObject Entry = Object(Strides, *Id);
+				double Walk = 0, Run = 0;
+				if (!Entry.IsValid() || Entry->Values.Num() != 2 || !Number(Entry, TEXT("walk"), Walk, 1, 10000) || !Number(Entry, TEXT("run"), Run, 1, 10000)) return false;
+				Next.StrideByCharacter.Add(Id, FVector2D(Walk, Run));
+			}
+		}
 		const FObject Sets = Object(Steps, TEXT("sets")), Surfaces = Object(Steps, TEXT("surface_sets"));
 		if (!Sets.IsValid() || !Surfaces.IsValid() || !Next.Assets.Contains(Next.Landing) || Next.Assets[Next.Landing].bLoop) return false;
 		for (const auto& Pair : Sets->Values)
