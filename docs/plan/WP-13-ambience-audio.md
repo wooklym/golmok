@@ -278,3 +278,20 @@ R55-3 공유 문안/큐·C-08·소유자 밸런스 행과 main 통합은 오케�
 - **Fable 설계 검토**: 전력 영역 보간·실내 1.0 s·Photo 0.25 s·캐릭터별 보폭·SpawnSound2D 자체 발소리·임시 gain은 T8 결정과 일치. 새 계약(표면 이름=세트 id)은 V-10 §7-5의 임시 이름(`V10Asphalt` 등)이 더 이상 매핑되지 않으므로 다음 PC 카드는 세트 id 이름을 쓴다.
 - **검증 범위**: 헤드리스·UE 5.8.3 빌드·`Golmok.Audio` 2/2·전체 29(base 2e6b642; main은 32)·CI 10/10. 실제 파형·음색·밸런스·패키지 발소리는 미실행 — C-07 뒤 V-11 카드(T6/T8 스모크, §7-1a 도구 재녹음), C-08 소유자 청취.
 - **(C) 옮긴 것**: STATUS 마지막 갱신·WP-13 행 2개·C-08, astra-tasks T8·우선순위, 런북 §6 소유자 밸런스 행, DECISIONS D-016 (a) 진행, 이 절.
+
+
+## 13e 결과 — T9 R55 잔여 (2026-09-29 KST)
+
+배정: [이슈 #30 T9](https://github.com/wooklym/golmok/issues/30#issuecomment-5881358195), 분석 도구 병합 반영 뒤 main `2b152ce`에서 새 브랜치 `astra/wp-13e-r55-followups`로 착수했다. 병합된 T8 브랜치에는 push하지 않는다.
+
+- **R55-5**: C++ `loop`/`placeholder`는 JSON Boolean, 공통 `String()` 및 빈 값이 허용되는 `license_url`은 JSON String을 요구한다. UE의 숫자/문자열 자동 변환을 허용하지 않으며 기존 정상 매니페스트는 그대로 읽는다. C++의 bool 필드 숫자·문자열 변이와 author 숫자·bool 변이, 실패 뒤 기존 설정 보존을 검사했다. Python 쪽에도 대응하는 변이 6개를 추가했다.
+- **R55-7**: 보폭 설정의 모든 키가 `characters.json` 로스터 id인지 검사하는 pytest를 추가했다. 알 수 없는 키는 실패, 보폭 항목이 없는 로스터 id는 전역 보폭 fallback을 사용한다는 UserWarning이며 실패로 처리하지 않는다. 로스터 파일은 읽기만 하며 수정하지 않았다.
+- **런북 범위 점검**: §6 소유자 밸런스 행의 R55-9 추정값·미측정 표시, §7의 이전 V-10 실행 이력과 §7-1a 분석 도구, §8 T8 실제 출력 미검증 범위가 유지됨을 확인했다. 중복 수정은 하지 않았다. R55-9는 병합 세션 완료 사항으로 T9에서 제외한다.
+
+검증: ruff check/format108·check_repo·diff --check 통과. pytest **1000 passed/203 skipped/208 warnings,39.46s**(로컬 g++ 등 skip, CI 별도). UE5.8.3 빌드 **68.47s 성공**(엔진 C4996 경고). Audio **2 Success(경고1), failed0/notRun0,1.24s**. 전체 **32 Success(21+경고11), failed0/notRun0,178.56s**; RenderEvidence 기본 NOT EXECUTED1 제외 실제31개. 근거: 로컬 tools/.venv/t9-*.log·*-report.json. CI 결과는 PR 체크/보고 코멘트가 정본.
+
+훅·공유 문서·설정 값·음원·출처·새 품질 정책 변경 없음. 이번 엄격성/테스트 보완은 헤드리스 결과이며 T6/T8의 실제 출력·청취·패키지 발소리를 대신하지 않는다. T7 RHI 및 C-07/C-08 대기는 그대로다.
+
+### 병합 시 반영 — T9
+
+astra-tasks T9 행/STATUS Astra 진행 기록 문안: “T9 13e: R55-5 C++ Boolean/String 타입 엄격성 및 변이 회귀, R55-7 보폭 키↔로스터 교차 검사(미등록 키 실패·보폭 누락 경고), 런북 범위 점검 완료. 헤드리스 검증; T6/T8 출력·청취는 C-07 뒤 PC, 다음 T7 RHI도 PC 조건 뒤.” 기존 WP-13/V-10 🟢 및 C-08 판정 범위는 유지한다.
