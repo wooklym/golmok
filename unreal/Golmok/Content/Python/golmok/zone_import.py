@@ -67,7 +67,7 @@ CACHE_NAME = "importer_mapping.json"
 RESULT_NAME = "import_result.json"
 OBJ_HEADER_LINES = 4096  # import_plan only needs the lines before the first face (mtllib is at the top)
 _BYPRODUCT_CLASSES = ("Material", "MaterialInstanceConstant", "Texture2D")  # importer by-products
-SCRATCH = "_import"  # V-03: every import goes to <folder>/_import and is moved to its convention path
+SCRATCH = "_import"  # V-03: mesh imports (and T_ZoneScanDefault) go to <folder>/_import, then are moved
 MASTER_DEFAULT_NAME = "T_ZoneScanDefault"  # the masters' own default texture (never a zone texture)
 MASTER_DEFAULT_PX = 256  # >= the virtual texture tile size
 NULLRHI_FLAG = "-nullrhi"  # headless editor: texture sizes are not measurable (V-04b F1, runbook #4)
@@ -612,14 +612,18 @@ def _force_texture_settings(texture) -> tuple[bool, bool]:
 
 
 def _without_rhi() -> bool | None:
-    """True when the editor runs with -nullrhi (headless), None when SystemLibrary.get_command_line is not
-    exposed (runbook #4). Without RHI a texture's size comes from its source, and a merged UDIM then seems to
+    """True when the editor runs without RHI (-nullrhi, or a -run= commandlet without
+    -AllowCommandletRendering), None when SystemLibrary.get_command_line is not exposed (runbook #4, #40). Without RHI a texture's size comes from its source, and a merged UDIM then seems to
     report its first block (the tile size) [unverified on 5.8.3 source]: the size test cannot tell merged from
     unmerged, and packing a merged texture again ends the editor (V-04b F1)."""
     lib = getattr(unreal, "SystemLibrary", None)
     if lib is None or not hasattr(lib, "get_command_line"):
         return None
-    return NULLRHI_FLAG in str(lib.get_command_line()).lower().split()
+    tokens = [t.strip("\"'") for t in str(lib.get_command_line()).lower().split()]
+    if NULLRHI_FLAG in tokens or "/nullrhi" in tokens:
+        return True
+    # a commandlet (UnrealEditor-Cmd -run=pythonscript ...) renders nothing unless -AllowCommandletRendering
+    return any(t.startswith("-run=") for t in tokens) and "-allowcommandletrendering" not in tokens
 
 
 def _tile_copy_name(name: str, u: int, v: int) -> str:

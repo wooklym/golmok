@@ -759,6 +759,22 @@ def test_gui_editor_packs_as_before_and_reads_the_command_line(monkeypatch, tmp_
     ]
 
 
+@pytest.mark.parametrize(
+    ("command_line", "no_rhi"),
+    [
+        ('"C:/p/Golmok.uproject" -log', False),
+        ('"C:/p/Golmok.uproject" -NullRHI -unattended', True),
+        ('"C:/p/Golmok.uproject" "-nullrhi"', True),
+        ('"C:/p/Golmok.uproject" -run=pythonscript -script="x.py"', True),  # commandlet: no rendering
+        ('"C:/p/Golmok.uproject" -run=pythonscript -AllowCommandletRendering', False),
+        ('"C:/p/Golmok.uproject" -nullrhiX', False),
+    ],
+)
+def test_without_rhi_reads_the_command_line(fake, unreal, zi, monkeypatch, command_line, no_rhi):
+    monkeypatch.setattr(unreal.SystemLibrary, "get_command_line", staticmethod(lambda: command_line))
+    assert zi._without_rhi() is no_rhi
+
+
 # ---- V-04b F2: absolute work paths -----------------------------------------------------------------------
 
 
@@ -789,11 +805,19 @@ def test_relative_project_dirs_are_made_absolute(monkeypatch, tmp_path, zone, co
     assert len(naive_glb) - len(glb) == len(fake.binaries_dir) - len(str(tmp_path)) + len("/..") * 4
     content = Path(fake.content_dir) / "Golmok" / "Zones" / ZONE / "v1"
     assert (content / "manifest.json").is_file() and (content / "blockers.json").is_file()
+    if convert:  # convert_relative_path_to_full resolves against the binaries folder whatever the CWD is
+        monkeypatch.chdir(tmp_path)
+    assert (zi._saved_dir(), zi._content_dir()) == (str(Path(fake.saved_dir)), str(Path(fake.content_dir)))
     it = importlib.import_module("golmok.interior_setup")
     assert it._parent_manifest(ZONE, 1)["zone_id"] == ZONE  # interior_setup reads the same absolute Content
     sz = importlib.import_module("golmok.synthetic_zone")
     assert sz._saved_dir() == str(Path(fake.saved_dir) / "Golmok" / "synthetic_zone")
     assert sz._content_dir() == str(Path(fake.content_dir))
+    viewpoints = importlib.import_module("golmok.viewpoints")
+    capture = viewpoints.capture("a", names=["far_01"], presets=[None])
+    assert capture.out_root == str(Path(fake.saved_dir) / "Screenshots" / "Golmok" / "a")
+    unreal_module = fake.module
+    unreal_module.unregister_slate_post_tick_callback(capture.handle)
 
 
 # ---- materials and slots -------------------------------------------------------------------------------

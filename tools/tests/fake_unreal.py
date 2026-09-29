@@ -1321,7 +1321,9 @@ def _register(fake, asset, replace_existing):
             asset.path += "_2"
     old = fake.registry.get(asset.path)
     if replace_existing and old is not None and type(old) is type(asset):
+        props = old.props  # a re-import keeps the asset's settings (sRGB, VT, ...) on the same object
         old.__dict__.update(asset.__dict__)  # a re-import updates the existing object (references keep it)
+        old.props = props
         return old
     fake.registry[asset.path] = asset
     return asset
