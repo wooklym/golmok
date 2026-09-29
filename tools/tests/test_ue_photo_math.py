@@ -4,8 +4,9 @@ The header has no Unreal dependency (its only quoted includes are the two other 
 Geo/GolmokGeoMath.h and Debug/GolmokStatsMath.h), so it is compiled with g++
 (fixtures/ue/photomath_driver.cpp) into a small command-line driver: parameter steps / quantisation / f-stop
 table, angle wrap, FOV -> 35 mm focal length, the sphere and footprint-polygon clamps, the combined
-`Constrain` rule and the photo meta JSON writer. Every input goes through stdin (Windows argv limit / code
-page). Skipped when no C++ compiler is on PATH; the polygon cases also need shapely (`zone` extra).
+`Constrain` rule, the pawn's keep-height slide direction (`KeepHeightSlide`) and the photo meta JSON writer.
+Every input goes through stdin (Windows argv limit / code page). Skipped when no C++ compiler is on PATH;
+the polygon cases also need shapely (`zone` extra).
 """
 
 from __future__ import annotations
@@ -55,6 +56,7 @@ FUNCTIONS = [
     "NearestBoundaryPoint",
     "ClampToPolygonXY",
     "Constrain",
+    "KeepHeightSlide",
     "FormatPhotoMetaJson",
 ]
 # design §2-1 (photo.json is the single source; the constants here are the pytest regression copy)
@@ -1471,3 +1473,169 @@ def test_constrain_keep_height_never_changes_z(driver):
     got = constrain_keep_height(driver, (0.0, 0.0, 0.0), 300.0, 20.0, [], [(400.0, 300.0, 180.0)])
     assert got[0][0] == 1
     assert np.allclose(got[0][1], [0.8 * 240.0, 0.6 * 240.0, 180.0])
+
+
+# --------------------------------------------------------- keep-height slide (V-09c #68, PR #56 review R56-2)
+
+MIN_HORIZONTAL = 0.02  # AGolmokPhotoCameraPawn's PhotoSlopeSlideMinHorizontal (test_ue_wp12_fixture pins it)
+PUSH = (100.0, 40.0, 0.0)  # the (c) box push of Golmok.Photo.Clamp: 100 cm forward (+x), 40 cm right (+y)
+
+
+def kslide(driver: Path, cases, min_h: float = MIN_HORIZONTAL) -> list[tuple[bool, np.ndarray]]:
+    text = f"{min_h!r} {len(cases)} " + nums(*(v for slide, normal in cases for v in (*slide, *normal)))
+    rows = run_lines(driver, "kslide", text)
+    assert len(rows) == len(cases)
+    return [(row[0] == 1.0, np.array(row[1:])) for row in rows]
+
+
+def plane_project(r, n) -> np.ndarray:
+    """FVector::VectorPlaneProject(R, N) = R - N (R . N): the slide the pawn hands to KeepHeightSlide."""
+    r, n = np.asarray(r, dtype=float), np.asarray(n, dtype=float)
+    return r - n * float(r @ n)
+
+
+def flat(v) -> np.ndarray:
+    return np.array([float(v[0]), float(v[1]), 0.0])
+
+
+def face_normal(deg_from_level: float, nz_sign: float = 1.0) -> tuple[float, float, float]:
+    """Unit outward normal of a face that a +x push runs into, sloped deg_from_level from level: (-sin, 0,
+    +-cos), so |n_h| = sin(deg_from_level). nz_sign +1: the face looks up (a ramp, Nz > 0); -1: it looks down
+    (an overhang, Nz < 0)."""
+    a = math.radians(deg_from_level)
+    return (-math.sin(a), 0.0, nz_sign * math.cos(a))
+
+
+# (name, unit normal, |n_h| > MIN_HORIZONTAL): the V-09c / R56 cases. The (c3) box pitched +-30 degrees meets
+# the push with its -x face, which is 60 degrees from level: normal (-0.866, 0, -+0.5).
+KEEP_HEIGHT_FACES = [
+    ("wall", (-1.0, 0.0, 0.0), True),
+    ("12 deg ramp top (Nz > 0, runbook 12 #68)", face_normal(12.0), True),
+    ("(c3) box pitched +30 (Nz < 0)", face_normal(60.0, -1.0), True),
+    ("(c3) variant pitched -30 (Nz > 0)", face_normal(60.0), True),
+    ("step front edge (-0.59, 0, 0.81)", tuple(np.array((-0.59, 0.0, 0.81)) / math.hypot(0.59, 0.81)), True),
+    ("2 deg from level", face_normal(2.0), True),
+    ("1 deg from level", face_normal(1.0), False),
+    ("level floor", (0.0, 0.0, 1.0), False),
+    ("|n_h| exactly MIN_HORIZONTAL (strict >)", (-0.02, 0.0, math.sqrt(1.0 - 0.02 * 0.02)), False),
+    ("|n_h| just above MIN_HORIZONTAL", (-0.0200001, 0.0, math.sqrt(1.0 - 0.0200001**2)), True),
+    ("zero normal", (0.0, 0.0, 0.0), False),
+    ("NaN normal", (math.nan, math.nan, math.nan), False),
+    ("NaN in the horizontal part", (-0.5, math.nan, 0.8), False),
+]
+
+
+def test_keep_height_slide_matches_the_cross_section_rule(driver):
+    """R56-2: the pawn's keep-height slide rule (GolmokPhotoMath::KeepHeightSlide, fed the plane-projected
+    rest of the move) against an independent closed form. A horizontal move R into a face whose normal has a
+    horizontal part longer than 0.02 slides along the face's horizontal cross-section, R - (R . u) u (u = unit
+    outward horizontal normal): Out.z = 0, Out . N = 0, |Out| <= |R|. A wall gives the plain projection; a
+    near-level (<= 0.02), zero or NaN normal keeps the flattened projection exactly; a move leaving the face
+    or running parallel to it is only flattened."""
+    pushes = [PUSH, (100.0, -25.0, 0.0), (60.0, 80.0, 0.0), (37.5, -0.5, 0.0)]
+    cases, meta = [], []
+    for name, n, reprojects in KEEP_HEIGHT_FACES:
+        for r in pushes:
+            cases.append((tuple(plane_project(r, n)) if all(map(math.isfinite, n)) else tuple(r), n))
+            meta.append((name, np.asarray(n, dtype=float), reprojects, np.asarray(r, dtype=float)))
+    for (name, n, reprojects, r), (slide, _n), (removed, out) in zip(
+        meta, cases, kslide(driver, cases), strict=True
+    ):
+        s = np.asarray(slide)
+        assert out[2] == 0.0, (name, r, out)
+        assert np.linalg.norm(out) <= np.linalg.norm(r) * (1 + 1e-12), (name, r, out)
+        if not reprojects:
+            assert not removed and np.array_equal(out, flat(s)), (name, r, out)  # flattened only, bit for bit
+            continue
+        u = flat(n) / math.hypot(n[0], n[1])
+        cross_section = r - u * float(r @ u)
+        assert close(out, cross_section, 1e-9), (name, r, out, cross_section)
+        assert abs(float(out @ n)) <= 1e-9 * max(1.0, float(np.linalg.norm(r))), (name, r, out)
+        if abs(n[2]) > 1e-12:
+            assert removed, (name, r)
+            # the V-09c defect: the flattened projection alone still points into any face with Nz != 0
+            assert float(flat(s) @ n) < 0.0, (name, r)
+    # R56 geometry of the (c) push: a ramp, a step edge and both (c3) boxes keep the full lateral 40 cm (the
+    # forward part removed); 1 deg from level keeps the flattened projection (100 cos^2 1deg, 40, 0), 2 deg
+    # re-projects
+    by_name = {name: (n, reprojects) for name, n, reprojects in KEEP_HEIGHT_FACES}
+    for name in (
+        "12 deg ramp top (Nz > 0, runbook 12 #68)",
+        "(c3) box pitched +30 (Nz < 0)",
+        "(c3) variant pitched -30 (Nz > 0)",
+        "step front edge (-0.59, 0, 0.81)",
+        "2 deg from level",
+    ):
+        n = by_name[name][0]
+        ((removed, out),) = kslide(driver, [(tuple(plane_project(PUSH, n)), n)])
+        assert removed and close(out, [0.0, 40.0, 0.0], 1e-12), (name, out)
+    n = by_name["1 deg from level"][0]
+    ((removed, out),) = kslide(driver, [(tuple(plane_project(PUSH, n)), n)])
+    assert not removed and close(out, [100.0 * math.cos(math.radians(1.0)) ** 2, 40.0, 0.0], 1e-12), out
+
+
+def test_keep_height_slide_leaving_or_parallel_moves_and_the_threshold(driver):
+    """One-sided: a flattened slide that leaves the face (along its outward horizontal normal) or runs
+    parallel to it is not changed; MinHorizontal is the caller's; the caller may pass any vector (not only a
+    projection) and gets flatten-then-remove."""
+    ramp = face_normal(12.0)
+    away = (-100.0, 40.0, 0.0)  # downhill, away from the ramp
+    parallel = (0.0, 50.0, 0.0)  # along the ramp's contour
+    rows = kslide(driver, [(tuple(plane_project(away, ramp)), ramp), (parallel, ramp)])
+    (removed_away, out_away), (removed_par, out_par) = rows
+    assert not removed_away and np.array_equal(out_away, flat(plane_project(away, ramp)))
+    assert float(out_away @ np.asarray(ramp)) > 0.0  # it moves away from the face (never into it)
+    assert not removed_par and np.array_equal(out_par, np.array(parallel))
+    # an input with its own z: only the horizontal part matters; the into part of it is removed
+    ((removed, out),) = kslide(driver, [((-30.0, 20.0, 55.0), (1.0, 0.0, 0.0))])
+    assert removed and np.array_equal(out, [0.0, 20.0, 0.0])
+    ((removed, out),) = kslide(driver, [((30.0, 20.0, 55.0), (1.0, 0.0, 0.0))])
+    assert not removed and np.array_equal(out, [30.0, 20.0, 0.0])
+    # MinHorizontal comes from the caller: 0 re-projects every non-level face, a large value only flattens
+    n1 = face_normal(1.0)
+    s1 = tuple(plane_project(PUSH, n1))
+    ((removed, out),) = kslide(driver, [(s1, n1)], min_h=0.0)
+    assert removed and close(out, [0.0, 40.0, 0.0], 1e-12)
+    ((removed, out),) = kslide(driver, [(s1, (0.0, 0.0, 1.0))], min_h=0.0)  # exactly level: nothing to remove
+    assert not removed and np.array_equal(out, flat(s1))
+    ((removed, out),) = kslide(driver, [(tuple(plane_project(PUSH, ramp)), ramp)], min_h=1.0)
+    assert not removed and np.array_equal(out, flat(plane_project(PUSH, ramp)))
+
+
+def test_keep_height_slide_random_normals_and_moves(driver):
+    """Random unit normals (every tilt, both signs of Nz, horizontal parts on both sides of 0.02) and random
+    horizontal moves, plus arbitrary 3D inputs: the flag, the value and the invariants follow the rule."""
+    rng = np.random.default_rng(68)
+    normals = rng.normal(size=(400, 3))
+    normals /= np.linalg.norm(normals, axis=1, keepdims=True)
+    # squash a quarter of them toward vertical so both sides of the threshold are well covered
+    normals[:100, :2] *= rng.uniform(0.0, 0.06, size=(100, 1))
+    normals[:100] /= np.linalg.norm(normals[:100], axis=1, keepdims=True)
+    cases = []
+    for i, n in enumerate(normals):
+        if i % 2 == 0:
+            r = np.array([*rng.uniform(-150.0, 150.0, 2), 0.0])
+            s = plane_project(r, n)
+        else:
+            s = rng.uniform(-150.0, 150.0, 3)  # the function's own contract: any input vector
+        cases.append((tuple(float(v) for v in s), tuple(float(v) for v in n)))
+    checked = 0
+    for (slide, n), (removed, out) in zip(cases, kslide(driver, cases), strict=True):
+        s, n = np.asarray(slide), np.asarray(n)
+        f = flat(s)
+        assert out[2] == 0.0
+        assert np.linalg.norm(out) <= np.linalg.norm(f) * (1 + 1e-12) + 1e-12
+        h = math.hypot(n[0], n[1])
+        if not h > MIN_HORIZONTAL:
+            assert not removed and np.array_equal(out, f), (slide, n)
+            continue
+        u = flat(n) / h
+        into = float(f @ u)
+        if abs(into) <= 1e-9 * max(1.0, float(np.linalg.norm(f))):
+            continue  # sign of a zero part: either branch gives the same vector
+        checked += 1
+        assert removed == (into < 0.0), (slide, n)
+        expected = f - u * into if into < 0.0 else f
+        assert close(out, expected, 1e-9), (slide, n, out, expected)
+        assert float(out @ u) >= -1e-9 * max(1.0, float(np.linalg.norm(f)))  # never into the face
+    assert checked > 250

@@ -35,8 +35,11 @@ from test_ue_wp09_fixture import (
     BUILD_CS_PRIVATE,
     BUILD_CS_PUBLIC,
     CONSOLE_COMMANDS,
+    _call_args,
     _class_scan,
     _function_body,
+    _mask_literals,
+    _matching,
     _param_name,
     _shadow_clashes,
     _split_params,
@@ -846,18 +849,45 @@ def test_keep_height_without_vertical_input():
     assert "Look.Vector()" not in tick
     move = _function_body(pawn, "AGolmokPhotoCameraPawn::MoveConstrained")
     assert "LocalConstraint.bKeepHeight = bKeepHeight;" in move
-    flatten = move.index("Slide.Z = 0.0;")
-    assert move.index("VectorPlaneProject") < flatten < move.index("PhotoMinSlideCm")
-    # V-09c (runbook section 7 item 7): off a sloped hit (ramp, step edge) the flattened slide drops the part
-    # that still goes into the hit's horizontal normal (one-sided; near-level hits keep the flattened slide)
+    # V-09c (runbook section 12 #68, PR #56 review R56-2 / R56-5): the keep-height slide (flatten, then drop
+    # the part going into the hit's outward horizontal normal when that part of the normal is longer than
+    # 0.02) is the pure GolmokPhotoMath::KeepHeightSlide (cross-checked by test_ue_photo_math.py). The call
+    # and the constant sit inside the brace-matched `if (bKeepHeight)` body, after the plane projection and
+    # before the minimum-slide check, so the 3D (Q/E) path is untouched and moving the call out of the branch
+    # fails.
     assert re.search(r"constexpr\s+double\s+PhotoSlopeSlideMinHorizontal\s*=\s*0\.02;", pawn)
-    reproject = move.index("PhotoSlopeSlideMinHorizontal", flatten)
-    drop_into = move.index("Slide -= Into * IntoCm;")
-    assert flatten < reproject < drop_into < move.index("PhotoMinSlideCm", flatten)
-    assert "if (IntoCm < 0.0)" in move
+    branch_at, branch = _if_body(move, "bKeepHeight")
+    call = "GolmokPhotoMath::KeepHeightSlide"
+    assert move.count(call + "(") == 1 and call + "(" in branch
+    args = [a.strip() for a in _call_args(branch, call).split(",")]
+    assert args == ["SlideV", "HitNormalV", "PhotoSlopeSlideMinHorizontal", "KeepSlide"], args
+    assert "const GolmokPhotoMath::Vec3 SlideV = {Slide.X, Slide.Y, Slide.Z};" in branch
+    assert "const GolmokPhotoMath::Vec3 HitNormalV = {Hit.Normal.X, Hit.Normal.Y, Hit.Normal.Z};" in branch
+    assert branch.index(call + "(") < branch.index(
+        "Slide = FVector(KeepSlide[0], KeepSlide[1], KeepSlide[2]);"
+    )
+    assert move.count("PhotoSlopeSlideMinHorizontal") == 1  # only inside the branch
+    assert move.index("VectorPlaneProject") < branch_at < move.index("PhotoMinSlideCm")
+    assert "Slide.Z = 0.0;" not in move and "GetSafeNormal" not in branch  # no second copy of the rule
+    # the rule itself (header): flatten, strict threshold, unit outward horizontal normal, one-sided removal
+    rule = _function_body(_strip_comments(_read(MATH_H)), "KeepHeightSlide")
+    threshold = rule.index("if (FaceOutLen2 > MinHorizontal * MinHorizontal)")
+    one_sided = rule.index("if (OutCm < 0.0)", threshold)
+    assert threshold < rule.index("1.0 / std::sqrt(FaceOutLen2)") < one_sided
+    assert one_sided < rule.index("Sx -= FaceOutX * OutCm;") < rule.index("Out = {Sx, Sy, 0.0};")
     assert "void MoveConstrained(const FVector& InDesired, bool bKeepHeight = false);" in _read(PAWN_H)
     math_h = _read(MATH_H)
     assert "bool bKeepHeight = false;" in math_h and "inline bool ClampToSphereXY(" in math_h
+
+
+def _if_body(code: str, condition: str) -> tuple[int, str]:
+    """(index of the `if`, body between its braces) of the single `if (<condition>)` in comment-stripped code
+    (Allman: the `{` follows the condition)."""
+    masked = _mask_literals(code)
+    hits = [m for m in re.finditer(r"\bif\s*\(\s*" + re.escape(condition) + r"\s*\)\s*\{", masked)]
+    assert len(hits) == 1, f"if ({condition}): {len(hits)} blocks (expected exactly one)"
+    open_idx = hits[0].end() - 1
+    return hits[0].start(), code[open_idx + 1 : _matching(masked, open_idx)]
 
 
 def test_move_constrained_slides_once_and_constrains_every_leg():
@@ -976,12 +1006,29 @@ def test_photo_test_info_lines_are_logged_and_quoted_in_the_runbook():
     code = _strip_comments(test_cpp)
     assert "KeepTarget.Z = KeepStart.Z;" in code
     assert re.search(r"Pawn->MoveConstrained\(KeepTarget,\s*true\);", code)
+    # (c3) and its R56-6 variants: a face leaning over the pawn (pitch +30), one leaning away (pitch -30) and
+    # a near-level top face (pitch 1, flattened slide only), each a keep-height push with its own Info line
+    common = "from %s to %s, lateral %.1f, |dz| %.4f, face distance %.1f"
+    assert f'TEXT("keep height slope slide: {common}")' in test_cpp
+    assert f'TEXT("keep height slope slide (pitch -30): {common}")' in test_cpp
+    near_level = "from %s to %s, lateral %.1f, along %.1f, |dz| %.4f, face distance %.1f (start %.1f)"
+    assert f'TEXT("keep height near-level slide (pitch 1): {near_level}")' in test_cpp
+    for rotation, target in (
+        ("SlopeRotation(30.f,", "SlopeTarget"),
+        ("LeanRotation(-30.f,", "LeanTarget"),
+        ("LevelRotation(1.f,", "LevelTarget"),
+    ):
+        assert f"const FRotator {rotation} Character->GetActorRotation().Yaw, 0.f);" in code, rotation
+        assert re.search(rf"Pawn->MoveConstrained\({target},\s*true\);", code), target
     text = _runbook_text()
     info = text[text.index("## 1. 빌드") : text.index("## 2.")]
     for prefix in (
         "[Info] exit camera: before",
         "[Info] keep height: from",
         "[Info] keep height wall slide: from",
+        "[Info] keep height slope slide: from",
+        "[Info] keep height slope slide (pitch -30): from",
+        "[Info] keep height near-level slide (pitch 1): from",
     ):
         assert prefix in info, prefix
     v09c = text[text.index("### V-09c") :]

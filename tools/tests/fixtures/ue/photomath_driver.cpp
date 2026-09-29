@@ -27,6 +27,8 @@
 //                                                        MoveConstrained without the sweep (Current = P, Desired = P + v,
 //                                                        P = Out unless the code is -1)
 //   constrainh / walkh                                   the same with Constraint::bKeepHeight (D-013 decision 3)
+//   kslide     minh m sx sy sz nx ny nz ..               one "flag x y z" line per case (KeepHeightSlide(slide, normal,
+//                                                        minh); flag 1 = the into part was removed, 0 = flattened only)
 //   meta       key=value lines                           FormatPhotoMetaJson text as is. Keys: version time_utc
 //                                                        preset (or "preset=-" -> null) zone_id zone_version
 //                                                        ("zone=-" -> both null) lon lat height_m ("geo=-" -> all
@@ -582,6 +584,35 @@ int main(int argc, char** argv)
 				P = Out;
 			}
 			std::printf("%d %.17g %.17g %.17g\n", Code, P[0], P[1], P[2]);
+		}
+	}
+	else if (!std::strcmp(Cmd, "kslide"))
+	{
+		const double MinHorizontal = R.Number("minh");
+		const std::size_t M = R.Count("m");
+		for (std::size_t i = 0; i < M; ++i)
+		{
+			Vec3 Slide{};
+			Vec3 Normal{};
+			for (std::size_t k = 0; k < 3; ++k)
+			{
+				Slide[k] = R.Number("slide");
+			}
+			for (std::size_t k = 0; k < 3; ++k)
+			{
+				Normal[k] = R.Number("normal");
+			}
+			if (R.Failed())
+			{
+				return 3;
+			}
+			Vec3 Out{-999999.0, -999999.0, -999999.0};
+			const bool bIntoRemoved = KeepHeightSlide(Slide, Normal, MinHorizontal, Out);
+			std::printf("%d %.17g %.17g %.17g\n", bIntoRemoved ? 1 : 0, Out[0], Out[1], Out[2]);
+		}
+		if (R.Failed())
+		{
+			return 3;
 		}
 	}
 	else

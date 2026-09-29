@@ -735,6 +735,43 @@ namespace GolmokPhotoMath
 		return Code;
 	}
 
+	// ---- keep-height slide (MoveConstrained without Q/E: D-013 decision 3, V-09c runbook section 12 #68) ----------
+	/**
+	 * Direction of the slide leg after a blocked keep-height sweep. Slide = the rest of the blocked move already projected
+	 * on the hit plane (the pawn's VectorPlaneProject), HitNormal = the sweep's unit hit normal. Out = Slide flattened to
+	 * the horizontal plane (Out z = 0); then, only when the normal's horizontal part is LONGER than MinHorizontal (strict
+	 * >), the part of the flattened slide that goes into the face along the face's unit outward horizontal normal is
+	 * removed (one-sided: a part going away from the face stays). For a horizontal move R into the face that gives
+	 * R - (R . u) u with u that outward normal: the move follows the obstacle's horizontal cross-section (Out . HitNormal
+	 * = 0, |Out| <= |R|). The flattened slide alone has (R . HitNormal) Nz^2 < 0 along HitNormal on any face with
+	 * Nz != 0, so the next sweep stopped at once on a ramp or a step edge. A vertical wall gives the flattened projection
+	 * back (its into part is already 0). A normal whose horizontal part is MinHorizontal or shorter (a near-level hit), a
+	 * zero normal and a NaN normal keep the flattened slide only. Returns true when the into part was removed, false when
+	 * Out is the flattened slide. Out may alias Slide or HitNormal.
+	 */
+	inline bool KeepHeightSlide(const Vec3& Slide, const Vec3& HitNormal, double MinHorizontal, Vec3& Out)
+	{
+		double Sx = Slide[0];
+		double Sy = Slide[1];
+		bool bIntoRemoved = false;
+		const double FaceOutLen2 = HitNormal[0] * HitNormal[0] + HitNormal[1] * HitNormal[1];
+		if (FaceOutLen2 > MinHorizontal * MinHorizontal) // NaN -> false: flattened slide only
+		{
+			const double Scale = 1.0 / std::sqrt(FaceOutLen2);
+			const double FaceOutX = HitNormal[0] * Scale; // unit outward horizontal normal of the hit face
+			const double FaceOutY = HitNormal[1] * Scale;
+			const double OutCm = Sx * FaceOutX + Sy * FaceOutY; // along FaceOut: negative = into the face
+			if (OutCm < 0.0)
+			{
+				Sx -= FaceOutX * OutCm;
+				Sy -= FaceOutY * OutCm;
+				bIntoRemoved = true;
+			}
+		}
+		Out = {Sx, Sy, 0.0};
+		return bIntoRemoved;
+	}
+
 	// ---- meta json -------------------------------------------------------------------------------------------
 	struct PhotoMeta
 	{
