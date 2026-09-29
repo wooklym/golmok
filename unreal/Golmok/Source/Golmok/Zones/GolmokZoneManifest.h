@@ -4,7 +4,7 @@
 #include "GolmokZoneManifest.generated.h"
 
 /**
- * In-memory form of a Zone manifest (docs/spec/zone-manifest.md §3, schema_version 1) and of its blockers file
+ * In-memory form of a Zone manifest (docs/spec/zone-manifest.md §3, schema_version 1 or 2) and of its blockers file
  * (§3.1). Structures mirror the JSON 1:1 (snake_case key -> PascalCase member; JSON null -> empty string / bHas*).
  * Values are kept in the manifest's units: *_Enu is zone-local meters (x=east, y=north, z=up); nothing is
  * converted to UE units here (see Geo/GolmokGeo.h).
@@ -274,7 +274,7 @@ struct GOLMOK_API FGolmokZoneSource
 	FString Note;
 };
 
-/** manifest.json (schema_version 1). */
+/** manifest.json (schema_version 1, or 2 = 1 + optional spawn / display_name; WP-15a). */
 USTRUCT(BlueprintType)
 struct GOLMOK_API FGolmokZoneManifest
 {
@@ -345,7 +345,28 @@ struct GOLMOK_API FGolmokZoneManifest
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Golmok|Zone")
 	TArray<FGolmokZoneSource> Sources;
 
+	// ---- schema_version 2 (WP-15a; both optional, ignored with a warning in a v1 file) -----------------------------
+
+	/** "spawn" present: where the player stands (feet) and faces after a travel. False = spec §1 fallback. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Golmok|Zone")
+	bool bHasSpawn = false;
+
+	/** spawn.position_enu, zone-local meters (feet point). UE location = zone root * (100x, -100y, 100z). */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Golmok|Zone")
+	FVector SpawnPositionEnu = FVector::ZeroVector;
+
+	/** spawn.yaw_deg: facing direction, CCW from east. UE Yaw = -yaw_deg (then turned by the zone root). */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Golmok|Zone")
+	double SpawnYawDeg = 0.0;
+
+	/** "display_name" (map / HUD); empty = use zone_id (GetDisplayName). */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Golmok|Zone")
+	FString DisplayName;
+
 	bool IsInterior() const { return Kind == EGolmokZoneKind::Interior; }
+
+	/** display_name, or zone_id when absent. */
+	const FString& GetDisplayName() const { return DisplayName.IsEmpty() ? ZoneId : DisplayName; }
 
 	/** "<zone_id>@v<version>" for logs. */
 	FString Key() const { return FString::Printf(TEXT("%s@v%d"), *ZoneId, Version); }
