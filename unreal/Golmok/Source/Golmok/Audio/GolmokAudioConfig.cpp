@@ -9,29 +9,53 @@
 namespace GolmokAudio
 {
 	using FObject = TSharedPtr<FJsonObject>;
-	FObject Object(const FObject& Parent, const TCHAR* Key)
+	// A reader owns no data and reports the first failed field at its full JSON path.
+	struct FConfigReader
 	{
-		const FObject* Value = nullptr;
-		return Parent.IsValid() && Parent->TryGetObjectField(Key, Value) ? *Value : nullptr;
-	}
-	bool Number(const FObject& Parent, const TCHAR* Key, double& Out, double Low, double High)
-	{
-		// UE converts JSON booleans/strings to numbers; the Python manifest contract rejects them.
-		return Parent.IsValid() && Parent->HasTypedField<EJson::Number>(Key)
-			&& Parent->TryGetNumberField(Key, Out) && FMath::IsFinite(Out) && Out >= Low && Out <= High;
-	}
-	bool String(const FObject& Parent, const TCHAR* Key, FString& Out)
-	{
-		return Parent.IsValid() && Parent->HasTypedField<EJson::String>(Key) && Parent->TryGetStringField(Key, Out) && !Out.IsEmpty() && !Out.Contains(TEXT("\n"));
-	}
-	bool Range(const FObject& Parent, const TCHAR* Key, double& Low, double& High, double Min, double Max)
-	{
-		const TArray<TSharedPtr<FJsonValue>>* Values = nullptr;
-		return Parent.IsValid() && Parent->TryGetArrayField(Key, Values) && Values->Num() == 2
-			&& (*Values)[0]->Type == EJson::Number && (*Values)[1]->Type == EJson::Number
-			&& (*Values)[0]->TryGetNumber(Low) && (*Values)[1]->TryGetNumber(High)
-			&& FMath::IsFinite(Low) && FMath::IsFinite(High) && Low >= Min && High >= Low && High <= Max;
-	}
+		FObject Data; FString Path; FString& Error;
+		FString Field(const FString& Key) const { return Path.IsEmpty() ? Key : (Key.IsEmpty() ? Path : Path + TEXT(".") + Key); }
+		bool Check(bool bValid, const FString& Key, const TCHAR* Expected) const
+		{
+			if (!bValid) Error = FString::Printf(TEXT("audio.json %s: expected %s"), *Field(Key), Expected);
+			return bValid;
+		}
+		bool Valid() const { return Check(Data.IsValid(), TEXT(""), TEXT("object")); }
+		FConfigReader Child(const TCHAR* Key) const
+		{
+			const FObject* Value = nullptr;
+			const bool bFound = Data.IsValid() && Data->TryGetObjectField(Key, Value);
+			return {bFound ? *Value : nullptr, Field(Key), Error};
+		}
+		bool Number(const TCHAR* Key, double& Out, double Low, double High) const
+		{
+			const FString Expected = FString::Printf(TEXT("finite number in [%g, %g]"), Low, High);
+			return Check(Data.IsValid() && Data->HasTypedField<EJson::Number>(Key)
+				&& Data->TryGetNumberField(Key, Out) && FMath::IsFinite(Out) && Out >= Low && Out <= High, Key, *Expected);
+		}
+		bool String(const TCHAR* Key, FString& Out, bool bAllowEmpty = false) const
+		{
+			return Check(Data.IsValid() && Data->HasTypedField<EJson::String>(Key) && Data->TryGetStringField(Key, Out)
+				&& (bAllowEmpty || !Out.IsEmpty()) && !Out.Contains(TEXT("\n")), Key, TEXT("single-line string"));
+		}
+		bool Boolean(const TCHAR* Key, bool& Out) const
+		{
+			return Check(Data.IsValid() && Data->HasTypedField<EJson::Boolean>(Key) && Data->TryGetBoolField(Key, Out), Key, TEXT("boolean"));
+		}
+		bool Range(const TCHAR* Key, double& Low, double& High, double Min, double Max) const
+		{
+			const TArray<TSharedPtr<FJsonValue>>* Values = nullptr;
+			if (!Check(Data.IsValid() && Data->TryGetArrayField(Key, Values) && Values->Num() == 2, Key, TEXT("array of two numbers"))) return false;
+			double* Outputs[] = {&Low, &High};
+			for (int32 Index = 0; Index < 2; ++Index)
+			{
+				const auto& Value = (*Values)[Index];
+				const FString Expected = FString::Printf(TEXT("finite number in [%g, %g]"), Min, Max);
+				if (!Check(Value->Type == EJson::Number && Value->TryGetNumber(*Outputs[Index]) && FMath::IsFinite(*Outputs[Index])
+					&& *Outputs[Index] >= Min && *Outputs[Index] <= Max, FString::Printf(TEXT("%s[%d]"), Key, Index), *Expected)) return false;
+			}
+			return Check(High >= Low, Key, TEXT("ascending number pair"));
+		}
+	};
 	bool VerifiedDate(const FString& Value)
 	{
 		if (Value.Len() != 10 || Value[4] != '-' || Value[7] != '-') return false;
@@ -41,121 +65,123 @@ namespace GolmokAudio
 	}
 	bool ParseConfig(const FString& Json, FGolmokAudioConfig& Out, FString& Error)
 	{
-		Error = TEXT("invalid audio.json schema, values or references");
-		FObject Root;
-		if (!FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Json), Root) || !Root.IsValid()) return false;
+		Error.Empty();
+		FObject RootObject;
+		if (!FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Json), RootObject) || !RootObject.IsValid())
+		{ Error = TEXT("audio.json $: expected valid JSON object"); return false; }
+		const FConfigReader Root{RootObject, TEXT(""), Error};
 		FGolmokAudioConfig Next;
-		double Version = 0;
-		FString Pause;
-		if (!Number(Root, TEXT("schema_version"), Version, 1, 1)
-			|| !Number(Root, TEXT("master_volume"), Next.MasterVolume, 0, 1)
-			|| !Number(Root, TEXT("crossfade_seconds"), Next.CrossfadeSeconds, 0, 30)
-			|| !String(Root, TEXT("pause_policy"), Pause) || (Pause != TEXT("mute") && Pause != TEXT("maintain"))) return false;
+		double Version = 0; FString Pause;
+		if (!Root.Number(TEXT("schema_version"), Version, 1, 1)
+			|| !Root.Number(TEXT("master_volume"), Next.MasterVolume, 0, 1)
+			|| !Root.Number(TEXT("crossfade_seconds"), Next.CrossfadeSeconds, 0, 30)
+			|| !Root.String(TEXT("pause_policy"), Pause)
+			|| !Root.Check(Pause == TEXT("mute") || Pause == TEXT("maintain"), TEXT("pause_policy"), TEXT("mute or maintain"))) return false;
 		Next.bMuteInPhoto = Pause == TEXT("mute");
-		if (Root->HasField(TEXT("photo_mute_fade_seconds")) && !Number(Root, TEXT("photo_mute_fade_seconds"), Next.PhotoMuteFadeSeconds, 0, 5)) return false;
-		if (Root->HasField(TEXT("crossfade_seconds_by_state")))
+		if (Root.Data->HasField(TEXT("photo_mute_fade_seconds")) && !Root.Number(TEXT("photo_mute_fade_seconds"), Next.PhotoMuteFadeSeconds, 0, 5)) return false;
+		if (Root.Data->HasField(TEXT("crossfade_seconds_by_state")))
 		{
-			const FObject Durations = Object(Root, TEXT("crossfade_seconds_by_state"));
-			if (!Durations.IsValid()) return false;
-			for (const auto& Pair : Durations->Values)
+			const auto Durations = Root.Child(TEXT("crossfade_seconds_by_state"));
+			if (!Durations.Valid()) return false;
+			for (const auto& Pair : Durations.Data->Values)
 			{
-				const FString Key(*Pair.Key);
-				double Seconds = 0;
-				if ((Key != TEXT("outdoor_day") && Key != TEXT("outdoor_night") && Key != TEXT("interior"))
-					|| !Number(Durations, *Key, Seconds, 0, 30)) return false;
+				const FString Key(*Pair.Key); double Seconds = 0;
+				if (!Durations.Check(Key == TEXT("outdoor_day") || Key == TEXT("outdoor_night") || Key == TEXT("interior"), Key, TEXT("known ambience state"))
+					|| !Durations.Number(*Key, Seconds, 0, 30)) return false;
 				Next.StateCrossfadeSeconds.Add(Key, Seconds);
 			}
 		}
-		const FObject Assets = Object(Root, TEXT("assets"));
-		if (!Assets.IsValid() || Assets->Values.IsEmpty()) return false;
+		const auto Assets = Root.Child(TEXT("assets"));
+		if (!Assets.Valid() || !Assets.Check(!Assets.Data->Values.IsEmpty(), TEXT(""), TEXT("nonempty object"))) return false;
 		TSet<FString> Paths;
-		for (const auto& Pair : Assets->Values)
+		for (const auto& Pair : Assets.Data->Values)
 		{
-			if (Pair.Value->Type != EJson::Object) return false;
-			const FObject Item = Pair.Value->AsObject();
+			const auto Item = Assets.Child(*Pair.Key);
+			if (!Item.Valid()) return false;
 			FGolmokAudioAsset Asset;
-			FString Title, Author, Source, License, LicenseUrl, Changes, Verified;
-			double Gain = 0;
-			if (!String(Item, TEXT("asset"), Asset.Path) || !Asset.Path.StartsWith(TEXT("/Game/Golmok/Audio/"))
-				|| Asset.Path.Contains(TEXT("..")) || !Item->HasTypedField<EJson::Boolean>(TEXT("loop"))
-				|| !Item->TryGetBoolField(TEXT("loop"), Asset.bLoop)
-				|| !Number(Item, TEXT("gain"), Gain, 0, 1) || !String(Item, TEXT("title"), Title)
-				|| !String(Item, TEXT("author"), Author) || !String(Item, TEXT("source_url"), Source)
-				|| !String(Item, TEXT("verified"), Verified) || !VerifiedDate(Verified)
-				|| !String(Item, TEXT("license"), License) || !String(Item, TEXT("changes"), Changes)
-				|| !Item->HasTypedField<EJson::String>(TEXT("license_url"))
-				|| !Item->TryGetStringField(TEXT("license_url"), LicenseUrl) || Paths.Contains(Asset.Path.ToLower())) return false;
-			if (License != TEXT("project-generated") && License != TEXT("CC0-1.0") && License != TEXT("CC-BY-4.0")) return false;
-			bool bPlaceholder = false;
-			if (!Item->HasTypedField<EJson::Boolean>(TEXT("placeholder")) || !Item->TryGetBoolField(TEXT("placeholder"), bPlaceholder) || !Source.StartsWith(TEXT("https://"))) return false;
-			if (License == TEXT("project-generated") && (!bPlaceholder || !LicenseUrl.IsEmpty())) return false;
-			if (License == TEXT("CC0-1.0") && LicenseUrl != TEXT("https://creativecommons.org/publicdomain/zero/1.0/")) return false;
-			if (License == TEXT("CC-BY-4.0") && LicenseUrl != TEXT("https://creativecommons.org/licenses/by/4.0/")) return false;
-			Paths.Add(Asset.Path.ToLower());
-			Next.Assets.Add(FString(*Pair.Key), Asset);
+			FString Title, Author, Source, License, LicenseUrl, Changes, Verified; double Gain = 0; bool bPlaceholder = false;
+			if (!Item.String(TEXT("asset"), Asset.Path)
+				|| !Item.Check(Asset.Path.StartsWith(TEXT("/Game/Golmok/Audio/")) && !Asset.Path.Contains(TEXT("..")), TEXT("asset"), TEXT("path under /Game/Golmok/Audio/"))
+				|| !Item.Boolean(TEXT("loop"), Asset.bLoop) || !Item.Number(TEXT("gain"), Gain, 0, 1)
+				|| !Item.String(TEXT("title"), Title) || !Item.String(TEXT("author"), Author) || !Item.String(TEXT("source_url"), Source)
+				|| !Item.String(TEXT("verified"), Verified) || !Item.Check(VerifiedDate(Verified), TEXT("verified"), TEXT("valid YYYY-MM-DD date"))
+				|| !Item.String(TEXT("license"), License) || !Item.String(TEXT("changes"), Changes) || !Item.String(TEXT("license_url"), LicenseUrl, true)
+				|| !Item.Check(!Paths.Contains(Asset.Path.ToLower()), TEXT("asset"), TEXT("unique asset path"))
+				|| !Item.Check(License == TEXT("project-generated") || License == TEXT("CC0-1.0") || License == TEXT("CC-BY-4.0"), TEXT("license"), TEXT("approved license"))
+				|| !Item.Boolean(TEXT("placeholder"), bPlaceholder) || !Item.Check(Source.StartsWith(TEXT("https://")), TEXT("source_url"), TEXT("HTTPS URL"))) return false;
+			if (License == TEXT("project-generated"))
+			{
+				if (!Item.Check(bPlaceholder, TEXT("placeholder"), TEXT("true for project-generated audio"))
+					|| !Item.Check(LicenseUrl.IsEmpty(), TEXT("license_url"), TEXT("empty string for project-generated audio"))) return false;
+			}
+			if (License == TEXT("CC0-1.0") && !Item.Check(LicenseUrl == TEXT("https://creativecommons.org/publicdomain/zero/1.0/"), TEXT("license_url"), TEXT("CC0-1.0 license URL"))) return false;
+			if (License == TEXT("CC-BY-4.0") && !Item.Check(LicenseUrl == TEXT("https://creativecommons.org/licenses/by/4.0/"), TEXT("license_url"), TEXT("CC-BY-4.0 license URL"))) return false;
+			Paths.Add(Asset.Path.ToLower()); Next.Assets.Add(FString(*Pair.Key), Asset);
 			Next.Credits += FString::Printf(TEXT("%s — %s\n%s\n%s %s\nVerified: %s\n%s\n\n"), *Title, *Author, *Source, *License, *LicenseUrl, *Verified, *Changes);
 		}
-		const FObject Ambience = Object(Root, TEXT("ambience")), Presets = Object(Root, TEXT("preset_states")), Steps = Object(Root, TEXT("footsteps"));
-		if (!Ambience.IsValid() || Ambience->Values.Num() != 3 || !Presets.IsValid() || !Steps.IsValid()) return false;
+		const auto Ambience = Root.Child(TEXT("ambience"));
+		const auto Presets = Root.Child(TEXT("preset_states"));
+		const auto Steps = Root.Child(TEXT("footsteps"));
+		if (!Ambience.Valid() || !Ambience.Check(Ambience.Data->Values.Num() == 3, TEXT(""), TEXT("three ambience states")) || !Presets.Valid() || !Steps.Valid()) return false;
 		for (const TCHAR* Name : {TEXT("outdoor_day"), TEXT("outdoor_night"), TEXT("interior")})
 		{
 			FString Key;
-			if (!String(Ambience, Name, Key) || !Next.Assets.Contains(Key) || !Next.Assets[Key].bLoop) return false;
+			if (!Ambience.String(Name, Key) || !Ambience.Check(Next.Assets.Contains(Key) && Next.Assets[Key].bLoop, Name, TEXT("looping asset id"))) return false;
 			Next.Ambience.Add(Name, Key);
 		}
-		for (const auto& Pair : Presets->Values)
+		for (const auto& Pair : Presets.Data->Values)
 		{
 			FString State;
-			if (!Pair.Value->TryGetString(State) || (State != TEXT("outdoor_day") && State != TEXT("outdoor_night"))) return false;
+			if (!Presets.Check(Pair.Value->Type == EJson::String && Pair.Value->TryGetString(State), FString(*Pair.Key), TEXT("string"))
+				|| !Presets.Check(State == TEXT("outdoor_day") || State == TEXT("outdoor_night"), FString(*Pair.Key), TEXT("outdoor state id"))) return false;
 			Next.Presets.Add(FString(*Pair.Key), State);
 		}
-		if (!Number(Steps, TEXT("walk_stride_cm"), Next.WalkStride, 1, 10000)
-			|| !Number(Steps, TEXT("run_stride_cm"), Next.RunStride, 1, 10000)
-			|| !Number(Steps, TEXT("run_threshold_cm_s"), Next.RunThreshold, 1, 10000)
-			|| !Number(Steps, TEXT("teleport_threshold_cm"), Next.TeleportLimit, 1, 10000)
-			|| !Range(Steps, TEXT("pitch_range"), Next.PitchMin, Next.PitchMax, .5, 2)
-			|| !Range(Steps, TEXT("volume_range"), Next.VolumeMin, Next.VolumeMax, 0, 1)
-			|| !String(Steps, TEXT("landing"), Next.Landing)) return false;
-		if (Steps->HasField(TEXT("stride_scale_by_mesh"))) return false; // Superseded by measured roster strides.
-		if (Steps->HasField(TEXT("stride_cm_by_character")))
+		if (!Steps.Number(TEXT("walk_stride_cm"), Next.WalkStride, 1, 10000) || !Steps.Number(TEXT("run_stride_cm"), Next.RunStride, 1, 10000)
+			|| !Steps.Number(TEXT("run_threshold_cm_s"), Next.RunThreshold, 1, 10000) || !Steps.Number(TEXT("teleport_threshold_cm"), Next.TeleportLimit, 1, 10000)
+			|| !Steps.Range(TEXT("pitch_range"), Next.PitchMin, Next.PitchMax, .5, 2) || !Steps.Range(TEXT("volume_range"), Next.VolumeMin, Next.VolumeMax, 0, 1)
+			|| !Steps.String(TEXT("landing"), Next.Landing)) return false;
+		if (!Steps.Check(!Steps.Data->HasField(TEXT("stride_scale_by_mesh")), TEXT("stride_scale_by_mesh"), TEXT("field absent; use stride_cm_by_character"))) return false;
+		if (Steps.Data->HasField(TEXT("stride_cm_by_character")))
 		{
-			const FObject Strides = Object(Steps, TEXT("stride_cm_by_character"));
-			if (!Strides.IsValid()) return false;
-			for (const auto& Pair : Strides->Values)
+			const auto Strides = Steps.Child(TEXT("stride_cm_by_character"));
+			if (!Strides.Valid()) return false;
+			for (const auto& Pair : Strides.Data->Values)
 			{
 				const FString Id(*Pair.Key);
-				if (Id.IsEmpty() || Id.Len() > 48 || Id[0] < 'a' || Id[0] > 'z') return false;
-				for (const TCHAR C : Id) if (!(C >= 'a' && C <= 'z') && !(C >= '0' && C <= '9') && C != '_') return false;
-				const FObject Entry = Object(Strides, *Id);
-				double Walk = 0, Run = 0;
-				if (!Entry.IsValid() || Entry->Values.Num() != 2 || !Number(Entry, TEXT("walk"), Walk, 1, 10000) || !Number(Entry, TEXT("run"), Run, 1, 10000)) return false;
+				bool bValidId = !Id.IsEmpty() && Id.Len() <= 48 && Id[0] >= 'a' && Id[0] <= 'z';
+				for (const TCHAR C : Id) if (!(C >= 'a' && C <= 'z') && !(C >= '0' && C <= '9') && C != '_') bValidId = false;
+				if (!Strides.Check(bValidId, Id, TEXT("character id [a-z][a-z0-9_]{0,47}"))) return false;
+				const auto Entry = Strides.Child(*Id); double Walk = 0, Run = 0;
+				if (!Entry.Valid() || !Entry.Check(Entry.Data->Values.Num() == 2, TEXT(""), TEXT("object with walk and run"))
+					|| !Entry.Number(TEXT("walk"), Walk, 1, 10000) || !Entry.Number(TEXT("run"), Run, 1, 10000)) return false;
 				Next.StrideByCharacter.Add(Id, FVector2D(Walk, Run));
 			}
 		}
-		const FObject Sets = Object(Steps, TEXT("sets")), Surfaces = Object(Steps, TEXT("surface_sets"));
-		if (!Sets.IsValid() || !Surfaces.IsValid() || !Next.Assets.Contains(Next.Landing) || Next.Assets[Next.Landing].bLoop) return false;
-		for (const auto& Pair : Sets->Values)
+		const auto Sets = Steps.Child(TEXT("sets")); const auto Surfaces = Steps.Child(TEXT("surface_sets"));
+		if (!Sets.Valid() || !Surfaces.Valid() || !Steps.Check(Next.Assets.Contains(Next.Landing) && !Next.Assets[Next.Landing].bLoop, TEXT("landing"), TEXT("one-shot asset id"))) return false;
+		for (const auto& Pair : Sets.Data->Values)
 		{
-			if (Pair.Value->Type != EJson::Array || Pair.Value->AsArray().IsEmpty()) return false;
-			TArray<FString> List;
+			if (!Sets.Check(Pair.Value->Type == EJson::Array && !Pair.Value->AsArray().IsEmpty(), FString(*Pair.Key), TEXT("nonempty array"))) return false;
+			TArray<FString> List; int32 Index = 0;
 			for (const auto& Value : Pair.Value->AsArray())
 			{
-				FString Key;
-				if (!Value->TryGetString(Key) || !Next.Assets.Contains(Key) || Next.Assets[Key].bLoop) return false;
+				FString Key; const FString Field = FString::Printf(TEXT("%s[%d]"), *Pair.Key, Index++);
+				if (!Sets.Check(Value->Type == EJson::String && Value->TryGetString(Key), Field, TEXT("string"))
+					|| !Sets.Check(Next.Assets.Contains(Key) && !Next.Assets[Key].bLoop, Field, TEXT("one-shot asset id"))) return false;
 				List.Add(Key);
 			}
 			Next.Sets.Add(FString(*Pair.Key), List);
 		}
-		for (const TCHAR* Name : {TEXT("default"), TEXT("asphalt"), TEXT("tile"), TEXT("stairs")}) if (!Next.Sets.Contains(Name)) return false;
-		for (const auto& Pair : Surfaces->Values)
+		for (const TCHAR* Name : {TEXT("default"), TEXT("asphalt"), TEXT("tile"), TEXT("stairs")}) if (!Sets.Check(Next.Sets.Contains(Name), Name, TEXT("required footstep set"))) return false;
+		for (const auto& Pair : Surfaces.Data->Values)
 		{
-			FString Set;
-			const FString SurfaceKey(*Pair.Key);
-			if (SurfaceKey.IsEmpty()) return false;
-			for (const TCHAR Character : SurfaceKey) if (!FChar::IsDigit(Character)) return false;
-			if (!Pair.Value->TryGetString(Set) || !Next.Sets.Contains(Set)) return false;
+			FString Set; const FString Key(*Pair.Key);
+			bool bDigits = !Key.IsEmpty(); for (const TCHAR C : Key) if (!FChar::IsDigit(C)) bDigits = false;
+			if (!Surfaces.Check(bDigits, Key, TEXT("surface number 0..62"))) return false;
+			if (!Surfaces.Check(Pair.Value->Type == EJson::String && Pair.Value->TryGetString(Set), Key, TEXT("string"))
+				|| !Surfaces.Check(Next.Sets.Contains(Set), Key, TEXT("footstep set id"))) return false;
 			const int32 Surface = FCString::Atoi(*Pair.Key);
-			if (Surface < 0 || Surface > 62) return false;
+			if (!Surfaces.Check(Surface >= 0 && Surface <= 62, Key, TEXT("surface number 0..62"))) return false;
 			Next.Surfaces.Add(Surface, Set);
 		}
 		Out = MoveTemp(Next); Error.Empty(); return true;
@@ -164,7 +190,7 @@ namespace GolmokAudio
 	{
 		FString Text;
 		if (!FFileHelper::LoadFileToString(Text, *(FPaths::ProjectConfigDir() / TEXT("Golmok/audio.json"))))
-		{ Error = TEXT("audio.json not found"); return false; }
+		{ Error = TEXT("audio.json $: expected readable Config/Golmok/audio.json"); return false; }
 		return ParseConfig(Text, Out, Error);
 	}
 }

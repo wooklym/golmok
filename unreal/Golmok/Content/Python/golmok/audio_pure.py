@@ -1,10 +1,10 @@
 """WP-13 audio manifest and import/credit plan; usable without Unreal."""
 
-from datetime import date
 import json
 import math
 import re
 import wave
+from datetime import date
 from pathlib import Path, PurePosixPath
 
 PROJECT = Path(__file__).resolve().parents[3]
@@ -12,50 +12,47 @@ CONFIG = PROJECT / "Config/Golmok/audio.json"
 AUDIO = PROJECT / "Content/Golmok/Audio"
 
 
-def number(value, low, high):
-    if (
-        type(value) not in (int, float)
-        or not math.isfinite(value)
-        or not low <= value <= high
-    ):
-        raise ValueError(f"expected finite number in [{low}, {high}]: {value!r}")
+def number(value, low, high, field):
+    if type(value) not in (int, float) or not math.isfinite(value) or not low <= value <= high:
+        raise ValueError(f"{field}: expected finite number in [{low}, {high}]: {value!r}")
     return value
 
 
-def text(value):
-    if (
-        not isinstance(value, str)
-        or not value.strip()
-        or any(c in value for c in "\r\n\t|")
-    ):
-        raise ValueError("expected nonempty single-line text without table separators")
+def text(value, field):
+    if not isinstance(value, str) or not value.strip() or any(c in value for c in "\r\n\t|"):
+        raise ValueError(f"{field}: expected nonempty single-line text without table separators")
     return value
 
 
 def parse_config(data):
     """Reject invalid manifests before generating files or touching editor assets."""
+    if not isinstance(data, dict):
+        raise ValueError("$: expected object")
     if type(data.get("schema_version")) is not int or data["schema_version"] != 1:
-        raise ValueError("unsupported audio schema_version")
-    number(data["master_volume"], 0, 1)
-    number(data["crossfade_seconds"], 0, 30)
-    number(data.get("photo_mute_fade_seconds", 0.25), 0, 5)
+        raise ValueError("schema_version: expected integer 1")
+    number(data.get("master_volume"), 0, 1, "master_volume")
+    number(data.get("crossfade_seconds"), 0, 30, "crossfade_seconds")
+    number(data.get("photo_mute_fade_seconds", 0.25), 0, 5, "photo_mute_fade_seconds")
     durations = data.get("crossfade_seconds_by_state", {})
     if not isinstance(durations, dict):
-        raise ValueError("crossfade_seconds_by_state must be an object")
+        raise ValueError("crossfade_seconds_by_state: expected object")
     for state, duration in durations.items():
         if state not in ("outdoor_day", "outdoor_night", "interior"):
-            raise ValueError("unknown crossfade destination state")
-        number(duration, 0, 30)
-    if data["pause_policy"] not in ("mute", "maintain"):
-        raise ValueError("pause_policy must be mute or maintain")
-    assets = data["assets"]
+            raise ValueError(f"crossfade_seconds_by_state.{state}: expected known destination state")
+        number(duration, 0, 30, f"crossfade_seconds_by_state.{state}")
+    if data.get("pause_policy") not in ("mute", "maintain"):
+        raise ValueError("pause_policy: expected mute or maintain")
+    assets = data.get("assets")
     if not isinstance(assets, dict) or not assets:
-        raise ValueError("assets must be a nonempty object")
+        raise ValueError("assets: expected nonempty object")
     paths, sources = set(), set()
     for key, item in assets.items():
         if not re.fullmatch(r"[a-z][a-z0-9_]{0,47}", key):
-            raise ValueError("invalid asset id")
-        source = text(item["source"])
+            raise ValueError(f"assets.{key}: expected lowercase asset id")
+        prefix = f"assets.{key}"
+        if not isinstance(item, dict):
+            raise ValueError(f"{prefix}: expected object")
+        source = text(item.get("source"), f"{prefix}.source")
         path = PurePosixPath(source)
         if (
             "\\" in source
@@ -66,99 +63,118 @@ def parse_config(data):
             or path.parts[0] != "src"
             or path.suffix != ".wav"
         ):
-            raise ValueError("source must be src/<category>/<name>.wav")
-        asset = text(item["asset"])
+            raise ValueError(f"{prefix}.source: expected src/<category>/<name>.wav")
+        asset = text(item.get("asset"), f"{prefix}.asset")
         if not re.fullmatch(
             r"/Game/Golmok/Audio/[A-Za-z0-9_]+/SW_[A-Za-z0-9_]+\.SW_[A-Za-z0-9_]+",
             asset,
         ):
-            raise ValueError("invalid audio object path")
+            raise ValueError(f"{prefix}.asset: expected audio object path")
         if asset.rsplit("/", 1)[1].split(".")[0] != asset.rsplit(".", 1)[1]:
-            raise ValueError("object and package name differ")
+            raise ValueError(f"{prefix}.asset: expected matching object and package name")
         if asset.casefold() in paths or source.casefold() in sources:
-            raise ValueError("duplicate asset or source")
+            raise ValueError(f"{prefix}: expected unique asset and source")
         paths.add(asset.casefold())
         sources.add(source.casefold())
         for field in ("title", "author", "source_url", "changes"):
-            text(item[field])
+            text(item.get(field), f"{prefix}.{field}")
         if not item["source_url"].startswith("https://"):
-            raise ValueError("source_url must be HTTPS")
-        if item["license"] not in ("CC0-1.0", "CC-BY-4.0", "project-generated"):
-            raise ValueError("unapproved audio license")
-        if type(item["placeholder"]) is not bool or type(item["loop"]) is not bool:
-            raise ValueError("placeholder and loop must be booleans")
+            raise ValueError(f"{prefix}.source_url: expected HTTPS URL")
+        if item.get("license") not in ("CC0-1.0", "CC-BY-4.0", "project-generated"):
+            raise ValueError(f"{prefix}.license: expected approved audio license")
+        for field in ("placeholder", "loop"):
+            if type(item.get(field)) is not bool:
+                raise ValueError(f"{prefix}.{field}: expected booleans (JSON true or false)")
         if item["license"] == "project-generated":
-            if not item["placeholder"] or item["license_url"] != "":
-                raise ValueError("generated placeholder requires explicit provenance")
-            if type(item["seed"]) is not int or not 0 <= item["seed"] <= 2**32 - 1:
-                raise ValueError("invalid generator seed")
+            if not item["placeholder"]:
+                raise ValueError(f"{prefix}.placeholder: expected true for project-generated audio")
+            if item.get("license_url") != "":
+                raise ValueError(f"{prefix}.license_url: expected empty string for project-generated audio")
+            if type(item.get("seed")) is not int or not 0 <= item["seed"] <= 2**32 - 1:
+                raise ValueError(f"{prefix}.seed: expected integer in [0, 4294967295]")
         else:
             expected = {
                 "CC0-1.0": "https://creativecommons.org/publicdomain/zero/1.0/",
                 "CC-BY-4.0": "https://creativecommons.org/licenses/by/4.0/",
             }[item["license"]]
-            if item["license_url"] != expected:
-                raise ValueError("license URL does not match the declared license")
+            if item.get("license_url") != expected:
+                raise ValueError(f"{prefix}.license_url: expected URL matching declared license")
         verified = item.get("verified")
-        if not isinstance(verified, str) or not re.fullmatch(
-            r"[0-9]{4}-[0-9]{2}-[0-9]{2}", verified
-        ):
-            raise ValueError("verified must be YYYY-MM-DD")
-        date.fromisoformat(verified)
-        number(item["gain"], 0, 1)
-    if set(data["ambience"]) != {"outdoor_day", "outdoor_night", "interior"}:
-        raise ValueError("three ambience states required")
-    for key in data["ambience"].values():
+        if not isinstance(verified, str) or not re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}", verified):
+            raise ValueError(f"{prefix}.verified: expected YYYY-MM-DD")
+        try:
+            date.fromisoformat(verified)
+        except ValueError as exc:
+            raise ValueError(f"{prefix}.verified: expected valid calendar date") from exc
+        number(item.get("gain"), 0, 1, f"{prefix}.gain")
+    if not isinstance(data.get("ambience"), dict) or set(data["ambience"]) != {
+        "outdoor_day",
+        "outdoor_night",
+        "interior",
+    }:
+        raise ValueError("ambience: expected three ambience states")
+    for state, key in data["ambience"].items():
+        text(key, f"ambience.{state}")
         if key not in assets or not assets[key]["loop"]:
-            raise ValueError("ambience must reference a looping asset")
+            raise ValueError(f"ambience.{state}: expected looping asset id")
+    if not isinstance(data.get("preset_states"), dict):
+        raise ValueError("preset_states: expected object")
     for preset, state in data["preset_states"].items():
-        text(preset)
+        text(preset, "preset_states.<key>")
+        text(state, f"preset_states.{preset}")
         if state not in ("outdoor_day", "outdoor_night"):
-            raise ValueError("preset must map to an outdoor state")
-    steps = data["footsteps"]
+            raise ValueError(f"preset_states.{preset}: expected outdoor state")
+    steps = data.get("footsteps")
+    if not isinstance(steps, dict):
+        raise ValueError("footsteps: expected object")
     for field in (
         "walk_stride_cm",
         "run_stride_cm",
         "run_threshold_cm_s",
         "teleport_threshold_cm",
     ):
-        number(steps[field], 1, 10000)
+        number(steps.get(field), 1, 10000, f"footsteps.{field}")
     if "stride_scale_by_mesh" in steps:
         raise ValueError(
-            "stride_scale_by_mesh was superseded by stride_cm_by_character"
+            "footsteps.stride_scale_by_mesh: expected absent; superseded by stride_cm_by_character"
         )
     strides = steps.get("stride_cm_by_character", {})
     if not isinstance(strides, dict):
-        raise ValueError("stride_cm_by_character must be an object")
+        raise ValueError("footsteps.stride_cm_by_character: expected object")
     for character, pair in strides.items():
         if not re.fullmatch(r"[a-z][a-z0-9_]{0,47}", character):
-            raise ValueError("invalid character id")
+            raise ValueError(f"footsteps.stride_cm_by_character.{character}: expected lowercase character id")
         if not isinstance(pair, dict) or set(pair) != {"walk", "run"}:
-            raise ValueError("character stride requires walk and run")
-        number(pair["walk"], 1, 10000)
-        number(pair["run"], 1, 10000)
+            raise ValueError(f"footsteps.stride_cm_by_character.{character}: expected walk and run object")
+        number(pair["walk"], 1, 10000, f"footsteps.stride_cm_by_character.{character}.walk")
+        number(pair["run"], 1, 10000, f"footsteps.stride_cm_by_character.{character}.run")
     for field, low, high in (("pitch_range", 0.5, 2), ("volume_range", 0, 1)):
-        values = steps[field]
+        values = steps.get(field)
         if not isinstance(values, list) or len(values) != 2:
-            raise ValueError("range needs two values")
-        number(values[0], low, high)
-        number(values[1], values[0], high)
-    if not {"default", "asphalt", "tile", "stairs"} <= steps["sets"].keys():
-        raise ValueError("missing footstep set")
-    refs = [steps["landing"]]
-    for samples in steps["sets"].values():
+            raise ValueError(f"footsteps.{field}: expected array of two numbers")
+        number(values[0], low, high, f"footsteps.{field}[0]")
+        number(values[1], values[0], high, f"footsteps.{field}[1]")
+    sets = steps.get("sets")
+    if not isinstance(sets, dict):
+        raise ValueError("footsteps.sets: expected object")
+    if not {"default", "asphalt", "tile", "stairs"} <= sets.keys():
+        raise ValueError("footsteps.sets: expected default/asphalt/tile/stairs sets")
+    refs = [(steps.get("landing"), "footsteps.landing")]
+    for name, samples in sets.items():
         if not isinstance(samples, list) or not samples:
-            raise ValueError("empty footstep set")
-        refs.extend(samples)
-    if any(key not in assets or assets[key]["loop"] for key in refs):
-        raise ValueError("footsteps must reference one-shot assets")
-    for surface, name in steps["surface_sets"].items():
-        if (
-            not re.fullmatch(r"[0-9]+", surface)
-            or not 0 <= int(surface) <= 62
-            or name not in steps["sets"]
-        ):
-            raise ValueError("invalid physical surface mapping")
+            raise ValueError(f"footsteps.sets.{name}: expected nonempty array")
+        refs.extend((sample, f"footsteps.sets.{name}[{index}]") for index, sample in enumerate(samples))
+    for key, field in refs:
+        text(key, field)
+        if key not in assets or assets[key]["loop"]:
+            raise ValueError(f"{field}: expected one-shot asset id")
+    surfaces = steps.get("surface_sets")
+    if not isinstance(surfaces, dict):
+        raise ValueError("footsteps.surface_sets: expected object")
+    for surface, name in surfaces.items():
+        text(name, f"footsteps.surface_sets.{surface}")
+        if not re.fullmatch(r"[0-9]+", surface) or not 0 <= int(surface) <= 62 or name not in sets:
+            raise ValueError(f"footsteps.surface_sets.{surface}: expected surface 0..62 mapped to set id")
     return data
 
 
@@ -184,11 +200,7 @@ def import_plan(data, root=AUDIO):
             raise ValueError(f"{key}: exceeds 5 MB")
         total += size
         with wave.open(str(source), "rb") as wav:
-            if (
-                wav.getcomptype() != "NONE"
-                or wav.getsampwidth() != 2
-                or wav.getframerate() != 48000
-            ):
+            if wav.getcomptype() != "NONE" or wav.getsampwidth() != 2 or wav.getframerate() != 48000:
                 raise ValueError(f"{key}: expected PCM16 48 kHz")
             if wav.getnchannels() not in (1, 2) or wav.getnframes() == 0:
                 raise ValueError(f"{key}: empty/unsupported channel count")
