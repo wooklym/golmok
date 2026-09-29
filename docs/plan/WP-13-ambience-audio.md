@@ -251,3 +251,18 @@ STATUS 트랙 1A WP-13 행의 상태는 **🟡 코드 완료·PC V-10 대기** �
 - STATUS 트랙 1A WP-13 및 Astra WP-13 행: **🟢 V-10 PC 검증 통과(5f6c810 파형·루프백 근거)** 유지. 근거에 추가: “T8 13d: 실내1.0/실외2.0초·전력 보간·Photo .25초·로스터별 보폭·2D 자체 발소리·임시 gain·R50 후속 구현 및 헤드리스 검증. T6/T8 런타임 PC 스모크·새 설정 청취·패키지 발소리는 C-07 뒤, 최종 밸런스 C-08 대기.”
 - astra-tasks T8 행: “코드/헤드리스 완료, 리뷰·병합 대기. T8 실제 출력/청취는 C-07 해소 뒤 PC 카드로 연결.”
 - D-016 진행: “V-10 후속 T8 채택 정책을 구현: equal-power는 전력 영역 보간, Photo mute .25초(0 즉시), 캐릭터별 보폭 및 로컬 발소리 무감쇠, 임시 볼륨 후보. 최종 음질/밸런스 합격은 이번 헤드리스 결과에 포함하지 않음.”
+
+
+## PR #55 리뷰 보완 — R55 (2026-09-29 KST)
+
+[리뷰](https://github.com/wooklym/golmok/pull/55#issuecomment-5880728596)·[배정](https://github.com/wooklym/golmok/issues/30#issuecomment-5880730532)에 따라 같은 브랜치에서 R55-1/2·권장 R55-4/6/8을 한 번의 push로 반영한다. 위 13d 초기 구현 설명 중 곡선/진단/Photo 테스트는 이 절로 갱신한다.
+
+- **R55-1(Fable 결정)**: 전력 보간의 진행값을 `u = (1 - cos(pi * alpha)) / 2`로 성형한다. 0↔1은 sin/cos 법칙이며 상보 전력·재타깃 연속성·50ms 교체를 유지한다. Photo는 같은 진행값으로 **진폭**을 보간하고 원샷은 `FadeOut(D, 0, SCurve)`를 사용한다. g++ 드라이버에 Photo 모드와 60fps 첫 틱/끝점 검사를 추가하고 C++ 기대값도 갱신했다.
+- **R55-2**: 서브시스템의 `WarnedSurfaces`로 월드별 표면 번호당 Warning 한 번을 남긴다. 발걸음 진단을 한 번 계산해 매핑과 HUD에 재사용한다. Physics 표면 이름은 세트 id와 대소문자 무관하게 같아야 매핑되며, 아니면 default + HUD error + 1회 로그(명시 계단 태그 우선). 자동화는 서로 다른 2번호 및 반복·HUD 초기화 후 재호출에 정확히 각1회 로그를 요구한다. 이 의도적 경고만 ExpectedMessage로 검증하고 L_Dev GeoOrigin 경고는 그대로 보고한다.
+- **R55-4**: 미사용 Location/Point 전달 제거, attenuation은 비로컬 소스 예약 주석으로 목적 명시. SpawnSound2D가 Play 전에 UI sound를 설정하므로 사후 bIsUISound 대입 제거.
+- **R55-6**: Photo 시나리오는 mute/양수 fade일 때만 실행하고 다른 설정은 NOT EXECUTED 안내. 목표0/1 도달을 폴링하며 각 단계10초 타임아웃으로 제한한다. 고정 시각 중간값은 순수 곡선 검사로 옮겼다. HUD audio 줄 정확히1개 단언, 테스트 라벨 수정.
+- **R55-8**: 런북 C-11·§7-5의 이름/세트 계약, §6 포털 원문과 T8 정정 병기, 불확실 API A10(FadeOut/UI sound/GamePause 실제 출력 미검증)을 추가했다. 기존 PC 수치는 보존했다.
+
+검증: ruff check/format104·check_repo·diff --check 통과, pytest **881 passed/187 skipped/208 warnings,34.77s**(로컬 g++ 없음, 새 순수 검사2개 포함 skip; CI 별도). UE5.8.3 최종 빌드 **4.94s 성공**, Audio **2 Success(경고1), failed0/notRun0,1.40s**. 전체 **29 Success(21+경고8), failed0/notRun0,171.73s**; 기본 RenderEvidence NOT EXECUTED1 제외 실제28개. GamePause fade 목표0/1 실제 도달 및 표면 로그 개수 회귀 통과. 근거는 로컬 tools/.venv/r55-*.log·*-report.json, CI는 PR 체크/보고 코멘트가 정본.
+
+R55-3 공유 문안/큐·C-08·소유자 밸런스 행과 main 통합은 오케스트레이터 병합 커밋 담당(요청 순서). 따라서 이 수정의 전체 UE 실측은 기반 `2e6b642`의29개이며 현재 main 기대값32와 구분한다. R55-5/7/9는 배정대로 다음 오디오 push에 남긴다. C-07·C-08 및 실제 출력 청취 제한은 그대로다.
