@@ -38,6 +38,7 @@ def parse_config(data):
         raise ValueError("unsupported audio schema_version")
     number(data["master_volume"], 0, 1)
     number(data["crossfade_seconds"], 0, 30)
+    number(data.get("photo_mute_fade_seconds", 0.25), 0, 5)
     durations = data.get("crossfade_seconds_by_state", {})
     if not isinstance(durations, dict):
         raise ValueError("crossfade_seconds_by_state must be an object")
@@ -99,7 +100,9 @@ def parse_config(data):
             if item["license_url"] != expected:
                 raise ValueError("license URL does not match the declared license")
         verified = item.get("verified")
-        if not isinstance(verified, str) or not re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}", verified):
+        if not isinstance(verified, str) or not re.fullmatch(
+            r"[0-9]{4}-[0-9]{2}-[0-9]{2}", verified
+        ):
             raise ValueError("verified must be YYYY-MM-DD")
         date.fromisoformat(verified)
         number(item["gain"], 0, 1)
@@ -120,6 +123,20 @@ def parse_config(data):
         "teleport_threshold_cm",
     ):
         number(steps[field], 1, 10000)
+    if "stride_scale_by_mesh" in steps:
+        raise ValueError(
+            "stride_scale_by_mesh was superseded by stride_cm_by_character"
+        )
+    strides = steps.get("stride_cm_by_character", {})
+    if not isinstance(strides, dict):
+        raise ValueError("stride_cm_by_character must be an object")
+    for character, pair in strides.items():
+        if not re.fullmatch(r"[a-z][a-z0-9_]{0,47}", character):
+            raise ValueError("invalid character id")
+        if not isinstance(pair, dict) or set(pair) != {"walk", "run"}:
+            raise ValueError("character stride requires walk and run")
+        number(pair["walk"], 1, 10000)
+        number(pair["run"], 1, 10000)
     for field, low, high in (("pitch_range", 0.5, 2), ("volume_range", 0, 1)):
         values = steps[field]
         if not isinstance(values, list) or len(values) != 2:

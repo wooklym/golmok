@@ -759,6 +759,32 @@ namespace GolmokPhotoTest
 					Test->TestTrue(TEXT("keep height: slide keeps the sweep radius from the box faces"), KeepFace >= Sweep - 1.0);
 				}
 
+				// (c3) V-09c (runbook section 7 item 7): the same keep-height push into a sloped face. Pitched 30 degrees, the
+				// box face toward the anchor leans over the pawn (normal ~(-0.87, 0, -0.5) in the forward frame), so the slide
+				// projected on it points down; flattening alone left it pointing back into the face and the second sweep stopped
+				// the move (PC: 0.02 cm in 2 s on a 12-degree ramp). Dropping the part along the face's horizontal normal slides
+				// it sideways at the same height.
+				{
+					// Back to 20 cm first (clear of the sloped face, which reaches 42 cm at this height), then tilt the box.
+					Pawn->MoveConstrained(Anchor + Forward * 20.0);
+					const FRotator SlopeRotation(30.f, Character->GetActorRotation().Yaw, 0.f);
+					BoxActor->SetActorLocationAndRotation(BoxCenter, SlopeRotation);
+					const FVector SlopeStart = Pawn->GetActorLocation();
+					FVector SlopeTarget = Anchor + Forward * 120.0 + Right * 40.0;
+					SlopeTarget.Z = SlopeStart.Z;
+					Pawn->MoveConstrained(SlopeTarget, /*bKeepHeight*/ true);
+					Location = Pawn->GetActorLocation();
+					const FVector SlopeLocal = SlopeRotation.UnrotateVector(Location - BoxCenter);
+					const double SlopeFace = FMath::Max3(FMath::Abs(SlopeLocal.X) - 50.0, FMath::Abs(SlopeLocal.Y) - 50.0, FMath::Abs(SlopeLocal.Z) - 50.0);
+					const double SlopeLateral = FVector::DotProduct(Location - SlopeStart, Right);
+					const double SlopeDz = FMath::Abs(Location.Z - SlopeStart.Z);
+					Test->AddInfo(FString::Printf(TEXT("keep height slope slide: from %s to %s, lateral %.1f, |dz| %.4f, face distance %.1f"),
+						*SlopeStart.ToString(), *Location.ToString(), SlopeLateral, SlopeDz, SlopeFace));
+					Test->TestTrue(TEXT("keep height: oblique push slides along a sloped face (lateral > 20 cm)"), SlopeLateral > 20.0);
+					Test->TestTrue(TEXT("keep height: the sloped-face slide keeps the height (|dz| <= 0.01 cm)"), SlopeDz <= 0.01);
+					Test->TestTrue(TEXT("keep height: sloped-face slide keeps the sweep radius from the box faces"), SlopeFace >= Sweep - 1.0);
+				}
+
 				BoxActor->Destroy();
 				Pawn->MoveConstrained(Target);
 				Location = Pawn->GetActorLocation();
