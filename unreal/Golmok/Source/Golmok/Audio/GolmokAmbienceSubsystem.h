@@ -34,8 +34,10 @@ public:
 	bool ForceState(const FString& InState);
 	void SetMuted(bool bValue) { bMuted = bValue; }
 	bool IsMuted() const;
-	void PlayFootstep(const FString& Set, bool bLanding, const FVector& Location);
+	void PlayFootstep(const FString& Set, bool bLanding);
 	void RefreshBindings();
+	double GetPhotoGain() const { return PhotoGain.Value; }
+	void SetSurfaceDiagnostic(int32 Surface, const FString& Message);
 private:
 	void PresetChanged(FName Name, bool bInstant);
 	void InteriorChanged(bool bValue);
@@ -45,12 +47,14 @@ private:
 	UFUNCTION()
 	void PawnChanged(APawn* OldPawn, APawn* NewPawn);
 	FGolmokAudioConfig Config;
-	FString LoadError, State, ForcedState, Preset, PendingAsset;
-	bool bInterior = false, bMuted = false, bReady = false;
+	FString LoadError, State, ForcedState, Preset, PendingAsset, LastFootstepSet = TEXT("none"), SurfaceError;
+	bool bInterior = false, bMuted = false, bReady = false, bPhotoMuted = false;
 	int32 PendingSlot = INDEX_NONE;
 	double LastRealTime = 0.0, NextBindingTime = 0.0;
 	FString SlotIds[2];
 	GolmokAudioMath::Envelope Gains[2];
+	GolmokAudioMath::Envelope PhotoGain{false};
+	TSet<int32> WarnedSurfaces;
 	TWeakObjectPtr<AGolmokTimeOfDay> Lighting;
 	TWeakObjectPtr<APlayerController> Controller;
 	TWeakObjectPtr<UGolmokDebugSubsystem> Debug;

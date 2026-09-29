@@ -114,3 +114,44 @@ def test_invalid_verified_date(value):
     data["assets"]["tile"]["verified"] = value
     with pytest.raises(ValueError):
         audio.parse_config(data)
+
+
+@pytest.mark.parametrize("value", [None, True, -0.01, 5.01, float("nan"), "0.25"])
+def test_invalid_photo_fade(value):
+    data = audio.load_config()
+    data["photo_mute_fade_seconds"] = value
+    with pytest.raises(ValueError):
+        audio.parse_config(data)
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        None,
+        [],
+        {"Manny": {"walk": 67, "run": 146}},
+        {"manny": {"walk": 67}},
+        {"manny": {"walk": True, "run": 146}},
+        {"manny": {"walk": 0, "run": 146}},
+        {"manny": {"walk": 67, "run": float("nan")}},
+        {"manny": {"walk": 67, "run": 146, "extra": 1}},
+    ],
+)
+def test_invalid_character_strides(value):
+    data = audio.load_config()
+    data["footsteps"]["stride_cm_by_character"] = value
+    with pytest.raises(ValueError):
+        audio.parse_config(data)
+
+
+def test_optional_stride_and_photo_fade_contract():
+    data = audio.load_config()
+    assert data["footsteps"]["stride_cm_by_character"]["proxy110"] == {"walk": 45, "run": 115}
+    data["photo_mute_fade_seconds"] = 0
+    audio.parse_config(data)
+    del data["photo_mute_fade_seconds"]
+    del data["footsteps"]["stride_cm_by_character"]
+    audio.parse_config(data)
+    data["footsteps"]["stride_scale_by_mesh"] = True
+    with pytest.raises(ValueError, match="superseded"):
+        audio.parse_config(data)

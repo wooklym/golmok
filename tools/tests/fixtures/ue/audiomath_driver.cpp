@@ -6,7 +6,7 @@
 int main()
 {
 	GolmokAudioMath::DistanceStepper Step;
-	GolmokAudioMath::Envelope Gain;
+	GolmokAudioMath::Envelope Gain, Photo(false);
 	std::cout << std::setprecision(17);
 	std::string Command;
 	while (std::cin >> Command)
@@ -28,6 +28,14 @@ int main()
 		{
 			double Dt; std::cin >> Dt; Gain.Advance(Dt);
 			std::cout << Gain.Value << '\n';
+		}
+		else if (Command == "photo_target")
+		{
+			double Target, Seconds; std::cin >> Target >> Seconds; Photo.Set(Target, Seconds);
+		}
+		else if (Command == "photo_advance")
+		{
+			double Dt; std::cin >> Dt; Photo.Advance(Dt); std::cout << Photo.Value << '\n';
 		}
 		else if (Command == "surface")
 		{
