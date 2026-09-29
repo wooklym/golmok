@@ -284,11 +284,11 @@ R55-3 공유 문안/큐·C-08·소유자 밸런스 행과 main 통합은 오케�
 
 배정: [이슈 #30 T9](https://github.com/wooklym/golmok/issues/30#issuecomment-5881358195), 분석 도구 병합 반영 뒤 main `2b152ce`에서 새 브랜치 `astra/wp-13e-r55-followups`로 착수했다. 병합된 T8 브랜치에는 push하지 않는다.
 
-- **R55-5**: C++ `loop`/`placeholder`는 JSON Boolean, 공통 `String()` 및 빈 값이 허용되는 `license_url`은 JSON String을 요구한다. UE의 숫자/문자열 자동 변환을 허용하지 않으며 기존 정상 매니페스트는 그대로 읽는다. C++의 bool 필드 숫자·문자열 변이와 author 숫자·bool 변이, 실패 뒤 기존 설정 보존을 검사했다. Python 쪽에도 대응하는 변이 6개를 추가했다.
+- **R55-5**: C++ `loop`/`placeholder`는 JSON Boolean, 공통 `String()` 및 빈 값이 허용되는 `license_url`은 JSON String을 요구한다. 이 필드들에서 UE의 숫자/문자열 자동 변환을 허용하지 않으며 기존 정상 매니페스트는 그대로 읽는다. 참조 배열·매핑 값의 타입 검사는 13f에서 보완한다. C++의 bool 필드 숫자·문자열 변이와 author 숫자·bool 변이, 실패 뒤 기존 설정 보존을 검사했다. Python 쪽에도 대응하는 변이 6개를 추가했다.
 - **R55-7**: 보폭 설정의 모든 키가 `characters.json` 로스터 id인지 검사하는 pytest를 추가했다. 알 수 없는 키는 실패, 보폭 항목이 없는 로스터 id는 전역 보폭 fallback을 사용한다는 UserWarning이며 실패로 처리하지 않는다. 로스터 파일은 읽기만 하며 수정하지 않았다.
 - **런북 범위 점검**: §6 소유자 밸런스 행의 R55-9 추정값·미측정 표시, §7의 이전 V-10 실행 이력과 §7-1a 분석 도구, §8 T8 실제 출력 미검증 범위가 유지됨을 확인했다. 중복 수정은 하지 않았다. R55-9는 병합 세션 완료 사항으로 T9에서 제외한다.
 
-검증: ruff check/format108·check_repo·diff --check 통과. pytest **1000 passed/203 skipped/208 warnings,39.46s**(로컬 g++ 등 skip, CI 별도). UE5.8.3 빌드 **68.47s 성공**(엔진 C4996 경고). Audio **2 Success(경고1), failed0/notRun0,1.24s**. 전체 **32 Success(21+경고11), failed0/notRun0,178.56s**; RenderEvidence 기본 NOT EXECUTED1 제외 실제31개. 근거: 로컬 tools/.venv/t9-*.log·*-report.json. CI 결과는 PR 체크/보고 코멘트가 정본.
+검증: 로컬 ruff check/format·check_repo·diff --check 통과(추적 파일 기준 format 대상106). pytest **1000 passed/203 skipped/208 warnings,39.46s**(로컬 g++ 등 skip, CI 별도). UE5.8.3 빌드 **68.47s 성공**(엔진 C4996 경고). Audio **2 Success(경고1), failed0/notRun0,1.24s**. 전체 **32 Success(21+경고11), failed0/notRun0,178.56s**; RenderEvidence 기본 NOT EXECUTED1 제외 실제31개. 근거: 로컬 tools/.venv/t9-*.log·*-report.json. CI 결과는 PR 체크/보고 코멘트가 정본.
 
 훅·공유 문서·설정 값·음원·출처·새 품질 정책 변경 없음. 이번 엄격성/테스트 보완은 헤드리스 결과이며 T6/T8의 실제 출력·청취·패키지 발소리를 대신하지 않는다. T7 RHI 및 C-07/C-08 대기는 그대로다.
 
@@ -305,3 +305,22 @@ astra-tasks T9 행/STATUS Astra 진행 기록 문안: “T9 13e: R55-5 C++ Boole
 - **(C)**: R63-3 경고 문구의 70/110 cm 하드코딩·오타 메시지 안내·레인 간 계약 문서화(astra-tasks T9 행에 적음: 로스터 id 변경·삭제는 같은 PR에서 `stride_cm_by_character` 갱신), R63-4 테스트 라벨·parametrize·보존 비교는 다음 오디오 push. R63-5: 위 검증 문단의 "ruff check/format108"은 로컬 파일이 섞인 수치이고 head 기준 `ruff format --check`는 106 files다(원문 유지).
 - **검증 범위**: 리뷰 세션 게이트(ruff·pytest 1200 passed/3 skipped, g++ audio math 8/8 실행·check_repo·diff --check)·main 3079dad 시험 병합 충돌 없음·CI 10/10. UE 빌드·`Golmok.Audio` 2/2·전체 32는 Astra 보고 수치. 실제 출력·청취·패키지 발소리는 미실행 — C-07 뒤 V-11 카드(T6/T8 스모크), C-08 소유자 청취.
 - **(C) 옮긴 것**: STATUS 마지막 갱신·WP-13 행·세션 로그, astra-tasks T9 행 신설·T8 행·우선순위, 이 절.
+
+
+## 13f 결과 — T10 R63 잔여 (2026-09-29 KST)
+
+배정: [이슈 #30 T10](https://github.com/wooklym/golmok/issues/30#issuecomment-5882698771). T9 병합 뒤 main `5c4464e`에서 `astra/wp-13f-r63-followups`로 착수했다. 배정문의 Python 경로는 실제 파일 `unreal/Golmok/Content/Python/golmok/audio_pure.py`로 해석했다.
+
+- **R63-1**: C++ `footsteps.sets` 배열 원소·`surface_sets` 값·`preset_states` 값에 JSON String 가드를 추가했다. 문자열 세트 `"1"`과 숫자 표면 값 `1`, 문자열 에셋 `"true"`와 bool 배열 원소, bool 프리셋 변이를 거부한다. 문자열 대조군은 수락하며 거부 뒤 Credits·Assets.Num을 그대로 보존한다. 13e 결과의 타입 엄격성 문구도 당시 적용 필드로 한정했다.
+- **R63-2**: C++ 파서 reader가 전체 필드 경로와 기대 타입/범위/참조를 실패 위치에서 기록한다. 예: `audio.json footsteps.surface_sets.4: expected string`. 성공할 때만 새 설정을 반영한다. HUD의 기존 `LoadError`→`Describe()`→`error:` 전달은 그대로 사용하므로 AmbienceSubsystem 파일 변경은 불필요하다. Python `text`/`number`에 field 인수를 추가하고 객체·필수 값·날짜·배열 인덱스·참조 오류에도 경로를 붙였다. 기존의 Python 추가 제약(문자열 공백/탭/표 구분자, 스키마 정수 등)까지 C++와 완전히 같다고 주장하지 않는다.
+- **R63-3**: 로스터 보폭 누락 경고는 실제 walk/run 전역값을 읽는다. 임시 81/123cm 및 누락 manny 변이로 경고를 검사했다. 미등록 id 실패에는 같은 PR에서 `footsteps.stride_cm_by_character`를 갱신하라는 안내를 넣고 회귀로 확인했다.
+- **R63-4·5**: pytest의 bool/string 6조합을 명시하고 진단 문구를 단언했다. C++ 라벨에 Field/Value, 루프마다 Credits·Assets.Num 보존 비교를 추가했다. 13e의 format108은 로컬 표기와 추적 파일106으로 정정했다.
+
+검증: 로컬 ruff check/format·check_repo·diff --check 통과(Python 파서는 tools/pyproject.toml 규칙으로 별도 검사). pytest **1011 passed/203 skipped/208 warnings,38.13s**(g++ 등 로컬 skip, CI 별도). UE5.8.3 최종 빌드 **5.54s 성공**, Audio **2 Success(경고1), failed0/notRun0,1.25s**. 전체 **32 Success(21+경고11), failed0/notRun0,178.38s**; RenderEvidence 기본 NOT EXECUTED1 제외 실제31개. 실제 SoundWave **7개 임포트+재임포트7개**, loop/gain 일치·크레딧 diff 없음. 근거: 로컬 tools/.venv/t10-{build.log,pytest.log,audio-report.json,full-report.json,import.log}. CI 결과는 PR checks/이슈 보고가 정본.
+
+레인5파일만 변경했다. 훅·핫스팟·공유 문서·ini·audio.json·characters.json·음원·출처 변경 없음. 초기 추가 C++ 배열 변이 테스트의 공백 의존성을 발견해 JSON 직렬화한 입력으로 고친 뒤 재검증했다. 청취·실제 출력·패키지 발소리는 이번 헤드리스 결과에 포함하지 않는다. 기존 WP-13/V-10 🟢 판정 범위, T7 RHI의 C-07/PC 조건 및 C-08 소유자 청취는 유지한다.
+
+### 병합 시 반영 — T10
+
+- **astra-tasks T10 행**: “T10 13f — R63-1~5 완료: 참조 문자열 타입 가드·필드 경로 진단·설정값 보폭 경고·변이/보존 회귀·13e 문구 정정. `astra/wp-13f-r63-followups`, 헤드리스/UE 빌드 통과. 다음 T7 RHI는 C-07 해소·PC 카드 뒤.” PR 번호는 병합 대상 PR 링크를 붙인다.
+- **STATUS Astra 진행 한 줄**: “T10 13f R63 잔여 구현·헤드리스 검증 완료(참조 타입·필드 진단·보폭 경고·회귀). WP-13/V-10 기존 🟢 범위 유지, T6/T8 실제 출력·청취·패키지 발소리는 C-07 뒤 V-11/C-08, T7 RHI도 PC 조건 뒤.”
