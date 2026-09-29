@@ -302,10 +302,9 @@ astra-tasks T9 행/STATUS Astra 진행 기록 문안: “T9 13e: R55-5 C++ Boole
 
 - **판정: 병합(A 없음).** R55-5·R55-7·런북 범위 점검 완료. 필드별 타입 일치표(#63 코멘트 §2): `loop`/`placeholder`·`String()` 필드·`license_url`은 C++와 Python이 같은 JSON 타입을 요구하고, Python이 받는 매니페스트를 C++가 거부하는 경우는 없다. 배포된 `audio.json`은 그대로 읽히고 실패 시 이전 설정이 유지된다.
 - **(B) 다음 오디오 push**: R63-1 — `footsteps.sets` 원소·`surface_sets` 값·`preset_states`는 아직 `FJsonValue::TryGetString` 강제 변환이 남아 있다(Python이 거부하는 두 매니페스트를 C++가 수락; 커밋본은 CI의 Python 검사가 먼저 막으므로 PC 로컬 편집(C-08) 때만 영향). 따라서 위 13e 결과의 "UE의 숫자/문자열 자동 변환을 허용하지 않으며"는 `loop`/`placeholder`/`String()` 필드에 한한 말로 읽는다. 수정은 `EJson::String` 가드 3곳 + C++ 변이 1개. R63-2 — C++ 파서 실패 메시지가 항상 같은 문장이고 Python `text()`/`number()`도 필드 이름이 없다(이전부터의 문제). 실패 지점마다 필드·기대 타입을 넣는다.
-- **(C)**: R63-3 경고 문구의 70/110 cm 하드코딩·오타 메시지 안내·레인 간 계약 문서화(astra-tasks T9 행에 적음: 로스터 id 변경·삭제는 같은 PR에서 `stride_cm_by_character` 갱신), R63-4 테스트 라벨·parametrize·보존 비교는 다음 오디오 push. R63-5: 위 검증 문단의 "ruff check/format108"은 로컬 파일이 섞인 수치이고 head 기준 `ruff format --check`는 106 files다(원문 유지).
+- **(C)**: R63-3 경고 문구의 70/110 cm 하드코딩·오타 메시지 안내·레인 간 계약 문서화(astra-tasks T9 행에 적음: 로스터 id 변경·삭제는 같은 PR에서 `stride_cm_by_character` 갱신), R63-4 테스트 라벨·parametrize·보존 비교는 다음 오디오 push. R63-5: 위 검증 문단의 "ruff check/format108"은 로컬 파일이 섞인 수치이고 head 기준 `ruff format --check`는 106 files다(13f T10 #65에서 정정).
 - **검증 범위**: 리뷰 세션 게이트(ruff·pytest 1200 passed/3 skipped, g++ audio math 8/8 실행·check_repo·diff --check)·main 3079dad 시험 병합 충돌 없음·CI 10/10. UE 빌드·`Golmok.Audio` 2/2·전체 32는 Astra 보고 수치. 실제 출력·청취·패키지 발소리는 미실행 — C-07 뒤 V-11 카드(T6/T8 스모크), C-08 소유자 청취.
 - **(C) 옮긴 것**: STATUS 마지막 갱신·WP-13 행·세션 로그, astra-tasks T9 행 신설·T8 행·우선순위, 이 절.
-
 
 ## 13f 결과 — T10 R63 잔여 (2026-09-29 KST)
 
@@ -324,3 +323,14 @@ astra-tasks T9 행/STATUS Astra 진행 기록 문안: “T9 13e: R55-5 C++ Boole
 
 - **astra-tasks T10 행**: “T10 13f — R63-1~5 완료: 참조 문자열 타입 가드·필드 경로 진단·설정값 보폭 경고·변이/보존 회귀·13e 문구 정정. `astra/wp-13f-r63-followups`, 헤드리스/UE 빌드 통과. 다음 T7 RHI는 C-07 해소·PC 카드 뒤.” PR 번호는 병합 대상 PR 링크를 붙인다.
 - **STATUS Astra 진행 한 줄**: “T10 13f R63 잔여 구현·헤드리스 검증 완료(참조 타입·필드 진단·보폭 경고·회귀). WP-13/V-10 기존 🟢 범위 유지, T6/T8 실제 출력·청취·패키지 발소리는 C-07 뒤 V-11/C-08, T7 RHI도 PC 조건 뒤.”
+
+## 병합 기록 — 13f T10 [PR #65](https://github.com/wooklym/golmok/pull/65) (2026-09-29)
+
+대상: `astra/wp-13f-r63-followups` 117f820(Astra push 정지) + 오케스트레이터 병합 커밋(main 5c4464e 병합·변경 없음·위 병합 시 반영). 리뷰: Opus 5.5 읽기 전용 적대 검증 R65-1~8(#65 코멘트). 병합: 오케스트레이터 결정(D-019). 설계 변경·새 품질 가설이 없어 Fable 설계 검토는 없다.
+
+- **판정: 병합(A·B 없음).** R63-1~5 전부 반영. 타입 일치표(#65 코멘트 §2): 위험 방향(Python 수락·C++ 거부) 없음, C++의 `TryGet*` 호출은 모두 타입 가드 뒤에만 있어 강제 변환 경로 0. 새 C++ 변이 3종(숫자 표면 매핑·bool 샘플·bool preset)은 거부와 정확한 메시지를 함께 단언하고 문자열 대조군 2종은 수락을 단언한다.
+- **진단 형식**: C++ `audio.json <경로>: expected <기대>`(ASCII·한 줄), 실패 시 이전 설정 유지(`Out = MoveTemp(Next)`는 성공 뒤에만), HUD는 기존 `LoadError → Describe()` 경로 그대로(`GolmokAmbienceSubsystem.cpp` 무수정). Python `parse_config`의 모든 raise에 필드 경로. 파일 미발견 메시지는 상대 경로만.
+- **Python 재작성 의미 동일**: 배포 `audio.json` 기준 값 교체·삭제·키 추가 퍼징 14,647건에서 PR 전/후 수락/거부 차이 0. 예외 타입만 ValueError로 통일(868건). 의도하지 않은 강화 1건(R65-1: `surface_sets` 값이 공백·제어 문자를 포함한 세트 id를 가리키면 거부 — 현재 세트 id에는 영향 없음, 안전 방향). 과제 밖 포맷 변경 포함(줄 길이 110, import 순서; 의미 동일). `attribution()` 출력은 커밋된 `ATTRIBUTION.md`·`Credits/audio-credits.txt`와 바이트 동일.
+- **(C) 다음 오디오 push 선택**: R65-1 세트 id 정의 쪽에서 C++/Python 같은 정규식 검사, R65-2 JSON 구문 오류에 `Reader->GetErrorMessage()` 줄·열 + 로드 실패 `UE_LOG` 1회, R65-3 참조 실패 3종의 보존 검사에 `Sets`/`Assets`/`Presets` 항목 단언, R65-4 변이 생성을 텍스트 치환 대신 DOM 수정으로, R65-5 오류 경로의 제어 문자 치환, R65-7 기존 `raises(ValueError)` 40 케이스에 `match=`. R65-6(포맷)은 조치 없음. R65-8은 이 커밋(13e 병합 기록 "(원문 유지)" 정정·빈 줄).
+- **검증 범위**: 리뷰 세션 게이트(ruff·format 106, pytest 1211 passed/3 skipped, g++ audio math 8/8 실행, `test_ue_config_audio` 64/64, check_repo·diff --check)·main 5c4464e 시험 병합 트리 동일·CI 10/10. UE 5.8.3 빌드·`Golmok.Audio` 2/2·전체 32·SoundWave 임포트 7+7은 Astra 보고 수치("최종 빌드 5.54 s"는 코드 동일 상태의 증분 빌드로 읽음). 실제 출력·청취·패키지 발소리는 미실행 — C-07 뒤 V-11 카드(선택 추가: gain을 `"0.5"`로 바꿔 HUD `error: audio.json assets.<id>.gain: expected finite number in [0, 1]` 확인 뒤 원복), C-08 소유자 청취.
+- **(C) 옮긴 것**: STATUS 마지막 갱신·WP-13 행 2개·세션 로그, astra-tasks T10 행 병합 표기·T9 행·우선순위, 이 절.
