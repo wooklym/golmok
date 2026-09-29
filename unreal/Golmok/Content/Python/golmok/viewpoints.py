@@ -22,7 +22,7 @@ import time
 
 import unreal
 
-from . import lighting
+from . import lighting, synthetic_zone
 
 RES_X, RES_Y = 2560, 1440
 WAIT_TICKS = 30  # frames to let Lumen/VSM/TSR settle after each camera or lighting change
@@ -75,8 +75,9 @@ class _Capture:
         self.pending = None  # (path, requested_at, ticks_left) while waiting for the screenshot file
         self.saved = []
         self.missing = []
-        # normpath: the UE saved dir uses "/" while os.path.join adds os.sep (mixed separators on Windows)
-        saved_dir = unreal.Paths.project_saved_dir()
+        # absolute + normpath: the UE saved dir is relative to the editor binaries and uses "/" while os.path.join
+        # adds os.sep (mixed separators on Windows; V-04b F2, runbook §12 #31)
+        saved_dir = synthetic_zone.abs_project_path(unreal.Paths.project_saved_dir())
         self.out_root = os.path.normpath(os.path.join(saved_dir, "Screenshots", "Golmok", tag))
         self.level_editor = unreal.get_editor_subsystem(unreal.LevelEditorSubsystem)
         self.level_editor.editor_set_viewport_realtime(True)

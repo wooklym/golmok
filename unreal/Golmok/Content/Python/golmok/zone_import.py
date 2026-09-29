@@ -16,9 +16,11 @@ What it does (docs/runbooks/pc-verify-wp06.md §2; WP-06 design §3-2):
 2. Importer mapping: one probe OBJ (importer ladder fbx -> interchange -> legacy_flag) and one probe GLB
    measure the importer's axis/unit mapping (scale, M). The result is cached per engine version in
    <Saved>/Golmok/zone_import/importer_mapping.json (remeasure=True ignores the cache).
-3. Textures: the UDIM anchor tile (BaseName.1001.ext) or the single file is imported as Textures/T_<base>,
-   sRGB and virtual texture streaming are forced on, and tiles the importer did not merge are packed with
-   UDIMTextureFunctionLibrary (last resort: tile 1001 only + WARNING).
+3. Textures: the UDIM anchor tile (BaseName.1001.ext) or the single file is imported in place as
+   Textures/T_<base> (replace_existing: a re-import keeps the asset object), sRGB and virtual texture streaming
+   are forced on, and tiles the importer did not merge are packed with UDIMTextureFunctionLibrary from copies
+   named outside the engine UDIM rule (last resort: tile 1001 only + WARNING). Under -nullrhi the size test
+   cannot tell merged from unmerged: no pack, one WARNING (V-04b F1).
 4. Materials: /Game/Golmok/Materials/M_ZoneScan (VT sampler; default texture = its own T_ZoneScanDefault,
    repaired in place on an existing master) and M_ZoneScan_NoVT (T_ZoneScanDefault_NoVT) when a texture
    could not be made VT; one MI_<material> per MTL material.
@@ -34,9 +36,12 @@ What it does (docs/runbooks/pc-verify-wp06.md §2; WP-06 design §3-2):
    build output) into <Content>/Golmok/Zones/index between the zone rebuild and the save (zone_index.sync);
    a missing index folder is one zone_index WARNING, not a failure.
 
-Every import goes to a scratch <folder>/_import and is moved to its convention path (V-03: Interchange puts
-glTF at <dest>/<source>/StaticMeshes/<name>; runbook #37). Re-running is the normal workflow (the previous
-asset at the path is replaced); the OBJ copies stay in Saved and are overwritten. interior_setup reuses
+Every mesh import (and the master's default texture) goes to a scratch <folder>/_import and is moved to its
+convention path (V-03: Interchange puts glTF at <dest>/<source>/StaticMeshes/<name>; runbook #37); zone
+textures are imported straight onto their path (V-04b F3). Re-running is the normal workflow (the previous
+asset at the path is replaced; a mesh whose force delete leaves it in place is an ERROR with the runbook #8
+work-around, never a rename over it); the OBJ copies stay in Saved and are overwritten. Saved and Content
+paths are made absolute first (V-04b F2, runbook #31). interior_setup reuses
 import_assets() for the asset part.
 """
 
@@ -65,6 +70,8 @@ _BYPRODUCT_CLASSES = ("Material", "MaterialInstanceConstant", "Texture2D")  # im
 SCRATCH = "_import"  # V-03: every import goes to <folder>/_import and is moved to its convention path
 MASTER_DEFAULT_NAME = "T_ZoneScanDefault"  # the masters' own default texture (never a zone texture)
 MASTER_DEFAULT_PX = 256  # >= the virtual texture tile size
+NULLRHI_FLAG = "-nullrhi"  # headless editor: texture sizes are not measurable (V-04b F1, runbook #4)
+HOW_NO_RHI = "merged by importer (size unverifiable without RHI)"
 
 _warnings: list[str] = []  # messages of the zi.warn lines of the current import_assets() call
 
@@ -137,11 +144,12 @@ def _read_text_head(path: str) -> str:
 
 
 def _saved_dir() -> str:
-    return os.path.normpath(unreal.Paths.project_saved_dir())
+    """Absolute <Project>/Saved (V-04b F2: the editor's relative form overran MAX_PATH; runbook §12 #31)."""
+    return sz.abs_project_path(unreal.Paths.project_saved_dir())
 
 
 def _content_dir() -> str:
-    return os.path.normpath(unreal.Paths.project_content_dir())
+    return sz.abs_project_path(unreal.Paths.project_content_dir())
 
 
 def _zone_import_dir() -> str:
@@ -396,8 +404,11 @@ def _ensure_path(asset, target: str, row: int, scratch: str | None = None):
     current = _asset_key(asset.get_path_name())
     if current == target:
         return asset
-    if lib.does_asset_exist(target) and not lib.delete_asset(target):
-        raise RuntimeError(f"{target} exists and could not be deleted (referenced?)")
+    if lib.does_asset_exist(target):
+        if not lib.delete_asset(target):
+            raise RuntimeError(f"{target} exists and could not be deleted (referenced?)")
+        if lib.does_asset_exist(target):  # V-04b F3: deleted, yet a rename then hit "asset already exists"
+            _residue_error(target, current)
     if not lib.rename_asset(current, target):
         if lib.duplicate_asset(current, target) is None:
             raise RuntimeError(f"could not rename {current} to {target}")
@@ -411,6 +422,46 @@ def _ensure_path(asset, target: str, row: int, scratch: str | None = None):
     if moved is None:
         raise RuntimeError(f"{target} missing after renaming {current}")
     return moved
+
+
+def _disk_path(asset: str) -> str | None:
+    """<Content>/A/B.uasset of '/Game/A/B' (None outside /Game)."""
+    if not asset.startswith("/Game/"):
+        return None
+    return os.path.join(_content_dir(), *asset[len("/Game/") :].split("/")) + ".uasset"
+
+
+def _residue_error(target: str, current: str) -> None:
+    """V-04b F3 (runbook #8): delete_asset(target) returned True but the asset is still there (seen in a fresh
+    editor process: the rename then failed with "An asset already exists at this location"). Neither rename nor
+    duplicate is tried over it; one ERROR line with the on-disk state and the work-around, then the step fails."""
+    disk = _disk_path(target)
+    on_disk = "unknown" if disk is None else ("present" if os.path.isfile(disk) else "absent")
+    parts = target.split("/")
+    if parts[2:4] == ["Golmok", "Zones"] and len(parts) > 4:
+        folder = os.path.join(_content_dir(), "Golmok", "Zones", parts[4])
+    else:
+        folder = os.path.dirname(disk) if disk else target.rsplit("/", 1)[0]
+    message = (
+        f"{target} still exists after delete_asset returned True (does_asset_exist=True; on disk {disk}: "
+        f"{on_disk}); {current} was not renamed or duplicated over it. Work-around (runbook #8): close the "
+        f"editor, delete the folder {folder} on disk, reopen the editor and re-run"
+    )
+    unreal.log_error(_pure.fmt("zi.error", step="replace", message=message))
+    raise ZoneImportError("replace", message)
+
+
+def _import_in_place(filename, folder: str, name: str, target: str, cls, row: int, options=None):
+    """V-04b F3: import straight onto the convention path with replace_existing=True, so a re-import updates
+    the existing asset in place (MI_* BaseColor keeps pointing at it) with no delete and no rename. Textures
+    only: a PNG lands at <folder>/<name> (V-04, V-04b logs; runbook #37); an importer that names it otherwise is
+    moved by _ensure_path (warning, row `row`). Meshes keep _import_moved (glTF sub-folders)."""
+    paths = _import_task(filename, folder, destination_name=name, options=options)
+    picked = _pick(paths, cls)
+    src = _asset_key(picked.get_path_name())
+    asset = _ensure_path(picked, target, row)
+    _delete_assets(paths, keep={target, src})
+    return asset
 
 
 def _import_moved(filename, folder: str, name: str, target: str, cls, row: int, options=None, factory=None):
@@ -560,21 +611,49 @@ def _force_texture_settings(texture) -> tuple[bool, bool]:
     return vt, vt
 
 
-def _pack_udim_tiles(tex: dict, asset_folder: str, single):
+def _without_rhi() -> bool | None:
+    """True when the editor runs with -nullrhi (headless), None when SystemLibrary.get_command_line is not
+    exposed (runbook #4). Without RHI a texture's size comes from its source, and a merged UDIM then seems to
+    report its first block (the tile size) [unverified on 5.8.3 source]: the size test cannot tell merged from
+    unmerged, and packing a merged texture again ends the editor (V-04b F1)."""
+    lib = getattr(unreal, "SystemLibrary", None)
+    if lib is None or not hasattr(lib, "get_command_line"):
+        return None
+    return NULLRHI_FLAG in str(lib.get_command_line()).lower().split()
+
+
+def _tile_copy_name(name: str, u: int, v: int) -> str:
+    """'<T_name>_u<u>v<v>': a tile file name outside the engine UDIM rule [._]#### (runbook #38)."""
+    return f"{name}_u{int(u)}v{int(v)}"
+
+
+def _pack_udim_tiles(tex: dict, asset_folder: str, single, work: str):
     """UDIM tiles the importer left unmerged: import every tile into Textures/_tiles and pack them with
-    UDIMTextureFunctionLibrary; without the library keep the anchor tile only (runbook #4)."""
+    UDIMTextureFunctionLibrary; without the library keep the anchor tile only (runbook #4).
+
+    Each tile is imported from a copy in <work>/textures named <T_name>_u<u>v<v>.<ext> (V-04b F1): the source
+    name 'facade.1001.png' matches the engine UDIM rule [._]#### (#38), and whether import_udi_ms=False is
+    honoured is unconfirmed (#3), so a tile could come in as a multi-block texture again. The engine asserts
+    Source.GetNumLayers() == 1 && Source.GetNumBlocks() == 1 on every input of
+    make_udim_virtual_texture_from_texture2_ds: a multi-block input (or packing an already merged texture) is
+    an appError that ends the editor, not a harmless second pack (this corrects the earlier review's "one
+    duplicate pack only, harmless")."""
     name, tiles = tex["name"], tex["tiles"]
     if not hasattr(unreal, "UDIMTextureFunctionLibrary"):
         _warn(f"texture {name}: UDIM tiles not merged; using tile {tiles[0]} only (runbook #4)")
         return single, f"tile {tiles[0]} only (WARNING)"
     lib = unreal.EditorAssetLibrary
     tiles_folder = f"{asset_folder}/Textures/_tiles"
+    copies = os.path.join(work, "textures")
+    os.makedirs(copies, exist_ok=True)
     tile_textures = []
-    for tile in tiles:
+    for tile, (u, v) in zip(tiles, tex["block_coords"], strict=True):
+        src = os.path.normpath(tex["files"][str(tile)])
+        tag = _tile_copy_name(name, u, v)
+        copy = os.path.join(copies, tag + os.path.splitext(src)[1])
+        shutil.copyfile(src, copy)
         options = _texture_options(False)  # one plain tile each
-        paths = _import_task(
-            tex["files"][str(tile)], tiles_folder, destination_name=f"{name}_{tile}", options=options
-        )
+        paths = _import_task(copy, tiles_folder, destination_name=tag, options=options)
         texture = _pick(paths, unreal.Texture2D)
         _delete_assets(paths, keep={_asset_key(texture.get_path_name())})
         tile_textures.append(texture)
@@ -590,8 +669,9 @@ def _pack_udim_tiles(tex: dict, asset_folder: str, single):
     return packed, f"packed from {len(tile_textures)} tiles"
 
 
-def _import_texture(tex: dict, asset_folder: str, reimport: bool) -> tuple[object, dict]:
-    """Textures/T_<base> from the UDIM anchor tile or the single file: (texture, result detail)."""
+def _import_texture(tex: dict, asset_folder: str, reimport: bool, work: str) -> tuple[object, dict]:
+    """Textures/T_<base> from the UDIM anchor tile or the single file: (texture, result detail). Imported in
+    place at the convention path (replace_existing; V-04b F3), not through the _import scratch folder."""
     lib = unreal.EditorAssetLibrary
     tiles = list(tex["tiles"])
     if not reimport and lib.does_asset_exist(tex["asset"]):
@@ -599,7 +679,7 @@ def _import_texture(tex: dict, asset_folder: str, reimport: bool) -> tuple[objec
         vt = bool(_try_get(texture, "virtual_texture_streaming", 5))
         how = "skipped: exists"
     else:
-        texture = _import_moved(
+        texture = _import_in_place(
             tex["anchor"],
             f"{asset_folder}/Textures",
             tex["name"],
@@ -621,11 +701,25 @@ def _import_texture(tex: dict, asset_folder: str, reimport: bool) -> tuple[objec
                 )
         elif len(tiles) > 1:
             size, tile = _texture_size(texture), _png_tile_size(tex["anchor"])
-            if size is None or tile is None or 0 in size:
+            no_rhi = _without_rhi()
+            if size is None or tile is None:
                 how = "merged by importer (size unknown)"
                 _warn(f"texture {tex['name']}: UDIM merge could not be verified by size (runbook #4)")
+            elif no_rhi or 0 in size:
+                # V-04b F1: never pack on a size the editor cannot measure (a wrong pack is an engine assert)
+                how = HOW_NO_RHI
+                why = NULLRHI_FLAG if no_rhi else f"size {size[0]}x{size[1]}"
+                _warn(
+                    f"texture {tex['name']}: UDIM merge not verifiable without RHI ({why}); pack fallback "
+                    "skipped - check the texture in a GUI editor (runbook #4)"
+                )
             elif size == tile:
-                texture, how = _pack_udim_tiles(tex, asset_folder, texture)
+                if no_rhi is None:
+                    _warn(
+                        "SystemLibrary.get_command_line unavailable: -nullrhi not detectable; UDIM pack "
+                        f"fallback for {tex['name']} runs on the size test alone (runbook #4)"
+                    )
+                texture, how = _pack_udim_tiles(tex, asset_folder, texture, work)
             else:
                 how = "merged by importer"
         vt, enabled = _force_texture_settings(texture)
@@ -895,7 +989,7 @@ def import_assets(plan: dict, work_dir: str, remeasure=False, reimport_textures=
     textures: dict[str, tuple] = {}  # T_ name -> (texture, vt)
     for tex in plan["textures"]:
         with _step(f"texture {tex['name']}"):
-            texture, detail = _import_texture(tex, asset_folder, reimport_textures)
+            texture, detail = _import_texture(tex, asset_folder, reimport_textures, work)
         textures[tex["name"]] = (texture, detail["vt"])
         assets.append({"kind": "texture", "asset": tex["asset"], "ok": True, "detail": detail})
     instances: dict[str, object] = {}
