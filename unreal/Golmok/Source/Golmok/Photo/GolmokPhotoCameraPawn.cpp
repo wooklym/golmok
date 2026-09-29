@@ -22,8 +22,9 @@ namespace
 	constexpr int32 PhotoMaxSweeps = 2;
 	/** A slide shorter than this is dropped (a head-on push leaves only rounding noise). */
 	constexpr double PhotoMinSlideCm = 0.01;
-	/** Keep-height slide: a hit whose normal has a horizontal part at least this long (a slope steeper than ~1.1 degrees)
-	 * slides along its horizontal cross-section (V-09c, runbook section 7 item 7); flatter hits keep the flattened slide. */
+	/** Keep-height slide: a hit whose normal has a horizontal part LONGER than this (strict >; a face steeper than ~1.15
+	 * degrees) slides along its horizontal cross-section (V-09c, runbook section 7 item 7); a normal with a horizontal part
+	 * of this length or shorter keeps the flattened slide (GolmokPhotoMath::KeepHeightSlide). */
 	constexpr double PhotoSlopeSlideMinHorizontal = 0.02;
 	/** |Q/E axis| at or below this counts as no vertical input (a resting gamepad trigger has no dead zone, D-013 decision 3). */
 	constexpr float PhotoUpDownDeadZone = 0.1f;
@@ -229,23 +230,18 @@ void AGolmokPhotoCameraPawn::MoveConstrained(const FVector& InDesired, bool bKee
 		if (bKeepHeight)
 		{
 			// D-013 decision 3: a blocked horizontal move slides in the horizontal plane only (a sloped or curved hit plane
-			// would otherwise lift or drop it); nothing left in that plane ends the move below.
-			Slide.Z = 0.0;
-			// V-09c (runbook section 7 item 7): flattening alone leaves the slide off a sloped hit (ramp, step edge) pointing
-			// back into it, so the second sweep stopped at once. Remove the part that still goes into the hit's horizontal
-			// normal: the move follows the obstacle's horizontal cross-section. A vertical wall is unchanged (its normal is
-			// already horizontal); a near-level hit (rough floor) keeps the flattened slide, so pushing along the ground does
-			// not wander sideways.
-			const FVector HorizontalNormal(Hit.Normal.X, Hit.Normal.Y, 0.0);
-			if (HorizontalNormal.SizeSquared() > FMath::Square(PhotoSlopeSlideMinHorizontal))
-			{
-				const FVector Into = HorizontalNormal.GetSafeNormal();
-				const double IntoCm = FVector::DotProduct(Slide, Into);
-				if (IntoCm < 0.0)
-				{
-					Slide -= Into * IntoCm;
-				}
-			}
+			// would otherwise lift or drop it); nothing left in that plane ends the move below. V-09c (runbook section 7 item
+			// 7, section 12 #68): flattening alone leaves the slide off a sloped hit (ramp, step edge) pointing back into it,
+			// so the second sweep stopped at once; KeepHeightSlide also removes the part going into the hit's outward
+			// horizontal normal (one-sided) when that part of the normal is longer than PhotoSlopeSlideMinHorizontal, so the
+			// move follows the obstacle's horizontal cross-section. A vertical wall is unchanged (its normal is already
+			// horizontal); a near-level hit (rough floor) keeps the flattened slide. The rule is the pure
+			// GolmokPhotoMath::KeepHeightSlide (cross-checked against numpy by tools/tests/test_ue_photo_math.py).
+			const GolmokPhotoMath::Vec3 SlideV = {Slide.X, Slide.Y, Slide.Z};
+			const GolmokPhotoMath::Vec3 HitNormalV = {Hit.Normal.X, Hit.Normal.Y, Hit.Normal.Z};
+			GolmokPhotoMath::Vec3 KeepSlide = {};
+			GolmokPhotoMath::KeepHeightSlide(SlideV, HitNormalV, PhotoSlopeSlideMinHorizontal, KeepSlide);
+			Slide = FVector(KeepSlide[0], KeepSlide[1], KeepSlide[2]);
 		}
 		if (Slide.SizeSquared() < FMath::Square(PhotoMinSlideCm))
 		{

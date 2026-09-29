@@ -9,7 +9,8 @@
 // Golmok.Photo.Clamp:     the pure constraint math (sphere / footprint polygon / Constrain / parameter steps), then
 //                         on L_Dev the pawn stays inside the sphere and a test footprint, stops on the floor, stops
 //                         at a transient blocking box and passes once the box is gone; a horizontal push keeps the
-//                         height at the sphere / footprint junction and along the box face (D-013 decision 3);
+//                         height at the sphere / footprint junction and along the box face (D-013 decision 3), slides
+//                         along it pitched +-30 degrees and keeps its direction on a near-level top face (V-09c #68);
 //                         SetParam / Reset.
 // Golmok.Photo.MetaJson:  FormatPhotoMetaJson matches the design section 2-2 layout byte for byte (null groups, string
 //                         escapes, FJsonSerializer round trip); GolmokPhotoJson::ParseConfigText rejects the design
@@ -783,6 +784,70 @@ namespace GolmokPhotoTest
 					Test->TestTrue(TEXT("keep height: oblique push slides along a sloped face (lateral > 20 cm)"), SlopeLateral > 20.0);
 					Test->TestTrue(TEXT("keep height: the sloped-face slide keeps the height (|dz| <= 0.01 cm)"), SlopeDz <= 0.01);
 					Test->TestTrue(TEXT("keep height: sloped-face slide keeps the sweep radius from the box faces"), SlopeFace >= Sweep - 1.0);
+
+					// (c3) variant, pitch -30 degrees (PR #56 review R56-6): the face toward the anchor now leans away from the
+					// pawn (normal ~(-0.87, 0, +0.5): Nz > 0 like the 12-degree ramp and the step edge of V-09c). At the pawn's
+					// height it is the same plane (42 cm ahead, 19.3 cm from the pawn's center), so the same slide is expected:
+					// lateral 40.0 (1.57 cm in the first sweep + 38.43 cm slide: GolmokPhotoMath::KeepHeightSlide gives (0, 38.43,
+					// 0) for both +-0.5), |dz| 0.0000, face distance 15.9. The numbers come from a sweep model that pulls a blocked
+					// sweep back 1 cm + 0.1 % of the move; it reproduces the PC values of (c2) (face distance 16.0) and (c3) (lateral
+					// 40.0, face distance 15.9, and 2.3 without #68). Flattening alone gives lateral 2.3 here too.
+					{
+						Pawn->MoveConstrained(Anchor + Forward * 20.0);
+						const FRotator LeanRotation(-30.f, Character->GetActorRotation().Yaw, 0.f);
+						BoxActor->SetActorLocationAndRotation(BoxCenter, LeanRotation);
+						const FVector LeanStart = Pawn->GetActorLocation();
+						FVector LeanTarget = Anchor + Forward * 120.0 + Right * 40.0;
+						LeanTarget.Z = LeanStart.Z;
+						Pawn->MoveConstrained(LeanTarget, /*bKeepHeight*/ true);
+						Location = Pawn->GetActorLocation();
+						const FVector LeanLocal = LeanRotation.UnrotateVector(Location - BoxCenter);
+						const double LeanFace = FMath::Max3(FMath::Abs(LeanLocal.X) - 50.0, FMath::Abs(LeanLocal.Y) - 50.0, FMath::Abs(LeanLocal.Z) - 50.0);
+						const double LeanLateral = FVector::DotProduct(Location - LeanStart, Right);
+						const double LeanDz = FMath::Abs(Location.Z - LeanStart.Z);
+						Test->AddInfo(FString::Printf(TEXT("keep height slope slide (pitch -30): from %s to %s, lateral %.1f, |dz| %.4f, face distance %.1f"),
+							*LeanStart.ToString(), *Location.ToString(), LeanLateral, LeanDz, LeanFace));
+						Test->TestTrue(TEXT("keep height: oblique push slides along a face leaning away (pitch -30, lateral > 20 cm)"), LeanLateral > 20.0);
+						Test->TestTrue(TEXT("keep height: the pitch -30 slide keeps the height (|dz| <= 0.01 cm)"), LeanDz <= 0.01);
+						Test->TestTrue(TEXT("keep height: the pitch -30 slide keeps the sweep radius from the box faces"), LeanFace >= Sweep - 1.0);
+					}
+
+					// (c3) variant, a near-level face (R56-6): the box pitched 1 degree and the pawn resting on its top face, whose
+					// normal ~(-0.017, 0, 1.0) has a horizontal part of 0.0175, not longer than PhotoSlopeSlideMinHorizontal
+					// (0.02), then the same keep-height push. Only the flattened slide is kept, so the move keeps its own direction
+					// and ends where the face rising under it meets the sphere; it does not turn sideways along the face's contour.
+					// Expected (same pull-back model): the 60 cm drop onto the face stops 1.06 cm above it (start face distance
+					// 16.1), the rising face closes that gap after 60.7 cm of the 100 cm push; along 59.8, lateral 23.9 (lateral /
+					// along 0.40: the first sweep's amount, the flattened second sweep adds < 0.1 cm), |dz| 0.0000, face distance
+					// 15.0. The cross-section rule (a threshold of 0) would give lateral 40.0 at along 59.7 (+16.1 cm sideways).
+					{
+						Pawn->MoveConstrained(Anchor + Forward * 20.0);
+						const FRotator LevelRotation(1.f, Character->GetActorRotation().Yaw, 0.f);
+						BoxActor->SetActorLocationAndRotation(BoxCenter, LevelRotation);
+						// Up in front of the box, over it, then down onto its top face (free 3D moves; the sweep stops the drop).
+						Pawn->MoveConstrained(Anchor + Forward * 20.0 + FVector::UpVector * 100.0);
+						Pawn->MoveConstrained(Anchor + Forward * 60.0 + FVector::UpVector * 100.0);
+						Pawn->MoveConstrained(Anchor + Forward * 60.0 + FVector::UpVector * 40.0);
+						const FVector LevelStart = Pawn->GetActorLocation();
+						const FVector LevelStartLocal = LevelRotation.UnrotateVector(LevelStart - BoxCenter);
+						const double LevelStartFace = LevelStartLocal.Z - 50.0;
+						FVector LevelTarget = LevelStart + Forward * 100.0 + Right * 40.0;
+						LevelTarget.Z = LevelStart.Z;
+						Pawn->MoveConstrained(LevelTarget, /*bKeepHeight*/ true);
+						Location = Pawn->GetActorLocation();
+						const FVector LevelLocal = LevelRotation.UnrotateVector(Location - BoxCenter);
+						const double LevelFace = FMath::Max3(FMath::Abs(LevelLocal.X) - 50.0, FMath::Abs(LevelLocal.Y) - 50.0, FMath::Abs(LevelLocal.Z) - 50.0);
+						const double LevelLateral = FVector::DotProduct(Location - LevelStart, Right);
+						const double LevelAlong = FVector::DotProduct(Location - LevelStart, Forward);
+						const double LevelDz = FMath::Abs(Location.Z - LevelStart.Z);
+						Test->AddInfo(FString::Printf(TEXT("keep height near-level slide (pitch 1): from %s to %s, lateral %.1f, along %.1f, |dz| %.4f, face distance %.1f (start %.1f)"),
+							*LevelStart.ToString(), *Location.ToString(), LevelLateral, LevelAlong, LevelDz, LevelFace, LevelStartFace));
+						Test->TestTrue(TEXT("near-level: the pawn rests on the box's top face before the push (start face distance within radius -1..+3 cm)"), LevelStartFace >= Sweep - 1.0 && LevelStartFace <= Sweep + 3.0);
+						Test->TestTrue(TEXT("near-level: the rising top face stops the push (along < 95 cm)"), LevelAlong < 95.0);
+						Test->TestTrue(TEXT("near-level: flattened slide only, the move keeps the push direction (|lateral - 0.4 along| <= 1 cm)"), FMath::Abs(LevelLateral - 0.4 * LevelAlong) <= 1.0);
+						Test->TestTrue(TEXT("near-level: the push keeps the height (|dz| <= 0.01 cm)"), LevelDz <= 0.01);
+						Test->TestTrue(TEXT("near-level: the push keeps the sweep radius from the box faces"), LevelFace >= Sweep - 1.0);
+					}
 				}
 
 				BoxActor->Destroy();
