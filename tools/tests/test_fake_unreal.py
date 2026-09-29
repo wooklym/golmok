@@ -10,6 +10,7 @@ from __future__ import annotations
 import importlib
 import json
 import os
+import shutil
 import sys
 import time
 import types
@@ -215,7 +216,7 @@ def test_nested_glb_engine_udim_and_force_delete_knobs(fake, unreal, zone, tmp_p
     assert mic.texture_params["BaseColor"] is None and mic.parent is None
 
 
-def test_png_import_udim_merge_and_single(fake, unreal, zone):
+def test_png_import_udim_merge_and_single(fake, unreal, zone, tmp_path):
     textures = f"{FOLDER}/Textures"
     paths = _import(unreal, zone.tex / "facade.1001.png", textures, "T_facade")
     tex = unreal.EditorAssetLibrary.load_asset(paths[0])
@@ -244,14 +245,30 @@ def test_png_import_udim_merge_and_single(fake, unreal, zone):
     plain.set_editor_property("virtual_texture_streaming", False)
     assert plain.get_editor_property("virtual_texture_streaming") is True  # the editor refused
     # UDIM fallback: tiles imported one by one, packed with block coordinates
-    tiles = [
+    coords = [unreal.IntPoint(*pure.udim_block_coords(t)) for t in (1001, 1002, 1011)]
+    udim_named = [
         unreal.EditorAssetLibrary.load_asset(
             _import(unreal, zone.tex / f"facade.{t}.png", f"{textures}/_tiles")[0]
         )
         for t in (1001, 1002, 1011)
     ]
-    assert [t.path for t in tiles] == [f"{textures}/_tiles/facade_{n}" for n in (1001, 1002, 1011)]
-    coords = [unreal.IntPoint(*pure.udim_block_coords(t)) for t in (1001, 1002, 1011)]
+    assert [t.path for t in udim_named] == [f"{textures}/_tiles/facade_{n}" for n in (1001, 1002, 1011)]
+    # the engine's check(GetNumBlocks() == 1): a tile named [._]#### (or a merged texture) is an appError
+    with pytest.raises(RuntimeError, match=r"GetNumBlocks\(\) == 1 .*facade\.1001\.png"):
+        unreal.UDIMTextureFunctionLibrary.make_udim_virtual_texture_from_texture2_ds(
+            f"{textures}/T_packed", udim_named, coords, keep_existing_settings=False, check_out_and_save=True
+        )
+    merged = unreal.EditorAssetLibrary.load_asset(f"{textures}/T_facade")
+    with pytest.raises(RuntimeError, match="GetNumBlocks"):
+        unreal.UDIMTextureFunctionLibrary.make_udim_virtual_texture_from_texture2_ds(
+            f"{textures}/T_packed", [merged], coords[:1]
+        )
+    assert f"{textures}/T_packed" not in fake.registry
+    tiles = []
+    for t, (u, v) in zip((1001, 1002, 1011), ((0, 0), (1, 0), (0, 1)), strict=True):
+        copy = tmp_path / f"T_facade_u{u}v{v}.png"  # zone_import._pack_udim_tiles copies (V-04b F1)
+        shutil.copyfile(zone.tex / f"facade.{t}.png", copy)
+        tiles.append(unreal.EditorAssetLibrary.load_asset(_import(unreal, copy, f"{textures}/_tiles")[0]))
     packed = unreal.UDIMTextureFunctionLibrary.make_udim_virtual_texture_from_texture2_ds(
         f"{textures}/T_packed", tiles, coords, keep_existing_settings=False, check_out_and_save=True
     )

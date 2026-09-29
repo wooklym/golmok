@@ -116,7 +116,7 @@ def _parent_version(parent: str) -> int:
 
 def _parent_manifest(parent: str, version: int) -> dict:
     """Step 3: the parent's Content manifest of `version` (the level actor's), copied there by zone_import."""
-    content = os.path.normpath(unreal.Paths.project_content_dir())
+    content = sz.abs_project_path(unreal.Paths.project_content_dir())  # V-04b F2 (runbook §12 #31)
     root = os.path.join(content, *_pure.CONTENT_ZONES_REL.split("/"), parent)
     try:
         version_dir, _v = _pure.resolve_zone_dir(root, version, os.listdir, os.path.isdir, os.path.isfile)

@@ -297,9 +297,8 @@ def test_run_sequence(fake, unreal, parent, zone, it):
     calls = [
         ("load_level", DEFAULT_LEVEL),
         # import_assets (importer mapping cache hit: no probe; M_ZoneScan and T_ZoneScanDefault exist: loaded,
-        # not created); every import goes to a scratch _import folder and is moved (V-03, runbook #37)
-        ("import", "room.1001.png", f"{ROOM_FOLDER}/Textures/_import", "T_room", None),
-        ("rename", f"{ROOM_FOLDER}/Textures/_import/T_room", f"{ROOM_FOLDER}/Textures/T_room"),
+        # not created); every mesh import goes to a scratch _import folder and is moved (V-03, runbook #37)
+        ("import", "room.1001.png", f"{ROOM_FOLDER}/Textures", "T_room", None),  # in place (V-04b F3)
         ("save", f"{ROOM_FOLDER}/Textures/T_room"),
         ("create_asset", "MI_room", f"{ROOM_FOLDER}/Materials", "MaterialInstanceConstant"),
         ("save", f"{ROOM_FOLDER}/Materials/MI_room"),

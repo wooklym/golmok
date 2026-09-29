@@ -30,8 +30,9 @@ Importer (AssetToolsHelpers.get_asset_tools().import_asset_tasks) parses the rea
           glTF mesh name; slots from the glTF materials; no material assets (design §5-0).
     .png  IHDR size; a BaseName.####.ext tile with sibling tiles becomes tile x canvas_blocks when
           udim_merge (asset BaseName), otherwise a single texture named after the file (facade_1001).
-    Name clashes: replace_existing overwrites, otherwise "_2". fail_import (basenames) or a missing file:
-    empty result. imported_object_paths and list_assets return object paths "/Game/A/B.B".
+    Name clashes: replace_existing re-imports onto the existing asset of the same class (the same object:
+    what referenced it keeps it, like a UE re-import; V-04b F3), otherwise "_2". fail_import (basenames) or a
+    missing file: empty result. imported_object_paths and list_assets return object paths "/Game/A/B.B".
     delete_asset / delete_directory are force deletes (UE 5.8 API: "doesn't check if the asset has
     references"): material expression textures, MI texture parameters and MI parents that pointed at a
     deleted object become None. rename_asset keeps the object (references follow it).
@@ -60,6 +61,11 @@ KNOBS (install(**cfg) keywords = Fake attributes): obj_mapping=(100.0, M_OBJ) gl
     NOT in imported_object_paths; runbook §12 #37) engine_udim_regex=False (True: a .png whose stem ends in
     [._]#### with #### >= 1001 is placed as one UDIM block like UTextureFactory's default UdimRegexPattern,
     unless the task options carry import_udi_ms=False; runbook §12 #38)
+    nullrhi=False (True: SystemLibrary.get_command_line() carries -nullrhi and a merged UDIM texture reports
+    its first block, the tile size, from blueprint_get_size_x/y - the V-04b F1 headless case; runbook §12 #4)
+    relative_paths=False (True: Paths.project_*_dir() are relative to the fake editor binaries folder
+    <tmp_path>/UE_5.8/Engine/Binaries/Win64 (fake.binaries_dir), like the editor;
+    convert_relative_path_to_full resolves them against it; V-04b F2, runbook §12 #31)
     save_map_renames=True (EditorLoadingAndSavingUtils.save_map(world, other_path) is a Save As: the open
     world's actors are written to other_path and that level becomes the open world, like FEditorFileUtils::
     SaveMap -> SaveWorld(bRenamePackageToFile=true); the source level keeps its list = what is on disk.
@@ -138,7 +144,7 @@ KNOBS = {
     "screenshot_fallback_name": False,
     "viewport_size": (1014, 550), "nested_glb": False, "engine_udim_regex": False,
     "zone_transform": ZONE_ROOT_CM, "begin_play_starts_pie": True, "level": DEFAULT_LEVEL, "lit": True,
-    "save_map_renames": True,
+    "save_map_renames": True, "nullrhi": False, "relative_paths": False,
 }  # fmt: skip
 # (class, label, tags) of setup_dev_level._build_lighting(), seeded into the initial level when lit=True.
 L_DEV_LIGHTING = (
@@ -541,15 +547,20 @@ class FakeTexture2D(FakeAsset):
         self.size = (int(size[0]), int(size[1]))
         self.source = source
         self.tiles: list[int] = []
+        self.block_size = self.size  # one UDIM block (the tile) of a multi-block texture
         vt = fake.texture_vt_default if vt is None else bool(vt)
         self.props.update(virtual_texture_streaming=vt, srgb=True, compression_settings="TC_DEFAULT",
                           lod_group="TEXTUREGROUP_WORLD", never_stream=False)  # fmt: skip
 
+    def _reported_size(self):
+        # -nullrhi: no platform data, the size falls back to the source's first block (V-04b F1, runbook #4)
+        return self.block_size if self._fake.nullrhi and len(self.tiles) > 1 else self.size
+
     def blueprint_get_size_x(self):
-        return self.size[0]
+        return self._reported_size()[0]
 
     def blueprint_get_size_y(self):
-        return self.size[1]
+        return self._reported_size()[1]
 
     def set_editor_property(self, name, value):
         if name == "virtual_texture_streaming" and not self._fake.vt_settable:
@@ -1101,6 +1112,10 @@ class FakeSystemLibrary(_Bound):
     def get_engine_version(self):
         return ENGINE_VERSION
 
+    def get_command_line(self):
+        extra = " -nullrhi -unattended" if self._fake.nullrhi else ""
+        return f'"{self._fake.root.as_posix()}/Golmok.uproject" -log{extra}'
+
     def execute_console_command(self, world_context_object, command, specific_player=None):
         fake = self._fake
         fake.calls.append(("console", command))
@@ -1152,14 +1167,26 @@ class FakeUdimLibrary(_Bound):
         coords = [(int(p.x), int(p.y)) for p in block_coords]
         if not coords or len(coords) != len(source_textures):
             raise ValueError("fake unreal: block_coords must match source_textures")
+        for t in source_textures:  # UE 5.8 check(): an appError that ends the editor (V-04b F1, runbook #4)
+            stem = os.path.splitext(os.path.basename(t.source))[0]
+            engine = ENGINE_UDIM_RE.match(stem)
+            udim_name = engine is not None and int(engine.group(2)) >= pure.UDIM_MIN
+            # a tile whose file name matches [._]#### counts as multi-block: whether import_udi_ms=False is
+            # honoured is unconfirmed (runbook #3, #38), so the fake takes the unsafe reading
+            if len(t.tiles) > 1 or udim_name:
+                raise RuntimeError(
+                    "fake unreal: Assertion failed: Texture->Source.GetNumLayers() == 1 && "
+                    f"Texture->Source.GetNumBlocks() == 1 ({t.path} from {os.path.basename(t.source)})"
+                )
         tile_w, tile_h = (max(t.size[i] for t in source_textures) for i in (0, 1))
         size = ((max(u for u, _ in coords) + 1) * tile_w, (max(v for _, v in coords) + 1) * tile_h)
         tex = self._fake.registry.get(_key(output_path_name))
         if isinstance(tex, FakeTexture2D):  # an existing texture at the path is rebuilt in place
-            tex.size, tex.source = size, ""
+            tex.size, tex.source, tex.block_size = size, "", (tile_w, tile_h)
             tex.props["virtual_texture_streaming"] = True
         else:
             tex = FakeTexture2D(self._fake, _key(output_path_name), size, vt=True)
+            tex.block_size = (tile_w, tile_h)
         tex.tiles = sorted(pure.UDIM_MIN + u + 10 * v for u, v in coords)
         self._fake.registry[tex.path] = tex
         self._fake.calls.append(("make_udim", tex.path, coords))
@@ -1167,7 +1194,12 @@ class FakeUdimLibrary(_Bound):
 
 
 class FakePaths(_Bound):
-    """project_saved_dir() etc.: '<tmp_path>/Saved/' (forward slashes + trailing slash, like the editor)."""
+    """project_saved_dir() etc.: '<tmp_path>/Saved/' (forward slashes + trailing slash, like the editor);
+    relative_paths=True: '../../../../Saved/' relative to fake.binaries_dir (the editor form, runbook #31)."""
+
+    def convert_relative_path_to_full(self, path):
+        full = os.path.normpath(os.path.join(self._fake.binaries_dir, str(path)))
+        return Path(full).as_posix()
 
     def get_project_file_path(self):
         return f"{self._fake.root.as_posix()}/Golmok.uproject"
@@ -1176,11 +1208,15 @@ class FakePaths(_Bound):
         return self._fake.root.as_posix() + "/"
 
 
+def _project_dir(fake, folder: str) -> str:
+    if fake.relative_paths and folder != "Engine":
+        return Path(os.path.relpath(fake.root / folder, fake.binaries_dir)).as_posix() + "/"
+    return f"{fake.root.as_posix()}/{folder}/"
+
+
 for _method, _folder in (("project_saved_dir", "Saved"), ("project_content_dir", "Content"),
                          ("project_config_dir", "Config"), ("engine_dir", "Engine")):  # fmt: skip
-    setattr(
-        FakePaths, _method, (lambda folder: lambda self: f"{self._fake.root.as_posix()}/{folder}/")(_folder)
-    )
+    setattr(FakePaths, _method, (lambda folder: lambda self: _project_dir(self._fake, folder))(_folder))
 
 
 class FakeAutomationLibrary(_Bound):
@@ -1283,6 +1319,12 @@ def _register(fake, asset, replace_existing):
     if not replace_existing:
         while asset.path in fake.registry:
             asset.path += "_2"
+    old = fake.registry.get(asset.path)
+    if replace_existing and old is not None and type(old) is type(asset):
+        props = old.props  # a re-import keeps the asset's settings (sRGB, VT, ...) on the same object
+        old.__dict__.update(asset.__dict__)  # a re-import updates the existing object (references keep it)
+        old.props = props
+        return old
     fake.registry[asset.path] = asset
     return asset
 
@@ -1349,6 +1391,7 @@ def _udim_detection_on(options) -> bool:
 def _import_png(fake, task, filename, dest, name, route=None):
     with open(filename, "rb") as f:
         w, h = pure.png_size(f.read(24))
+    w0, h0 = w, h
     basename = os.path.basename(filename)
     split = pure.udim_split(basename)
     detect = _udim_detection_on(task.options)
@@ -1364,7 +1407,9 @@ def _import_png(fake, task, filename, dest, name, route=None):
         t = int(engine.group(2)) - 1001  # one tile placed at its block of a (u+1) x (v+1) canvas
         w, h = w * (t % 10 + 1), h * (t // 10 + 1)
     default = split[0] if merged else pure.asset_name_safe(basename.rsplit(".", 1)[0])
+    tile_size = (w0, h0)
     tex = FakeTexture2D(fake, f"{dest}/{name or default}", (w, h), None, filename)
+    tex.block_size = tile_size
     tex.tiles = tiles if len(tiles) > 1 else []
     return [_register(fake, tex, task.replace_existing)]
 
@@ -1388,6 +1433,7 @@ class Fake:
             raise TypeError(f"fake_unreal.install: unknown knobs {sorted(unknown)}")
         self._monkeypatch, self.module = monkeypatch, module
         self.root = Path(tmp_path)
+        self.binaries_dir = str(self.root / "UE_5.8" / "Engine" / "Binaries" / "Win64")  # the editor's CWD
         self.saved_dir, self.content_dir, self.config_dir = (
             str(self.root / d) for d in ("Saved", "Content", "Config")
         )
@@ -1404,6 +1450,8 @@ class Fake:
             elif knob == "level":
                 continue
             setattr(self, knob, value)
+        if self.relative_paths:
+            os.makedirs(self.binaries_dir, exist_ok=True)
         self.calls: list[tuple] = []
         self.registry: dict[str, FakeAsset] = {}
         self.levels: dict[str, list[FakeActor]] = {}
