@@ -6,14 +6,19 @@ and equal power, the T8 policy).
 """
 
 import json
+import math
+import re
 import struct
 import wave
 
 import numpy as np
 import pytest
 
+from golmok_tools import audio_analysis
 from golmok_tools.audio_analysis import (
     CLICK_Z,
+    MIN_AUDIBLE,
+    SILENCE_FLOOR,
     STOP_WITHIN_MS,
     abrupt_stop,
     analyse,
@@ -26,6 +31,7 @@ from golmok_tools.audio_analysis import (
     rms_envelope,
     settle_time,
     silence_fraction,
+    smooth_envelope,
     to_mono,
 )
 
@@ -62,12 +68,13 @@ def settle_of(fade, seed):
     return settle_time(times, env, 1.0)
 
 
-@pytest.mark.parametrize(("fade", "lo", "hi"), [(2.0, 1.6, 2.3), (1.0, 0.7, 1.1)])
+@pytest.mark.parametrize(("fade", "lo", "hi"), [(2.0, 1.7, 2.0), (1.0, 0.8, 1.0)])
 def test_settle_time_of_linear_crossfade(fade, lo, hi):
     # Equal-level uncorrelated beds: power (1-a)² + a² is within 1 dB of the bed from a = 0.883, so the
     # expected settle is 0.883 × fade (1.77 s / 0.88 s) to the nearest 100 ms window centre. One window of
     # these beds scatters ±0.4 dB, and an excursion after the fade moves the settle time late (V-10: one
-    # 3.0 s case among 12), so the median over five bed pairs is checked.
+    # 3.0 s case among 12), so the median over five bed pairs is checked (1.85 s and 0.95 s; over 60 pairs
+    # the median is the same).
     values = [settle_of(fade, seed) for seed in range(10, 20, 2)]
     assert all(v is not None for v in values)
     assert lo <= float(np.median(values)) <= hi
@@ -127,6 +134,8 @@ def test_hard_cut_to_silence_is_an_abrupt_stop_not_an_inflated_click():
     # |x| before the cut is 0.048 (0.93 × the bed RMS), z 3.5. With the silent half of the window in
     # the MAD it was 4769 (the PC self-test's hard cut: 160).
     z, zt = click_score(y, SR)
+    rms = float(np.sqrt(np.mean(y[: int(2.0 * SR)] ** 2)))
+    assert z == pytest.approx(3.7 * abs(y[int(2.0 * SR) - 1]) / rms, rel=0.05)
     assert z < CLICK_Z
     assert zt == pytest.approx(2.0, abs=0.001)
     assert silence_fraction(y, SR, zt) == pytest.approx(0.5, abs=0.02)
@@ -136,12 +145,28 @@ def test_hard_cut_to_silence_is_an_abrupt_stop_not_an_inflated_click():
     assert zt == pytest.approx(1.95, abs=0.001)
 
 
-@pytest.mark.parametrize("ramp", [0.02, 0.25])
+def test_hard_cut_z_is_the_cut_sample_against_the_bed_sigma():
+    # z at a hard cut to silence is |x at the cut| / the bed's sigma, 3.7 × |x_cut| / RMS for these beds
+    # (RMS / sigma of a 32-tap moving average of uniform noise: 3.76; the local MAD scatters, 0.91-1.07
+    # over 40 seeds). Where the cut sample is small the maximum is the bed's own (about 2.3), so the
+    # maximum is the larger of the two for any seed; seeds 1 and 3 cut on a large sample and read z ≈ 10.
+    k = int(0.3 * SR)
+    for seed in range(8):
+        y = cut(bed(seed, 0.45), 0.3)
+        step = 3.7 * abs(y[k - 1]) / float(np.sqrt(np.mean(y[:k] ** 2)))
+        rest, _ = click_score(y, SR, exclude=[(0.3, 0.3)])  # every sample but the cut (timed at 0.3 s)
+        z, zt = click_score(y, SR)
+        assert z == pytest.approx(max(step, rest), rel=0.1), seed
+        if step > 1.1 * rest:
+            assert zt == pytest.approx(0.3, abs=1e-6)
+
+
+@pytest.mark.parametrize("ramp", [0.02, 0.04, 0.25])
 def test_fade_to_silence_is_neither_click_nor_abrupt_stop(ramp):
     y = cut(bed(6, 3.0), 2.0, ramp)
     assert abrupt_stop(y, SR) == []
     z, _ = click_score(y, SR)
-    assert z < 5  # 2.6 and 2.8; with the silent part in the MAD 12.0 (20 ms) and 7.6 (250 ms)
+    assert z < 5  # 2.6, 2.9 and 2.8; with the silent part in the MAD 12.0 (20 ms) and 7.6 (250 ms)
 
 
 def test_crossfades_stay_low():
@@ -199,6 +224,22 @@ def test_click_spike_and_exclude():
     assert click_score(np.zeros(1), SR) == (0.0, None)
 
 
+@pytest.mark.parametrize(("t_step", "at_start"), [(0.14, True), (0.072, False)])
+def test_exclude_ranges_include_both_ends(t_step, at_start):
+    # A level step at sample k is one difference, timed at k. 0.14 × 48000 and 0.072 × 48000 are 6720 and
+    # 3456 only up to rounding (6720.000000000001, 3455.9999999999995), which must not lose the step.
+    k = round(t_step * SR)
+    y = bed(14, 0.3)
+    y[k:] += 0.3
+    z, t = click_score(y, SR)
+    assert z > 2 * CLICK_Z and t == pytest.approx(k / SR, abs=1e-9)
+    z_ex, t_ex = click_score(y, SR, exclude=[(t_step, 0.25) if at_start else (0.01, t_step)])
+    assert z_ex < CLICK_Z and t_ex != pytest.approx(k / SR, abs=1e-9)
+    assert click_score(y, SR, exclude=[(t_step, t_step)])[0] < CLICK_Z  # a single instant
+    off_by_one = ((k + 1) / SR, 0.25) if at_start else (0.01, (k - 1) / SR)
+    assert click_score(y, SR, exclude=[off_by_one])[0] > 2 * CLICK_Z
+
+
 def test_clipping_and_peak():
     y = np.stack([bed(8, 1.0), bed(9, 1.0)], axis=1)
     count, peak = clipping(y)
@@ -210,6 +251,10 @@ def test_clipping_and_peak():
     count, peak = clipping(y)
     assert count == 6
     assert peak == pytest.approx(0.0)
+    assert clipping(y.astype(np.float32)) == (6, pytest.approx(0.0))  # one channel at a time, in float64
+    assert clipping(y[:, 1]) == (5, pytest.approx(0.0))
+    y[400, 0] = np.nan  # not a clip and not the peak; analyse counts it as non-finite
+    assert clipping(y) == (6, pytest.approx(0.0))
     assert clipping(np.zeros((10, 2))) == (0, pytest.approx(-120.0))
 
 
@@ -254,21 +299,25 @@ def test_read_wav_pcm_round_trip_and_mono(tmp_path, width):
     assert to_mono(mono) == pytest.approx(mono_expected[:, 0], abs=1e-6)
 
 
-def riff(fmt_body, data, data_size=None):
+def chunk(chunk_id, body, pad=True):
+    return chunk_id + struct.pack("<I", len(body)) + body + (b"\0" if pad and len(body) & 1 else b"")
+
+
+def riff(fmt_body, data, data_size=None, after=b"", pad=True):
     size = len(data) if data_size is None else data_size
-    body = b"WAVE" + b"fmt " + struct.pack("<I", len(fmt_body)) + fmt_body
-    body += b"LIST" + struct.pack("<I", 3) + b"abc\0"  # odd-sized chunk before data, padded
-    body += b"data" + struct.pack("<I", size) + data
+    body = b"WAVE" + chunk(b"fmt ", fmt_body)
+    body += chunk(b"LIST", b"abc", pad=pad)  # odd-sized chunk before data, padded unless pad=False
+    body += b"data" + struct.pack("<I", size) + data + after
     return b"RIFF" + struct.pack("<I", len(body)) + body
 
 
-def fmt_chunk(tag, channels, bits, subformat=None):
+def fmt_chunk(tag, channels, bits, subformat=None, valid=None):
     block = channels * bits // 8
     body = struct.pack("<HHIIHH", tag, channels, SR, SR * block, block, bits)
     if subformat is not None:  # WAVE_FORMAT_EXTENSIBLE: cbSize, valid bits, channel mask, SubFormat GUID
         guid = struct.pack("<H", subformat) + bytes.fromhex("000000001000800000aa00389b71")
         body = struct.pack("<HHIIHH", 0xFFFE, channels, SR, SR * block, block, bits)
-        body += struct.pack("<HHI", 22, bits, 3) + guid
+        body += struct.pack("<HHI", 22, valid or bits, 3) + guid
     return body
 
 
@@ -288,7 +337,7 @@ def test_read_wav_float_extensible_and_unfinalised(tmp_path):
     )
     assert read_wav(path)[0] == pytest.approx(pcm / 32768.0)
     path.write_bytes(b"RIFF\0\0\0\0WAVEjunk")
-    with pytest.raises(ValueError, match="fmt"):
+    with pytest.raises(ValueError, match="missing fmt"):
         read_wav(path)
     path.write_bytes(riff(fmt_chunk(7, 1, 8), b"\0\0"))  # mu-law
     with pytest.raises(ValueError, match="unsupported"):
@@ -296,6 +345,138 @@ def test_read_wav_float_extensible_and_unfinalised(tmp_path):
     path.write_bytes(b"not a wav file")
     with pytest.raises(ValueError, match="RIFF"):
         read_wav(path)
+
+
+def test_read_wav_8_and_32_bit_pcm_float64_and_24_in_32(tmp_path):
+    path = tmp_path / "w.wav"
+    u8 = np.array([[0, 255], [128, 64]], dtype=np.uint8)  # unsigned, 128 is zero
+    path.write_bytes(riff(fmt_chunk(1, 2, 8), u8.tobytes()))
+    assert read_wav(path)[0] == pytest.approx((u8 - 128.0) / 128.0)
+    i32 = np.array([[2**31 - 1, -(2**31)], [256, -12345678]], dtype="<i4")
+    path.write_bytes(riff(fmt_chunk(1, 2, 32), i32.tobytes()))
+    samples = read_wav(path)[0]
+    assert samples.dtype == np.float32
+    assert samples == pytest.approx(i32 / 2.0**31, rel=1e-7)
+    f64 = np.array([[0.1, -0.7], [1.5, -(2.0**-30)]])
+    path.write_bytes(riff(fmt_chunk(3, 2, 64), f64.tobytes()))
+    assert np.array_equal(read_wav(path)[0], f64.astype(np.float32))
+    # WAVE_FORMAT_EXTENSIBLE with 24 valid bits in 32-bit containers, left-justified (low byte zero).
+    v24 = np.array([[2**23 - 1, -(2**23)], [1, -1]], dtype=np.int64)
+    path.write_bytes(riff(fmt_chunk(0, 2, 32, subformat=1, valid=24), (v24 * 256).astype("<i4").tobytes()))
+    assert np.array_equal(read_wav(path)[0], (v24 / 2.0**23).astype(np.float32))
+
+
+def test_read_wav_zero_size_data_empty_data_and_unpadded_chunk(tmp_path, capsys):
+    pcm = np.array([[16384, -32768], [-1, 32767], [5, -7]], dtype="<i2")
+    path = tmp_path / "u.wav"
+    # A streaming writer that stopped before patching the header: data size 0, the audio after it.
+    path.write_bytes(riff(fmt_chunk(1, 2, 16), pcm.tobytes(), data_size=0))
+    assert read_wav(path)[0] == pytest.approx(pcm / 32768.0)
+    # Audio whose first four bytes happen to be printable is still audio: its "size" runs past the file.
+    floats = np.array([[np.frombuffer(b"xyz>", "<f4")[0], 0.5], [-0.125, 0.75]], dtype=np.float32)  # 0.245
+    path.write_bytes(riff(fmt_chunk(3, 2, 32), floats.tobytes(), data_size=0))
+    assert np.array_equal(read_wav(path)[0], floats)
+    # A really empty data chunk (at the end, or followed by another chunk) has no frames: an error, exit 2.
+    for tail in (b"", chunk(b"LIST", b"INFOxy")):
+        path.write_bytes(riff(fmt_chunk(1, 2, 16), b"", after=tail))
+        with pytest.raises(ValueError, match="no audio frames"):
+            read_wav(path)
+        assert main([str(path), "--json"]) == 2
+        assert "no audio frames (empty or unfinalised data chunk)" in capsys.readouterr().err
+    path.write_bytes(riff(fmt_chunk(1, 2, 16), b"\x01\x02"))  # half a frame
+    assert main([str(path)]) == 2
+    capsys.readouterr()
+    path.write_bytes(riff(fmt_chunk(1, 2, 16)[:14], pcm.tobytes()))
+    with pytest.raises(ValueError, match=r"truncated fmt chunk \(14 bytes"):
+        read_wav(path)
+    # An odd-sized chunk written without its pad byte is still followed to the data chunk.
+    path.write_bytes(riff(fmt_chunk(1, 2, 16), pcm.tobytes(), pad=False))
+    assert read_wav(path)[0] == pytest.approx(pcm / 32768.0)
+
+
+SR_SMALL = 4000  # brute force (one median of ±window per sample) stays fast at this rate
+
+
+def brute_click_z(y, sr):
+    """z of every sample by the definition of click_score (-1 where it is not scored); z[j] is at j + 1."""
+    d = np.diff(y)
+    audible = np.abs(y) >= SILENCE_FLOOR
+    usable = audible[:-1] & audible[1:]
+    half = round(sr * 0.1)
+    z = np.full(d.size, -1.0)
+    for j in range(d.size):
+        lo, hi = max(0, j - half), min(d.size, j + half + 1)
+        seg = d[lo:hi][usable[lo:hi]]
+        if seg.size < MIN_AUDIBLE * (hi - lo):
+            continue
+        sigma = 1.4826 * np.median(np.abs(seg - np.median(seg))) if seg.size else 0.0
+        z[j] = abs(d[j]) / max(sigma, 1e-5)
+    return z
+
+
+def edge_material(case):
+    t = np.arange(int(1.5 * SR_SMALL)) / SR_SMALL
+    if case == "silence":  # bed, 0.3 s of digital silence, bed
+        y = bed(0, 1.5, taps=4, sr=SR_SMALL)
+        y[(t >= 0.5) & (t < 0.8)] = 0.0
+        return y
+    if case == "gated":  # 20 ms gates, every other one 30 dB down
+        return bed(1, 1.5, sr=SR_SMALL) * np.where((t * 1000 // 20) % 2 == 0, 1.0, 10 ** (-30 / 20))
+    y = bed(0, 1.5, taps=4, sr=SR_SMALL)  # a -64 dBFS bed with +2 and -3 LSB steps, quantised to 16 bit
+    y = y / np.sqrt(np.mean(y**2)) * 10 ** (-64 / 20) + (2 * (t >= 0.5) - 3 * (t >= 1.0)) / 32768
+    return np.round(y * 32768) / 32768
+
+
+@pytest.mark.parametrize("case", ["silence", "gated", "quantised"])
+def test_click_score_matches_brute_force_on_edge_material(case):
+    # The grid heuristic (pass 1) alone read 67.6 instead of 99.1 on the gated case and 2.43 instead of
+    # 2.55 on the quantised one; the proven bound (pass 2) makes the maximum exact.
+    y = edge_material(case)
+    z_all = brute_click_z(y, SR_SMALL)
+    z, t = click_score(y, SR_SMALL)
+    assert z == pytest.approx(z_all.max(), rel=1e-12)
+    assert z_all[round(t * SR_SMALL) - 1] == pytest.approx(z_all.max(), rel=1e-12)
+
+
+def test_click_verdict_is_exact_when_the_maximum_is_not_proven(monkeypatch):
+    y = edge_material("gated")
+    top = brute_click_z(y, SR_SMALL).max()
+    # More candidates than _MAX_EXACT (forced here): pass 2 only settles z >= threshold.
+    monkeypatch.setattr(audio_analysis, "_MAX_EXACT", 0)
+    first, _ = click_score(y, SR_SMALL, threshold=math.inf)  # nothing reaches it: the pass 1 value
+    assert first < 0.75 * top
+    for threshold in (0.8 * top, top, 1.01 * top):
+        z, _ = click_score(y, SR_SMALL, threshold=threshold)
+        assert (z >= threshold) == (top >= threshold)
+        assert first <= z <= top
+
+
+def test_one_channel_spike_and_cut_are_found_per_channel():
+    left, right = bed(20, 3.0), bed(21, 3.0)
+    left[int(1.5 * SR)] += 0.3
+    report = analyse(np.stack([left, right], axis=1), SR)
+    click = report["click"]
+    assert click["click"] and click["channel"] == 0
+    assert click["max_z"] > 2 * CLICK_Z  # 22.2 on the channel …
+    assert click["mix"]["max_z"] < 0.8 * click["max_z"]  # … 15.5 in the mix of two uncorrelated beds
+    assert click["t"] == pytest.approx(1.5, abs=0.001)
+    assert click["channels"][0]["max_z"] == click["max_z"] and click["channels"][1]["max_z"] < 5
+    text = format_report(report, "lr.wav")
+    assert "click z max  22.2 at 1.500 s on ch 0 (threshold 8: click;" in text
+    assert re.search(
+        r"^ +mix 15\.5 at 1\.500 s, ch 0 22\.2 at 1\.500 s, ch 1 \d\.\d at \d\.\d{3} s$", text, re.M
+    )
+    left, right = bed(22, 3.0), bed(23, 3.0)
+    report = analyse(np.stack([cut(left, 2.0), right], axis=1), SR)
+    stops = report["abrupt_stops"]
+    assert stops["count"] == 0  # the mix only halves in level
+    ((stop,),) = [row["first"] for row in stops["channels"] if row["count"]]
+    assert stops["channels"][0]["count"] == 1 and stops["channels"][1]["count"] == 0
+    assert stop["t"] == pytest.approx(2.0, abs=0.001) and stop["drop_db"] > 60
+    text = format_report(report, "lr.wav")
+    assert "abrupt stops 0 in the mix (drop >= 20 dB" in text
+    assert re.search(r"^ +ch 0: 1: 2\.000 s \(drop \d+ dB, ramp \d\.\d ms\)$", text, re.M)
+    assert re.search(r"^ +ch 1: 0$", text, re.M)
 
 
 def test_cli_json_and_text(tmp_path, capsys):
@@ -307,26 +488,33 @@ def test_cli_json_and_text(tmp_path, capsys):
     wav = str(tmp_path / "rec.wav")
     assert main([wav, "--event", "1.0", "--fade", "2", "--exclude", "3.4:3.6", "--json"]) == 0
     report = json.loads(capsys.readouterr().out)
-    assert report["channels"] == 2 and report["clipping_count"] == 0
+    assert report["channels"] == 2 and report["clipping_count"] == 0 and report["nonfinite_count"] == 0
     assert report["rms_dbfs"] == pytest.approx(-26.0, abs=1.0)
     assert report["click"]["max_z"] < CLICK_Z and not report["click"]["click"]
+    assert report["click"]["channel"] is None  # equal channels: the mix is as high as either
     assert report["abrupt_stops"] == {
         "count": 0,
         "drop_db": 20.0,
         "within_ms": STOP_WITHIN_MS,
         "window_ms": 5.0,
         "first": [],
+        "channels": [{"count": 0, "first": []}, {"count": 0, "first": []}],
     }
     (event,) = report["events"]
     assert event["settle_span"] == [1.0, 4.0]
     assert 1.5 <= event["settle_s"] <= 2.3
     assert 2.0 <= event["dip_db"] <= 4.5
     assert event["before_db"] == pytest.approx(event["final_db"], abs=1.0)
+    assert "trace" not in event and "settle_s_smoothed" not in event and "check" not in report
     assert main([wav, "--event", "1.0"]) == 0
     text = capsys.readouterr().out
     assert "click z max" in text and "(threshold 8: click;" in text  # the spike is not excluded here
-    assert "abrupt stops 0 (" in text
-    assert "1.000" in text
+    assert "abrupt stops 0 in the mix (" in text
+    # The event row: before, final, settle, dip and the dip span [1.0, 1.0 + settle] (no --fade).
+    row = re.search(r"^  1\.000 +(-\d+\.\d) +(-\d+\.\d) +(\d\.\d\d) +(\d\.\d)  1\.00-(\d\.\d\d)$", text, re.M)
+    assert row is not None
+    assert float(row[3]) == pytest.approx(float(row[5]) - 1.0, abs=0.006)
+    assert "within ±1 dB of the final level, the energy mean of the last 1 s of [t, t + 3 s])" in text
     assert main([wav, "--silence-floor", "0.5", "--json"]) == 0  # everything below the floor: nothing scored
     report = json.loads(capsys.readouterr().out)
     assert report["click"]["max_z"] == 0.0 and report["click"]["t"] is None
@@ -334,15 +522,99 @@ def test_cli_json_and_text(tmp_path, capsys):
     assert "error:" in capsys.readouterr().err
 
 
+def test_report_uses_the_given_settle_tolerance_and_tail():
+    y = crossfade(bed(12, 4.0), bed(13, 4.0), 1.0, 2.0)
+    text = format_report(analyse(y, SR, events=[1.0], tol_db=0.5, tail_s=0.5), "x.wav")
+    assert (
+        "settle = within ±0.5 dB of the final level, the energy mean of the last 0.5 s of [t, t + 3 s]"
+        in text
+    )
+
+
+def test_trace_adds_the_envelope_and_a_smoothed_settle(tmp_path, capsys):
+    y = crossfade(bed(12, 5.0), bed(13, 5.0), 1.0, 2.0)
+    (row,) = analyse(y, SR, events=[1.0], fade_s=2.0, trace=True)["events"]
+    times, env = rms_envelope(y, SR)
+    shown = (times >= 0.7) & (times < 4.0)  # from 0.3 s before the event to the end of its span
+    assert row["trace"]["t"] == pytest.approx(times[shown])
+    assert row["trace"]["db"] == pytest.approx(env[shown], abs=0.005)
+    assert row["trace"]["t"][0] == pytest.approx(0.75) and len(row["trace"]["t"]) == 33
+    assert 1.5 <= row["settle_s_smoothed"] <= 2.0  # 1.85; the 100 ms envelope reads 1.75 on this pair
+    write_pcm(tmp_path / "rec.wav", y[:, None], 2)
+    assert main([str(tmp_path / "rec.wav"), "--event", "1", "--fade", "2", "--trace", "--json"]) == 0
+    (event,) = json.loads(capsys.readouterr().out)["events"]
+    assert len(event["trace"]["db"]) == 33 and event["settle_s_smoothed"] is not None
+    assert main([str(tmp_path / "rec.wav"), "--event", "1", "--fade", "2", "--trace"]) == 0
+    text = capsys.readouterr().out
+    assert "trace (100 ms RMS dB from t - 0.3 s; smoothed settle on the 300 ms energy mean)" in text
+    assert re.search(r"^  1\.000 s: smoothed settle \d\.\d\d s$", text, re.M)
+    assert re.search(r"^ +0\.750 ( +-\d+\.\d){10}$", text, re.M)
+
+
+def test_smooth_envelope():
+    env = np.array([-30.0, -20.0, -30.0, -30.0])
+    power = 10 ** (env / 10)
+    smooth = smooth_envelope(env, 0.1)  # 300 ms: three windows, two at the ends
+    assert smooth == pytest.approx(
+        10 * np.log10([power[:2].mean(), power[:3].mean(), power[1:].mean(), 1e-3])
+    )
+    assert smooth_envelope(env, 0.3) == pytest.approx(env)  # one window is already 300 ms
+
+
+def test_check_exit_status(tmp_path, capsys):
+    clean = bed(16, 1.0)
+    cases = {
+        "clean": clean.copy(),
+        "click": clean.copy(),
+        "abrupt stop": cut(clean, 0.6),
+        "clipping": clean.copy(),
+    }
+    cases["click"][SR // 2] += 0.3
+    cases["clipping"][SR // 2 : SR // 2 + 3] = 1.0
+    for name, y in cases.items():
+        wav = str(tmp_path / f"{name.replace(' ', '_')}.wav")
+        write_pcm(wav, y[:, None], 2)
+        assert main([wav]) == 0  # without --check the exit status only says that the analysis ran
+        assert not re.search(r"^check ", capsys.readouterr().out, re.M)
+        assert main([wav, "--check"]) == (0 if name == "clean" else 1), name
+        verdict = capsys.readouterr().out.splitlines()[-1]
+        if name == "clean":
+            assert verdict == "check        pass (no click, abrupt stop, clipping or NaN/Inf)"
+        else:
+            assert verdict.startswith("check        FAIL: ") and name in verdict, verdict
+        assert main([wav, "--check", "--json"]) == (0 if name == "clean" else 1)
+        check = json.loads(capsys.readouterr().out)["check"]
+        assert check == {"pass": name == "clean", "failed": [] if name == "clean" else check["failed"]}
+        assert name == "clean" or name in check["failed"]
+
+
+def test_json_has_no_nan_or_infinity(tmp_path, capsys):
+    y = bed(17, 0.5).astype(np.float32)
+    y[100], y[200] = np.nan, np.inf
+    path = tmp_path / "nan.wav"
+    path.write_bytes(riff(fmt_chunk(3, 1, 32), y.tobytes()))
+    assert main([str(path), "--json", "--check"]) == 1
+    out = capsys.readouterr().out
+    report = json.loads(out, parse_constant=lambda c: pytest.fail(f"JSON constant {c}"))
+    assert report["nonfinite_count"] == 2
+    assert report["rms_dbfs"] is None and report["peak_dbfs"] is None
+    assert "non-finite samples" in report["check"]["failed"]
+    assert main([str(path)]) == 0
+    assert "non-finite   2 samples (NaN/Inf)" in capsys.readouterr().out
+
+
 def test_report_lists_abrupt_stop_at_silence_boundary():
     report = analyse(cut(bed(5, 3.0), 2.0), SR)
     assert not report["click"]["click"]
     assert report["click"]["t"] == pytest.approx(2.0, abs=0.001)
     assert report["click"]["silence_fraction"] > 0.3
+    assert report["click"]["channel"] is None and len(report["click"]["channels"]) == 1
     stops = report["abrupt_stops"]
     assert stops["count"] == 1
     assert stops["first"][0]["t"] == pytest.approx(2.0, abs=0.001)
+    assert stops["channels"] == [{"count": 1, "first": stops["first"]}]
     assert report["events"] == [] and report["channels"] == 1
     text = format_report(report, "cut.wav")
     assert "is silence (|x| < 0.0001)" in text
     assert "abrupt stops 1 (drop >= 20 dB within <= 10 ms, 5 ms RMS): 2.000 s (drop 95 dB, ramp" in text
+    assert not re.search(r"^ +(ch \d|mix )", text, re.M) and "in the mix" not in text  # one channel
