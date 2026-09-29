@@ -161,23 +161,95 @@ def test_optional_stride_and_photo_fade_contract():
 def test_stride_ids_match_character_roster():
     roster = json.loads((audio.CONFIG.parent / "characters.json").read_text(encoding="utf-8"))
     ids = {entry["id"] for entry in roster["characters"]}
-    configured = set(audio.load_config()["footsteps"].get("stride_cm_by_character", {}))
-    assert configured <= ids, f"Unknown audio stride ids: {sorted(configured - ids)}"
+    steps = audio.load_config()["footsteps"]
+    configured = set(steps.get("stride_cm_by_character", {}))
+    assert configured <= ids, (
+        f"Unknown audio stride ids: {sorted(configured - ids)}; "
+        "roster id를 바꾸거나 지웠다면 footsteps.stride_cm_by_character도 같은 PR에서 갱신"
+    )
     missing = ids - configured
     if missing:
         warnings.warn(
-            f"Character ids without audio strides use 70/110 cm fallback: {sorted(missing)}",
+            f"Character ids without audio strides use {steps['walk_stride_cm']}/"
+            f"{steps['run_stride_cm']} cm fallback: {sorted(missing)}",
             UserWarning,
             stacklevel=1,
         )
 
 
-@pytest.mark.parametrize("field", ["loop", "placeholder", "author"])
-@pytest.mark.parametrize("value", [1, "true"])
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("loop", 1),
+        ("loop", "true"),
+        ("placeholder", 1),
+        ("placeholder", "true"),
+        ("author", 1),
+        ("author", True),
+    ],
+)
 def test_asset_field_types_reject_coercion(field, value):
-    if field == "author" and value == "true":
-        value = True
     data = audio.load_config()
     data["assets"]["tile"][field] = value
-    with pytest.raises(ValueError):
+    with pytest.raises(
+        ValueError,
+        match=rf"assets\.tile\.{field}:.*" + ("single-line text" if field == "author" else "booleans"),
+    ):
         audio.parse_config(data)
+
+
+@pytest.mark.parametrize(
+    ("path", "value", "expected"),
+    [
+        (("master_volume",), True, "master_volume: expected finite number"),
+        (("assets", "tile", "gain"), "0.5", "assets.tile.gain: expected finite number"),
+        (("assets", "tile", "verified"), "2026-02-30", "assets.tile.verified: expected valid calendar date"),
+        (
+            ("footsteps", "stride_cm_by_character", "manny", "walk"),
+            0,
+            "footsteps.stride_cm_by_character.manny.walk: expected finite number",
+        ),
+        (("footsteps", "pitch_range"), [True, 1], "footsteps.pitch_range[0]: expected finite number"),
+        (("footsteps", "sets", "tile"), [True], "footsteps.sets.tile[0]: expected nonempty single-line text"),
+        (
+            ("preset_states", "overcast_morning"),
+            True,
+            "preset_states.overcast_morning: expected nonempty single-line text",
+        ),
+        (("assets", "tile"), None, "assets.tile: expected object"),
+    ],
+)
+def test_diagnostic_identifies_field_and_expectation(path, value, expected):
+    data = audio.load_config()
+    target = data
+    for key in path[:-1]:
+        target = target[key]
+    target[path[-1]] = value
+    with pytest.raises(ValueError) as caught:
+        audio.parse_config(data)
+    assert expected in str(caught.value)
+
+
+def test_numeric_surface_value_is_not_a_string_set_id():
+    data = audio.load_config()
+    data["footsteps"]["sets"]["1"] = ["asphalt"]
+    data["footsteps"]["surface_sets"]["4"] = 1
+    with pytest.raises(ValueError, match=r"footsteps\.surface_sets\.4:.*single-line text"):
+        audio.parse_config(data)
+
+
+def test_roster_warning_uses_configured_fallback(monkeypatch):
+    data = audio.load_config()
+    data["footsteps"].update(walk_stride_cm=81, run_stride_cm=123)
+    del data["footsteps"]["stride_cm_by_character"]["manny"]
+    monkeypatch.setattr(audio, "load_config", lambda: data)
+    with pytest.warns(UserWarning, match="81/123 cm fallback.*manny"):
+        test_stride_ids_match_character_roster()
+
+
+def test_unknown_roster_id_explains_same_pr_contract(monkeypatch):
+    data = audio.load_config()
+    data["footsteps"]["stride_cm_by_character"]["typo"] = {"walk": 70, "run": 110}
+    monkeypatch.setattr(audio, "load_config", lambda: data)
+    with pytest.raises(AssertionError, match="roster id.*같은 PR에서 갱신"):
+        test_stride_ids_match_character_roster()

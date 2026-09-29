@@ -8,6 +8,9 @@
 #include "Editor.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
+#include "Dom/JsonObject.h"
+#include "Serialization/JsonSerializer.h"
+#include "Policies/CondensedJsonPrintPolicy.h"
 #include "Engine/World.h"
 #include "GameFramework/PlayerController.h"
 #include "Lighting/GolmokTimeOfDay.h"
@@ -202,24 +205,56 @@ bool FGolmokAudioFootstepTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("production photo fade setting"), Config.PhotoMuteFadeSeconds, .25);
 	FString Manifest;
 	TestTrue(TEXT("read manifest for invalid date tests"), FFileHelper::LoadFileToString(Manifest, *(FPaths::ProjectConfigDir() / TEXT("Golmok/audio.json"))));
-	// R55-5: UE normally coerces these values; Python requires the original JSON type.
+	// R55-5/R63: reject coercion and preserve the entire credit/asset snapshot.
+	const FString PreviousCredits = Config.Credits;
+	const int32 PreviousAssetCount = Config.Assets.Num();
 	for (const TCHAR* Field : {TEXT("loop"), TEXT("placeholder")})
 	{
 		const FString Original = FString::Printf(TEXT("\"%s\": true"), Field);
 		for (const TCHAR* Value : {TEXT("1"), TEXT("\"true\"")})
 		{
 			const FString Mutated = Manifest.Replace(*Original, *FString::Printf(TEXT("\"%s\": %s"), Field, Value));
-			TestTrue(TEXT("boolean mutation changed manifest"), Mutated != Manifest);
-			TestFalse(TEXT("boolean fields reject coercion"), GolmokAudio::ParseConfig(Mutated, Config, Error));
+			TestTrue(FString::Printf(TEXT("%s=%s mutation changed manifest"), Field, Value), Mutated != Manifest);
+			TestFalse(FString::Printf(TEXT("%s=%s rejects coercion"), Field, Value), GolmokAudio::ParseConfig(Mutated, Config, Error));
+			TestTrue(FString::Printf(TEXT("%s=%s diagnostic names field/type"), Field, Value), Error.Contains(FString::Printf(TEXT(".%s: expected boolean"), Field)) && Error.Contains(TEXT("audio.json assets.")));
+			TestEqual(FString::Printf(TEXT("%s=%s preserves credits"), Field, Value), Config.Credits, PreviousCredits);
+			TestEqual(FString::Printf(TEXT("%s=%s preserves asset count"), Field, Value), Config.Assets.Num(), PreviousAssetCount);
 		}
 	}
 	for (const TCHAR* Value : {TEXT("123"), TEXT("true")})
 	{
 		const FString Mutated = Manifest.Replace(TEXT("\"author\": \"Golmok procedural generator\""), *FString::Printf(TEXT("\"author\": %s"), Value));
-		TestTrue(TEXT("string mutation changed manifest"), Mutated != Manifest);
-		TestFalse(TEXT("string fields reject coercion"), GolmokAudio::ParseConfig(Mutated, Config, Error));
+		TestTrue(FString::Printf(TEXT("author=%s mutation changed manifest"), Value), Mutated != Manifest);
+		TestFalse(FString::Printf(TEXT("author=%s rejects coercion"), Value), GolmokAudio::ParseConfig(Mutated, Config, Error));
+		TestTrue(FString::Printf(TEXT("author=%s diagnostic names field/type"), Value), Error.Contains(TEXT(".author: expected single-line string")));
+		TestEqual(FString::Printf(TEXT("author=%s preserves credits"), Value), Config.Credits, PreviousCredits);
+		TestEqual(FString::Printf(TEXT("author=%s preserves asset count"), Value), Config.Assets.Num(), PreviousAssetCount);
 	}
-	TestTrue(TEXT("type rejection preserves previous config"), Config.Credits.Contains(TEXT("Golmok procedural generator")));
+	// A valid string set id "1" must not make numeric 1 a valid surface mapping.
+	FString NumericSurface = Manifest.Replace(TEXT("\"sets\": {"), TEXT("\"sets\": {\"1\": [\"asphalt\"],"));
+	NumericSurface.ReplaceInline(TEXT("\"surface_sets\": {"), TEXT("\"surface_sets\": {\"4\": 1,"));
+	TestTrue(TEXT("numeric surface fixture adds string set and numeric reference"), NumericSurface != Manifest);
+	TestFalse(TEXT("numeric surface reference rejects coercion"), GolmokAudio::ParseConfig(NumericSurface, Config, Error));
+	TestEqual(TEXT("numeric surface diagnostic"), Error, FString(TEXT("audio.json footsteps.surface_sets.4: expected string")));
+	TestEqual(TEXT("numeric surface preserves credits"), Config.Credits, PreviousCredits);
+	TestEqual(TEXT("numeric surface preserves asset count"), Config.Assets.Num(), PreviousAssetCount);
+	FGolmokAudioConfig ReferenceControl;
+	TestTrue(TEXT("string surface reference control accepted"), GolmokAudio::ParseConfig(NumericSurface.Replace(TEXT("\"4\": 1"), TEXT("\"4\": \"1\"")), ReferenceControl, Error));
+	TSharedPtr<FJsonObject> SampleObject;
+	TestTrue(TEXT("sample fixture parses"), FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Manifest), SampleObject));
+	FString CompactManifest;
+	if (!SampleObject.IsValid()) return false;
+	FJsonSerializer::Serialize(SampleObject.ToSharedRef(), TJsonWriterFactory<TCHAR, TCondensedJsonPrintPolicy<TCHAR>>::Create(&CompactManifest));
+	FString BoolSample = CompactManifest.Replace(TEXT("\"asphalt\":{"), TEXT("\"true\":{"));
+	BoolSample.ReplaceInline(TEXT("[\"asphalt\"]"), TEXT("[\"true\"]"));
+	TestTrue(TEXT("string true asset reference control accepted"), GolmokAudio::ParseConfig(BoolSample, ReferenceControl, Error));
+	BoolSample.ReplaceInline(TEXT("[\"true\"]"), TEXT("[true]"));
+	TestFalse(TEXT("boolean sample reference rejects coercion"), GolmokAudio::ParseConfig(BoolSample, Config, Error));
+	TestTrue(TEXT("sample diagnostic names indexed field/type"), Error.Contains(TEXT("footsteps.sets.")) && Error.Contains(TEXT("[0]: expected string")));
+	TestFalse(TEXT("boolean preset rejects coercion"), GolmokAudio::ParseConfig(Manifest.Replace(TEXT("\"preset_states\": {"), TEXT("\"preset_states\": {\"invalid\": true,")), Config, Error));
+	TestEqual(TEXT("preset diagnostic names field/type"), Error, FString(TEXT("audio.json preset_states.invalid: expected string")));
+	TestEqual(TEXT("reference failures preserve credits"), Config.Credits, PreviousCredits);
+	TestEqual(TEXT("reference failures preserve asset count"), Config.Assets.Num(), PreviousAssetCount);
 	for (const TCHAR* Invalid : {TEXT("null"), TEXT("true"), TEXT("-0.01"), TEXT("5.01"), TEXT("\"0.25\"")})
 	{
 		const FString InvalidJson = Manifest.Replace(TEXT("\"photo_mute_fade_seconds\": 0.25"), *FString::Printf(TEXT("\"photo_mute_fade_seconds\": %s"), Invalid));
