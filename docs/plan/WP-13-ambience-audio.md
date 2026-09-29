@@ -295,3 +295,13 @@ R55-3 공유 문안/큐·C-08·소유자 밸런스 행과 main 통합은 오케�
 ### 병합 시 반영 — T9
 
 astra-tasks T9 행/STATUS Astra 진행 기록 문안: “T9 13e: R55-5 C++ Boolean/String 타입 엄격성 및 변이 회귀, R55-7 보폭 키↔로스터 교차 검사(미등록 키 실패·보폭 누락 경고), 런북 범위 점검 완료. 헤드리스 검증; T6/T8 출력·청취는 C-07 뒤 PC, 다음 T7 RHI도 PC 조건 뒤.” 기존 WP-13/V-10 🟢 및 C-08 판정 범위는 유지한다.
+
+## 병합 기록 — 13e T9 [PR #63](https://github.com/wooklym/golmok/pull/63) (2026-09-29)
+
+대상: `astra/wp-13e-r55-followups` 25901ad(Astra push 정지) + 오케스트레이터 병합 커밋(main 3079dad 병합·충돌 없음·위 병합 시 반영). 리뷰: Opus 5.5 읽기 전용 적대 검증 R63-1~6(#63 코멘트). 병합: 오케스트레이터 결정(D-019). 설계 변경·새 품질 가설이 없어 Fable 설계 검토는 없다.
+
+- **판정: 병합(A 없음).** R55-5·R55-7·런북 범위 점검 완료. 필드별 타입 일치표(#63 코멘트 §2): `loop`/`placeholder`·`String()` 필드·`license_url`은 C++와 Python이 같은 JSON 타입을 요구하고, Python이 받는 매니페스트를 C++가 거부하는 경우는 없다. 배포된 `audio.json`은 그대로 읽히고 실패 시 이전 설정이 유지된다.
+- **(B) 다음 오디오 push**: R63-1 — `footsteps.sets` 원소·`surface_sets` 값·`preset_states`는 아직 `FJsonValue::TryGetString` 강제 변환이 남아 있다(Python이 거부하는 두 매니페스트를 C++가 수락; 커밋본은 CI의 Python 검사가 먼저 막으므로 PC 로컬 편집(C-08) 때만 영향). 따라서 위 13e 결과의 "UE의 숫자/문자열 자동 변환을 허용하지 않으며"는 `loop`/`placeholder`/`String()` 필드에 한한 말로 읽는다. 수정은 `EJson::String` 가드 3곳 + C++ 변이 1개. R63-2 — C++ 파서 실패 메시지가 항상 같은 문장이고 Python `text()`/`number()`도 필드 이름이 없다(이전부터의 문제). 실패 지점마다 필드·기대 타입을 넣는다.
+- **(C)**: R63-3 경고 문구의 70/110 cm 하드코딩·오타 메시지 안내·레인 간 계약 문서화(astra-tasks T9 행에 적음: 로스터 id 변경·삭제는 같은 PR에서 `stride_cm_by_character` 갱신), R63-4 테스트 라벨·parametrize·보존 비교는 다음 오디오 push. R63-5: 위 검증 문단의 "ruff check/format108"은 로컬 파일이 섞인 수치이고 head 기준 `ruff format --check`는 106 files다(원문 유지).
+- **검증 범위**: 리뷰 세션 게이트(ruff·pytest 1200 passed/3 skipped, g++ audio math 8/8 실행·check_repo·diff --check)·main 3079dad 시험 병합 충돌 없음·CI 10/10. UE 빌드·`Golmok.Audio` 2/2·전체 32는 Astra 보고 수치. 실제 출력·청취·패키지 발소리는 미실행 — C-07 뒤 V-11 카드(T6/T8 스모크), C-08 소유자 청취.
+- **(C) 옮긴 것**: STATUS 마지막 갱신·WP-13 행·세션 로그, astra-tasks T9 행 신설·T8 행·우선순위, 이 절.
