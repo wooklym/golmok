@@ -202,6 +202,24 @@ bool FGolmokAudioFootstepTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("production photo fade setting"), Config.PhotoMuteFadeSeconds, .25);
 	FString Manifest;
 	TestTrue(TEXT("read manifest for invalid date tests"), FFileHelper::LoadFileToString(Manifest, *(FPaths::ProjectConfigDir() / TEXT("Golmok/audio.json"))));
+	// R55-5: UE normally coerces these values; Python requires the original JSON type.
+	for (const TCHAR* Field : {TEXT("loop"), TEXT("placeholder")})
+	{
+		const FString Original = FString::Printf(TEXT("\"%s\": true"), Field);
+		for (const TCHAR* Value : {TEXT("1"), TEXT("\"true\"")})
+		{
+			const FString Mutated = Manifest.Replace(*Original, *FString::Printf(TEXT("\"%s\": %s"), Field, Value));
+			TestTrue(TEXT("boolean mutation changed manifest"), Mutated != Manifest);
+			TestFalse(TEXT("boolean fields reject coercion"), GolmokAudio::ParseConfig(Mutated, Config, Error));
+		}
+	}
+	for (const TCHAR* Value : {TEXT("123"), TEXT("true")})
+	{
+		const FString Mutated = Manifest.Replace(TEXT("\"author\": \"Golmok procedural generator\""), *FString::Printf(TEXT("\"author\": %s"), Value));
+		TestTrue(TEXT("string mutation changed manifest"), Mutated != Manifest);
+		TestFalse(TEXT("string fields reject coercion"), GolmokAudio::ParseConfig(Mutated, Config, Error));
+	}
+	TestTrue(TEXT("type rejection preserves previous config"), Config.Credits.Contains(TEXT("Golmok procedural generator")));
 	for (const TCHAR* Invalid : {TEXT("null"), TEXT("true"), TEXT("-0.01"), TEXT("5.01"), TEXT("\"0.25\"")})
 	{
 		const FString InvalidJson = Manifest.Replace(TEXT("\"photo_mute_fade_seconds\": 0.25"), *FString::Printf(TEXT("\"photo_mute_fade_seconds\": %s"), Invalid));
