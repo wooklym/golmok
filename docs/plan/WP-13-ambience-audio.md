@@ -352,3 +352,17 @@ astra-tasks T9 행/STATUS Astra 진행 기록 문안: “T9 13e: R55-5 C++ Boole
 STATUS 병행 트랙 문안: `T13(WP-19c 오디오) 노티파이 발소리 코드·헤드리스 계약 검증 완료. footsteps.driver auto/distance/notify, Step/Land 단일 재생 요청·거리 중복 방지. 기존 일반 폰은 distance 유지, 등록 36. GASP 원본 폴리 비활성화는 설정 조회 훅만 제공; V-08b §5/19b 연결·V-15 청취 실검증 대기.`
 
 WP-19 결과/19b 인계 문안: `T13은 UGolmokFootstepComponent::UsesNotifyDriver() BlueprintPure 조회 훅과 OnFootEvent 구독을 제공한다. 실제 GASP 폴리 경로를 확인한 뒤 원본 재생 차단 + NotifyFootEvent 단일 전달을 19b BP에서 연결해야 한다. auto는 native GASP 계열 폰 기준이며 이벤트가 없으면 거리로 폴백하지 않는다. ABP 로스터를 GASP 폰에서 진단할 때 distance를 명시한다.`
+
+## 병합 기록 — T13 PR [#79](https://github.com/wooklym/golmok/pull/79) (2026-09-30, 오케스트레이터 세션)
+
+**내용**: 위 "T13" 절과 같다. `footsteps.driver`(auto/distance/notify, 기본 auto) 엄격 파싱, `OnFootEvent` 구독(등록·해제·공급 컴포넌트 교체), Step/Land를 기존 표면·착지 재생 경로로 각각 한 번, 첫 이벤트 전부터 거리 스테퍼 정지, pause·photo·이전 폰 이벤트 무시, BlueprintPure `UsesNotifyDriver()`. 등록 수는 36으로 같다.
+
+**병합 전 리뷰(Opus 5.5 ultracode 적대 검증 + 설계 리뷰, [R79](https://github.com/wooklym/golmok/pull/79#issuecomment-5908764323))**: (A) 0 · (B) 2 · (C) 6.
+- 게이트(리눅스): ruff·format, pytest 1316 passed / 3 skipped(#77 위), check_repo, `diff --check` 통과, 등록 36. #78과 `merge-tree` 충돌 0(합친 트리 pytest 1353). UE 빌드·자동화 36 Success는 Astra 보고 수치다.
+- 확인(결함 없음): ① 기본 폰 발소리 틱 경로가 main과 같다(공급 컴포넌트 없음 → 바인딩 즉시 반환, auto → distance). 틱과 이벤트가 같은 술어로 상호 배제되어 이중 재생 경로가 없다. `AddUObject` 약참조·`OnUnregister`/교체 시 해제로 댕글링 없음. #78 C8(착지 값은 틱에서만)과 충돌 없음(페이로드는 종류·좌우뿐). 새 단언이 각각 그럴듯한 결함을 잡는다. 레인·핫스팟 준수.
+- (B) **R79-1 → Astra T15**(19b 착수 전): auto가 폰 클래스로 판정해 GASP 폰에 비GASP ABP가 돌면(모드 기본값 실패 폴백·`golmok.character manny`·19b 연결 전) 발소리가 영구히 무음이다. auto를 "GASP 폰 ∧ `GetMesh()` 애님 클래스가 GASP ABP(`RequiresGaspPawn`, 애님 클래스 키 캐시)"로 바꾼다. ① 영향 없음.
+- (B) **R79-2**: 원본 GASP 발 폴리는 19b BP가 `footsteps.driver`와 무관하게 끈다(오케스트레이터 결정, D-019). (a) Claude 문서(WP-19 §13-3·§16·§17, 런북 §A5·§D)는 WP-19a-2 [#78](https://github.com/wooklym/golmok/pull/78)에서 고쳤다. (c) 헤더 주석·`pc-verify-wp13.md` 문안("진단용 조회, 억제 조건으로 쓰지 않는다")은 T15.
+- (C): R79-3 C++ driver 파서 대소문자 구분(Python과 일치), R79-4 ① 경로 직접 단언·L_Dev 기본 폰 전제 제거, R79-5 HUD `drv=… ev=N`, R79-6 텔레포트 직후 가짜 노티파이·게임 스레드 가드, R79-7 헤더 전방 선언, R79-8 `OnUnregister` 스테퍼 리셋(기록만). R79-3·5는 T15 권장.
+- 설계 리뷰: 이 PR은 채택, "첫 이벤트 전 거리 정지"도 채택. GASP 폰 + ABP 로스터의 무음은 수용하지 않고 애님 클래스 기준(R79-1)으로 바꾼다. N초 무이벤트 폴백은 19b 연결 누락을 가리고 늦은 노티파이와 겹칠 수 있어 기각. 품질 가설(노티파이가 발 접지와 더 잘 맞음)은 바뀌지 않고 V-15에서 검증한다. 새 D 번호 없음.
+
+**병합**: 오케스트레이터 결정(D-019). #77 병합 뒤 base를 main으로 바꾸고, main(#77·#78 포함)을 이 브랜치에 병합한 뒤 이 커밋으로 반영했다. CI 초록이고 (A)가 없어 병합했다. 위 "병합 시 반영 — T13" 문안은 STATUS 병행 트랙 WP-13 행, WP-19 결과 23번, `astra-tasks.md` T13·T15에 옮겼다.

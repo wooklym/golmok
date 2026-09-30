@@ -266,7 +266,7 @@
   - **V-15**: 통합 검증.
   - 병합 리뷰 R21 (B) 7~12는 V-08b·WP-19에 넣는다.
 - **진행 기록**:
-  - 2026-09-30: WP-19a [#76](https://github.com/wooklym/golmok/pull/76)·19c T12 [#77](https://github.com/wooklym/golmok/pull/77)·19a-2 [#78](https://github.com/wooklym/golmok/pull/78) 병합. 기본은 여전히 ①(`animation.json` mode abp)이다.
+  - 2026-09-30: WP-19a [#76](https://github.com/wooklym/golmok/pull/76)·19c T12 [#77](https://github.com/wooklym/golmok/pull/77)·19a-2 [#78](https://github.com/wooklym/golmok/pull/78)·19c T13 [#79](https://github.com/wooklym/golmok/pull/79) 병합. 기본은 여전히 ①(`animation.json` mode abp)이다.
   - 2026-09-30 오케스트레이터 결정(D-019, 되돌릴 수 있음; 리뷰 R77·R78·R79): (1) 원본 GASP 발 폴리는 19b BP가 `footsteps.driver`와 **무관하게** 끄고 Step·Land만 `NotifyFootEvent`로 보낸다. Golmok 폰의 발소리 소스는 `audio.json` 하나로 둔다(D-016/D-002 크레딧 파이프라인과 일관, distance 진단에서도 이중 재생 없음; R79-2). 점프 발성·옷 스침 같은 발 이외 폴리는 V-08b §5 기록 뒤 따로 판단하며 그 전에는 쓰지 않는다. (2) 발소리 auto 판정은 GASP 폰 클래스가 아니라 `GetMesh()` 애님 클래스가 GASP ABP인지로 한다(R79-1, Astra T15; N초 무이벤트 폴백은 19b 연결 누락을 가려 기각). (3) 19b가 확정한 GASP 경로의 `characters.json` 반영은 Astra 후속 과제로 배정하고 19b PC 세션은 이 파일을 고치지 않는다(R77-1). (4) preview와 로스터의 시각 메시 ABP 규칙은 `TargetSkeleton`이 없는 템플릿도 받는 것으로 통일하고, 19b에서 `ABP_GenericRetarget` 값을 확인한 뒤 다시 판단한다(R78-2·R77-13).
 - **소유자 항목**(STATUS 결정 필요):
   - 라이선스 원문 재확인(사실 확인). Fab EULA NoAI 정의와 AI 에이전트 작업 흐름의 관계, Personal/Professional 티어, GASP 설정 파일(ini)이 Content에 드는지, GASP를 참조만 하는 우리 에셋을 공개 저장소에 커밋해도 되는지를 함께 본다.
