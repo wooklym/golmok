@@ -74,4 +74,7 @@ unreal/Golmok/Content/Golmok/Audio/*/SW_*.uasset
 unreal/Golmok/Content/*
 !unreal/Golmok/Content/Golmok/
 !unreal/Golmok/Content/Python/
+# WP-19a add-gasp.ps1 local files: GASP manifest / DDCvars (Config/Golmok/local) and gameplay tags (R21-11-3).
+unreal/Golmok/Config/Golmok/local/
+unreal/Golmok/Config/Tags/GASP*.ini
 # [/WP-19 hook]
