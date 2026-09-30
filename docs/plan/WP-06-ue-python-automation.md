@@ -1170,3 +1170,23 @@ V-04/V-05 메모(코드 미변경): (B3) `ResolveOverlaps`는 로드/언로드 �
 **PC 카드(V-04c, C-07 뒤; V-05 착수 전)**: ① 헤드리스 스모크 — `Content\Golmok\Zones\z_synthetic_scan_001` 삭제 뒤 V-04b F1 재현 명령(`UnrealEditor-Cmd.exe <uproject> -ExecCmds="py <zi.run 스크립트>" -unattended -nullrhi -nosplash -nopause -nosound`)으로 실행; 기대: assert 없이 종료, `zone_import: WARNING texture T_facade: UDIM merge not verifiable without RHI (-nullrhi); pack fallback skipped - check the texture in a GUI editor (runbook #4)` 1줄, `(merged by importer (size unverifiable without RHI))`, `done … 8 assets, 1 warnings`; `size=` 값 기록(256×256이면 첫 블록 가설 확인), #40 경고가 나오면 `get_command_line` 미노출; 이어 GUI에서 `T_facade` 512×512·3색. ② 새 에디터 프로세스에서 런북 §6 3단계 + 실내 `it.run` 재실행 1회 — 기대 `done … 0 warnings`·`moved` 4줄·`size=512x512 (merged by importer)`·`MI_*` BaseColor 유지·텍스처 `deleted`/`renamed` 줄 없음; 실패 시 `ERROR replace` 또는 `could not rename` 줄 전체·디스크 `.uasset`·`LogAssetRegistry`·`LogUObjectGlobals`. ③ 긴 worktree 경로(`.claude\worktrees\…`, junction 없이)에서 §2·§4 — 로그 경로에 `..` 없음, 실내 충돌 GLB 사본 성공. ④ (가능하면) GUI 폴백 PC에서 `Textures/_tiles/T_facade_u0v0` 팩·§6 재실행 제자리 재임포트 뒤 재팩. ⑤ 선택: `-run=pythonscript` 커맨드릿 1회(커맨드릿 규칙 True, 문구 `(-nullrhi)` R69-6).
 
 **병합**: 오케스트레이터 결정(D-019). `WP-06: 병합 시 반영 (Fable)` 커밋(STATUS WP-06·V-05 행·마지막 갱신·세션 로그, ROADMAP zone_import 줄, 런북 R69-2/9, 이 절) 뒤 merge commit. 다음: V-04c PC 카드(C-07 뒤) → V-05 `runbooks/pc-spike.md`; R69-6/8/11은 다음 Claude 레인 push.
+
+## 결과 — Claude 레인 (C) 후속 R69-6·8·11 (2026-09-30, Opus 5.5 ultracode, 세션 `session_018jS3GS3eQh6nV78bWyUb1m`, 브랜치 `claude/claude-lane-c-followups`) — 🟡 코드 완료·PC 확인은 V-04c 카드에 합침
+"병합 기록 — 후속 V-04b F1~F3 #69"의 (C) 후속 3건을 처리했다. 설계 변경은 없다(§0 D5는 실제 동작에 맞춘 문구 수정뿐).
+
+| 항목 | 변경 | 테스트 |
+|---|---|---|
+| R69-6 WARNING 원인 | `_no_rhi_reason()`이 원인 문자열을 준다: `-nullrhi`, `/nullrhi`, `commandlet -run=<x> without -AllowCommandletRendering`; RHI가 있으면 `''`, `get_command_line`이 없으면 `None`. `_without_rhi()`는 이것으로 판정한다(True/False/None 의미 불변). WARNING은 `UDIM merge not verifiable without RHI (<원인>)`이고, 크기 0은 `UDIM merge not verifiable: the editor reports size 0x0 (no texture data yet)`으로 문장을 나눴다. `-nullrhi` 문구는 그대로라 V-04c 카드 ①의 기대 줄은 바뀌지 않는다. ⑤ 커맨드릿의 기대 문구는 `(commandlet -run=pythonscript without -AllowCommandletRendering)`로 바뀐다 | `test_no_rhi_warning_names_its_cause`(4), `test_without_rhi_reads_the_command_line`에 원인 일치 단언(9), `test_no_rhi_reason_is_none_without_get_command_line`, 크기 0 문구 |
+| R69-8 경로 도우미 | `synthetic_zone.abs_project_path` 하나로 모았다. `spike_runner._abs`는 그 별칭이다(중복 구현 삭제). `zone_index._content_dir()` 기본값은 `zone_import._content_dir()`이고, 명시 폴더는 CWD 기준 `abspath`다. `viewpoints.store_file(level)`(새 함수, 절대 경로)를 `_store_path`와 `spike_runner._viewpoints`가 같이 쓴다. `import_assets(work_dir)`는 `normpath(abspath)`다. 순환 import 없음(`spike_runner → synthetic_zone → basemap_import`) | `test_every_project_dir_goes_through_abs_project_path`(상대 편집기 경로 + 바이너리 폴더가 아닌 CWD(공백 포함), `..`, 명시 폴더) + 기존 `test_relative_project_dirs_are_made_absolute` |
+| R69-11 실패 임포트 잔재 | `_import_in_place`가 `_pick`·`_ensure_path`에서 실패하면 `_discard_failed_import`가 그 임포트가 만든 에셋 중 `target` 밖의 것을 지우고(`zi.cleanup` 줄) 원래 예외를 다시 던진다. 지우지 못한 것은 `WARNING texture import failed; could not delete <path> - the next run's cleanup step removes it (runbook #8)`이다. 다음 실행의 `_cleanup_folder`가 계획 밖 Texture2D를 지운다. 런북 §12 #37, 설계 §0 D5 문구 | `test_failed_in_place_texture_import_removes_what_it_imported`, `test_undeletable_leftover_is_warned_and_swept_by_the_next_run` |
+
+**판단**
+1. 명시 `content_dir`/`work_dir`는 사용자가 준 경로라 편집기 바이너리 폴더가 아니라 CWD 기준으로 절대화한다(`abspath`). 전의 `normpath`만 한 상대 경로도 OS가 CWD 기준으로 열었으므로 가리키는 파일은 같다.
+2. `zone_index`·`viewpoints`·`spike_runner._viewpoints`의 기본 경로는 이제 바이너리 폴더 기준이다(R67·F2와 같은 규칙). 편집기에서는 CWD가 바이너리 폴더라 전과 같은 파일이고, CWD가 다를 때만 달라진다(의도한 수정).
+3. `_abs` 이름은 호출 지점 4곳을 바꾸지 않으려고 별칭으로 남겼다.
+4. 정리는 `target` 자체는 지우지 않는다(이전 실행의 에셋이거나 `_ensure_path`가 이미 지운 것). 정리 중 예외는 경고 한 줄로 남기고 원래 오류를 가리지 않는다.
+
+**병합 시 반영(문안)**
+- STATUS WP-06 행 비고 끝에 `· R69 (C) 후속(R69-6·8·11) PR #<번호> 병합, V-04c 카드 ⑤ 기대 문구 갱신`.
+- ROADMAP zone_import 줄: 바꿀 것 없음(동작 범위 불변).
+- "병합 기록 — 후속 V-04b F1~F3 #69"의 PC 카드 ⑤ `문구 (-nullrhi) R69-6` → `문구 (commandlet -run=pythonscript without -AllowCommandletRendering)`.

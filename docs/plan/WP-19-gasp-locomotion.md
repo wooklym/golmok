@@ -412,3 +412,26 @@ T2 digest 의존성, T4 이름 규칙(UE `INVALID_LONGPACKAGE_CHARACTERS`와 동
   - pytest 1324 → **1326**.
 - **남긴 (C)**(다음 Claude 레인 push, 19b 전이면 좋음): R78-5 가드 구멍(Config 아래 ini가 아닌 텍스트·`unreal/Golmok` 밖 ini·이름을 바꿔 `Content/Golmok`에 넣은 GASP 에셋 — 의도적 우회만 해당), R78-7 `.git`이 있는데 toplevel 표기가 다르면(subst·정션) 조용히 건너뜀 → `os.path.samefile` 또는 실패, R78-8 플러그인 Content·`__ExternalActors__`를 쓰게 되면 허용 경로 추가(훅 주석 한 줄), R78-9 `GASP_INI_COMMIT_ALLOWED`와 `gasp_pure` 상수 동기화 주석, R78-11 D8 헤더 규칙을 엔진 헤더 이름 목록으로 좁힘, R78-12 커밋 순서 메모(내용 위반 없음). R78-5·7·8·9는 `check_repo.py` 훅 블록 안 수정이라 별도 훅 커밋으로 한다.
 - **병합**: [PR #78](https://github.com/wooklym/golmok/pull/78) → main(오케스트레이터 결정 D-019; 리뷰 전문 [R78](https://github.com/wooklym/golmok/pull/78#issuecomment-5909290591)). 위 "병합 시 반영(문안)"은 STATUS WP-19 행·마지막 갱신, ROADMAP 애니메이션 행에 옮겼다.
+
+### 19a-2 후속 — 병합 리뷰 R78 남은 (C) (2026-09-30, Opus 5.5 ultracode, 세션 `session_018jS3GS3eQh6nV78bWyUb1m`, 브랜치 `claude/claude-lane-c-followups`) — 🟡 코드 완료(클라우드 게이트 통과, PC 영향 없음)
+R78-5·7·8·9·11을 처리했다. 설계(§1~§18, D-021)와 ① 동작은 바꾸지 않았다. R78-12(커밋 순서 메모)는 내용 위반이 없어 조치하지 않는다.
+
+| 항목 | 변경 | 테스트 |
+|---|---|---|
+| R78-5 가드 구멍 | `check_repo.py` 훅 블록: 내용 검사를 `Config/**/*.json`·`*.txt`(플러그인 Config 포함)로 넓혔다. JSON·txt는 **ini 형식만** 잡는다: `DataDrivenConsoleVariableSettings`·`CVarsArray`·`GameplayTagList`, 값이 붙은 `DDCvar.<이름>` 키(`=` 또는 `":`), add-gasp `gasp_ddcvars.json`의 목록 형식(`"name": "DDCvar.…", "type": …, "default":`). 경로·이름 문자열(`/Game/GASP/…`, 목록 속 `DDCvar.X`)은 D-021대로 통과한다. 로컬 `Config/Golmok/local/gasp_manifest.json`이 있으면(PC, add-gasp 뒤) 추적 중·추가 가능한 `.uasset`·`.umap` 중 매니페스트 패키지와 크기·sha256이 같은 것을 실패로 본다(크기가 맞는 파일만 해시). 매니페스트가 없으면 건너뛴다(CI 영향 없음). 읽지 못하면 오류 한 줄 | `test_gasp_ini_text_fails_in_config_json_and_txt`(7), `test_gasp_names_and_paths_in_our_config_json_pass`(4), `test_renamed_gasp_package_…_local_manifest`, `test_without_a_local_manifest_…`, `test_an_unreadable_local_manifest_…`, 경로 표 테스트에 매니페스트 줄 단언 |
+| R78-7 toplevel 표기 | `os.path.samefile(toplevel, root)`로 비교한다. 다르면서 `root/.git`이 있으면 `gasp: git toplevel …가 …와 다르다` 실패. `.git`이 없는 폴더(합성 저장소·하위 폴더)는 전처럼 건너뛴다 | `test_toplevel_of_another_folder_fails_when_root_has_git`, `test_toplevel_spelled_another_way_…_passes`(심볼릭 링크, 권한 없으면 skip) |
+| R78-8 | 훅 주석 한 줄: 플러그인 Content·`__ExternalActors__`/`__ExternalObjects__`를 쓰게 되면 허용 경로를 이 블록에 더한다 | — |
+| R78-9 | 훅 주석과 `gasp_pure` 주석에 동기화 규칙(`is_local_only`에는 `GASP_INI_COMMIT_ALLOWED` 스위치가 없어 뒤집으면 `TAGS_ALLOWED`·`LOCAL_ONLY_FILES`도 고친다). 상수를 공유하지 않고 테스트로 고정했다(핫스팟 줄 수를 늘리지 않는 쪽) | `test_guard_constants_match_gasp_pure`(경로 상수 8개 동일) |
+| R78-11 D8 헤더 규칙 | `FORBIDDEN_HEADER = ^(?!Golmok)\w*(PoseSearch\|Chooser\|Mover\|GameplayCamera)`(포함 파일 이름). 우리 헤더는 모두 `Golmok*`이라 Astra 레인이 `GolmokChooserRow.h` 같은 이름을 써도 막히지 않는다. 엔진 헤더(`IObjectChooser.h`, `CharacterMoverComponent.h`, `PoseSearch/…`, `GameplayCameraComponent.h`)와 모듈 폴더 접두 규칙은 그대로 잡는다 | `test_forbidden_header_rule_spares_our_golmok_headers` |
+
+**판단**
+1. JSON의 `DDCvar.` 검사는 "키 + 값" 형식만 잡는다. `{"DDCvar.X": …}`처럼 DDCvar 이름을 JSON 키로 쓰면 값이 무엇이든 실패한다(값 설정과 구별할 수 없음). 이름 목록은 배열이나 `"name"` 값으로 쓴다.
+2. `.txt`도 JSON과 같은 규칙이다(ini 전체 규칙의 bare `ddcvar.`를 쓰면 메모의 이름 언급까지 막힌다). 이름을 바꾼 GASP ini는 섹션 머리·`+CVarsArray`로 잡힌다.
+3. 매니페스트 대조는 **바이트가 같은** 사본만 잡는다. 편집기에서 이름을 바꿔 다시 저장한 패키지는 바이트가 달라 잡히지 않는다(패키지 이름이 파일 안에 있음). 그 경우는 여전히 경로 규칙·리뷰 몫이다.
+4. `unreal/Golmok` 밖의 ini(R78 원문의 한 줄)는 이번 범위 밖이다(세션 지시가 `Config/**`로 정함).
+
+**게이트·검증**: 아래 WP-06 절과 같은 게이트(한 PR).
+
+**병합 시 반영(문안)**
+- STATUS WP-19 행 비고 끝에 `· R78 (C) 후속(R78-5·7·8·9·11) PR #<번호> 병합`.
+- 이 절 "19a-2 병합 리뷰 R78"의 "남긴 (C)" 끝에 `→ PR #<번호>에서 해소(R78-12는 조치 없음)`.
