@@ -1178,13 +1178,28 @@ V-04/V-05 메모(코드 미변경): (B3) `ResolveOverlaps`는 로드/언로드 �
 |---|---|---|
 | R69-6 WARNING 원인 | `_no_rhi_reason()`이 원인 문자열을 준다: `-nullrhi`, `/nullrhi`, `commandlet -run=<x> without -AllowCommandletRendering`; RHI가 있으면 `''`, `get_command_line`이 없으면 `None`. `_without_rhi()`는 이것으로 판정한다(True/False/None 의미 불변). WARNING은 `UDIM merge not verifiable without RHI (<원인>)`이고, 크기 0은 `UDIM merge not verifiable: the editor reports size 0x0 (no texture data yet)`으로 문장을 나눴다. `-nullrhi` 문구는 그대로라 V-04c 카드 ①의 기대 줄은 바뀌지 않는다. ⑤ 커맨드릿의 기대 문구는 `(commandlet -run=pythonscript without -AllowCommandletRendering)`로 바뀐다 | `test_no_rhi_warning_names_its_cause`(4), `test_without_rhi_reads_the_command_line`에 원인 일치 단언(9), `test_no_rhi_reason_is_none_without_get_command_line`, 크기 0 문구 |
 | R69-8 경로 도우미 | `synthetic_zone.abs_project_path` 하나로 모았다. `spike_runner._abs`는 그 별칭이다(중복 구현 삭제). `zone_index._content_dir()` 기본값은 `zone_import._content_dir()`이고, 명시 폴더는 CWD 기준 `abspath`다. `viewpoints.store_file(level)`(새 함수, 절대 경로)를 `_store_path`와 `spike_runner._viewpoints`가 같이 쓴다. `import_assets(work_dir)`는 `normpath(abspath)`다. 순환 import 없음(`spike_runner → synthetic_zone → basemap_import`) | `test_every_project_dir_goes_through_abs_project_path`(상대 편집기 경로 + 바이너리 폴더가 아닌 CWD(공백 포함), `..`, 명시 폴더) + 기존 `test_relative_project_dirs_are_made_absolute` |
-| R69-11 실패 임포트 잔재 | `_import_in_place`가 `_pick`·`_ensure_path`에서 실패하면 `_discard_failed_import`가 그 임포트가 만든 에셋 중 `target` 밖의 것을 지우고(`zi.cleanup` 줄) 원래 예외를 다시 던진다. 지우지 못한 것은 `WARNING texture import failed; could not delete <path> - the next run's cleanup step removes it (runbook #8)`이다. 다음 실행의 `_cleanup_folder`가 계획 밖 Texture2D를 지운다. 런북 §12 #37, 설계 §0 D5 문구 | `test_failed_in_place_texture_import_removes_what_it_imported`, `test_undeletable_leftover_is_warned_and_swept_by_the_next_run` |
+| R69-11 실패 임포트 잔재 | `_import_in_place`가 `_pick`·`_ensure_path`에서 실패하면 `_discard_failed_import`가 그 임포트가 만든 에셋 중 `target` 밖의 것을 지우고(실제로 지운 것만 `zi.cleanup` 줄 — 검증 V1로 `_delete_assets`가 `delete_asset`의 반환값을 본다) 원래 예외를 다시 던진다. 지우지 못한 by-product(Texture2D·Material·MIC)는 `WARNING texture import failed; could not delete <path> - the next run's cleanup step removes it (runbook #8)`이다. 다음 실행의 `_cleanup_folder`가 계획 밖 Texture2D를 지운다. 런북 §12 #37, 설계 §0 D5 문구 | `test_failed_in_place_texture_import_removes_what_it_imported`, `test_undeletable_leftover_is_warned_and_swept_by_the_next_run`, `test_failed_texture_import_keeps_the_previous_target`, `test_cleanup_errors_never_hide_the_import_error`(2), `test_unpickable_import_warns_once_per_leftover` |
 
 **판단**
 1. 명시 `content_dir`/`work_dir`는 사용자가 준 경로라 편집기 바이너리 폴더가 아니라 CWD 기준으로 절대화한다(`abspath`). 전의 `normpath`만 한 상대 경로도 OS가 CWD 기준으로 열었으므로 가리키는 파일은 같다.
 2. `zone_index`·`viewpoints`·`spike_runner._viewpoints`의 기본 경로는 이제 바이너리 폴더 기준이다(R67·F2와 같은 규칙). 편집기에서는 CWD가 바이너리 폴더라 전과 같은 파일이고, CWD가 다를 때만 달라진다(의도한 수정).
 3. `_abs` 이름은 호출 지점 4곳을 바꾸지 않으려고 별칭으로 남겼다.
-4. 정리는 `target` 자체는 지우지 않는다(이전 실행의 에셋이거나 `_ensure_path`가 이미 지운 것). 정리 중 예외는 경고 한 줄로 남기고 원래 오류를 가리지 않는다.
+4. 정리는 `target` 자체는 지우지 않는다(이전 실행의 에셋이거나 `_ensure_path`가 이미 지운 것). 정리 중 예외(삭제·존재 확인 모두)는 경고 한 줄로 남기고 원래 오류를 가리지 않는다. by-product가 아닌 잔재는 `_delete_assets`의 `unexpected asset … left in place` 한 줄만 남긴다(중복 경고 없음).
+5. `_delete_assets`가 지우지 못한 것을 `deleted` 줄로 적던 것(메시 스크래치 정리에도 쓰임)을 고쳤다. 지우지 못한 by-product는 줄이 없고, 호출한 쪽이 보고한다(텍스처 실패 정리는 위 WARNING, 메시는 뒤이은 `_import` 폴더 삭제).
+
+**게이트**: `ruff check`·`ruff format --check` 통과, pytest **1384 passed / 3 skipped**(main 1344 + 40), `check_repo.py` OK, `git diff --check` 깨끗. 새 가드는 main과 원격 브랜치 53개(worktree) 모두 OK. 뮤테이션: 1차 14/14, 검증 반영 뒤 9/9 잡힘(검증 에이전트가 찾은 생존 2개 M7 `keep=set()`·M16 예외 삼킴 제거 포함).
+
+**적대 검증 1라운드(별도 에이전트, 읽기 전용) — (A) 0 · (B) 3 · (C) 7, 확정 결함 반영**
+
+| # | 지적 | 등급 | 처리 |
+|---|---|---|---|
+| V1 | `_delete_assets`가 삭제 실패에도 `deleted` 줄을 적음; 다음 실행 sweep 테스트의 로그 단언이 1회차에서 이미 참 | B | 반환값 확인, 2회차 전에 로그 비움 + 1회차에 `deleted` 줄 없음 단언 |
+| V5 | `keep={target}`·예외 삼킴 경로가 테스트 없음(뮤테이션 생존) | C | 이전 대상 유지·정리 예외 테스트 3개 |
+| V6 | 정리의 존재 확인 루프가 try 밖이라 원래 오류를 가릴 수 있음 | C | 같은 try 안으로 |
+| V7 | by-product가 아닌 잔재에 경고 2줄 | C | by-product만 `could not delete` 경고 |
+| — | 경로 도우미 전후 동일성(상대·절대·`..`·공백·`C:/`·`C:\\`), `_without_rhi` 2381개 명령줄 동일, 순환 import 없음 | 확인 | — |
+
+GASP 가드 쪽 지적(V2·V3·V4·V8·V9·V10)은 WP-19 "19a-2 후속" 절에 적었다.
 
 **병합 시 반영(문안)**
 - STATUS WP-06 행 비고 끝에 `· R69 (C) 후속(R69-6·8·11) PR #<번호> 병합, V-04c 카드 ⑤ 기대 문구 갱신`.

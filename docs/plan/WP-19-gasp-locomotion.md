@@ -418,19 +418,29 @@ R78-5·7·8·9·11을 처리했다. 설계(§1~§18, D-021)와 ① 동작은 바
 
 | 항목 | 변경 | 테스트 |
 |---|---|---|
-| R78-5 가드 구멍 | `check_repo.py` 훅 블록: 내용 검사를 `Config/**/*.json`·`*.txt`(플러그인 Config 포함)로 넓혔다. JSON·txt는 **ini 형식만** 잡는다: `DataDrivenConsoleVariableSettings`·`CVarsArray`·`GameplayTagList`, 값이 붙은 `DDCvar.<이름>` 키(`=` 또는 `":`), add-gasp `gasp_ddcvars.json`의 목록 형식(`"name": "DDCvar.…", "type": …, "default":`). 경로·이름 문자열(`/Game/GASP/…`, 목록 속 `DDCvar.X`)은 D-021대로 통과한다. 로컬 `Config/Golmok/local/gasp_manifest.json`이 있으면(PC, add-gasp 뒤) 추적 중·추가 가능한 `.uasset`·`.umap` 중 매니페스트 패키지와 크기·sha256이 같은 것을 실패로 본다(크기가 맞는 파일만 해시). 매니페스트가 없으면 건너뛴다(CI 영향 없음). 읽지 못하면 오류 한 줄 | `test_gasp_ini_text_fails_in_config_json_and_txt`(7), `test_gasp_names_and_paths_in_our_config_json_pass`(4), `test_renamed_gasp_package_…_local_manifest`, `test_without_a_local_manifest_…`, `test_an_unreadable_local_manifest_…`, 경로 표 테스트에 매니페스트 줄 단언 |
+| R78-5 가드 구멍 | `check_repo.py` 훅 블록: 내용 검사를 `Config/**` 아래 **모든 파일**(플러그인 Config 포함)로 넓혔다. `*.ini`와 `*.ini.<확장자>`(`.bak`·`.orig` 등 병합 도구 잔재)는 기존 ini 규칙이다. 나머지(`.json`·`.txt`·`.yaml` …)는 **ini 형식만** 잡는다: `DataDrivenConsoleVariableSettings`·`CVarsArray`·`GameplayTagList`, 값이 붙은 `DDCvar.<이름>` 키(`=` 또는 `":`), `"name": "DDCvar.…"`와 `"default":`를 함께 가진 JSON 객체(add-gasp `gasp_ddcvars.json` 목록, 키 순서 무관). BOM이 있는 UTF-16 파일도 읽는다(UE는 ASCII 밖 문자가 있는 ini를 UTF-16으로 씀). 경로·이름 문자열(`/Game/GASP/…`, 목록 속 `DDCvar.X`)은 D-021대로 통과한다. 로컬 `Config/Golmok/local/gasp_manifest.json`이 있으면(PC, add-gasp 뒤) 추적 중·추가 가능한 `.uasset`·`.umap` 중 매니페스트 패키지와 크기·sha256이 같은 것을 실패로 본다(크기가 맞는 파일만 해시). 매니페스트가 없으면 건너뛴다(CI 영향 없음). 읽지 못하면 오류 한 줄 | `test_gasp_ini_text_fails_in_config_json_and_txt`(11), `test_utf16_config_text_is_read_too`(4), `test_gasp_names_and_paths_in_our_config_json_pass`(4), `test_renamed_gasp_package_…_local_manifest`, `test_without_a_local_manifest_…`, `test_an_unreadable_local_manifest_…`(3: 깨진 JSON·목록·정수 아닌 크기), 경로 표 테스트에 매니페스트 줄 단언 |
 | R78-7 toplevel 표기 | `os.path.samefile(toplevel, root)`로 비교한다. 다르면서 `root/.git`이 있으면 `gasp: git toplevel …가 …와 다르다` 실패. `.git`이 없는 폴더(합성 저장소·하위 폴더)는 전처럼 건너뛴다 | `test_toplevel_of_another_folder_fails_when_root_has_git`, `test_toplevel_spelled_another_way_…_passes`(심볼릭 링크, 권한 없으면 skip) |
 | R78-8 | 훅 주석 한 줄: 플러그인 Content·`__ExternalActors__`/`__ExternalObjects__`를 쓰게 되면 허용 경로를 이 블록에 더한다 | — |
-| R78-9 | 훅 주석과 `gasp_pure` 주석에 동기화 규칙(`is_local_only`에는 `GASP_INI_COMMIT_ALLOWED` 스위치가 없어 뒤집으면 `TAGS_ALLOWED`·`LOCAL_ONLY_FILES`도 고친다). 상수를 공유하지 않고 테스트로 고정했다(핫스팟 줄 수를 늘리지 않는 쪽) | `test_guard_constants_match_gasp_pure`(경로 상수 8개 동일) |
+| R78-9 | 훅 주석과 `gasp_pure` 주석에 동기화 규칙(`is_local_only`에는 `GASP_INI_COMMIT_ALLOWED` 스위치가 없어 뒤집으면 `TAGS_ALLOWED`·`LOCAL_ONLY_FILES`도 고친다). 상수를 공유하지 않고 테스트로 고정했다(핫스팟 줄 수를 늘리지 않는 쪽) | `test_guard_constants_match_gasp_pure`(경로 상수 8개 동일, 스위치가 False일 때 `DefaultGameplayTags.ini`가 양쪽에서 로컬 전용) |
 | R78-11 D8 헤더 규칙 | `FORBIDDEN_HEADER = ^(?!Golmok)\w*(PoseSearch\|Chooser\|Mover\|GameplayCamera)`(포함 파일 이름). 우리 헤더는 모두 `Golmok*`이라 Astra 레인이 `GolmokChooserRow.h` 같은 이름을 써도 막히지 않는다. 엔진 헤더(`IObjectChooser.h`, `CharacterMoverComponent.h`, `PoseSearch/…`, `GameplayCameraComponent.h`)와 모듈 폴더 접두 규칙은 그대로 잡는다 | `test_forbidden_header_rule_spares_our_golmok_headers` |
 
 **판단**
 1. JSON의 `DDCvar.` 검사는 "키 + 값" 형식만 잡는다. `{"DDCvar.X": …}`처럼 DDCvar 이름을 JSON 키로 쓰면 값이 무엇이든 실패한다(값 설정과 구별할 수 없음). 이름 목록은 배열이나 `"name"` 값으로 쓴다.
-2. `.txt`도 JSON과 같은 규칙이다(ini 전체 규칙의 bare `ddcvar.`를 쓰면 메모의 이름 언급까지 막힌다). 이름을 바꾼 GASP ini는 섹션 머리·`+CVarsArray`로 잡힌다.
-3. 매니페스트 대조는 **바이트가 같은** 사본만 잡는다. 편집기에서 이름을 바꿔 다시 저장한 패키지는 바이트가 달라 잡히지 않는다(패키지 이름이 파일 안에 있음). 그 경우는 여전히 경로 규칙·리뷰 몫이다.
+2. ini가 아닌 파일(`.txt` 포함)은 JSON과 같은 규칙이다. 이름만 적은 메모 줄은 통과하지만, 이름 바로 뒤에 `:`나 `=`가 오면(`DDCvar.X: 설명`) 값 설정과 구별할 수 없어 실패한다. JSON `"note"` 안에 `DataDrivenConsoleVariableSettings` 같은 섹션 이름을 적어도 실패한다. 이름을 바꾼 GASP ini는 섹션 머리·`+CVarsArray`로 잡힌다.
+3. 매니페스트 대조는 relocate 뒤 로컬 파일과 **바이트가 같은** 사본만 잡는다. 편집기에서 이름을 바꾸거나 옮기거나 복제해 다시 저장한 패키지, GASP 프로젝트의 **원본** 파일을 탐색기로 복사한 것은 바이트가 달라 잡히지 않는다(매니페스트에는 원본 파일별 해시가 없고 집계 `source_digest`만 있다). 그 경우는 여전히 경로 규칙·리뷰 몫이다. 매니페스트의 `packages`가 없으면 빈 목록으로 본다(자리만 잡은 로컬 파일). 항목이 깨졌으면(키 없음·정수가 아닌 크기) 오류 한 줄이다.
 4. `unreal/Golmok` 밖의 ini(R78 원문의 한 줄)는 이번 범위 밖이다(세션 지시가 `Config/**`로 정함).
 
-**게이트·검증**: 아래 WP-06 절과 같은 게이트(한 PR).
+**게이트·검증**: WP-06 절 "후속 R69-6·8·11"과 같은 게이트·적대 검증 라운드(한 PR). 이 절에 해당하는 검증 지적과 처리:
+
+| # | 지적 | 등급 | 처리 |
+|---|---|---|---|
+| V2 | UTF-16 ini·txt, `*.ini.bak`/`.orig`, `.yaml`가 가드를 통과함 | B | UTF-16 BOM 디코드, `*.ini.*`는 ini 규칙, Config 아래 나머지 파일 전부 JSON 규칙 |
+| V3 | 키 정렬(`sort_keys=True`)된 add-gasp 목록이 통과함 | B | `"name": "DDCvar.…"`와 `"default":`를 같은 `{…}`에서 순서 무관하게 찾음 |
+| V4 | `.txt` 메모 `DDCvar.X: …`·JSON note 속 섹션 이름이 실패함(판단 2 문구와 다름) | C | 동작 유지, 판단 2 문구를 사실대로 고침 |
+| V8 | 상수 테스트의 `GASP_INI_COMMIT_ALLOWED` 문자열 단언이 동어반복 | C | `is_local_only(DefaultGameplayTags.ini)` 단언으로 바꿈 |
+| V9 | 매니페스트 대조가 파일마다 O(M) 크기 비교·파일 전체 읽기, 실수 크기를 `int()`로 자름 | C | 크기 집합·1 MiB 블록 해시, 정수 아닌 크기는 오류 |
+| V10 | GUI 이동·원본 복사는 매니페스트 대조로 못 잡음 | C | 판단 3에 명시 |
+| P1·P2 | Cygwin 표기 toplevel, `GIT_DIR` 환경 | C, 추정 | 조치 없음(실패 쪽으로 닫힘, 기존 동작) |
 
 **병합 시 반영(문안)**
 - STATUS WP-19 행 비고 끝에 `· R78 (C) 후속(R78-5·7·8·9·11) PR #<번호> 병합`.
