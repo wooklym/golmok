@@ -739,6 +739,26 @@ def test_zero_size_skips_udim_pack_fallback(monkeypatch, tmp_path, zone):
         "pack fallback skipped - check the texture in a GUI editor (runbook #4)"
     )
     assert result["warnings"] == [message]
+    # R81-7: with RHI the texture line names the size, not a missing RHI
+    facade = next(a for a in result["assets"] if a["asset"].endswith("T_facade"))
+    assert facade["detail"]["how"] == "merged by importer (size 0x0)"
+    assert (
+        f"zone_import: texture {FOLDER}/Textures/T_facade tiles=[1001, 1002, 1011] size=0x0 vt=on "
+        "(merged by importer (size 0x0))"
+    ) in fake.logged("log")
+    assert not [line for line in fake.logged("log") if "without RHI" in line]
+
+
+def test_zero_size_without_rhi_keeps_the_no_rhi_wording(monkeypatch, tmp_path, zone):
+    """R81-7: -nullrhi and a 0x0 size together: the cause is the missing RHI (one WARNING, as before)."""
+    fake = fake_unreal.install(monkeypatch, tmp_path, nullrhi=True)
+    monkeypatch.setattr(fake_unreal.FakeTexture2D, "_reported_size", lambda self: (0, 0))
+    zi = importlib.import_module("golmok.zone_import")
+    result = _run(zi, zone)
+    assert fake.calls_of("make_udim") == []
+    facade = next(a for a in result["assets"] if a["asset"].endswith("T_facade"))
+    assert facade["detail"]["how"] == "merged by importer (size unverifiable without RHI)"
+    assert [w for w in result["warnings"] if "without RHI (-nullrhi)" in w] == result["warnings"]
 
 
 @pytest.mark.parametrize(
@@ -974,6 +994,21 @@ def test_undeletable_leftover_is_warned_and_swept_by_the_next_run(fake, unreal, 
     result = _run(zi, zone)
     assert stray not in fake.registry and result["warnings"] == []  # _cleanup_folder: Texture2D by-product
     assert f"zone_import: deleted importer-created asset {stray}" in fake.logged("log")
+
+
+def test_cleanup_step_that_cannot_delete_warns_instead_of_a_deleted_line(fake, unreal, zone, zi, monkeypatch):
+    """Verify F3: _cleanup_folder checks delete_asset like _delete_assets (R69-11), so a by-product it cannot
+    delete is one WARNING, never a 'deleted' line."""
+    stray = f"{FOLDER}/Textures/T_stray"
+    fake.registry[stray] = fake_unreal.FakeTexture2D(fake, stray)
+    delete = unreal.EditorAssetLibrary.delete_asset
+    monkeypatch.setattr(
+        unreal.EditorAssetLibrary, "delete_asset", staticmethod(lambda p: False if p == stray else delete(p))
+    )
+    result = _run(zi, zone)
+    assert stray in fake.registry
+    assert f"zone_import: deleted importer-created asset {stray}" not in fake.logged("log")
+    assert result["warnings"] == [f"cleanup: could not delete {stray} (runbook #8)"]
 
 
 def test_failed_texture_import_keeps_the_previous_target(fake, unreal, zone, zi, monkeypatch):

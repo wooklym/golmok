@@ -1185,7 +1185,7 @@ V-04/V-05 메모(코드 미변경): (B3) `ResolveOverlaps`는 로드/언로드 �
 2. `zone_index`·`viewpoints`·`spike_runner._viewpoints`의 기본 경로는 이제 바이너리 폴더 기준이다(R67·F2와 같은 규칙). 편집기에서는 CWD가 바이너리 폴더라 전과 같은 파일이고, CWD가 다를 때만 달라진다(의도한 수정).
 3. `_abs` 이름은 호출 지점 4곳을 바꾸지 않으려고 별칭으로 남겼다.
 4. 정리는 `target` 자체는 지우지 않는다(이전 실행의 에셋이거나 `_ensure_path`가 이미 지운 것). 정리 중 예외(삭제·존재 확인 모두)는 경고 한 줄로 남기고 원래 오류를 가리지 않는다. by-product가 아닌 잔재는 `_delete_assets`의 `unexpected asset … left in place` 한 줄만 남긴다(중복 경고 없음).
-5. `_delete_assets`가 지우지 못한 것을 `deleted` 줄로 적던 것(메시 스크래치 정리에도 쓰임)을 고쳤다. 지우지 못한 by-product는 줄이 없고, 호출한 쪽이 보고한다(텍스처 실패 정리는 위 WARNING, 메시는 뒤이은 `_import` 폴더 삭제).
+5. `_delete_assets`가 지우지 못한 것을 `deleted` 줄로 적던 것(메시 스크래치 정리에도 쓰임)을 고쳤다. 지우지 못한 by-product는 줄이 없고, 호출한 쪽이 보고한다(텍스처 실패 정리는 위 WARNING, 메시는 뒤이은 `_import` 폴더 삭제). → R81-6: 경고하는 호출자는 `_discard_failed_import` 하나다. 메시(`_import_moved`)와 UDIM 타일(`_pack_udim_tiles`)은 뒤이은 폴더 삭제(`_import`·`Textures/_tiles`)가, 텍스처 제자리 임포트의 **성공 경로**(`_import_in_place`)는 같은 실행의 cleanup 단계(`_cleanup_folder`, 마지막 임포트 뒤)가 지운다(그 단계의 `zi.cleanup` 줄). 실패 경로는 그 실행이 cleanup 단계 전에 끝나므로 다음 실행의 cleanup 단계다. `_delete_assets` docstring을 이대로 고쳤다.
 
 **게이트**: `ruff check`·`ruff format --check` 통과, pytest **1384 passed / 3 skipped**(main 1344 + 40), `check_repo.py` OK, `git diff --check` 깨끗. 새 가드는 main과 원격 브랜치 53개(worktree) 모두 OK. 뮤테이션: 1차 14/14, 검증 반영 뒤 9/9 잡힘(검증 에이전트가 찾은 생존 2개 M7 `keep=set()`·M16 예외 삼킴 제거 포함).
 
@@ -1206,4 +1206,27 @@ GASP 가드 쪽 지적(V2·V3·V4·V8·V9·V10)은 WP-19 "19a-2 후속" 절에 �
 - ROADMAP zone_import 줄: 바꿀 것 없음(동작 범위 불변).
 - "병합 기록 — 후속 V-04b F1~F3 #69"의 PC 카드 ⑤ `문구 (-nullrhi) R69-6` → `문구 (commandlet -run=pythonscript without -AllowCommandletRendering)`.
 
-**병합**: [PR #81](https://github.com/wooklym/golmok/pull/81) → main(오케스트레이터 결정 D-019; 리뷰 [R81](https://github.com/wooklym/golmok/pull/81#issuecomment-5910698240) (A)·(B) 0). 위 "병합 시 반영(문안)"은 STATUS WP-06 행과 V-04c 카드 ⑤에 옮겼다. 남은 (C)는 다음 Claude 레인 push: R81-4 새 WARNING이 가리키는 런북 #8 행·§2 로그 목록에 설명 추가(지금은 #37에만), R81-6 `_delete_assets` 주석(호출자 3곳 중 2곳과 맞지 않음), R81-7 RHI가 있는데 크기 0인 경우 텍스처 줄 문구와 테스트 전용이 된 `_without_rhi()` 정리.
+**병합**: [PR #81](https://github.com/wooklym/golmok/pull/81) → main(오케스트레이터 결정 D-019; 리뷰 [R81](https://github.com/wooklym/golmok/pull/81#issuecomment-5910698240) (A)·(B) 0). 위 "병합 시 반영(문안)"은 STATUS WP-06 행과 V-04c 카드 ⑤에 옮겼다. 남은 (C)는 다음 Claude 레인 push: R81-4 새 WARNING이 가리키는 런북 #8 행·§2 로그 목록에 설명 추가(지금은 #37에만), R81-6 `_delete_assets` 주석(호출자 3곳 중 2곳과 맞지 않음), R81-7 RHI가 있는데 크기 0인 경우 텍스처 줄 문구와 테스트 전용이 된 `_without_rhi()` 정리. → R81-4·6·7은 [PR #87](https://github.com/wooklym/golmok/pull/87)에서 해소.
+
+## 결과 — Claude 레인 (C) 후속 2: R81-4·6·7 (2026-09-30, Opus 5.5 ultracode, 세션 `session_01Mt8twTiFwhqobsBxS1ddFN`, 브랜치 `claude/claude-lane-c-followups2`) — 🟡 코드 완료·PC 확인은 V-04c 카드에 합침
+PR #81 병합 리뷰 R81의 WP-06 쪽 (C) 3건과 적대 검증 F3을 처리했다. 설계 변경은 없다.
+
+| 항목 | 변경 | 테스트 |
+|---|---|---|
+| R81-4 런북 #8 | 런북 §2 로그 해석 목록에 `WARNING texture import failed; could not delete <path> - the next run's cleanup step removes it (runbook #8)` 한 줄(원인은 앞의 `ERROR`; 그것을 해결하고 재실행하면 cleanup 단계가 지움; 그래도 남으면 새 `cleanup: could not delete` WARNING과 수동 삭제). §12 #8 행 끝에 R69-11 설명 한 문장. WARNING의 `runbook #8`은 이제 설명이 있는 행을 가리킨다 | 문구는 코드·기존 테스트(`test_undeletable_leftover_…`)와 글자 단위 일치 |
+| R81-6 `_delete_assets` 주석 | docstring을 실제 호출자에 맞춤: 실패한 delete는 `deleted` 줄도 반환값도 없다. 경고는 `_discard_failed_import`만 한다. `_import_moved`는 스크래치 폴더 삭제(`finally`), `_pack_udim_tiles`는 `Textures/_tiles` 삭제(팩 실패 시엔 다음 실행의 cleanup), `_import_in_place` 성공 경로는 **같은 실행**의 cleanup 단계(`_cleanup_folder`, 마지막 임포트 뒤)가, 뒤 단계가 실패하면 다음 실행의 cleanup 단계가 지운다. 위 판단 5에 성공 경로를 더함 | — (주석) |
+| R81-7 크기 0 문구 | RHI가 있는데 크기에 0이 있으면 `how = "merged by importer (size WxH)"`(`HOW_SIZE_ZERO`, 예 `(size 0x0)`). RHI가 없으면 크기와 무관하게 종전 `(size unverifiable without RHI)`가 우선. WARNING 문구는 그대로. `_without_rhi()` docstring에 "Kept for tests only" 한 줄(제품 코드는 `_no_rhi_reason()`만 부름). 런북 §2 머리 주의·로그 목록·§12 #4 갱신. V-04c 카드는 ①이 `-nullrhi`, ②가 `(merged by importer)`라 바꿀 것 없음 | `test_zero_size_skips_udim_pack_fallback`에 `how`·텍스처 줄·"without RHI" 없음 단언, `test_zero_size_without_rhi_keeps_the_no_rhi_wording` |
+| 검증 F3 cleanup 단계 | `_cleanup_folder`도 `delete_asset` 반환값을 본다(R69-11의 `_delete_assets`와 같은 규칙). 지우지 못하면 `deleted` 줄 대신 `WARNING cleanup: could not delete <path> (runbook #8)` | `test_cleanup_step_that_cannot_delete_warns_instead_of_a_deleted_line` |
+
+**판단**
+1. F3은 동작 변경이다(삭제 실패 시 WARNING 1줄 추가, 정상 경로는 동일). 새 런북 §2 줄과 R81-6 주석이 "cleanup 단계가 지운다"에 기대므로, 지우지 못했는데 `deleted`라고 적는 것을 그대로 둘 수 없었다. `_import_moved`의 스크래치 폴더 줄(삭제 전에 `zi.cleanup`을 적고 `delete_directory` 결과를 보지 않음)은 범위 밖으로 남긴다(후속 후보).
+2. 크기 문구는 `0x0`만이 아니라 실제 `WxH`를 쓴다(한 변만 0인 경우도 사실대로).
+
+**게이트·검증**: WP-19 "19a-2 후속 2" 절과 같은 게이트(pytest 1432 passed / 3 skipped)·적대 검증 라운드. 이 절 해당 지적: F3(B, 반영), F4(C, 주석의 "같은 실행"은 맞음; 뒤 단계 실패·팩 실패 시 다음 실행 — 주석에 반영), F5(C, `_without_rhi` 주석 "callers outside this module" 삭제), F10(C, 런북에 `size 512x0` 예 추가). 문자열 대조(런북 §2·§12 #4·#8, V-04c 카드 ①·②, 코드, 테스트) 일치 확인.
+
+**병합 시 반영(문안)**
+- STATUS WP-06 행 비고 끝에 `· R81 (C) 후속(R81-4·6·7, cleanup 삭제 실패 WARNING) PR #<번호> 병합`.
+- ROADMAP zone_import 줄: 바꿀 것 없음.
+- 위 "Claude 레인 (C) 후속 R69-6·8·11" 절의 **병합** 줄 끝에 `→ R81-4·6·7은 PR #<번호>에서 해소`.
+
+**병합**: [PR #87](https://github.com/wooklym/golmok/pull/87) → main(오케스트레이터 결정 D-019; 리뷰 [R87](https://github.com/wooklym/golmok/pull/87#issuecomment-5915909161)). 위 "병합 시 반영(문안)"은 STATUS WP-06 행에 옮겼다. ROADMAP은 바꿀 것이 없다. PC 확인은 V-04c 카드에 합친다(크기 0 줄 `merged by importer (size WxH)`, cleanup 삭제 실패 `WARNING cleanup: could not delete <path> (runbook #8)`). 남은 (C)는 다음 Claude 레인 push: R87-3 `WxH`를 `(512, 0)`로도 시험(뮤테이션 `0x0` 고정·w/h 뒤바꿈 생존), R87-4 `get_command_line`이 없을 때(#40) 크기 0 경로의 주석·런북 149행 "RHI 있음" 단정, R87-5 새 cleanup WARNING을 런북 §12 #8 행에도 설명.
