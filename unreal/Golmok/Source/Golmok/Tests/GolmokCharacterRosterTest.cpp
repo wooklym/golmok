@@ -4,6 +4,14 @@
 #if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
 
 #include "Animation/AnimInstance.h"
+#include "Animation/GolmokAnimationConfig.h"
+#include "Animation/GolmokGaspCharacter.h"
+#include "Dom/JsonObject.h"
+#include "Serialization/JsonReader.h"
+#include "Serialization/JsonSerializer.h"
+#include "Serialization/JsonWriter.h"
+#include "UObject/Package.h"
+#include "UObject/Interface.h"
 #include "Camera/CameraComponent.h"
 #include "Characters/GolmokCharacterSubsystem.h"
 #include "Components/BoxComponent.h"
@@ -49,6 +57,80 @@ namespace GolmokCharacterRosterTest
 		UAnimInstance* Anim = Character->GetMesh()->GetAnimInstance();
 		Test->TestEqual(TEXT("default mesh asset"), Mesh ? Mesh->GetPathName() : FString(), FString(MannyPath));
 		Test->TestEqual(TEXT("default animation class"), Anim ? Anim->GetClass()->GetPathName() : FString(), FString(AnimPath));
+	}
+
+	void CheckGaspContract(FAutomationTestBase* Test, UWorld* World, APlayerController* PC,
+		AGolmokCharacter* Original, UGolmokCharacterSubsystem* System)
+	{
+		FString Message;
+		for (const TCHAR* Id : {TEXT("manny_gasp"), TEXT("uefn_gasp")})
+		{
+			const auto* Entry = System->GetRoster().Find(Id);
+			if (!Entry) { Test->AddError(TEXT("GASP roster entry absent")); continue; }
+			if (!FPackageName::DoesPackageExist(FSoftObjectPath(Entry->MeshPath).GetLongPackageName()))
+				Test->AddInfo(FString::Printf(TEXT("%s: GASP not installed - visual integration skipped; refusal still tested"), Id));
+			Test->TestFalse(TEXT("GASP entry cannot replace ordinary pawn"), System->SelectCharacter(Id, Message));
+			Test->TestEqual(TEXT("GASP refusal preserves selection"), System->GetCurrentId(), FString(TEXT("manny")));
+			CheckDefault(Test, Original);
+		}
+
+		// In-memory contract doubles only: no GASP package, Blueprint or ini is imported/saved.
+		// A temporary interface marker lets the real PawnSupportsGasp query pass on the native GASP pawn.
+		const FString PackageName = TEXT("/Game/GolmokTests/T12_Interface_") + FGuid::NewGuid().ToString(EGuidFormats::Digits);
+		UClass* Interface = NewObject<UClass>(CreatePackage(*PackageName), TEXT("BPI_Roster_C"), RF_Transient);
+		Interface->SetSuperStruct(UInterface::StaticClass());
+		Interface->ClassFlags |= CLASS_Interface | CLASS_Abstract;
+		FString ConfigText;
+		FFileHelper::LoadFileToString(ConfigText, *GolmokAnimation::ConfigFilePath());
+		TSharedPtr<FJsonObject> Config;
+		if (!Test->TestTrue(TEXT("read animation contract"), FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(ConfigText), Config))) return;
+		const auto GaspConfig = Config->GetObjectField(TEXT("gasp"));
+		GaspConfig->SetStringField(TEXT("content_root"), TEXT("/Game"));
+		GaspConfig->SetStringField(TEXT("anim_class"), FString(AnimPath).RightChop(6));
+		GaspConfig->SetStringField(TEXT("pawn_interface"), Interface->GetPathName().RightChop(6));
+		ConfigText.Reset();
+		FJsonSerializer::Serialize(Config.ToSharedRef(), TJsonWriterFactory<>::Create(&ConfigText));
+
+		// The subsystem owns a mutable roster; only this synchronous test temporarily substitutes fixtures.
+		auto& MutableRoster = const_cast<FGolmokCharacterRoster&>(System->GetRoster());
+		TGuardValue<FGolmokCharacterRoster> RosterGuard(MutableRoster, FGolmokCharacterRoster(MutableRoster));
+		FGolmokCharacterEntry Visual = *MutableRoster.Find(TEXT("manny"));
+		Visual.Id = TEXT("test_visual"); Visual.bHasVisual = true;
+		Visual.VisualMeshPath = MannyPath; Visual.VisualAnimPath = AnimPath; Visual.VisualScale = {.75, .8, .9};
+		MutableRoster.Entries.Add(Visual);
+		Visual.Id = TEXT("test_visual_missing"); Visual.VisualMeshPath = TEXT("/Game/GolmokTests/Absent.Absent");
+		MutableRoster.Entries.Add(Visual);
+		FActorSpawnParameters Spawn;
+		Spawn.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+		AGolmokGaspCharacter* Pawn = World->SpawnActor<AGolmokGaspCharacter>(FVector(500, 0, 1000), FRotator::ZeroRotator, Spawn);
+		if (!Test->TestNotNull(TEXT("native contract pawn"), Pawn)) return;
+		{
+			GolmokAnimation::FScopedConfigOverride ConfigGuard(ConfigText);
+			Test->TestTrue(TEXT("test animation classified as GASP"), GolmokAnimation::RequiresGaspPawn(Original->GetMesh()->GetAnimClass()));
+			Test->TestFalse(TEXT("ordinary pawn rejected even with loaded assets"), System->SelectCharacter(TEXT("manny"), Message));
+			PC->Possess(Pawn); PC->SetViewTarget(Pawn);
+			Test->TestFalse(TEXT("native GASP pawn without BPI rejected"), System->SelectCharacter(TEXT("test_visual"), Message));
+			TGuardValue<TArray<FImplementedInterface>> InterfaceGuard(Pawn->GetClass()->Interfaces, Pawn->GetClass()->Interfaces);
+			Pawn->GetClass()->Interfaces.Add(FImplementedInterface(Interface, 0, true));
+			Test->TestTrue(TEXT("contract pawn now implements interface"), GolmokAnimation::PawnSupportsGasp(Pawn));
+			Test->TestTrue(TEXT("apply source and visual transaction"), System->SelectCharacter(TEXT("test_visual"), Message));
+			Test->TestTrue(TEXT("visual override active"), Pawn->HasVisualOverride());
+			Test->TestTrue(TEXT("visual source hidden but posing"), Pawn->GetMesh()->bHiddenInGame
+				&& Pawn->GetMesh()->VisibilityBasedAnimTickOption == EVisibilityBasedAnimTickOption::AlwaysTickPoseAndRefreshBones);
+			Test->TestTrue(TEXT("visual scale applied"), Pawn->GetVisualMesh()->GetRelativeScale3D().Equals(FVector(.75, .8, .9)));
+			const FVector Before = Pawn->GetActorLocation();
+			Test->TestFalse(TEXT("missing visual rejected"), System->SelectCharacter(TEXT("test_visual_missing"), Message));
+			Test->TestEqual(TEXT("missing visual preserves id"), System->GetCurrentId(), FString(TEXT("test_visual")));
+			Test->TestTrue(TEXT("missing visual preserves position/override"), Pawn->GetActorLocation().Equals(Before) && Pawn->HasVisualOverride());
+			Test->TestTrue(TEXT("direct source clears previous visual"), System->SelectCharacter(TEXT("manny"), Message));
+			Test->TestFalse(TEXT("direct source visual cleared"), Pawn->HasVisualOverride());
+			Test->TestTrue(TEXT("reapply visual"), System->SelectCharacter(TEXT("test_visual"), Message));
+		}
+		// Actual ABP config restored; applying ABP on the GASP pawn must clear the override too.
+		Test->TestTrue(TEXT("ABP selection on GASP pawn"), System->SelectCharacter(TEXT("manny"), Message));
+		Test->TestFalse(TEXT("ABP clears visual override"), Pawn->HasVisualOverride());
+		Test->TestFalse(TEXT("ABP source visible"), Pawn->GetMesh()->bHiddenInGame);
+		PC->Possess(Original); PC->SetViewTarget(Original); Pawn->Destroy();
 	}
 
 	class FRosterScenario : public IAutomationLatentCommand
@@ -158,6 +240,7 @@ namespace GolmokCharacterRosterTest
 				Test->TestNotNull(TEXT("Quinn uses compatible animation"), Character->GetMesh()->GetAnimInstance());
 			}
 			Test->TestTrue(TEXT("restore default"), System->SelectCharacter(TEXT("manny"), Message));
+			CheckGaspContract(Test, World, PC, Character, System);
 			CheckDefault(Test, Character);
 			return true;
 		}
@@ -175,9 +258,13 @@ bool FGolmokCharacterRosterConfigTest::RunTest(const FString& Parameters)
 	FGolmokCharacterRoster Roster;
 	FString Error;
 	if (!TestTrue(TEXT("load JSON"), GolmokCharacters::LoadRoster(Roster, Error))) { AddError(Error); return false; }
-	TestEqual(TEXT("four placeholders"), Roster.Entries.Num(), 4);
+	TestEqual(TEXT("four placeholders and two optional GASP entries"), Roster.Entries.Num(), 6);
 	TestEqual(TEXT("default id"), Roster.DefaultId, FString(TEXT("manny")));
 	TestTrue(TEXT("localized name loaded"), Roster.Find(TEXT("manny"))->NameKo == TEXT("매니"));
+	TestEqual(TEXT("ABP mode default"), Roster.DefaultForMode(TEXT("abp")), FString(TEXT("manny")));
+	TestEqual(TEXT("GASP mode default"), Roster.DefaultForMode(TEXT("gasp")), FString(TEXT("manny_gasp")));
+	TestTrue(TEXT("retarget visual parsed"), Roster.Find(TEXT("manny_gasp"))->bHasVisual);
+	TestFalse(TEXT("direct UEFN has no visual"), Roster.Find(TEXT("uefn_gasp"))->bHasVisual);
 	FString Text;
 	FFileHelper::LoadFileToString(Text, *FPaths::Combine(FPaths::ProjectConfigDir(), TEXT("Golmok/characters.json")));
 	const TArray<FString> Invalid = {
@@ -195,8 +282,38 @@ bool FGolmokCharacterRosterConfigTest::RunTest(const FString& Parameters)
 	{
 		TestFalse(TEXT("invalid document rejected"), GolmokCharacters::ParseRoster(Bad, Roster, Error));
 		TestFalse(TEXT("error explains rejection"), Error.IsEmpty());
-		TestEqual(TEXT("failure preserves roster"), Roster.Entries.Num(), 4);
+		TestEqual(TEXT("failure preserves roster"), Roster.Entries.Num(), 6);
 		TestEqual(TEXT("failure preserves default"), Roster.DefaultId, FString(TEXT("manny")));
+	}
+	for (const TCHAR* BadDefaults : {TEXT("null"), TEXT("{}"),
+		TEXT("{\"abp\":\"manny\",\"gasp\":\"missing\"}"),
+		TEXT("{\"abp\":\"manny\",\"gasp\":1}"),
+		TEXT("{\"abp\":\"manny\",\"gasp\":\"manny\",\"extra\":1}")})
+	{
+		TSharedPtr<FJsonObject> Mutated;
+		FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Text), Mutated);
+		Mutated->RemoveField(TEXT("default_by_anim_mode"));
+		FString Base;
+		FJsonSerializer::Serialize(Mutated.ToSharedRef(), TJsonWriterFactory<TCHAR, TCondensedJsonPrintPolicy<TCHAR>>::Create(&Base));
+		Base.InsertAt(1, FString(TEXT("\"default_by_anim_mode\":")) + BadDefaults + TEXT(","));
+		TestFalse(TEXT("invalid mode defaults rejected"), GolmokCharacters::ParseRoster(Base, Roster, Error));
+		TestEqual(TEXT("invalid defaults retain gasp selection"), Roster.DefaultForMode(TEXT("gasp")), FString(TEXT("manny_gasp")));
+	}
+	TSharedPtr<FJsonObject> Root;
+	FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Text), Root);
+	Root->RemoveField(TEXT("default_by_anim_mode"));
+	for (const auto& Entry : Root->GetArrayField(TEXT("characters"))) Entry->AsObject()->RemoveField(TEXT("visual"));
+	FString Legacy;
+	FJsonSerializer::Serialize(Root.ToSharedRef(), TJsonWriterFactory<TCHAR, TCondensedJsonPrintPolicy<TCHAR>>::Create(&Legacy));
+	TestTrue(TEXT("optional fields omitted remain compatible"), GolmokCharacters::ParseRoster(Legacy, Roster, Error));
+	TestEqual(TEXT("legacy mode falls back to default"), Roster.DefaultForMode(TEXT("gasp")), Roster.DefaultId);
+	for (const TCHAR* BadVisual : {TEXT("null"), TEXT("{}"), TEXT("{\"mesh\":1}"),
+		TEXT("{\"mesh\":\"/Game/A/A.A\",\"anim_class\":\"/Game/A/A.A_C\",\"mesh_scale\":[1,0,1]}")})
+	{
+		const FString Bad = Legacy.Replace(TEXT("\"footstep_set\":null"), *(FString(TEXT("\"visual\":")) + BadVisual + TEXT(",\"footstep_set\":null")));
+		TestTrue(TEXT("mutation applied"), Bad != Legacy);
+		TestFalse(TEXT("invalid visual rejected atomically"), GolmokCharacters::ParseRoster(Bad, Roster, Error));
+		TestEqual(TEXT("invalid visual retains legacy defaults"), Roster.DefaultByAnimMode.Num(), 0);
 	}
 	return true;
 }
