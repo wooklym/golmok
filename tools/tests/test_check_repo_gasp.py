@@ -478,6 +478,7 @@ CVAR_OTHER_FORMS_FAIL = (
     # R87-1: a key after a \n / \t escape inside a JSON string (main caught these)
     ('{"ini": "[ConsoleVariables]\\nDDCvar.X=1"}\n', "DDCvar.X"),
     ('{"ini": "\\tDDCvar.X=1"}\n', "DDCvar.X"),
+    ('{"ini": "a\\rDDCvar.X=1"}\n', "DDCvar.X"),  # verify: \r pinned too
 )
 
 
