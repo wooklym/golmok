@@ -139,15 +139,22 @@ ANIMATION = json.loads((REPO / "unreal/Golmok/Config/Golmok/animation.json").rea
 
 
 def validate_animation_contract(roster, animation):
-    """Deployment contract: 19b path changes must be paired with an Astra roster update."""
+    """Deployment contract: 19b path changes require a paired Astra roster update.
+
+    Ordinary (①) entries share one ABP; introduce an allowlist if another ABP is added.
+    """
     root = animation["gasp"]["content_root"].rstrip("/") + "/"
     expected = root + animation["gasp"]["anim_class"]
+    abp = next(e["anim_class"] for e in roster["characters"] if e["id"] == roster["default"])
+    assert abp != expected, "common ABP must differ from GASP animation"
     gasp_ids = set()
     for entry in roster["characters"]:
-        is_gasp = "visual" in entry or any(entry[key].startswith(root) for key in ("mesh", "anim_class"))
+        is_gasp = "visual" in entry or entry["anim_class"] != abp
         if is_gasp:
             assert entry["anim_class"] == expected, "GASP roster animation path differs from animation.json"
             assert entry["mesh_scale"] == [1, 1, 1], "GASP source scale must stay one"
+            if "visual" in entry:
+                assert entry["visual"]["mesh_scale"] == [1, 1, 1], "GASP visual scale must stay one"
             gasp_ids.add(entry["id"])
     defaults = roster["default_by_anim_mode"]
     assert defaults["gasp"] in gasp_ids, "gasp default must select a GASP entry"
@@ -160,24 +167,51 @@ def test_shipped_animation_roster_contract():
 
 
 @pytest.mark.parametrize(
-    "case", ["relocate", "abp_path", "visual_path", "direct_path", "gasp_default", "abp_default", "scale"]
+    "case,reason",
+    [
+        ("relocate", "GASP roster animation path differs"),
+        ("abp_path", "GASP roster animation path differs"),
+        ("visual_path", "GASP roster animation path differs"),
+        ("direct_path", "GASP roster animation path differs"),
+        ("stale_direct", "GASP roster animation path differs"),
+        ("gasp_default", "gasp default must select a GASP entry"),
+        ("abp_default", "common ABP must differ"),
+        ("scale", "GASP source scale must stay one"),
+        ("visual_scale", "GASP visual scale must stay one"),
+    ],
 )
-def test_animation_roster_contract_detects_drift(case):
+def test_animation_roster_contract_detects_drift(case, reason):
     roster, animation = copy.deepcopy(ROSTER), copy.deepcopy(ANIMATION)
     entries = {entry["id"]: entry for entry in roster["characters"]}
     if case == "relocate":
         animation["gasp"]["content_root"] = "/Game/Relocated"
     elif case == "abp_path":
         animation["gasp"]["anim_class"] = "Blueprints/New.New_C"
-    elif case in ("visual_path", "direct_path"):
-        entries["manny_gasp" if case == "visual_path" else "uefn_gasp"]["anim_class"] = (
-            "/Game/Wrong/ABP.ABP_C"
-        )
+    elif case in ("visual_path", "direct_path", "stale_direct"):
+        entry = entries["manny_gasp" if case == "visual_path" else "uefn_gasp"]
+        entry["anim_class"] = "/Game/Wrong/ABP.ABP_C"
+        if case == "stale_direct":
+            entry["mesh"] = "/Game/Wrong/Mesh.Mesh"
     elif case == "gasp_default":
         roster["default_by_anim_mode"]["gasp"] = "manny"
     elif case == "abp_default":
         roster["default"] = roster["default_by_anim_mode"]["abp"] = "manny_gasp"
+    elif case == "visual_scale":
+        entries["manny_gasp"]["visual"]["mesh_scale"] = [1, 1, 0.75]
     else:
         entries["uefn_gasp"]["mesh_scale"] = [1, 1, 0.75]
-    with pytest.raises(AssertionError):
+    with pytest.raises(AssertionError, match=reason):
         validate_animation_contract(roster, animation)
+
+
+def test_animation_roster_contract_allows_game_root_relocation():
+    roster, animation = copy.deepcopy(ROSTER), copy.deepcopy(ANIMATION)
+    animation["gasp"]["content_root"] = "/Game"
+    animation["gasp"]["anim_class"] = "Relocated/ABP.ABP_C"
+    abp = next(e["anim_class"] for e in roster["characters"] if e["id"] == roster["default"])
+    for entry in roster["characters"]:
+        if "visual" in entry or entry["anim_class"] != abp:
+            entry["anim_class"] = "/Game/Relocated/ABP.ABP_C"
+            entry["mesh"] = "/Game/Relocated/Mesh.Mesh"
+    validate(roster)
+    validate_animation_contract(roster, animation)
