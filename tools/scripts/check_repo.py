@@ -207,14 +207,14 @@ GASP_ADD_GASP_TAGS = re.compile(r"^unreal/golmok/config/tags/gasp[^/]*\.ini$")
 GASP_TAGS_DIR = "unreal/golmok/config/tags/"
 GASP_TAGS_ALLOWED: tuple[str, ...] = ()
 GASP_TAGS_FILE = "unreal/golmok/config/defaultgameplaytags.ini"
-GASP_CONFIG_INI = re.compile(r"^unreal/golmok/(plugins/.+/)?config/.+\.ini$")
+GASP_CONFIG_INI = re.compile(r"^unreal/golmok/(plugins/.+/)?config/.+\.ini(\.[^/]*)?$")  # + .ini.bak / .orig
 GASP_INI_TEXT = re.compile(
     r"DataDrivenConsoleVariableSettings|CVarsArray|ddcvar\.|GameplayTagList", re.IGNORECASE
 )
-GASP_CONFIG_TEXT = re.compile(r"^unreal/golmok/(plugins/.+/)?config/.+\.(json|txt)$")
+GASP_CONFIG_TEXT = re.compile(r"^unreal/golmok/(plugins/.+/)?config/.+$")  # every other Config file
 GASP_TEXT_INI_FORMS = re.compile(  # ini sections / keys, a DDCvar key with a value, add-gasp's DDCvar list
     r"DataDrivenConsoleVariableSettings|CVarsArray|GameplayTagList|ddcvar\.[\w.]+\"?\s*[:=]"
-    r"|\"name\"\s*:\s*\"ddcvar\.[^\"]*\"\s*,\s*\"type\"\s*:\s*\"[^\"]*\"\s*,\s*\"default\"\s*:",
+    r"|\{(?=[^{}]*\"name\"\s*:\s*\"ddcvar\.)(?=[^{}]*\"default\"\s*:)",  # any key order
     re.IGNORECASE,
 )
 GASP_MANIFEST = "unreal/Golmok/Config/Golmok/local/gasp_manifest.json"
@@ -283,25 +283,31 @@ def check_gasp_guard(root: Path) -> list[str]:
             rule = _gasp_path_rule(path) or _gasp_package_rule(root, path, packages)
             if rule:
                 errors.append(f"{path}: GASP 가드 — {rule} ({state})")
-            elif not GASP_INI_COMMIT_ALLOWED and GASP_CONFIG_TEXT.match(path.lower()):
-                file = root / path
-                text = file.read_text(encoding="utf-8-sig", errors="replace") if file.is_file() else ""
-                m = GASP_TEXT_INI_FORMS.search(text)
-                if m:
-                    no = text.count("\n", 0, m.start()) + 1
-                    errors.append(
-                        f"{path}:{no}: GASP 가드 — GASP ini 형식 텍스트({m.group(0)})는 커밋하지 않는다"
-                    )
             elif not GASP_INI_COMMIT_ALLOWED and GASP_CONFIG_INI.match(path.lower()):
-                file = root / path
-                text = file.read_text(encoding="utf-8-sig", errors="replace") if file.is_file() else ""
+                text = _gasp_text(root / path)
                 m = GASP_INI_TEXT.search(text)
                 if m:
                     no = text.count("\n", 0, m.start()) + 1
                     errors.append(
                         f"{path}:{no}: GASP 가드 — GASP DDCvar·태그 텍스트({m.group(0)})는 커밋하지 않는다"
                     )
+            elif not GASP_INI_COMMIT_ALLOWED and GASP_CONFIG_TEXT.match(path.lower()):
+                text = _gasp_text(root / path)
+                m = GASP_TEXT_INI_FORMS.search(text)
+                if m:
+                    no = text.count("\n", 0, m.start()) + 1
+                    errors.append(
+                        f"{path}:{no}: GASP 가드 — GASP ini 형식 텍스트({m.group(0)})는 커밋하지 않는다"
+                    )
     return errors
+
+
+def _gasp_text(file: Path) -> str:
+    """A Config file as text: UTF-16 with a BOM (UE writes non-ASCII ini that way), else UTF-8."""
+    data = file.read_bytes() if file.is_file() else b""
+    if data.startswith((b"\xff\xfe", b"\xfe\xff")):
+        return data.decode("utf-16", errors="replace")
+    return data.decode("utf-8-sig", errors="replace")
 
 
 def _gasp_same_dir(top: str, root: Path) -> bool:
@@ -318,7 +324,12 @@ def _gasp_manifest_packages(root: Path) -> dict[tuple[int, str], str] | str:
         return {}
     try:
         entries = json.loads(path.read_text(encoding="utf-8-sig")).get("packages") or []
-        return {(int(e["size"]), str(e["sha256"]).lower()): str(e["path"]) for e in entries}
+        out = {}
+        for e in entries:
+            if not isinstance(e["size"], int) or isinstance(e["size"], bool):
+                raise TypeError("size")
+            out[(e["size"], str(e["sha256"]).lower())] = str(e["path"])
+        return out
     except (OSError, ValueError, TypeError, KeyError, AttributeError) as e:
         return f"gasp: {GASP_MANIFEST}를 읽지 못함({type(e).__name__}) — add-gasp -Manifest로 다시 만든다"
 
@@ -330,11 +341,15 @@ def _gasp_package_rule(root: Path, path: str, packages: dict[tuple[int, str], st
     if not packages or not low.endswith((".uasset", ".umap")) or not file.is_file():
         return None
     size = file.stat().st_size
-    if not any(key[0] == size for key in packages):
+    if size not in {key[0] for key in packages}:
         return None
     import hashlib
 
-    key = (size, hashlib.sha256(file.read_bytes()).hexdigest())
+    digest = hashlib.sha256()
+    with open(file, "rb") as handle:
+        for block in iter(lambda: handle.read(1 << 20), b""):
+            digest.update(block)
+    key = (size, digest.hexdigest())
     return (
         f"GASP 패키지 {packages[key]}와 바이트가 같다(로컬 gasp_manifest.json)" if key in packages else None
     )
