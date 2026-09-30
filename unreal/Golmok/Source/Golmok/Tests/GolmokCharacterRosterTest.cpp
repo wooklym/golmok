@@ -62,13 +62,14 @@ namespace GolmokCharacterRosterTest
 	void CheckGaspContract(FAutomationTestBase* Test, UWorld* World, APlayerController* PC,
 		AGolmokCharacter* Original, UGolmokCharacterSubsystem* System)
 	{
+		Test->AddInfo(TEXT("real GASP roster integration NOT EXECUTED here (manual section 13 / 19b; GaspSmoke)"));
 		FString Message;
 		for (const TCHAR* Id : {TEXT("manny_gasp"), TEXT("uefn_gasp")})
 		{
 			const auto* Entry = System->GetRoster().Find(Id);
 			if (!Entry) { Test->AddError(TEXT("GASP roster entry absent")); continue; }
 			if (!FPackageName::DoesPackageExist(FSoftObjectPath(Entry->MeshPath).GetLongPackageName()))
-				Test->AddInfo(FString::Printf(TEXT("%s: GASP not installed - visual integration skipped; refusal still tested"), Id));
+				Test->AddInfo(FString::Printf(TEXT("%s: GASP not installed - asset refusal tested"), Id));
 			Test->TestFalse(TEXT("GASP entry cannot replace ordinary pawn"), System->SelectCharacter(Id, Message));
 			Test->TestEqual(TEXT("GASP refusal preserves selection"), System->GetCurrentId(), FString(TEXT("manny")));
 			CheckDefault(Test, Original);
@@ -84,6 +85,7 @@ namespace GolmokCharacterRosterTest
 		FFileHelper::LoadFileToString(ConfigText, *GolmokAnimation::ConfigFilePath());
 		TSharedPtr<FJsonObject> Config;
 		if (!Test->TestTrue(TEXT("read animation contract"), FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(ConfigText), Config))) return;
+		Config->SetStringField(TEXT("mode"), TEXT("gasp"));
 		const auto GaspConfig = Config->GetObjectField(TEXT("gasp"));
 		GaspConfig->SetStringField(TEXT("content_root"), TEXT("/Game"));
 		GaspConfig->SetStringField(TEXT("anim_class"), FString(AnimPath).RightChop(6));
@@ -92,12 +94,14 @@ namespace GolmokCharacterRosterTest
 		FJsonSerializer::Serialize(Config.ToSharedRef(), TJsonWriterFactory<>::Create(&ConfigText));
 
 		// The subsystem owns a mutable roster; only this synchronous test temporarily substitutes fixtures.
-		auto& MutableRoster = const_cast<FGolmokCharacterRoster&>(System->GetRoster());
+		// This entire override scope is synchronous: no world ticks or GC. RAII restores every shared mutation.
+		auto& MutableRoster = System->MutableRosterForTest();
 		TGuardValue<FGolmokCharacterRoster> RosterGuard(MutableRoster, FGolmokCharacterRoster(MutableRoster));
 		FGolmokCharacterEntry Visual = *MutableRoster.Find(TEXT("manny"));
 		Visual.Id = TEXT("test_visual"); Visual.bHasVisual = true;
 		Visual.VisualMeshPath = MannyPath; Visual.VisualAnimPath = AnimPath; Visual.VisualScale = {.75, .8, .9};
 		MutableRoster.Entries.Add(Visual);
+		Visual.Values = MutableRoster.Find(TEXT("proxy135"))->Values;
 		Visual.Id = TEXT("test_visual_missing"); Visual.VisualMeshPath = TEXT("/Game/GolmokTests/Absent.Absent");
 		MutableRoster.Entries.Add(Visual);
 		FActorSpawnParameters Spawn;
@@ -122,10 +126,23 @@ namespace GolmokCharacterRosterTest
 			Test->TestFalse(TEXT("missing visual rejected"), System->SelectCharacter(TEXT("test_visual_missing"), Message));
 			Test->TestEqual(TEXT("missing visual preserves id"), System->GetCurrentId(), FString(TEXT("test_visual")));
 			Test->TestTrue(TEXT("missing visual preserves position/override"), Pawn->GetActorLocation().Equals(Before) && Pawn->HasVisualOverride());
+			Test->TestEqual(TEXT("missing visual preserves capsule"), Pawn->GetCapsuleComponent()->GetUnscaledCapsuleHalfHeight(), 92.f);
+			Test->TestEqual(TEXT("missing visual preserves boom"), Pawn->GetCameraBoom()->TargetArmLength, 320.f);
+			Test->TestEqual(TEXT("missing visual preserves walk"), Pawn->GetWalkSpeed(), 180.f);
+			Test->TestTrue(TEXT("missing visual preserves visual scale"), Pawn->GetVisualMesh()->GetRelativeScale3D().Equals(FVector(.75,.8,.9)));
 			Test->TestTrue(TEXT("direct source clears previous visual"), System->SelectCharacter(TEXT("manny"), Message));
 			Test->TestFalse(TEXT("direct source visual cleared"), Pawn->HasVisualOverride());
 			Test->TestTrue(TEXT("reapply visual"), System->SelectCharacter(TEXT("test_visual"), Message));
+			TGuardValue<TMap<FString, FString>> DefaultsGuard(MutableRoster.DefaultByAnimMode, MutableRoster.DefaultByAnimMode);
+			MutableRoster.DefaultByAnimMode[TEXT("gasp")] = TEXT("test_visual_missing");
+			Test->AddExpectedMessagePlain(TEXT("golmok.character: GASP mode default failed:"), ELogVerbosity::Warning, EAutomationExpectedMessageFlags::Contains, 1);
+			System->ApplyDefaultForTest(Pawn);
+			Test->TestEqual(TEXT("bad mode default falls back"), System->GetCurrentId(), FString(TEXT("manny")));
+			Test->TestTrue(TEXT("fallback retains mode failure diagnostic"), System->DescribeRoster().Contains(TEXT("last_auto_error=test_visual_missing:")));
+			System->ApplyDefaultForTest(Pawn); // Same world: second failure must not warn again.
+			Test->TestTrue(TEXT("reapply visual after fallback check"), System->SelectCharacter(TEXT("test_visual"), Message));
 		}
+		Test->TestFalse(TEXT("visual entry rejected with nonGASP source config"), System->SelectCharacter(TEXT("test_visual"), Message));
 		// Actual ABP config restored; applying ABP on the GASP pawn must clear the override too.
 		Test->TestTrue(TEXT("ABP selection on GASP pawn"), System->SelectCharacter(TEXT("manny"), Message));
 		Test->TestFalse(TEXT("ABP clears visual override"), Pawn->HasVisualOverride());
@@ -269,6 +286,7 @@ bool FGolmokCharacterRosterConfigTest::RunTest(const FString& Parameters)
 	FFileHelper::LoadFileToString(Text, *FPaths::Combine(FPaths::ProjectConfigDir(), TEXT("Golmok/characters.json")));
 	const TArray<FString> Invalid = {
 		TEXT("{}"), TEXT("[]"), TEXT("{broken}"),
+		Text.Replace(TEXT("\"height_cm\""), TEXT("\"Height_cm\"")),
 		Text.Replace(TEXT("\"schema_version\": 1"), TEXT("\"schema_version\": 2")),
 		Text.Replace(TEXT("\"default\": \"manny\""), TEXT("\"default\": \"missing\"")),
 		Text.Replace(TEXT("\"id\": \"quinn\""), TEXT("\"id\": \"manny\"")),
