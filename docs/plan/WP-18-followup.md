@@ -391,3 +391,17 @@ D3D12 정상 6코스를 한 프로세스에서 한 번 돌렸다(단언 25 PASS,
 STATUS 병행 트랙 문안: `T12(WP-19c 캐릭터) 코드·헤드리스 계약 검증 완료: optional visual/모드별 기본값, manny_gasp·uefn_gasp 준비 항목, GASP 폰 호환성 거절·ABP visual 해제. 실제 GASP 경로·GenericRetarget·품질은 19b/V-15 대기. 등록 36 유지. T13 노티파이 발소리는 별도 PR.`
 
 WP-19 결과 절 22번 갱신 문안(Claude 소유 문서): `19c T12에서 로스터 적용이 visual override를 제거/교체하도록 연결했다. golmok.anim preview off도 기존 SelectCharacter API를 통해 복원한다. GASP 실제 리타깃 경로·Attached Parent는 19b 검증 대기.`
+
+## 병합 기록 — T12 PR [#77](https://github.com/wooklym/golmok/pull/77) (2026-09-30, 오케스트레이터 세션)
+
+**내용**: 위 "T12" 절과 같다. 로스터 항목에 선택 필드 `visual`·루트 `default_by_anim_mode`를 엄격 파서·스키마·Python 검증기로 더했다. `manny_gasp`(리타깃 매니)·`uefn_gasp`(직접) 준비 항목은 GASP 폰에만 적용하고, ABP 항목은 `ClearVisualOverride`를 부른다. 모든 검사를 마친 뒤에만 상태를 바꾸며, 두 새 id의 보폭도 `audio.json`에 더했다. 등록 수는 36으로 같다.
+
+**병합 전 리뷰(Opus 5.5 ultracode 적대 검증 + 설계 리뷰, [R77](https://github.com/wooklym/golmok/pull/77#issuecomment-5908858407))**: (A) 0 · (B) 4 · (C) 10.
+- 게이트(리눅스): ruff·format 113·pytest 1305 passed / 3 skipped(main 1287 + 새 18)·check_repo·`diff --check` 통과, 등록 36. #78(`1caac3a`)과 텍스트 충돌 없음. UE 빌드·자동화 36 Success는 Astra 보고 수치다.
+- 확인(결함 없음): 19a API 서명 일치, 파서·스키마·Python 3자 일치, 적용 트랜잭션(첫 변경 뒤 실패 경로 없음), ABP 복귀 시 visual 해제, mode abp에서 ① 불변(기본 선택·스폰 폰·속도·포토·보폭), 테스트 간 상태 누수 없음(RAII 복원·월드 서브시스템), 레인·핫스팟 준수, GASP 경로 문자열만.
+- (B) → **Astra T14**(19b 착수 전): R77-1 `characters.json` GASP 항목 ↔ `animation.json` 경로 교차 검사(pytest; 불일치나 설정 파싱 실패 시 판정이 열려 `uefn_gasp`가 일반 폰에 적용될 수 있음 [추정]), R77-2 GASP 가능 폰에서 모드 기본값 실패 시 월드당 1회 Warning(HUD는 `anim: gasp`인데 화면은 ①인 오인 방지), R77-3 GASP 통합 Info를 설치 여부와 무관하게 NOT EXECUTED로 표기, R77-4 첫 전체 실행 Quinn 40 cm 장애물 2건 실패 — 이 PR 원인 경로 없음, Block 단계 진단 Info와 보존 보고서 기록.
+- (C, T14 선택): R77-5 트랜잭션 테스트 강화, R77-6 visual 적용 순서·`Clear` 뒤 스케일 리셋, R77-7 로드 전 경로 판정(설치 PC에서 약 1 GB 동기 로드 회피), R77-8 명시 선택만 `CurrentId` 우선, R77-9 로스터 불변식 pytest(`abp == default`, GASP 항목 스케일 1), R77-10 보폭 67/146 근거 문장([추정] ① 측정값 복사), R77-11 테스트 시임, R77-14 C++ 키 대소문자 구분. R77-12(패키지 스모크 `golmok.character proxy135`)는 다음 PC 패키지 확인, R77-13(19a `ApplyPreview` 문구·런북 §A8·WP-19 §5·§15-8, preview/로스터 스켈레톤 규칙 통일)은 Claude 레인 후속.
+- 설계 리뷰: **채택**, 새 D 번호 없음. `visual` 선택 필드가 맞다(GASP 리타깃은 숨긴 소스 + 보이는 리타깃 메시 두 개라 `mesh`+`anim_class` 한 쌍으로 표현할 수 없다; 19b가 리타깃터 지정이 필요하다고 확인하면 `visual.retargeter`를 선택 필드로 더한다). `default_by_anim_mode`는 D-021에 맞고, V-15 통과 뒤 기본 전환은 `animation.json` 한 줄이면 된다. visual ABP의 null 타깃 스켈레톤 허용은 제한된 완화로 받되 19b에서 `ABP_GenericRetarget` 실제 값을 기록해 preview 규칙과 하나로 맞춘다. 품질 가설 변화 없음(기본 ①, 판정은 V-15).
+- **경로 소유 규칙(R77-1, 오케스트레이터 결정 D-019)**: 19b PC 세션이 GASP 경로를 확정하면 `characters.json`의 GASP 경로 갱신은 오케스트레이터가 Astra 후속 과제로 배정한다. 19b PC 세션은 이 파일을 고치지 않는다.
+
+**병합**: 오케스트레이터 결정(D-019). CI 10/10 초록이고 (A)가 없어 병합했다. 위 "병합 시 반영 — T12" 문안은 STATUS 병행 트랙 WP-18 행, WP-19 결과 절 22번, `astra-tasks.md` T12·T14에 옮겼다. T13([#79](https://github.com/wooklym/golmok/pull/79))은 이 브랜치 위의 스택이라 병합 뒤 base를 main으로 바꾼다.
