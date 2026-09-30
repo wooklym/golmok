@@ -216,9 +216,11 @@ GASP_CONFIG_TEXT = re.compile(r"^unreal/golmok/(plugins/.+/)?config/.+$")  # eve
 # are skipped whole (a "{" / "}" in a help text), and group 1 names the cvar for the error line. Pair lists
 # [["DDCvar.X", 1]] and console lines "DDCvar.X 1" fail too; YAML lists, BOM-less UTF-16 and files outside
 # Config are left to review (WP-19 judgement 1-2).
-_GASP_JSON_BODY = r"(?:[^{}\"]|\"(?:[^\"\\]|\\.)*\")*"  # no brace outside a string; disjoint: linear
+# The body takes no backslash outside a string (none in valid JSON): a "{" inside an escaped string cannot
+# open a string at the escaping backslash and rescan the rest of the file (verify F1).
+_GASP_JSON_BODY = r"(?:[^{}\"\\]|\"(?:[^\"\\]|\\.)*\")*"  # no brace outside a string; disjoint
 GASP_TEXT_INI_FORMS = re.compile(  # ini sections / keys, a DDCvar key with a value, add-gasp's DDCvar list
-    r"DataDrivenConsoleVariableSettings|CVarsArray|GameplayTagList|ddcvar\.[\w.]+\"?\s*[:=]"
+    r"DataDrivenConsoleVariableSettings|CVarsArray|GameplayTagList|(?<![\w.])ddcvar\.[\w.]+\"?\s*[:=]"
     rf"|\{{(?={_GASP_JSON_BODY}(\"name\"\s*:\s*\"ddcvar\.[^\"]*\"))"
     rf"(?={_GASP_JSON_BODY}\"(?:default\w*|value)\"\s*:)"
     r"|\[\s*\"ddcvar\.[^\"]*\"\s*,\s*(?:-?\.?\d|true\b|false\b)"
