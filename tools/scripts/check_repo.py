@@ -186,6 +186,57 @@ def check_conflict_markers(root: Path) -> list[str]:
     return errors
 
 
+# [WP-19 hook] GASP repository guard (D-021, Fab EULA section 5(a); WP-19 design section 9).
+GASP_INI_COMMIT_ALLOWED = False  # owner fact check R21-11-3: GASP DDCvar / tag ini text stays local till then
+GASP_CONTENT = "unreal/Golmok/Content/"
+GASP_TRACKED_CONTENT = ("unreal/Golmok/Content/Golmok/", "unreal/Golmok/Content/Python/")
+GASP_LOCAL_ONLY = re.compile(
+    r"^unreal/Golmok/Config/(Golmok/local/.+|Tags/GASP[^/]*\.ini|DefaultGameplayTags\.ini)$"
+)
+GASP_DDCVAR = re.compile(r"ddcvar\.", re.IGNORECASE)
+
+
+def _git_paths(root: Path, *args: str) -> list[str] | None:
+    """`git -C root <args>` output split on NUL / newlines, or None when git is missing or fails."""
+    import subprocess
+
+    try:
+        done = subprocess.run(["git", "-C", str(root), *args], capture_output=True, check=False)
+    except OSError:
+        return None
+    if done.returncode != 0:
+        return None
+    text = done.stdout.decode("utf-8", "replace")
+    return [p for p in (text.split("\0") if "\0" in text else text.splitlines()) if p]
+
+
+def check_gasp_guard(root: Path) -> list[str]:
+    top = _git_paths(root, "rev-parse", "--show-toplevel")
+    if not top or Path(top[0].strip()).resolve() != root.resolve():
+        return []  # not the top of a git work tree (e.g. the synthetic repos of test_check_repo.py): skipped
+    tracked = _git_paths(root, "ls-files", "-z") or []
+    addable = _git_paths(root, "ls-files", "--others", "--exclude-standard", "-z") or []
+    errors = []
+    for state, paths in (("추적 중", tracked), ("추가 가능", addable)):
+        for path in paths:
+            if path.startswith(GASP_CONTENT) and not path.startswith(GASP_TRACKED_CONTENT):
+                errors.append(f"{path}: GASP 가드 — Content/ 루트에는 Golmok/·Python/만 커밋한다 ({state})")
+            elif GASP_LOCAL_ONLY.match(path):
+                errors.append(f"{path}: GASP 가드 — 로컬 전용 파일(add-gasp)이다 ({state})")
+    if not GASP_INI_COMMIT_ALLOWED:
+        for ini in sorted((root / CONFIG_DIR).glob("Default*.ini")):
+            text = ini.read_text(encoding="utf-8-sig", errors="replace")
+            for m in GASP_DDCVAR.finditer(text):
+                no = text.count("\n", 0, m.start()) + 1
+                rel = ini.relative_to(root).as_posix()
+                errors.append(f"{rel}:{no}: GASP 가드 — DDCvar 텍스트는 커밋하지 않는다")
+                break
+    return errors
+
+
+# [/WP-19 hook]
+
+
 CHECKS = {
     "uproject": check_uproject,
     "ini": check_ini,
@@ -193,6 +244,7 @@ CHECKS = {
     "links": check_links,
     "gitattributes": check_gitattributes,
     "conflicts": check_conflict_markers,
+    "gasp": check_gasp_guard,  # [WP-19 hook]
 }
 
 
