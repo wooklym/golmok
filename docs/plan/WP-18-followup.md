@@ -441,3 +441,27 @@ STATUS 병행 트랙 문안: `T14(R77 B1~4) 헤드리스 후속 완료: animatio
 - 설계 리뷰: 품질 가설 변화 없음, 새 D 번호 없음. 레인 간 결합(`animation.json` 경로를 바꾸면 `characters.json`도 함께)은 D-021 진행 기록에 절차로 적었다(19b 경로 갱신은 Astra 브랜치를 19b 위 스택으로 연달아 병합).
 
 **병합**: 오케스트레이터 결정(D-019). main(#83 포함)을 병합한 뒤 이 커밋으로 반영했다. 위 "병합 시 반영 — T14" 문안은 STATUS 병행 트랙 WP-18 행과 `astra-tasks.md` T14·T16에 옮겼다. 병합 뒤 PC가 main에서 UE 전체 36을 다시 확인한다.
+
+
+## T16 — WP-19c 교차 검사 분류 정정 (2026-09-30)
+
+배정: [이슈 #30 T16](https://github.com/wooklym/golmok/issues/30#issuecomment-5910837911). main `d414034`(#80·#82·#83·#81 포함)에서 새 `astra/wp-19c-roster-followup2`로 진행했다. 병합된 T14/T15 브랜치는 수정하지 않았다.
+
+- **R80-1**: GASP 항목을 경로 접두사 대신 `visual` 존재 또는 `anim_class != default 항목의 공통 ABP`로 분류한다. 공통 ABP와 GASP 계약 경로가 같으면 실패한다. ① 항목은 공통 ABP 하나라는 전제를 docstring에 적었고, 새 ABP가 생기면 허용 목록으로 확장해야 한다.
+- **R80-2·3**: 음성 사례가 의도한 사유로 실패하는지 `match=`로 확인한다. mesh/anim 모두 루트 밖인 stale 직접 항목, visual scale 0.75를 추가했다. `/Game` 루트로 옮기고 로스터를 함께 갱신한 양성 사례는 통과한다. 소스와 visual 모두 단위 스케일 계약을 검사한다.
+- **R80-4**: 이번 자동 적용 시도에서 GASP 모드 기본값이 실패하고 뒤 후보가 성공했을 때 `auto fallback applied <id> after GASP default failure` Log를 기록한다. 과거 실패가 남았다는 이유만으로 성공 로그를 내지 않는다. 기존 Warning 월드당 1회·마지막 실패 사유 보존은 유지한다.
+- **R80-5**: UE 5.8.3에서 JSON `Pair.Key`는 FString이 아니라 `UE::TSharedString<TCHAR>`라 배정의 `Pair.Key.Equals`는 C2039로 컴파일되지 않았다. 엔진 헤더의 `ToView()`/StringView `Equals`를 확인해 `Pair.Key.ToView().Equals(Name, CaseSensitive)`로 구현했다. 임시 FString 할당 없이 기존 엄격 비교를 유지한다.
+
+검증: 최종 UE5.8.3 빌드 성공(4.97s), Python **1191 passed/218 skipped/208 warnings,63.56s**, ruff check/format114·check_repo·diff 통과. 전체 UE **36 Success(24+경고12)/failed0/notRun0**, Character7 Success. #83의 Animation.Config 수정 효과를 확인했다. GaspSmoke 설치 미충족 및 RenderEvidence 기본 경로의 NOT EXECUTED는 실제 GASP/렌더 성공이 아니다. Runtime에서 두 기본값 재적용 시도 각각의 폴백 성공 Log도 확인했다. 로컬 근거: tools/.venv/t16-{build.txt,pytest.txt,full-index.json}. 새 테스트 등록 없음(36). 실제 GASP 경로·원본 에셋·리타깃/청취·GUI는 NOT EXECUTED. 선택 이월 R77-6·7·8과 last_auto_error 순번은 미변경이다. 공유 문서·animation.json·characters.json·훅·핫스팟 변경 없음.
+
+### 병합 시 반영 — T16
+
+STATUS/astra-tasks 문안: “T16 R80-1~5 완료: GASP 교차 분류를 공통 ABP/visual 계약으로 정정, /Game 루트 양성·stale 직접 경로 음성·오류 사유 및 visual 단위 스케일 회귀, 폴백 성공 Log, UE5.8.3 SharedString view 키 비교. 등록36 유지. 19b 경로 확정 시 animation/로스터 동시 갱신 스택 규칙 유지. R77-6·7·8 선택 이월, 실제 GASP 검증은 19b/V-15 대기.”
+
+## 병합 기록 — T16 PR [#84](https://github.com/wooklym/golmok/pull/84) (2026-09-30, 오케스트레이터 세션)
+
+**내용**: 위 "T16" 절과 같다. R80-1(교차 검사 GASP 분류를 `visual` 또는 `anim_class != default 항목의 공통 ABP`로; `/Game` 루트 양성·루트 밖 stale 직접 항목 음성), R80-2·3(`match=`, 소스·visual 단위 스케일), R80-4(이번 시도에서 GASP 기본값이 실패하고 뒤 후보가 성공할 때만 폴백 성공 Log), R80-5(UE 5.8.3의 JSON 키는 `UE::TSharedString<TCHAR>`라 `Pair.Key.ToView().Equals(Name, CaseSensitive)`로 할당 없는 엄격 비교). 등록 수는 36으로 같다. Astra 전체 UE **36 Success**(failed 0·notRun 0)로 [#83](https://github.com/wooklym/golmok/pull/83)의 `Animation.Config` 수정 효과도 확인했다.
+
+**병합 전 리뷰(Opus 5.5 ultracode 적대 검증, [R84](https://github.com/wooklym/golmok/pull/84#issuecomment-5912309493))**: (A) 0 · (B) 0 · (C) 5. 게이트: pytest 1406 passed / 3 skipped(main 1403 + 3), ruff·format·check_repo·`diff --check`, CI 10/10, 등록 36. R80-1~5 모두 해결(재현 25건 기대대로, 새 테스트는 종전 접두사 구현에서 실패, ① 항목이 공통 ABP가 아니면 의도된 fail-closed). R80-5의 `Pair.Key.Equals` 제안은 UE 5.8 JSON 키가 `UE::FSharedString`이라 컴파일되지 않는 **리뷰어 스펙 오류**였고 `ToView().Equals(…, CaseSensitive)`가 같은 의미다. (C) R84-1 `visual` 절 전용 테스트, R84-2 `abp == default` 음성 사례·`relocate` 값, R84-3 계약이 anim 경로만 봄(19b 경로 갱신 배정 때 4개 경로 모두 갱신 명시), R84-4 fail-closed 메시지, R84-5 폴백 Log 단언 — 다음 캐릭터 레인 과제(19b 경로 갱신)에 묶는다.
+
+**병합**: 오케스트레이터 결정(D-019). main을 병합한 뒤 이 커밋으로 반영했다. 위 "병합 시 반영 — T16" 문안은 STATUS 병행 트랙 WP-18 행과 `astra-tasks.md` T16에 옮겼다. 19b가 `content_root`·`gasp.anim_class`를 바꾸면 D-021 진행 기록 (6)대로 Astra 경로 갱신 브랜치를 19b 위 스택으로 배정한다.
