@@ -44,6 +44,9 @@ MANNEQUIN_PACK = "/Game/Characters/Mannequins/"  # tools/ue/add-mannequin.ps1
 # Repository guard: the path rules of tools/scripts/check_repo.py check_gasp_guard, in lower case
 # (tools/tests/test_check_repo_gasp.py runs both over one table). Only Content/Golmok and Content/Python are
 # committable under Content; .uasset / .umap only inside Content/Golmok, never in a GASP / GolmokLocal folder.
+# Keep them in step with the check_repo.py GASP_* constants (test_guard_constants_match_gasp_pure). There is
+# no GASP_INI_COMMIT_ALLOWED switch here: if check_repo.py flips it, change TAGS_ALLOWED / LOCAL_ONLY_FILES
+# as well (R78-9).
 GUARD_CONTENT = "unreal/golmok/content/"
 TRACKED_CONTENT = ("unreal/golmok/content/golmok/", "unreal/golmok/content/python/")
 PACKAGE_CONTENT = "unreal/golmok/content/golmok/"

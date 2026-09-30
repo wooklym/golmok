@@ -170,6 +170,12 @@ def test_one_path_table_for_check_repo_and_gasp_pure(repo):
         if ".." not in path:
             write(repo, path)
     errors = check_repo.check_gasp_guard(repo)
+    # R78-5: the "x" written as Config/Golmok/local/gasp_manifest.json is an unreadable manifest: one line
+    assert [e for e in errors if e.startswith("gasp:")] == [
+        "gasp: unreal/Golmok/Config/Golmok/local/gasp_manifest.json를 읽지 못함(JSONDecodeError) — "
+        "add-gasp -Manifest로 다시 만든다"
+    ]
+    errors = [e for e in errors if not e.startswith("gasp:")]
     # Lower case: on a case-insensitive file system (Windows CI) "content/…" lands in "Content/…" and git
     # lists the on-disk spelling.
     flagged = {e.split(": GASP 가드")[0].lower() for e in errors}
@@ -230,3 +236,140 @@ def test_git_ls_files_failure_after_a_good_rev_parse_is_reported(repo, monkeypat
     )
     (error,) = check_repo.check_gasp_guard(repo)
     assert error.startswith("gasp: git") and "ls-files" in error
+
+
+# ---- R78-5: GASP ini text in any Config text file; renamed GASP packages against the local manifest ----
+
+CONFIG_TEXT_FAILS = (
+    ("unreal/Golmok/Config/Golmok/ddcvars.json", '{\n  "DDCvar.FootPlacementMode": 1\n}\n', 2),
+    ("unreal/Golmok/Config/Golmok/ddcvars.json", '{"x": "DDCVar.EnableFootPlacement=True"}\n', 1),
+    (
+        "unreal/Golmok/Config/Golmok/copied.json",
+        '{\n "cvars": [\n  {"name": "DDCvar.X", "type": "int", "default": 1, "help": ""}\n ]\n}\n',
+        3,
+    ),
+    ("unreal/Golmok/Config/Golmok/notes.txt", "a\n[/Script/Engine.DataDrivenConsoleVariableSettings]\n", 2),
+    ("unreal/Golmok/Config/engine.txt", '+CVarsArray=(Type=CVarInt,Name="Foo.Bar")\n', 1),
+    ("unreal/Golmok/Config/Windows/tags.TXT", '\n\n+GameplayTagList=(Tag="A.B")\n', 3),
+    ("unreal/Golmok/Plugins/P/Config/p.json", '{"ddcvar.x" : 0.5}\n', 1),
+)
+
+
+@pytest.mark.parametrize(("rel", "text", "line"), CONFIG_TEXT_FAILS)
+def test_gasp_ini_text_fails_in_config_json_and_txt(repo, monkeypatch, rel, text, line):
+    write(repo, rel, text)
+    errors = check_repo.check_gasp_guard(repo)
+    assert len(errors) == 1 and errors[0].startswith(f"{rel}:{line}: GASP 가드"), errors
+    monkeypatch.setattr(check_repo, "GASP_INI_COMMIT_ALLOWED", True)
+    assert check_repo.check_gasp_guard(repo) == []
+
+
+CONFIG_JSON_PASSES = (
+    '{"gasp": {"abp": "/Game/GASP/Blueprints/ABP_SandboxCharacter", "cvars": ["DDCvar.FootPlacementMode"]}}',
+    '{"note": "DDCvar.X names are allowed (D-021)", "path": "/Game/GASP/Chooser/CHT_Loco.CHT_Loco"}',
+    '{"name": "DDCvar.X"}',
+    '{"GameplayTag": "Gameplay.Locomotion", "tags": ["DDCvar"]}',
+)
+
+
+@pytest.mark.parametrize("text", CONFIG_JSON_PASSES)
+def test_gasp_names_and_paths_in_our_config_json_pass(repo, text):
+    """D-021: GASP names and path strings may be committed (animation.json, characters.json)."""
+    write(repo, "unreal/Golmok/Config/Golmok/animation.json", text)
+    write(repo, "unreal/Golmok/Config/Golmok/readme.txt", "CBP_SandboxCharacter, DDCvar.FootPlacementMode\n")
+    assert check_repo.check_gasp_guard(repo) == []
+
+
+def _manifest(repo, data: bytes, path="Blueprints/ABP_SandboxCharacter"):
+    import hashlib
+    import json
+
+    entry = {"path": path, "file": ".uasset", "size": len(data), "sha256": hashlib.sha256(data).hexdigest()}
+    manifest = {"schema_version": 1, "content_root": "/Game", "package_count": 1, "packages": [entry]}
+    write(repo, "unreal/Golmok/Config/Golmok/local/gasp_manifest.json", json.dumps(manifest))
+
+
+def test_renamed_gasp_package_in_content_golmok_fails_against_the_local_manifest(repo):
+    data = b"GASP package bytes"
+    _manifest(repo, data)
+    renamed = repo / "unreal/Golmok/Content/Golmok/Anim/ABP_Walk.uasset"
+    renamed.parent.mkdir(parents=True)
+    renamed.write_bytes(data)
+    write(repo, "unreal/Golmok/Content/Golmok/Anim/ABP_Other.uasset", "GASP package byteZ")  # same size
+    (error,) = check_repo.check_gasp_guard(repo)
+    assert error.startswith("unreal/Golmok/Content/Golmok/Anim/ABP_Walk.uasset: GASP 가드"), error
+    assert "Blueprints/ABP_SandboxCharacter" in error and "추가 가능" in error
+    git(repo, "add", "unreal/Golmok/Content/Golmok/Anim/ABP_Walk.uasset")
+    (error,) = check_repo.check_gasp_guard(repo)
+    assert "추적 중" in error
+
+
+def test_without_a_local_manifest_the_package_check_is_skipped(repo):
+    write(repo, "unreal/Golmok/Content/Golmok/Anim/ABP_Walk.uasset", "GASP package bytes")
+    assert check_repo.check_gasp_guard(repo) == []  # CI and every PC without add-gasp
+
+
+def test_an_unreadable_local_manifest_is_reported_not_skipped(repo):
+    write(repo, "unreal/Golmok/Config/Golmok/local/gasp_manifest.json", "{not json")
+    (error,) = check_repo.check_gasp_guard(repo)
+    assert error.startswith("gasp:") and "gasp_manifest.json" in error
+
+
+# ---- R78-7: a .git whose toplevel names another folder fails instead of skipping -------------------------
+
+
+def test_toplevel_of_another_folder_fails_when_root_has_git(repo, tmp_path, monkeypatch):
+    other = tmp_path / "other"
+    other.mkdir()
+    real = check_repo._git_paths
+
+    def fake(root, *args):
+        return [str(other)] if args[:1] == ("rev-parse",) else real(root, *args)
+
+    monkeypatch.setattr(check_repo, "_git_paths", fake)
+    (error,) = check_repo.check_gasp_guard(repo)
+    assert error.startswith("gasp: git") and "toplevel" in error
+    monkeypatch.setattr(
+        check_repo,
+        "_git_paths",
+        lambda root, *a: [str(tmp_path / "gone")] if a[0] == "rev-parse" else real(root, *a),
+    )
+    (error,) = check_repo.check_gasp_guard(repo)
+    assert "toplevel" in error
+
+
+def test_toplevel_spelled_another_way_for_the_same_folder_passes(repo, tmp_path, monkeypatch):
+    """subst / junction / symlink spellings (R78-7): os.path.samefile, not a string compare."""
+    link = tmp_path / "link"
+    try:
+        link.symlink_to(repo, target_is_directory=True)
+    except OSError:
+        pytest.skip("no symlink permission")
+    real = check_repo._git_paths
+    monkeypatch.setattr(
+        check_repo,
+        "_git_paths",
+        lambda root, *a: [str(link) + "\n"] if a[0] == "rev-parse" else real(root, *a),
+    )
+    write(repo, "unreal/Golmok/Content/GASP/X.uasset")
+    (repo / ".gitignore").write_text("", encoding="utf-8")
+    (error,) = check_repo.check_gasp_guard(repo)  # checked, not skipped
+    assert error.startswith("unreal/Golmok/Content/GASP/X.uasset: GASP 가드")
+    assert check_repo.check_gasp_guard(link) == [error]
+
+
+# ---- R78-9: the check_repo.py constants and golmok.gasp_pure move together -------------------------------
+
+
+def test_guard_constants_match_gasp_pure():
+    assert check_repo.GASP_TAGS_ALLOWED == gasp_pure.TAGS_ALLOWED
+    assert (check_repo.GASP_TAGS_FILE,) == gasp_pure.LOCAL_ONLY_FILES
+    assert check_repo.GASP_LOCAL_ONLY == gasp_pure.LOCAL_ONLY_PREFIXES
+    assert check_repo.GASP_TAGS_DIR == gasp_pure.TAGS_DIR
+    assert check_repo.GASP_CONTENT == gasp_pure.GUARD_CONTENT
+    assert check_repo.GASP_TRACKED_CONTENT == gasp_pure.TRACKED_CONTENT
+    assert check_repo.GASP_PACKAGE_CONTENT == gasp_pure.PACKAGE_CONTENT
+    assert check_repo.GASP_LOCAL_FOLDERS == gasp_pure.LOCAL_FOLDER_NAMES
+    # gasp_pure.is_local_only has no GASP_INI_COMMIT_ALLOWED switch: flipping it means editing both files
+    assert check_repo.GASP_INI_COMMIT_ALLOWED is False
+    assert "GASP_INI_COMMIT_ALLOWED" in Path(gasp_pure.__file__).read_text(encoding="utf-8")

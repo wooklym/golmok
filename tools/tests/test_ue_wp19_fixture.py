@@ -44,8 +44,9 @@ AUTOMATION_TESTS = (
 )
 FORBIDDEN_MODULES = ("PoseSearch", "Chooser", "Mover", "GameplayCameras")
 # R76 D8: their headers in any include form ("PoseSearch/PoseSearchSchema.h", "MoverComponent.h", "Chooser.h",
-# "GameplayCameras.h", "GameFramework/GameplayCameraComponent.h", ...): the file name decides.
-FORBIDDEN_HEADER = re.compile(r"PoseSearch|Chooser|Mover|GameplayCamera")  # searched in the file name
+# "GameplayCameras.h", "GameFramework/GameplayCameraComponent.h", ...): the file name decides. R78-11: our own
+# headers are all Golmok*-named, so a Golmok* file name is never an engine header (GolmokChooserRow.h passes).
+FORBIDDEN_HEADER = re.compile(r"^(?!Golmok)\w*(PoseSearch|Chooser|Mover|GameplayCamera)")  # the file name
 INCLUDE = re.compile(r'^\s*#\s*include\s*[<"]([^>"]+)[>"]', re.M)
 UPROJECT_MODULES = [
     {
@@ -131,6 +132,32 @@ def test_forbidden_header_rule_catches_every_include_form():
         assert (
             not FORBIDDEN_HEADER.search(fine.split("/")[-1]) and fine.split("/")[0] not in FORBIDDEN_MODULES
         )
+
+
+def _forbidden_include(include: str) -> bool:
+    parts = include.replace("\\", "/").split("/")
+    return parts[0] in FORBIDDEN_MODULES or bool(FORBIDDEN_HEADER.search(parts[-1]))
+
+
+def test_forbidden_header_rule_spares_our_golmok_headers():
+    """R78-11: Golmok headers may say Chooser / Mover in their names (Astra lanes); engine ones are caught."""
+    for ours in (
+        "Characters/GolmokChooserRow.h",
+        "GolmokMoverBridge.h",
+        "Audio/GolmokPoseSearchNotes.h",
+        "GolmokGameplayCameraRig.generated.h",
+    ):
+        assert not _forbidden_include(ours), ours
+    for engine in (
+        "IObjectChooser.h",
+        "ChooserFunctionLibrary.h",
+        "MoverSimulationTypes.h",
+        "DefaultMovementSet/CharacterMoverComponent.h",
+        "PoseSearch/PoseSearchLibrary.h",
+        "GameplayCameraComponent.h",
+        "Chooser/Internal/Chooser.h",
+    ):
+        assert _forbidden_include(engine), engine
 
 
 def test_uproject_plugins_inside_the_d021_allowed_list():
