@@ -996,6 +996,21 @@ def test_undeletable_leftover_is_warned_and_swept_by_the_next_run(fake, unreal, 
     assert f"zone_import: deleted importer-created asset {stray}" in fake.logged("log")
 
 
+def test_cleanup_step_that_cannot_delete_warns_instead_of_a_deleted_line(fake, unreal, zone, zi, monkeypatch):
+    """Verify F3: _cleanup_folder checks delete_asset like _delete_assets (R69-11), so a by-product it cannot
+    delete is one WARNING, never a 'deleted' line."""
+    stray = f"{FOLDER}/Textures/T_stray"
+    fake.registry[stray] = fake_unreal.FakeTexture2D(fake, stray)
+    delete = unreal.EditorAssetLibrary.delete_asset
+    monkeypatch.setattr(
+        unreal.EditorAssetLibrary, "delete_asset", staticmethod(lambda p: False if p == stray else delete(p))
+    )
+    result = _run(zi, zone)
+    assert stray in fake.registry
+    assert f"zone_import: deleted importer-created asset {stray}" not in fake.logged("log")
+    assert result["warnings"] == [f"cleanup: could not delete {stray} (runbook #8)"]
+
+
 def test_failed_texture_import_keeps_the_previous_target(fake, unreal, zone, zi, monkeypatch):
     """A re-run whose import lands elsewhere and whose target cannot be replaced: the previous T_ground (what
     MI_ground points at) stays, only the new stray copy goes."""

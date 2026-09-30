@@ -490,6 +490,8 @@ CVAR_NAME_TEXTS_PASS = (
     '{"rows": [{"name": "Walk", "value": 1}], "cvar": {"name": "DDCvar.X"}}',
     '{"help": "{\\"name\\": \\"DDCvar.X\\", \\"value\\": 1}"}',  # quoted inside a string
     "cvars: DDCvar.X, DDCvar.Y\nDDCvar.X is set in the ABP (1 = on)\n",
+    "set DDCvar.X 1 in the console\n",  # console form only at the start of a line (verify F8)
+    "DDCvar.X\n1\n",
 )
 
 
@@ -511,4 +513,22 @@ def test_text_rule_is_linear_on_a_large_config(repo):
     write(repo, rel, "[" + chunk * 4000 + many * 3 + "]")
     start = time.perf_counter()
     check_repo.GASP_TEXT_INI_FORMS.search((repo / rel).read_text(encoding="utf-8"))
+    assert time.perf_counter() - start < 2.0
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        '{\\"' * 20000,  # a "{" inside an escaped string: no string may start at the escaping backslash
+        '{"help": "' + '{\\"name\\": \\"DDCvar.X\\", ' * 5000 + '"}',  # an escaped JSON blob in a string
+        "ddcvar." * 20000,  # one long [\w.] run: each "ddcvar." inside it must not rescan the run
+    ],
+    ids=["escaped-braces", "escaped-json", "ddcvar-run"],
+)
+def test_text_rule_is_linear_on_escapes_and_long_name_runs(text):
+    """Verify round 2 (F1, F2): 60-140 KB inputs that took 14 s or more with a quadratic scan."""
+    import time
+
+    start = time.perf_counter()
+    check_repo.GASP_TEXT_INI_FORMS.search(text)
     assert time.perf_counter() - start < 2.0

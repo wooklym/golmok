@@ -383,7 +383,8 @@ def _delete_assets(paths: list[str], keep: set[str]) -> list[str]:
     Returns the deleted keys; a failed delete gets no 'deleted' (zi.cleanup) line and is not returned. Only
     _discard_failed_import warns about one (R69-11); the other callers leave it to the folder delete that
     follows (_import_moved's scratch folder, _pack_udim_tiles' Textures/_tiles) or, on _import_in_place's
-    success path, to the cleanup step (_cleanup_folder) after the last import of the same run (R81-6)."""
+    success path, to the cleanup step (_cleanup_folder) after the last import of the same run, or of the next
+    run when a later step fails (R81-6)."""
     lib = unreal.EditorAssetLibrary
     classes = _byproduct_classes()
     deleted = []
@@ -646,8 +647,8 @@ def _without_rhi() -> bool | None:
     -AllowCommandletRendering), None when SystemLibrary.get_command_line is not exposed (runbook #4, #40).
     Without RHI a texture's size comes from its source, and a merged UDIM then seems to report its first
     block (the tile size) [unverified on 5.8.3 source]: the size test cannot tell merged from unmerged, and
-    packing a merged texture again ends the editor (V-04b F1). Kept for tests and callers outside this module
-    (R81-7): _import_texture reads _no_rhi_reason() directly, for the WARNING's cause."""
+    packing a merged texture again ends the editor (V-04b F1). Kept for tests
+    only (R81-7): _import_texture reads _no_rhi_reason() directly, for the WARNING's cause."""
     reason = _no_rhi_reason()
     return None if reason is None else bool(reason)
 
@@ -972,8 +973,10 @@ def _cleanup_folder(plan: dict) -> None:
             continue
         asset = lib.load_asset(key)
         if asset is not None and isinstance(asset, classes):
-            lib.delete_asset(key)
-            _log("zi.cleanup", asset=key)
+            if lib.delete_asset(key):  # like _delete_assets: never a "deleted" line for a failed delete
+                _log("zi.cleanup", asset=key)
+            else:
+                _warn(f"cleanup: could not delete {key} (runbook #8)")
         else:
             _warn(f"unexpected asset {key} left in place")
 
