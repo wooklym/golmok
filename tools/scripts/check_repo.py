@@ -202,7 +202,7 @@ GASP_ADD_GASP_TAGS = re.compile(r"^unreal/golmok/config/tags/gasp[^/]*\.ini$")
 GASP_TAGS_DIR = "unreal/golmok/config/tags/"
 GASP_TAGS_ALLOWED: tuple[str, ...] = ()
 GASP_TAGS_FILE = "unreal/golmok/config/defaultgameplaytags.ini"
-GASP_CONFIG_INI = re.compile(r"^unreal/golmok/config/.+\.ini$")
+GASP_CONFIG_INI = re.compile(r"^unreal/golmok/(plugins/.+/)?config/.+\.ini$")
 GASP_INI_TEXT = re.compile(
     r"DataDrivenConsoleVariableSettings|CVarsArray|ddcvar\.|GameplayTagList", re.IGNORECASE
 )
