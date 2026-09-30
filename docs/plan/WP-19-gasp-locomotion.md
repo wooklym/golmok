@@ -427,7 +427,7 @@ R78-5·7·8·9·11을 처리했다. 설계(§1~§18, D-021)와 ① 동작은 바
 
 **판단**
 1. JSON의 `DDCvar.` 검사는 "키 + 값" 형식만 잡는다. `{"DDCvar.X": …}`처럼 DDCvar 이름을 JSON 키로 쓰면 값이 무엇이든 실패한다(값 설정과 구별할 수 없음). 이름 목록은 배열이나 `"name"` 값으로 쓴다. → R81-3: add-gasp 목록 객체는 `"default…"`·`"value"` 키와 문자열 속 중괄호까지 잡고, 쌍 목록 `["DDCvar.X", 1]`도 잡는다. 손으로 형식을 바꾼 우회(YAML 목록, BOM 없는 UTF-16, `Config` 밖 파일)는 리뷰 몫이다.
-2. ini가 아닌 파일(`.txt` 포함)은 JSON과 같은 규칙이다. 이름만 적은 메모 줄은 통과하지만, 이름 바로 뒤에 `:`나 `=`가 오면(`DDCvar.X: 설명`) 값 설정과 구별할 수 없어 실패한다. JSON `"note"` 안에 `DataDrivenConsoleVariableSettings` 같은 섹션 이름을 적어도 실패한다. 이름을 바꾼 GASP ini는 섹션 머리·`+CVarsArray`로 잡힌다. → R81-3: 줄 맨 앞의 콘솔 형식 `DDCvar.X 1`(이름 뒤 공백 + 숫자)도 실패한다. 이름 뒤에 설명 단어가 오는 메모 줄은 통과한다.
+2. ini가 아닌 파일(`.txt` 포함)은 JSON과 같은 규칙이다. 이름만 적은 메모 줄은 통과하지만, 이름 바로 뒤에 `:`나 `=`가 오면(`DDCvar.X: 설명`) 값 설정과 구별할 수 없어 실패한다. JSON `"note"` 안에 `DataDrivenConsoleVariableSettings` 같은 섹션 이름을 적어도 실패한다. 이름을 바꾼 GASP ini는 섹션 머리·`+CVarsArray`로 잡힌다. → R81-3: 줄 맨 앞의 콘솔 형식 `DDCvar.X 1`(이름 뒤 공백 + 숫자)도 실패한다. 그래서 줄 맨 앞 이름 바로 뒤가 숫자인 메모(`DDCvar.X 1 = on`, `DDCvar.X 19b에서 확인`)도 실패한다. 이름 뒤에 설명 단어가 오는 메모 줄과 줄 중간의 이름(`set DDCvar.X 1 in the console`)은 통과한다. JSON 목록 객체는 `"value"`가 문자열이어도(`"set by the ABP"`) 실패한다.
 3. 매니페스트 대조는 relocate 뒤 로컬 파일과 **바이트가 같은** 사본만 잡는다. 편집기에서 이름을 바꾸거나 옮기거나 복제해 다시 저장한 패키지, GASP 프로젝트의 **원본** 파일을 탐색기로 복사한 것은 바이트가 달라 잡히지 않는다(매니페스트에는 원본 파일별 해시가 없고 집계 `source_digest`만 있다). 그 경우는 여전히 경로 규칙·리뷰 몫이다. 매니페스트의 `packages`가 없으면 빈 목록으로 본다(자리만 잡은 로컬 파일). 항목이 깨졌으면(키 없음·정수가 아닌 크기) 오류 한 줄이다.
 4. `unreal/Golmok` 밖의 ini(R78 원문의 한 줄)는 이번 범위 밖이다(세션 지시가 `Config/**`로 정함).
 
@@ -447,3 +447,39 @@ R78-5·7·8·9·11을 처리했다. 설계(§1~§18, D-021)와 ① 동작은 바
 - STATUS WP-19 행 비고 끝에 `· R78 (C) 후속(R78-5·7·8·9·11) PR #<번호> 병합`.
 - 이 절 "19a-2 병합 리뷰 R78"의 "남긴 (C)" 끝에 `→ PR #<번호>에서 해소(R78-12는 조치 없음)`.
 - **병합**: [PR #81](https://github.com/wooklym/golmok/pull/81) → main(오케스트레이터 결정 D-019; 리뷰 전문 [R81](https://github.com/wooklym/golmok/pull/81#issuecomment-5910698240) — (A)·(B) 0, 원격 브랜치 56개 가드 오탐 0, 뮤테이션 23개 중 22개 검출). 남은 (C)는 다음 Claude 레인 push: R81-1 `samefile` 고정 테스트, R81-2 add-gasp 목록 매치 오류 문구(`({)`), R81-3 손으로 형식을 바꾼 값(`value` 키·쌍 목록·콘솔 형식·YAML·BOM 없는 UTF-16·`Config` 밖)은 리뷰 몫이라는 판단 문구 또는 패턴 확장, R81-5 커밋 순서 기록. WP-06 쪽은 R81-4·6·7.
+
+### 19a-2 후속 2 — 병합 리뷰 R81 남은 (C) (2026-09-30, Opus 5.5 ultracode, 세션 `session_01Mt8twTiFwhqobsBxS1ddFN`, 브랜치 `claude/claude-lane-c-followups2`) — 🟡 코드 완료(클라우드 게이트 통과, PC 영향 없음)
+R81-1·2·3을 처리하고 R81-5는 기록만 한다. 설계(§1~§18, D-021)는 바꾸지 않았다. `check_repo.py`는 `[WP-19 hook]` 블록 안만 바뀌었다(블록 밖 바이트 동일).
+
+| 항목 | 변경 | 테스트 |
+|---|---|---|
+| R81-1 `samefile` 고정 | 코드 변경 없음(이미 `os.path.samefile`) | `test_toplevel_compare_is_samefile_not_resolve`: 문자열도 `resolve()`도 다른 두 표기(만들지 않은 `subst-drive/repo`와 실제 저장소)에 `os.path.samefile`만 True를 주도록 흉내 내고, 호출 인자를 단언. `Path(top).resolve() == root.resolve()`로 되돌리면 실패 |
+| R81-2 오류 문구 | 목록 객체 분기의 첫 lookahead 안에 `("name"\s*:\s*"ddcvar\.[^"]*")` 캡처, 문구는 `m.group(1) or m.group(0)` → `({)` 대신 `("name": "DDCvar.X")` | `test_add_gasp_list_forms_fail_and_name_the_cvar`(6: 문구에 `"DDCvar.…"`, `({)` 없음), `test_add_gasp_list_line_is_the_object_line` |
+| R81-3 형식 확장 | 목록 객체: `"default"` → `"(?:default\w*\|value)"`(대소문자 무시: `DefaultValueInt`·`defaultValue`), 몸통은 문자열을 통째로 건너뛰는 `_GASP_JSON_BODY`(help 속 `{`·`}`·이스케이프 따옴표). 새 분기 두 개: 쌍 목록 `["DDCvar.X", <숫자\|true\|false>`, 줄 맨 앞 콘솔 형식 `DDCvar.X <숫자>`. 기존 키+값 분기에 `(?<![\w.])`(검증 F2) | 음성 `test_add_gasp_list_forms_fail_…`(6, 합성 입력 3종 포함)·`test_pair_list_and_console_forms_fail`(4), 양성 `test_cvar_names_without_values_pass`(8: 이름 목록·`"values"`·다른 객체의 value·문자열 속 JSON·메모·줄 중간 이름), 성능 `test_text_rule_is_linear_on_a_large_config`·`…_on_escapes_and_long_name_runs`(3) |
+| R81-5 커밋 순서 | 기록만. 이번 PR은 ① 레인 → ② 훅 → ③ 문서 → ④ 레인(검증 반영) → ⑤ 훅(검증 반영) → ⑥ 문서. **① 단독 트리는 새 GASP 테스트 11개가 실패하므로 ①은 ②와 한 묶음**, ④의 성능 테스트 3개 중 2개(escaped-braces·ddcvar-run)와 escaped-json은 ⑤와 한 묶음이다. 훅 커밋(②, ②+⑤)만 main에 얹은 트리는 기존 테스트가 모두 통과한다 | 검증 에이전트: ① 단독 11 실패, main + ② 121 통과 |
+
+**판단(오케스트레이터가 뒤집을 수 있음)**
+1. 스펙의 `"help"\s*:\s*"…"` 대안 대신 **모든 문자열**을 건너뛰는 몸통 `(?:[^{}"\\]|"(?:[^"\\]|\\.)*")*`을 썼다. `"help"` 대안은 `[^{}]`와 겹쳐 help 키가 많은 객체에서 지수 역추적(help 20개 × 3객체 ≈ 7 s)이고, 두 대안이 서로소인 이 형태는 선형이다. 몸통은 문자열 밖의 역슬래시를 받지 않는다(유효한 JSON에는 없음) — 받으면 이스케이프된 문자열 속 `{`마다 파일 끝까지 다시 읽어 2차 시간이 된다(검증 F1).
+2. 쌍 목록은 값이 숫자·`true`·`false`일 때만 실패한다. `["DDCvar.X", "DDCvar.Y"]` 같은 이름 목록(D-021 허용)을 막지 않기 위해서다. 콘솔 형식은 줄 맨 앞(공백 허용)만 본다.
+3. 남는 우회(YAML 목록 `- name: DDCvar.X`/`value: 1`, BOM 없는 UTF-16, `Config` 밖 파일)는 손으로 형식을 바꾼 것이라 리뷰 몫이다(위 "19a-2 후속" 판단 1·2에 한 줄씩 더함).
+4. `ddcvar\.` 키+값 분기에 `(?<![\w.])`를 더했다(검증 F2, main에도 있던 2차 시간). 그래서 `Foo.DDCvar.X=1`처럼 앞에 이름 조각이 붙은 표기는 이 분기로 잡지 않는다(GASP ini 형식이 아님).
+
+**게이트**: `ruff check`·`ruff format --check` 통과, pytest **1432 passed / 3 skipped**(main `c934da5` 1406 + 26), `check_repo.py` OK, `git diff --check` 깨끗. **가드 오탐 0**: `git for-each-ref refs/remotes/origin` 59개 ref(main·astra/*·claude/*·pc/*)의 파일 22,446개 중 Config 파일 400개(고유 blob 22개)에서 오류 0, main 추적 파일에서도 `check_repo.py` OK. 성능: 1 MB 적대 입력(이스케이프 중괄호·문자열 속 JSON·`ddcvar.` 반복·미종결 따옴표·`[`/`{` 반복 등) 최악 0.24 s 이하.
+
+**적대 검증 1라운드(별도 에이전트, 읽기 전용) — (A) 1 · (B) 2 · (C) 7, 확정 결함 반영**
+
+| # | 지적 | 등급 | 처리 |
+|---|---|---|---|
+| F1 | `_GASP_JSON_BODY`가 문자열 밖 `\`를 받아 이스케이프 문자열 속 `{`마다 파일 끝까지 재주사: 60 KB 14 s(main보다 퇴행). 주석 "linear"가 틀림 | A | 몸통 바깥 클래스에 `\\` 추가, 테스트 2개(되돌리면 실패 확인) |
+| F2 | 기존 `ddcvar\.[\w.]+…` 분기가 긴 `[\w.]` 연속에서 2차(main 동일, 140 KB 56 s) | B | `(?<![\w.])` 추가, 테스트 1개 |
+| F7 | 줄 맨 앞 이름 + 숫자로 시작하는 메모, 문자열 `"value"`, `default_…` 키도 실패(현재 추적 파일·ref에는 없음) | C | 판단 문구에 명시("19a-2 후속" 판단 2) |
+| F8 | 콘솔 분기의 줄 맨 앞 앵커 제거 뮤테이션 생존 | C | 양성 입력 `set DDCvar.X 1 in the console`·`DDCvar.X\n1` 추가 |
+| F9 | 쌍 목록 문구가 `["DDCvar.X", 2`처럼 잘림 | C | 조치 없음(이름은 보임) |
+| F6 | ① 단독 트리 빨강 | C | R81-5 행에 기록 |
+| — | 핫스팟(4개 커밋 모두 블록 밖 sha 동일, 훅 커밋은 한 파일), 금지 파일·Astra 레인 무변경, 모델 식별자 없음, 오탐 스캔 스크립트가 `check_gasp_guard`를 충실히 따름 | 확인 | — |
+
+뮤테이션(검증 에이전트, 20개): 생존 3개 — 앵커 제거(→ F8로 잡힘), 콘솔 `[ \t]+`→`\s+`, 이름 값 `[^"]*`→`[\w.]*`(의미 없음). 반영 뒤 이 세션에서 재확인: 몸통·lookbehind를 되돌리면 성능 테스트 3개 모두 실패.
+
+**병합 시 반영(문안)**
+- STATUS WP-19 행 비고 끝에 `· R81 (C) 후속(R81-1·2·3) PR #<번호> 병합`.
+- "19a-2 후속"의 **병합** 줄 끝에 `→ R81-1·2·3은 PR #<번호>에서 해소, R81-5는 그 PR 본문에 기록`.
