@@ -36,7 +36,8 @@ if ($Script -match '\s') {
 }
 # A running editor on either project holds packages open (moves / reads race with it).
 $Running = Get-CimInstance Win32_Process -Filter "Name LIKE 'UnrealEditor%'" -ErrorAction SilentlyContinue |
-    Where-Object { $_.CommandLine -and ($_.CommandLine -like "*Golmok.uproject*" -or $_.CommandLine -like "*$GaspProject*") }
+    Where-Object { $_.CommandLine -and ($_.CommandLine -like "*Golmok.uproject*" -or
+        $_.CommandLine -like "*$([WildcardPattern]::Escape($GaspProject))*") }
 if ($Running) {
     throw "add-gasp: close the Unreal Editor first (running: $(($Running | ForEach-Object { $_.ProcessId }) -join ', '))."
 }
@@ -77,7 +78,7 @@ if ($LocalFiles) {
 elseif ($Manifest) {
     $GaspUProject = Get-GaspUProject
     $Rebuilt = Invoke-GaspStep $Project @{
-        step = "manifest"; migrate_report = (Join-Path $Work "migrate.json"); content_dir = "$Content"
+        step = "manifest"; migrate_report = (Join-Path $Work "migrate-last-ok.json"); content_dir = "$Content"
         local_dir = $Local; gasp_project = $GaspUProject.DirectoryName
     }
     if (-not $Rebuilt.ok) { throw "add-gasp: manifest failed (see the messages above)." }
@@ -104,6 +105,8 @@ elseif (-not $Verify) {
             history = (Join-Path $Work "migrated-history.json")
         }
         if (-not $Migrate.ok) { throw "add-gasp: migrate failed (see the messages above)." }
+        # -Manifest needs the last successful migrate even after later refused runs rewrote migrate.json.
+        Copy-Item (Join-Path $Work "migrate.json") (Join-Path $Work "migrate-last-ok.json") -Force
         Write-Host ("add-gasp migrate: {0} closure packages, {1} copied, source_digest {2}" -f
             $Migrate.source_package_count, $Migrate.migrated.Count, $Migrate.source_digest)
         $Relocate = Invoke-GaspStep $Project @{
@@ -122,6 +125,9 @@ elseif (-not $Verify) {
 
 $GitStatus = Join-Path $Work "git-status.txt"
 & git -C "$RepoRoot" status --porcelain --untracked-files=all | Set-Content -Path $GitStatus -Encoding UTF8
+if ($LASTEXITCODE -ne 0) {
+    throw "add-gasp: git status failed ($LASTEXITCODE; PATH / safe.directory): the leak check cannot run."
+}
 $Check = Invoke-GaspStep $Project @{
     step = "verify"; content_dir = "$Content"; local_dir = $Local; tags_ini = $Tags
     expected = (Join-Path $PSScriptRoot "gasp\expected.json"); git_status = $GitStatus

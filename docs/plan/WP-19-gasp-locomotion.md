@@ -312,7 +312,7 @@ UE 컴파일·UHT 리뷰에서 A급 결함은 없었다. 순수 헤더는 g++(`-
 
 **구현 요약**
 - T1 재실행·`-Force` 복구(`add-gasp.ps1`, `gasp_import.py`, `gasp_pure.py`):
-  - migrate가 **복사 전에** 전제 조건을 확인한다(`migrate_preconditions`). `/Game/GASP`에 패키지가 있으면 멈춘다. 폐포 패키지가 Migrate 경로에 앞 실행의 잔재로 남아 있어도 멈춘다. 잔재는 이 체크아웃의 누적 이력 `Saved/Golmok/add-gasp/migrated-history.json`에 있거나 GASP 원본과 바이트가 같은 패키지다. 이때 지울 폴더·파일 목록(`delete`)을 알린다. 목록은 `split_folders`로 만들고 마네킹 팩은 넣지 않는다.
+  - migrate가 **복사 전에** 전제 조건을 확인한다(`migrate_preconditions`, GASP ini 존재·파싱·27/39). `/Game/GASP`에 패키지가 있으면 멈춘다. 폐포 패키지가 Migrate 경로에 앞 실행의 잔재로 남아 있어도 멈춘다. 잔재는 이 체크아웃의 누적 이력 `Saved/Golmok/add-gasp/migrated-history.json`에 있거나 GASP 원본과 바이트가 같은 패키지다. 이때 지울 폴더·파일 목록(`delete`)을 알린다. 목록은 `split_folders`로 만들고 마네킹 팩은 넣지 않는다.
   - relocate는 migrate 보고서가 ok가 아니거나 0 패키지이면 실패하고 기존 매니페스트를 지킨다. GASP ini(DDCvar·태그)는 **이동 전에** 파싱한다.
   - ps1: `-Force`는 `Content\GASP`가 있으면 migrate 전에 멈춘다. 매니페스트만 있어도(종료 코드 2 설치) 설치로 보고 검증만 한다. 새 단계 `-LocalFiles`(DDCvar·태그 파일만)와 `-Manifest`(GUI Move 뒤 매니페스트만)를 더했다.
 - T2 원본 digest: migrate가 GASP 프로젝트의 폐포 원본 파일(원래 `/Game` 상대 경로·크기·sha256)로 `source_digest`를 만든다. 복사 뒤 다시 해시해 `source_unchanged`를 보고한다. 매니페스트는 `source_digest`·`source_package_count`를 싣고, 로컬 `digest`는 무결성용으로만 남는다. `expected.json`은 schema 2(`engine_version`·`package_count`·`source_digest`)이고, `compare_expected`는 이 세 값을 비교한다.
@@ -334,9 +334,10 @@ UE 컴파일·UHT 리뷰에서 A급 결함은 없었다. 순수 헤더는 g++(`-
   - C8: 착지 값은 틱에서만 쓴다.
   - D8: include 파일 이름·`.uproject` `Modules`를 고정 검사한다.
   - D10: g++ 드라이버가 `nan`/`inf`를 읽는다.
+- 게이트: ruff check·format 통과, **pytest 1324 passed / 3 skipped**(main 1287 + 37), `check_repo.py` `OK (…, gasp)`, `git diff --check` 깨끗.
 - 테스트:
-  - 새 파일 `tools/tests/test_ue_python_gasp_rerun.py`(T1·T2·T4·T5 재현 12개).
-  - `test_check_repo_gasp.py`(경로 표·ini 텍스트 12조합·git 실패).
+  - 새 파일 `tools/tests/test_ue_python_gasp_rerun.py`(T1·T2·T4·T5 재현 13개).
+  - `test_check_repo_gasp.py`(경로 표·ini 텍스트 18조합·git 실패).
   - `test_ue_locomotion_math.py`(비유한값 2개).
   - `test_ue_wp19_fixture.py`(include 규칙).
   - `fake_unreal`: `ARFilter`·`get_assets`·`is_redirector`, 노브 `leave_redirectors`·`fixup_deletes_redirectors`.
@@ -362,11 +363,26 @@ UE 컴파일·UHT 리뷰에서 A급 결함은 없었다. 순수 헤더는 g++(`-
 14. C5: HUD는 마지막 스폰이 GASP 폰이었는데 다른 폰에 빙의했을 때만 `anim: abp (possessed <클래스> is not the GASP pawn)`를 보인다. 폴백 사유가 우선이다.
 15. C6: preview는 로스터와 같은 엄격 규칙(`TargetSkeleton == 메시 스켈레톤`)을 소스 메시와 GASP ABP, 시각 메시와 리타깃 ABP 둘 다에 쓴다. GASP가 호환 스켈레톤만 쓰면 preview가 거부된다([추정] 런북 §D #17).
 16. D8: 금지 헤더는 include의 파일 이름에 `PoseSearch|Chooser|Mover|GameplayCamera`가 들어가는지로 잡는다(`CharacterMoverComponent.h` 포함). `.uproject` `Modules`는 통째로 고정한다.
-17. 적대 검증 결과는 아래 표에 적는다.
+17. 바이트 비교 잔재 규칙은 마네킹 팩(`/Game/Characters/Mannequins/`)에 쓰지 않는다. 그 아래는 이력으로만 잔재가 된다(적대 검증 C).
+18. GASP ini는 migrate(복사 전)·relocate(이동 전)·`-LocalFiles`(쓰기 전) 세 곳에서 파일 존재와 V-08 개수(27/39)까지 확인한다. 다른 프로젝트를 가리키면 아무것도 복사·이동·덮어쓰기 하지 않는다(적대 검증 B).
 
-**적대 검증 1라운드(별도 에이전트 1개: T1 재실행·T2 digest·T3 우회·T4 이름·① 불변·C++ 컴파일)**
+**적대 검증 1라운드(별도 에이전트 1개: T1 재실행·T2 digest·T3 우회·T4 이름·① 불변·C++ 컴파일·PS 5.1·규칙) — 확정 결함 반영**
 
-(검증 결과 반영 뒤 채움)
+| # | 지적 | 등급 | 처리 |
+|---|---|---|---|
+| 1 | `-Manifest`가 `migrate.json`을 읽는데, 뒤의 거부된 실행이 그것을 `migrated []`로 덮어 복구 수단이 사라짐 | B 확정 | 성공한 migrate 뒤 ps1이 `migrate-last-ok.json`으로 복사하고 `-Manifest`는 그것을 읽음 |
+| 2 | GASP ini 확인이 1 GB 복사 뒤(relocate)라 파싱 실패면 잔재가 남고, ini가 없으면 조용히 빈 파일을 씀 | B 확정 | migrate가 복사 전에 파일 존재·파싱·27/39 확인(판단 18), 런북 문구 정정 |
+| 3 | `-LocalFiles`가 ini 없는 프로젝트에서 좋은 로컬 파일을 빈 파일로 덮음 | B 확정 | 같은 확인 뒤에만 씀, 실패 시 기존 파일 유지(테스트) |
+| 4 | ps1이 `git status` 종료 코드를 보지 않아 git 실패 시 유출 검사가 조용히 통과 | B 확정 | `$LASTEXITCODE` 검사로 멈춤 |
+| 5 | 바이트가 같은 정당한 이름 충돌(마네킹 팩)이 잔재로 분류돼 삭제 목록에 오를 수 있음 | C | 마네킹 팩 제외(판단 17), 테스트 |
+| 6 | 복구 메시지가 `-Force`를 말하지 않음, `Content\GASP`만 있고 매니페스트 없는 경우 안내 없음 | C 확정 | 메시지에 `-Force`, 런북 표에 행 추가 |
+| 7 | `Plugins/*/Config/*.ini`의 DDCvar 텍스트가 가드를 통과 | C 확정 | 내용 검사 경로에 `Plugins/<p>/Config` 포함(테스트) |
+| 8 | 매니페스트 `source_digest`가 null이면 영원히 "not filled"만 남음 | C | verify가 실패로 보고(19a 설치는 재설치) |
+| 9 | `-like`에 GASP 경로의 `[`/`]`가 와일드카드로 해석 | C | `[WildcardPattern]::Escape` |
+| 10 | preview 엄격 규칙이 템플릿 ABP(`TargetSkeleton` null)를 거부 | C | 런북 §D #19로 19b 확인 |
+| 11 | 롤백 뒤 `Content\GASP` 빈 폴더·리디렉터가 남으면 `-Force`가 막힘, 잔재 목록의 `.umap` 확장자, Windows 대소문자 차이, porcelain 8진 인용 경로, 이름 변형 폴더(`Gasp_Local`), `/Game/GASP` 루트 자체 | C | 보류: 메시지가 지울 경로를 알려 주고 런북 "다시 설치"가 `Content\GASP`를 지우라고 함. `.umap`은 메시지에 "level이면 .umap" 명시. 나머지는 드문 경우로 19b 결과를 보고 판단 |
+
+T2 digest 의존성, T4 이름 규칙(UE `INVALID_LONGPACKAGE_CHARACTERS`와 동일), ① 불변(캐시 키·AI 경로·HUD·status), C++ 컴파일 위험(API·include·유니티 이름 충돌), 규칙(금지 파일·Astra 레인·훅 블록)에서는 결함이 없었다.
 
 **PC 19b에 남는 [추정]**(런북 §C #16~#22, §D #14~#18)
 - `ARFilter`·`get_assets`·`is_redirector`·`AssetData.get_asset` 이름, 그리고 rename·fixup 뒤 레지스트리 즉시 갱신.
@@ -380,5 +396,5 @@ UE 컴파일·UHT 리뷰에서 A급 결함은 없었다. 순수 헤더는 g++(`-
 - 19a의 [추정](위 19a 절)은 그대로 남는다.
 
 **병합 시 반영(문안)**
-- STATUS WP-19 행: 상태 칸 끝에 `· 19a-2 셋업·가드 보강 병합(PR #<번호>; R76 T1~T4·(C))`를 더한다. 비고 끝에 `19a-2: add-gasp 재실행 복구(복사 전 정지·잔재 목록·빈 migrate 거부·-LocalFiles/-Manifest), expected.json source_digest(schema 2), 가드 내용·대소문자·위치 규칙, golmok.anim status 무로드, pytest 1287 → <수>`를 더한다.
+- STATUS WP-19 행: 상태 칸 끝에 `· 19a-2 셋업·가드 보강 병합(PR #<번호>; R76 T1~T4·(C))`를 더한다. 비고 끝에 `19a-2: add-gasp 재실행 복구(복사 전 정지·잔재 목록·빈 migrate 거부·-LocalFiles/-Manifest), expected.json source_digest(schema 2), 가드 내용·대소문자·위치 규칙, golmok.anim status 무로드, pytest 1287 → 1324`를 더한다.
 - ROADMAP 애니메이션 행: `WP-19a-2(2026-09-30): add-gasp 재실행·복구와 원본 digest, GASP 저장소 가드 보강(리뷰 R76 후속), PC 19b 대기`.

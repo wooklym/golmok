@@ -77,7 +77,7 @@ python tools\scripts\check_repo.py
 - [ ] `git status`에 GASP·로컬 경로가 **하나도 없다**(무시됨). `check_repo.py` → `OK (…, gasp)`. `gasp: git 실행 실패`가 나오면 `git`이 PATH에 있는지, `git config --global --add safe.directory <저장소>`가 필요한지 확인한다(가드는 건너뛰지 않는다).
 - [ ] 에디터를 열고 PIE 전에 Output Log `anim: DDCvars 27/27 present (… registered now)`(§D #5). `Config/Tags/GASP.ini` 태그가 Project Settings > GameplayTags에 보이는지(§D #5).
 
-**재실행·복구 (19a-2, 리뷰 R76 T1)** — 스크립트는 어느 경우에도 1 GB 복사 **전에** 멈추고, 빈 설치로 기존 매니페스트를 덮지 않는다.
+**재실행·복구 (19a-2, 리뷰 R76 T1)** — 아래 표의 경우 스크립트는 1 GB 복사 **전에** 멈추고(설치 있음, Migrate 경로 잔재, 불가능한 패키지 이름, GASP ini 누락·파싱 실패·개수 불일치 27/39), 빈 설치로 기존 매니페스트를 덮지 않는다. 복사 뒤에 실패하는 경우(복사 불완전, 이동 실패)는 migrate·relocate 메시지가 알려 준다.
 
 | 상황 | 스크립트 동작 | 할 일 |
 |---|---|---|
@@ -87,9 +87,12 @@ python tools\scripts\check_repo.py
 | 같은 경우 `-Force` | migrate가 Migrate 경로의 GASP 패키지를 잔재로 보고 복사 전에 멈추며 **지울 폴더·파일 목록**(`delete Content/Blueprints, …`)을 낸다 | 목록만 지우고(아래) 다시 실행 |
 | 중단된 실행이 남긴 Migrate 경로 사본(이력 `migrated-history.json`에 있거나 GASP 원본과 바이트가 같음) | 같은 목록으로 복사 전에 멈춤 | 목록만 지우고 다시 실행 |
 | migrate가 실패했거나 0 패키지 | relocate가 `nothing relocated, the previous manifest is kept`로 실패 | migrate 메시지를 고친 뒤 다시 실행 |
-| GASP ini 파싱 실패(`GASP ini: …; nothing moved`) | 아무것도 옮기지 않음 | 원인을 §A9에 적고 오케스트레이터에 보고 |
-| DDCvar·태그 파일만 없어짐·깨짐 | — | `.\tools\ue\add-gasp.ps1 -LocalFiles` |
-| GUI로 `/Game/GASP`에 옮긴 뒤(§C #16) | — | `.\tools\ue\add-gasp.ps1 -Manifest` (패키지가 모두 `/Game/GASP` 또는 모두 Migrate 경로에 있을 때만 쓴다) |
+| GASP ini 누락·파싱 실패·개수 불일치(`GASP ini: …`) | migrate가 복사 전에 멈춤(migrate 뒤 ini가 바뀌었으면 relocate가 `nothing moved`) | `-GaspProject`가 GASP 5.8 프로젝트인지 확인, 원인을 §A9에 적고 오케스트레이터에 보고 |
+| DDCvar·태그 파일만 없어짐·깨짐 | — | `.\tools\ue\add-gasp.ps1 -LocalFiles` (GASP ini가 없거나 개수가 다르면 기존 파일을 덮지 않고 실패) |
+| GUI로 `/Game/GASP`에 옮긴 뒤(§C #16) | — | `.\tools\ue\add-gasp.ps1 -Manifest` (마지막 **성공한** migrate 보고서 `migrate-last-ok.json`을 쓴다. 패키지가 모두 `/Game/GASP` 또는 모두 Migrate 경로에 있을 때만 쓴다) |
+| `Content\GASP`는 있는데 매니페스트가 없음(relocate가 이동 뒤 중단) | 옵션 없이 실행하면 검증만 하고 `no gasp_manifest.json`으로 실패 | `-Manifest`로 매니페스트만 만들거나, "다시 설치" |
+| `git status` 실패(PATH·safe.directory) | 검증 전에 멈춤(유출 검사를 건너뛰지 않음) | git 설정을 고친 뒤 `-Verify` |
+| 19a 때 설치(매니페스트에 `source_digest` 없음) | verify가 `manifest has no source_digest` 로 실패 | "다시 설치" |
 
 다시 설치(루트 수정 뒤 등):
 1. Golmok 편집기를 닫는다.
@@ -224,3 +227,4 @@ python tools\scripts\check_repo.py
 | 16 | 헤드리스로 GASP 프로젝트를 열어도 원본 `.uasset`이 바뀌지 않는다(`source_unchanged`) | §A3 `GASP project changed during migrate`가 없음 |
 | 17 | GASP ABP의 `TargetSkeleton`이 UEFN 소스 메시의 스켈레톤과 **같은 객체**다(preview가 로스터 규칙으로 엄격 비교) — 호환 스켈레톤만이면 preview가 거부한다 | §A8 preview 메시지 |
 | 18 | `/Game/GASP` 상시 쿡이 GASP 플러그인 없는 PC에서 쿡 오류를 낸다, abp 패키지도 GASP를 포함한다 | §B7 |
+| 19 | `ABP_GenericRetarget`(시각 메시 리타깃 ABP)가 템플릿 ABP(`TargetSkeleton` 없음)가 아니다 — 템플릿이면 preview가 시각 메시를 늘 거부한다(`visual mesh not applied (… is not for its skeleton)`) | §A8; 템플릿이면 PC fix로 시각 메시 검사를 `TargetSkeleton`이 null일 때 건너뛰게 한다 |

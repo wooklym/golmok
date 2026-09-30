@@ -190,7 +190,12 @@ INI_TEXTS = (
 
 @pytest.mark.parametrize("text", INI_TEXTS)
 @pytest.mark.parametrize(
-    "rel", ["unreal/Golmok/Config/Windows/WindowsEngine.ini", "unreal/Golmok/Config/DefaultGame.ini"]
+    "rel",
+    [
+        "unreal/Golmok/Config/Windows/WindowsEngine.ini",
+        "unreal/Golmok/Config/DefaultGame.ini",
+        "unreal/Golmok/Plugins/P/Config/DefaultP.ini",
+    ],
 )
 def test_gasp_ini_text_fails_in_any_committable_config_ini(repo, monkeypatch, rel, text):
     write(repo, rel, "[/Script/Engine.RendererSettings]\nr.Foo=1\n" + text)

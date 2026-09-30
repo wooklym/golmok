@@ -421,7 +421,8 @@ def test_add_gasp_script_drives_gasp_import():
         "[switch]$LocalFiles, [switch]$Manifest)"
     ) in text
     assert "--untracked-files=all" in text and "$ExitCode" not in text
-    for step in ('step = "local_files"', 'step = "manifest"', "source_content = ", "history = "):
+    for step in ('step = "local_files"', 'step = "manifest"', "source_content = ", "history = ",
+                 "migrate-last-ok.json", "$LASTEXITCODE -ne 0", "[WildcardPattern]::Escape"):  # fmt: skip
         assert step in text, step
     # R76 T1 / T7: -Force stops before migrate over Content\GASP; the manifest alone means "installed";
     # a path with a space, a running editor and a missing mannequin pack stop before any editor session.

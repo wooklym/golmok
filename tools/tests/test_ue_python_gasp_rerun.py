@@ -213,17 +213,25 @@ def test_relocate_refuses_an_empty_migration_and_keeps_the_manifest(setup):
     assert setup["fake"].calls_of("rename_directory") == []
 
 
-def test_relocate_parses_the_gasp_ini_before_anything_moves(setup):
+def test_gasp_ini_is_checked_before_copying_and_before_moving(setup):
     bad = '[/Script/Engine.DataDrivenConsoleVariableSettings]\n+CVarsArray=(Type=CVarString,Name="X")\n'
-    (setup["gasp"] / "Config/DefaultEngine.ini").write_text(bad, encoding="utf-8")
+    engine = setup["gasp"] / "Config/DefaultEngine.ini"
+    engine.write_text(bad, encoding="utf-8")
+    refused = run(setup, "migrate")
+    assert not refused["ok"] and setup["fake"].calls_of("migrate") == []  # nothing copied
+    assert any("CVarsArray" in m for m in refused["messages"]), refused["messages"]
+    engine.write_text(synthetic_engine_ini(26), encoding="utf-8")  # a wrong count stops it as well
+    assert not run(setup, "migrate")["ok"] and setup["fake"].calls_of("migrate") == []
+    # Broken between migrate and relocate: relocate moves nothing and writes no manifest.
+    engine.write_text(synthetic_engine_ini(), encoding="utf-8")
     assert run(setup, "migrate")["ok"]
+    engine.write_text(bad, encoding="utf-8")
     result = run(setup, "relocate")
     assert not result["ok"] and result["exit"] == 1
-    assert any("CVarsArray" in m for m in result["messages"]), result["messages"]
     assert setup["fake"].calls_of("rename_directory") == [] and ABP in setup["fake"].registry
     assert not (setup["local"] / "gasp_manifest.json").exists()
     # Fixed ini: relocate runs on the same migrate report; local_files alone rewrites DDCvars / tags.
-    (setup["gasp"] / "Config/DefaultEngine.ini").write_text(synthetic_engine_ini(), encoding="utf-8")
+    engine.write_text(synthetic_engine_ini(), encoding="utf-8")
     assert run(setup, "relocate")["ok"]
     (setup["local"] / "gasp_ddcvars.json").unlink()
     setup["tags"].unlink()
@@ -231,7 +239,21 @@ def test_relocate_parses_the_gasp_ini_before_anything_moves(setup):
     files = run(setup, "local_files")
     assert files["ok"] and files["ddcvars"] == 27 and files["tags"] == 39
     assert manifest(setup) == before  # nothing but the two local files
-    assert len(json.loads((setup["local"] / "gasp_ddcvars.json").read_text("utf-8"))["cvars"]) == 27
+    good = (setup["local"] / "gasp_ddcvars.json").read_text("utf-8")
+    # A project without the ini files never overwrites good local files with empty ones.
+    (setup["gasp"] / "Config/DefaultGameplayTags.ini").unlink()
+    kept = run(setup, "local_files")
+    assert not kept["ok"] and "local files kept" in kept["messages"][0]
+    assert (setup["local"] / "gasp_ddcvars.json").read_text("utf-8") == good
+
+
+def test_byte_identical_mannequin_pack_file_is_never_a_leftover():
+    pack = "/Game/Characters/Mannequins/Meshes/SK_Mannequin"
+    pre = pure.migrate_preconditions([ABP, pack], {pack, ABP}, (), lambda p: True)
+    assert pre["leftovers"] == [ABP] and pre["delete"] == ["Content/Blueprints"]
+    assert pure.migrate_preconditions([pack], {pack}, {pack}, lambda p: False)["leftovers"] == [
+        pack
+    ]  # history
 
 
 # ---- T2 ----------------------------------------------------------------------------------------------------

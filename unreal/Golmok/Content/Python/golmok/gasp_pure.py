@@ -40,6 +40,7 @@ CVAR_TYPES = {"CVarInt": "int", "CVarFloat": "float", "CVarBool": "bool"}
 INVALID_PACKAGE_CHARS = "\\:*?\"<>|' ,.&!~\n\r\t@#"
 PACKAGE_RE = re.compile(r"/Game(/[^/" + re.escape(INVALID_PACKAGE_CHARS) + r"]+)+")
 MIGRATE_ROOT = "/Game/GASP"
+MANNEQUIN_PACK = "/Game/Characters/Mannequins/"  # tools/ue/add-mannequin.ps1
 # Repository guard: the path rules of tools/scripts/check_repo.py check_gasp_guard, in lower case
 # (tools/tests/test_check_repo_gasp.py runs both over one table). Only Content/Golmok and Content/Python are
 # committable under Content; .uasset / .umap only inside Content/Golmok, never in a GASP / GolmokLocal folder.
@@ -195,9 +196,11 @@ def migrate_preconditions(packages, existing, history=(), same_as_source=lambda 
     installed = sorted(p for p in existing if p.startswith(MIGRATE_ROOT + "/"))
     history = set(history)
     conflicts = sorted(set(packages) & existing)
+    # The byte rule never applies to the mannequin pack (add-mannequin copies Epic template files that could
+    # be byte-identical to a GASP copy): only the history can call a package there a leftover.
     leftovers = sorted(
         {p for p in existing if p in history and not p.startswith(MIGRATE_ROOT + "/")}
-        | {p for p in conflicts if same_as_source(p)}
+        | {p for p in conflicts if not p.startswith(MANNEQUIN_PACK) and same_as_source(p)}
     )
     problems = []
     if installed:
@@ -213,7 +216,8 @@ def migrate_preconditions(packages, existing, history=(), same_as_source=lambda 
             delete.append(rel if kind == "dir" else rel + ".uasset")
         problems.append(
             f"{len(leftovers)} GASP packages of an earlier add-gasp run are still at their Migrate paths "
-            f"(e.g. {leftovers[0]}): delete {', '.join(delete)} (unreal/Golmok/...), then run add-gasp again"
+            f"(e.g. {leftovers[0]}): delete {', '.join(delete)} (unreal/Golmok/...; .umap for a level), then "
+            "run add-gasp -Force (runbook A3 re-install)"
         )
     return {"problems": problems, "leftovers": leftovers, "delete": delete, "installed": len(installed)}
 

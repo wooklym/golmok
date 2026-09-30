@@ -115,6 +115,10 @@ def migrate(closure_path, dest_content_dir, source_content_dir=None, history_pat
     problems = [
         f"/Game dependency with a name no package can have (not copied; report it): {r}" for r in rejected
     ] + pre["problems"]
+    try:  # the GASP ini text must be usable before 1 GB is copied (R76 T1, verification B)
+        _read_local_files(source.parent)
+    except ValueError as error:
+        problems.append(f"GASP ini: {error}")
     if problems:
         unreal.log_warning(f"WP-19 add-gasp migrate: stopped before copying ({len(problems)} problems)")
         return {
@@ -205,11 +209,20 @@ def _fixup_redirectors(plan) -> list[str]:
 
 
 def _read_local_files(gasp: Path) -> dict:
-    """GASP DDCvar / tag ini text -> the two local files' data (parsed before anything moves, R76 T1)."""
+    """GASP DDCvar / tag ini text -> the two local files' data (checked before anything is copied or moved,
+    R76 T1): both files must exist and hold the V-08 counts, so a wrong project never writes empty files."""
     engine_ini = gasp / "Config" / "DefaultEngine.ini"
     tags_source = gasp / "Config" / "DefaultGameplayTags.ini"
-    cvars = pure.parse_cvars(engine_ini.read_text(encoding="utf-8-sig")) if engine_ini.is_file() else []
-    tags = pure.parse_tags(tags_source.read_text(encoding="utf-8-sig")) if tags_source.is_file() else []
+    for path in (engine_ini, tags_source):
+        if not path.is_file():
+            raise ValueError(f"{path} is missing (is {gasp} the GASP 5.8 project?)")
+    cvars = pure.parse_cvars(engine_ini.read_text(encoding="utf-8-sig"))
+    tags = pure.parse_tags(tags_source.read_text(encoding="utf-8-sig"))
+    if len(cvars) != pure.EXPECTED_DDCVARS or len(tags) != pure.EXPECTED_TAGS:
+        raise ValueError(
+            f"{len(cvars)} DDCvars / {len(tags)} tags in the GASP ini, expected "
+            f"{pure.EXPECTED_DDCVARS} / {pure.EXPECTED_TAGS} (V-08); nothing written"
+        )
     return {"cvars": cvars, "engine_ini": engine_ini, "tags": tags, "tags_source": tags_source}
 
 
@@ -222,7 +235,10 @@ def _write_local_files(local_dir, tags_path, data) -> None:
 
 def local_files(local_dir, tags_path, gasp_project) -> dict:
     """add-gasp.ps1 -LocalFiles: rewrite only gasp_ddcvars.json and Config/Tags/GASP.ini (nothing moves)."""
-    data = _read_local_files(Path(gasp_project))
+    try:
+        data = _read_local_files(Path(gasp_project))
+    except ValueError as error:
+        return {"ok": False, "exit": 1, "messages": [f"GASP ini: {error}; local files kept"]}
     _write_local_files(local_dir, tags_path, data)
     unreal.log(f"WP-19 add-gasp local_files: {len(data['cvars'])} DDCvars, {len(data['tags'])} tags")
     return {"ok": True, "exit": 0, "ddcvars": len(data["cvars"]), "tags": len(data["tags"]), "messages": []}
@@ -357,6 +373,8 @@ def verify(
         }
     manifest = pure.load_json(manifest_path)
     problems += pure.check_manifest(content_dir, manifest)
+    if not manifest.get("source_digest"):
+        problems.append("manifest has no source_digest (a 19a install): re-install (runbook A3)")
     config = pure.load_animation_config(animation_json)
     if config["content_root"] != manifest["content_root"]:
         problems.append(
