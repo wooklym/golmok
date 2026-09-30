@@ -227,3 +227,26 @@ C-10: Packaging 설정을 에디터에서 저장한 뒤 DefaultGame.ini의 중�
 - PC: T6 수명/HUD/누락에셋 스모크와 T8 보폭·2D 자체 발소리·Photo 원샷 FadeOut·빠른 포털·새 gain을 재녹음/청취한다. `steps=`로 default/asphalt를 구별하고 `error: missing SoundWave`가 없는지 확인한다. C-07 해소·GUI 잠금 확인 뒤 실행한다.
 - §7-5의 `V10Asphalt` 등은 이전 시험에서만 사용한 이름이다. T8 시험에는 §3의 정확한 세트 이름을 쓴다. 생성 `Audio/*/SW_*.uasset`은 PR #54부터 ignore되며 소스/JSON/임포터로 재생성한다.
 - R50-3: T6 전체 자동화의 경고 테스트 수 7→8은 `Audio.StateMachine`이 ToD 파괴/재생성을 검사할 때 기록된 `No AGolmokGeoOrigin in L_Dev: zones are placed with their own origin at the level origin (dev level mode). Place one AGolmokGeoOrigin at (0,0,0) with the basemap area origin for geo-referenced placement.`다. L_Dev 배치 경고이며 오디오 누락 경고가 아니다. ExpectedMessage로 감추지 않고 보고서에 남긴다.
+
+
+## T13 — WP-19c 노티파이 발소리 계약 (2026-09-30)
+
+`audio.json`의 선택 키 `footsteps.driver`는 대소문자를 구분하는 `distance`·`notify`·`auto`만 받는다(`Notify`는 오류). 생략/현재 기본값은 `auto`: native `AGolmokGaspCharacter` 계열이고 실제 소스 `GetMesh()->GetAnimClass()`가 `RequiresGaspPawn` 계약에 해당할 때만 notify다. 일반 폰, GASP 폰의 비GASP ABP 로스터·폴백은 distance다. T15에서 T13의 폰 클래스 단독 판정을 대체했다. 애니메이션 클래스 약한 참조 키와 판정 bool을 캐시하므로 매 틱 설정 파일을 읽지 않는다. 실제 클래스 변경/컴포넌트 재등록 때 갱신하며 같은 클래스의 설정 파일을 편집했다면 재시작한다.
+
+notify 모드는 첫 이벤트 전부터 거리 스테퍼를 멈춘다. 이벤트가 없다고 거리 방식으로 자동 전환하지 않는다(늦게 온 노티파이와 중복 방지). `UGolmokLocomotionStateComponent::NotifyFootEvent(Step/Land, bLeft)` → `OnFootEvent` → 기존 표면 세트/착지 재생 경로에 1회 전달한다. 좌우 발 구분은 현재 샘플 선택에 사용하지 않는다. distance는 이벤트를 무시하고 종전 거리·보폭·공중·착지·텔레포트 규칙을 쓴다. pause/photo 또는 현재 플레이어가 아닌 폰의 이벤트는 무시한다. OnUnregister에서 구독을 해제하며 재등록은 1회만 연결한다.
+
+재현은 build 후 `tools/ue/test.ps1 -Filter Golmok.Audio`. 기존 등록 2개 안에서 Footstep의 합성 PIE 이벤트 시험을 실행한다. native GASP 폰만 생성하며 GASP 원본·BPI·ABP는 필요 없다. PlayFootstep 진입점의 테스트 전용 계수로 Step 1 → 발소리 요청 1, Land 1 → 착지 요청 1, 거리 이동 중복 0, pause·이전 폰·구독 해제 시 요청 0, 재등록 시 중복 구독 0을 확인한다. **-nosound/nullrhi이므로 실제 소리 출력·샘플 청취 성공은 아니다.**
+
+### 19b/V-15 인계 — 원본 GASP 폴리 차단은 아직 미구현
+
+`UGolmokFootstepComponent::UsesNotifyDriver()`는 **진단용 조회이며 원본 폴리 억제 조건으로 쓰지 않는다**. D-021/R79-2 결정에 따라 19b BP는 `footsteps.driver`나 이 조회 결과와 무관하게 원본 GASP 발 폴리를 항상 끄고 Step/Land만 Golmok `NotifyFootEvent`에 한 번 전달한다. 다른 폴리는 V-08b §5 분류 전까지 사용하지 않는다. 이 규칙이 T13의 조건부 억제 가설을 대체한다. 실제 원본 억제는 아직 19b 작업이며 이 C++ 수정만으로 완료되지 않는다.
+
+19b에서는 발소리와 Land 이벤트가 각각 한 번 오는지, 원본 GASP 오디오가 남아 이중 재생하지 않는지, 실제 착지와 노티파이 시점/좌우 발·표면 샘플이 맞는지 확인한다. notify를 켜고 이벤트가 누락되면 무음이므로 이벤트 연결부터 확인한다. 원본 폴리가 음소거된 것을 확인하기 전에는 distance 진단에서도 소리 중복 여부를 별도로 검사한다. 이 작업은 19b/V-15 및 청취 검증 담당에게 넘긴다.
+
+
+## T15 — auto 판정·HUD 재검증 (2026-09-30)
+
+- `golmok.audio`/HUD의 `drv=notify(auto)`·`drv=distance(auto)`는 실제 선택(설정값)이다. 플레이어 발소리 컴포넌트가 없으면 `drv=none(...)`이다. `ev=N`은 현재 컴포넌트가 게임 스레드에서 받은 유효 Step/Land 누적 수이며 driver/pause/photo/possess 필터로 재생하지 않은 이벤트도 포함한다. 재등록으로 초기화하지 않으며 재생 성공/샘플 출력 수가 아니다.
+- 헤드리스 Audio.Footstep은 L_Dev 기본 폰 대신 일반 폰을 직접 생성해 100cm 거리 스텝을 검사한다. GASP native+비GASP ABP의 auto distance, 설치된 테스트 ABP를 scoped animation 계약에 넣은 auto notify 양성·클래스 교체 캐시 갱신·HUD를 검사한다. 테스트 ABP가 없으면 양성만 Info NOT EXECUTED다. 이는 실제 GASP ABP/노티파이 검증이 아니다. 기존 합성 Step/Land는 명시 notify를 사용하며 TimeDilation Photo에서 GamePause 없이도 요청이 억제됨을 검사한다.
+- 텔레포트·애니메이션 재초기화 직후 원본이 가짜 Step/Land를 보내면 아직 정상 이벤트와 구별하지 못한다. 게임 스레드 가드는 추가했지만 이 시점 필터는 19b 실제 경로 확인 뒤 판단한다. OnUnregister 거리 스테퍼 초기화(R79-8)는 이번 변경 범위가 아니다.
+- 실제 원본 폴리 차단·발 접지 시점·청취·패키지 출력은 NOT EXECUTED, 19b/V-15 대기다. 전체 UE 게이트 결과는 WP-13 T15 결과 및 PR 코멘트에 기록한다.

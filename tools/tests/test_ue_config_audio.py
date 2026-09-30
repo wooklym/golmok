@@ -253,3 +253,22 @@ def test_unknown_roster_id_explains_same_pr_contract(monkeypatch):
     monkeypatch.setattr(audio, "load_config", lambda: data)
     with pytest.raises(AssertionError, match="roster id.*같은 PR에서 갱신"):
         test_stride_ids_match_character_roster()
+
+
+@pytest.mark.parametrize("value", [None, True, 1, [], {}, "", "Notify", "bad"])
+def test_invalid_footstep_driver(value):
+    data = audio.load_config()
+    data["footsteps"]["driver"] = value
+    with pytest.raises(ValueError, match="footsteps.driver: expected auto, distance or notify"):
+        audio.parse_config(data)
+
+
+@pytest.mark.parametrize("value", ["auto", "distance", "notify"])
+def test_footstep_driver_keeps_credit_pipeline(value):
+    data = audio.load_config()
+    baseline = audio.attribution(data)
+    data["footsteps"]["driver"] = value
+    audio.parse_config(data)
+    assert audio.attribution(data) == baseline
+    del data["footsteps"]["driver"]
+    audio.parse_config(data)  # Legacy manifests use auto at runtime.

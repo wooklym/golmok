@@ -185,7 +185,8 @@
         "walk": 67,
         "run": 146
       }
-    }
+    },
+    "driver": "auto"
   },
   "photo_mute_fade_seconds": 0.25
 }

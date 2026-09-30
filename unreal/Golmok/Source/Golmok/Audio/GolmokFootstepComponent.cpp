@@ -1,6 +1,10 @@
 #include "Audio/GolmokFootstepComponent.h"
 
 #include "Audio/GolmokAmbienceSubsystem.h"
+#include "Animation/GolmokGaspCharacter.h"
+#include "Animation/GolmokAnimationConfig.h"
+#include "Animation/GolmokLocomotionStateComponent.h"
+#include "Components/SkeletalMeshComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "Characters/GolmokCharacterSubsystem.h"
 #include "Engine/World.h"
@@ -17,13 +21,78 @@ UGolmokFootstepComponent::UGolmokFootstepComponent()
 	PrimaryComponentTick.TickGroup = TG_PostPhysics;
 }
 
+void UGolmokFootstepComponent::OnRegister()
+{
+	Super::OnRegister();
+	bAnimClassCached = false; CachedAnimClass.Reset();
+	RefreshFootEventBinding();
+}
+
+void UGolmokFootstepComponent::OnUnregister()
+{
+	if (auto* Provider = FootEvents.Get()) Provider->OnFootEvent.Remove(FootEventHandle);
+	FootEvents.Reset(); FootEventHandle.Reset();
+	Stepper.Reset(); bHasPrevious = false;
+	Super::OnUnregister();
+}
+
+void UGolmokFootstepComponent::RefreshFootEventBinding()
+{
+	auto* Provider = GetOwner() ? GetOwner()->FindComponentByClass<UGolmokLocomotionStateComponent>() : nullptr;
+	if (Provider == FootEvents.Get()) return;
+	if (auto* Old = FootEvents.Get()) Old->OnFootEvent.Remove(FootEventHandle);
+	FootEvents = Provider; FootEventHandle.Reset();
+	if (Provider) FootEventHandle = Provider->OnFootEvent.AddUObject(this, &UGolmokFootstepComponent::OnFootEvent);
+	Stepper.Reset(); bHasPrevious = false;
+}
+
+bool UGolmokFootstepComponent::UsesNotifyDriver() const
+{
+	const auto* Audio = GetWorld() ? GetWorld()->GetSubsystem<UGolmokAmbienceSubsystem>() : nullptr;
+	if (!Audio) return false;
+	const FString& Driver = Audio->GetConfig().FootstepDriver;
+	if (Driver == TEXT("notify")) return true;
+	const auto* Pawn = Cast<AGolmokGaspCharacter>(GetOwner());
+	if (Driver != TEXT("auto") || !Pawn) return false;
+	const UClass* AnimClass = Pawn->GetMesh() ? Pawn->GetMesh()->GetAnimClass() : nullptr;
+	if (!AnimClass)
+	{
+		CachedAnimClass.Reset(); bAnimClassCached = true; bCachedRequiresGasp = false;
+		return false;
+	}
+	if (!bAnimClassCached || CachedAnimClass.Get() != AnimClass)
+	{
+		CachedAnimClass = AnimClass;
+		bCachedRequiresGasp = AnimClass && GolmokAnimation::RequiresGaspPawn(AnimClass);
+		bAnimClassCached = true;
+	}
+	return bCachedRequiresGasp;
+}
+
+bool UGolmokFootstepComponent::IsActivePlayer() const
+{
+	const auto* PC = GetWorld() ? GetWorld()->GetFirstPlayerController() : nullptr;
+	return PC && PC->GetPawn() == GetOwner() && !UGameplayStatics::IsGamePaused(GetWorld())
+		&& !UGolmokPhotoModeSubsystem::IsActiveIn(GetWorld());
+}
+
+void UGolmokFootstepComponent::OnFootEvent(EGolmokFootEvent Kind, bool bLeft)
+{
+	if (!ensure(IsInGameThread())) return;
+	if (Kind != EGolmokFootEvent::Step && Kind != EGolmokFootEvent::Land) return;
+	++FootEventCount;
+	if (!UsesNotifyDriver() || !IsActivePlayer()) return;
+	Stepper.Reset(); bHasPrevious = false;
+	TriggerFootstep(Kind == EGolmokFootEvent::Land);
+}
+
 void UGolmokFootstepComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 	AGolmokCharacter* Character = Cast<AGolmokCharacter>(GetOwner());
 	UGolmokAmbienceSubsystem* Audio = GetWorld() ? GetWorld()->GetSubsystem<UGolmokAmbienceSubsystem>() : nullptr;
-	APlayerController* PC = GetWorld() ? GetWorld()->GetFirstPlayerController() : nullptr;
-	if (!Character || !Audio || !PC || PC->GetPawn() != Character || UGolmokPhotoModeSubsystem::IsActiveIn(GetWorld()))
+	RefreshFootEventBinding();
+	if (!Character || !Audio || !IsActivePlayer() || UsesNotifyDriver())
 	{ Stepper.Reset(); bHasPrevious = false; return; }
 	const FVector Position = Character->GetActorLocation();
 	double Distance = bHasPrevious ? FVector::Dist2D(Position, Previous) : 0.0;

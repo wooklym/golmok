@@ -13,6 +13,7 @@ struct FGolmokAudioConfig
 	double WalkStride = 70.0, RunStride = 110.0, RunThreshold = 250.0, TeleportLimit = 300.0;
 	double PitchMin = 0.95, PitchMax = 1.05, VolumeMin = 0.9, VolumeMax = 1.0;
 	bool bMuteInPhoto = true;
+	FString FootstepDriver = TEXT("auto");
 	TMap<FString, FVector2D> StrideByCharacter;
 	double StrideFor(const FString& Id, bool bRunning) const
 	{

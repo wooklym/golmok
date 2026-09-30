@@ -860,7 +860,8 @@ bool FGolmokAnimationConfigTest::RunTest(const FString& Parameters)
 		};
 		for (const FCase& Case : Cases)
 		{
-			TestTrue(*FString::Printf(TEXT("%s: variant differs from the base"), Case.Name), Case.Text != FString(BaseConfig));
+			// Case-sensitive: FString ==/!= ignore case, and "mode ABP" differs from the base only in case (Astra, issue #30).
+			TestTrue(*FString::Printf(TEXT("%s: variant differs from the base"), Case.Name), !Case.Text.Equals(FString(BaseConfig), ESearchCase::CaseSensitive));
 			GolmokAnimation::FConfig Out = Base;
 			Out.PawnClass = TEXT("sentinel");
 			FString CaseError;

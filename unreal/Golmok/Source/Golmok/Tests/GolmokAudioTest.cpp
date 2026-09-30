@@ -4,6 +4,13 @@
 #if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
 #include "Audio/GolmokAmbienceSubsystem.h"
 #include "Audio/GolmokFootstepComponent.h"
+#include "Animation/GolmokGaspCharacter.h"
+#include "Animation/GolmokAnimationConfig.h"
+#include "Animation/GolmokLocomotionStateComponent.h"
+#include "Components/SkeletalMeshComponent.h"
+#include "Misc/ScopeExit.h"
+#include "GameFramework/CharacterMovementComponent.h"
+#include "Kismet/GameplayStatics.h"
 #include "Debug/GolmokDebugSubsystem.h"
 #include "Editor.h"
 #include "Misc/FileHelper.h"
@@ -20,6 +27,134 @@
 
 namespace GolmokAudioTest
 {
+	class FFootEventScenario : public IAutomationLatentCommand
+	{
+	public:
+		explicit FFootEventScenario(FAutomationTestBase* InTest) : Test(InTest), Started(FPlatformTime::Seconds()) {}
+		bool Update() override
+		{
+			UWorld* World = GEditor ? GEditor->PlayWorld.Get() : nullptr;
+			auto* PC = World ? World->GetFirstPlayerController() : nullptr;
+			auto* Original = PC ? Cast<AGolmokCharacter>(PC->GetPawn()) : nullptr;
+			auto* Audio = World ? World->GetSubsystem<UGolmokAmbienceSubsystem>() : nullptr;
+			if (!Original || !Audio || World->GetTimeSeconds() < .6f)
+			{
+				if (FPlatformTime::Seconds() - Started < 30) return false;
+				Test->AddError(TEXT("foot event PIE timeout")); return true;
+			}
+			FActorSpawnParameters Spawn; Spawn.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+			auto* Plain = World->SpawnActor<AGolmokCharacter>(FVector(500,0,1000), FRotator::ZeroRotator, Spawn);
+			if (!Test->TestNotNull(TEXT("explicit ordinary pawn"), Plain)) return true;
+			ON_SCOPE_EXIT { PC->Possess(Original); PC->SetViewTarget(Original); Plain->Destroy(); };
+			PC->Possess(Plain); Audio->RefreshBindings();
+			auto* OriginalSteps = Plain->FindComponentByClass<UGolmokFootstepComponent>();
+			if (!Test->TestNotNull(TEXT("original distance component"), OriginalSteps)) return true;
+			auto& Config = const_cast<FGolmokAudioConfig&>(Audio->GetConfig());
+			TGuardValue<FString> DriverGuard(Config.FootstepDriver, TEXT("auto"));
+			Test->TestFalse(TEXT("auto on ordinary pawn stays distance"), OriginalSteps->UsesNotifyDriver());
+			Plain->GetCharacterMovement()->SetMovementMode(MOVE_Walking);
+			const int32 OrdinaryBefore = Audio->GetFootstepRequests();
+			OriginalSteps->TickComponent(.1f, LEVELTICK_All, nullptr);
+			Plain->SetActorLocation(Plain->GetActorLocation() + FVector(100,0,0), false, nullptr, ETeleportType::TeleportPhysics);
+			OriginalSteps->TickComponent(.1f, LEVELTICK_All, nullptr);
+			Test->TestEqual(TEXT("ordinary auto still emits one distance step"), Audio->GetFootstepRequests(), OrdinaryBefore + 1);
+			Test->TestTrue(TEXT("HUD shows ordinary auto distance"), Audio->Describe().Contains(TEXT("drv=distance(auto) ev=0")));
+			auto* Pawn = World->SpawnActor<AGolmokGaspCharacter>(FVector(1500, 0, 1000), FRotator::ZeroRotator, Spawn);
+			if (!Test->TestNotNull(TEXT("GASP native test pawn without assets"), Pawn)) return true;
+			ON_SCOPE_EXIT { Pawn->Destroy(); };
+			PC->Possess(Pawn); Audio->RefreshBindings();
+			auto* Steps = Pawn->FindComponentByClass<UGolmokFootstepComponent>();
+			auto* Provider = Pawn->FindComponentByClass<UGolmokLocomotionStateComponent>();
+			if (!Test->TestNotNull(TEXT("GASP footstep component"), Steps) || !Test->TestNotNull(TEXT("GASP foot provider"), Provider))
+			{ PC->Possess(Original); Pawn->Destroy(); return true; }
+			Test->TestFalse(TEXT("GASP pawn with nonGASP source uses distance"), Steps->UsesNotifyDriver());
+			UClass* TestAnim = Pawn->GetMesh()->GetAnimClass();
+			if (TestAnim && TestAnim->GetPathName().StartsWith(TEXT("/Game/")))
+			{
+				FString Text;
+				FFileHelper::LoadFileToString(Text, *GolmokAnimation::ConfigFilePath());
+				TSharedPtr<FJsonObject> Root;
+				if (Test->TestTrue(TEXT("read test animation contract"), FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Text), Root)))
+				{
+					auto Gasp = Root->GetObjectField(TEXT("gasp"));
+					Gasp->SetStringField(TEXT("content_root"), TEXT("/Game"));
+					Gasp->SetStringField(TEXT("anim_class"), TestAnim->GetPathName().RightChop(6));
+					Text.Reset(); FJsonSerializer::Serialize(Root.ToSharedRef(), TJsonWriterFactory<>::Create(&Text));
+					GolmokAnimation::FScopedConfigOverride Override(Text);
+					Steps->ReregisterComponent(); // Configuration is normally immutable; registration invalidates the class cache.
+					Test->TestTrue(TEXT("auto class contract positive"), Steps->UsesNotifyDriver());
+					Test->TestTrue(TEXT("auto cached class contract positive"), Steps->UsesNotifyDriver());
+					const int32 Before = Audio->GetFootstepRequests();
+					Provider->NotifyFootEvent(EGolmokFootEvent::Step, true);
+					Test->TestEqual(TEXT("auto positive delivers one event"), Audio->GetFootstepRequests(), Before + 1);
+					Test->TestTrue(TEXT("HUD positive driver and event count"), Audio->Describe().Contains(TEXT("drv=notify(auto) ev=1")));
+					Pawn->GetMesh()->SetAnimInstanceClass(nullptr);
+					Test->TestFalse(TEXT("class change invalidates positive cache"), Steps->UsesNotifyDriver());
+					Pawn->GetMesh()->SetAnimInstanceClass(TestAnim);
+					Test->TestTrue(TEXT("class restored recomputes contract"), Steps->UsesNotifyDriver());
+				}
+				Steps->ReregisterComponent();
+				Test->TestFalse(TEXT("restored real config uses distance"), Steps->UsesNotifyDriver());
+			}
+			else Test->AddInfo(TEXT("NOT EXECUTED auto-positive fixture: installed test ABP unavailable"));
+			Config.FootstepDriver = TEXT("notify");
+			Test->TestTrue(TEXT("explicit notify before first synthetic event"), Steps->UsesNotifyDriver());
+			Pawn->GetCharacterMovement()->SetMovementMode(MOVE_Walking);
+			const auto Tick = [&]() { Steps->TickComponent(.1f, LEVELTICK_All, nullptr); };
+			const auto Move = [&]() { Pawn->SetActorLocation(Pawn->GetActorLocation() + FVector(100,0,0), false, nullptr, ETeleportType::TeleportPhysics); Tick(); };
+			int32 Count = Audio->GetFootstepRequests();
+			Tick(); Move();
+			Test->TestEqual(TEXT("notify has no distance fallback before first event"), Audio->GetFootstepRequests(), Count);
+			Provider->NotifyFootEvent(EGolmokFootEvent::Step, true);
+			Test->TestEqual(TEXT("one synthetic step reaches playback exactly once"), Audio->GetFootstepRequests(), ++Count);
+			Move(); Move();
+			Test->TestEqual(TEXT("distance cannot duplicate notify step"), Audio->GetFootstepRequests(), Count);
+			const int32 Landings = Audio->GetLandingRequests();
+			Provider->NotifyFootEvent(EGolmokFootEvent::Land, false);
+			Tick();
+			Test->TestEqual(TEXT("one land reaches landing playback exactly once"), Audio->GetLandingRequests(), Landings + 1);
+			Test->TestEqual(TEXT("land is not also a step"), Audio->GetFootstepRequests(), Count);
+			UGameplayStatics::SetGamePaused(World, true);
+			Provider->NotifyFootEvent(EGolmokFootEvent::Step, false);
+			UGameplayStatics::SetGamePaused(World, false);
+			Test->TestEqual(TEXT("paused foot event ignored"), Audio->GetFootstepRequests(), Count);
+			if (auto* Photo = World->GetSubsystem<UGolmokPhotoModeSubsystem>())
+			{
+				TGuardValue<EGolmokPhotoPauseMode> PauseGuard(Photo->PauseMode, EGolmokPhotoPauseMode::TimeDilation);
+				FString Message; PC->SetViewTarget(Pawn);
+				if (Test->TestTrue(TEXT("time dilation photo enter"), Photo->Enter(Message)))
+				{
+					Test->TestFalse(TEXT("time dilation photo is not game pause"), UGameplayStatics::IsGamePaused(World));
+					Provider->NotifyFootEvent(EGolmokFootEvent::Step, false);
+					Test->TestEqual(TEXT("photo foot event ignored without game pause"), Audio->GetFootstepRequests(), Count);
+					Photo->Exit(TEXT("foot event test"));
+				}
+			}
+			Config.FootstepDriver = TEXT("distance");
+			Tick();
+			Provider->NotifyFootEvent(EGolmokFootEvent::Step, false);
+			Test->TestEqual(TEXT("explicit distance ignores notify"), Audio->GetFootstepRequests(), Count);
+			Move();
+			Test->TestEqual(TEXT("distance driver resumes one stride"), Audio->GetFootstepRequests(), ++Count);
+			Config.FootstepDriver = TEXT("notify");
+			Move();
+			Test->TestEqual(TEXT("switch to notify clears residual distance"), Audio->GetFootstepRequests(), Count);
+			Steps->UnregisterComponent();
+			Provider->NotifyFootEvent(EGolmokFootEvent::Step, false);
+			Test->TestEqual(TEXT("unregister removes subscription"), Audio->GetFootstepRequests(), Count);
+			Steps->RegisterComponent(); Steps->ReregisterComponent();
+			Provider->NotifyFootEvent(EGolmokFootEvent::Step, false);
+			Test->TestEqual(TEXT("repeated registration binds exactly once"), Audio->GetFootstepRequests(), ++Count);
+			PC->Possess(Original); PC->SetViewTarget(Original);
+			Provider->NotifyFootEvent(EGolmokFootEvent::Step, false);
+			Test->TestEqual(TEXT("old pawn events ignored after possession"), Audio->GetFootstepRequests(), Count);
+			Test->AddInfo(TEXT("EXECUTED ordinary distance + auto animation classification/cache invalidation/HUD; synthetic Step/Land -> one playback request each; no distance duplicate; pause/unregister/possession guards. Audible output and original GASP foley not tested."));
+			return true;
+		}
+	private:
+		FAutomationTestBase* Test; double Started;
+	};
+
 	class FStateScenario : public IAutomationLatentCommand
 	{
 	public:
@@ -269,9 +404,27 @@ bool FGolmokAudioFootstepTest::RunTest(const FString& Parameters)
 		TestFalse(TEXT("invalid character stride rejected"), GolmokAudio::ParseConfig(InvalidJson, Config, Error));
 		TestEqual(TEXT("invalid parse preserves roster stride"), Config.StrideFor(TEXT("proxy110"), false), 45.0);
 	}
+	for (const TCHAR* Value : {TEXT("\"auto\""), TEXT("\"distance\""), TEXT("\"notify\""), TEXT("\"Notify\""), TEXT("null"), TEXT("true"), TEXT("1"), TEXT("[]"), TEXT("{}"), TEXT("\"bad\"")})
+	{
+		TSharedPtr<FJsonObject> Root;
+		FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Manifest), Root);
+		Root->GetObjectField(TEXT("footsteps"))->RemoveField(TEXT("driver"));
+		FString Base;
+		FJsonSerializer::Serialize(Root.ToSharedRef(), TJsonWriterFactory<TCHAR, TCondensedJsonPrintPolicy<TCHAR>>::Create(&Base));
+		Base.ReplaceInline(TEXT("\"walk_stride_cm\":"), *FString::Printf(TEXT("\"driver\":%s,\"walk_stride_cm\":"), Value));
+		FGolmokAudioConfig Parsed = Config;
+		const bool bValid = FString(Value).Equals(TEXT("\"auto\""), ESearchCase::CaseSensitive) || FString(Value).Equals(TEXT("\"distance\""), ESearchCase::CaseSensitive) || FString(Value).Equals(TEXT("\"notify\""), ESearchCase::CaseSensitive);
+		TestEqual(FString::Printf(TEXT("driver %s acceptance"), Value), GolmokAudio::ParseConfig(Base, Parsed, Error), bValid);
+		if (!bValid)
+		{
+			TestTrue(TEXT("driver failure path diagnosis"), Error.Contains(TEXT("footsteps.driver")));
+			TestEqual(TEXT("bad driver retains previous"), Parsed.FootstepDriver, Config.FootstepDriver);
+		}
+	}
 	FGolmokAudioConfig LegacyConfig;
-	const FString Legacy = Manifest.Replace(TEXT("\"stride_cm_by_character\""), TEXT("\"unused_stride_fixture\"")).Replace(TEXT("\"photo_mute_fade_seconds\""), TEXT("\"unused_photo_fixture\""));
+	const FString Legacy = Manifest.Replace(TEXT("\"driver\""), TEXT("\"unused_driver_fixture\"")).Replace(TEXT("\"stride_cm_by_character\""), TEXT("\"unused_stride_fixture\"")).Replace(TEXT("\"photo_mute_fade_seconds\""), TEXT("\"unused_photo_fixture\""));
 	TestTrue(TEXT("optional fields support legacy manifest"), GolmokAudio::ParseConfig(Legacy, LegacyConfig, Error));
+	TestEqual(TEXT("missing driver defaults auto"), LegacyConfig.FootstepDriver, FString(TEXT("auto")));
 	TestEqual(TEXT("legacy roster uses global stride"), LegacyConfig.StrideFor(TEXT("proxy110"), false), 70.0);
 	TestEqual(TEXT("legacy photo fade defaults to quarter second"), LegacyConfig.PhotoMuteFadeSeconds, .25);
 	TestFalse(TEXT("obsolete mesh scale rejected"), GolmokAudio::ParseConfig(Manifest.Replace(TEXT("\"walk_stride_cm\":"), TEXT("\"stride_scale_by_mesh\":true, \"walk_stride_cm\":")), LegacyConfig, Error));
@@ -304,6 +457,10 @@ bool FGolmokAudioFootstepTest::RunTest(const FString& Parameters)
 		TestEqual(TEXT("unknown surface number falls back"), UGolmokFootstepComponent::ResolveSurfaceSet(Config, 63, false), FString(TEXT("default")));
 	}
 	AddInfo(TEXT("EXECUTED distance/air/landing/teleport/repossess and interrupted fade math; audible playback remains V-10"));
+	ADD_LATENT_AUTOMATION_COMMAND(FEditorLoadMap(TEXT("/Game/Golmok/Maps/L_Dev")));
+	ADD_LATENT_AUTOMATION_COMMAND(FStartPIECommand(false));
+	ADD_LATENT_AUTOMATION_COMMAND(GolmokAudioTest::FFootEventScenario(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
 	return true;
 }
 #endif

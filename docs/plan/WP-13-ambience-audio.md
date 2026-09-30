@@ -334,3 +334,63 @@ astra-tasks T9 행/STATUS Astra 진행 기록 문안: “T9 13e: R55-5 C++ Boole
 - **(C) 다음 오디오 push 선택**: R65-1 세트 id 정의 쪽에서 C++/Python 같은 정규식 검사, R65-2 JSON 구문 오류에 `Reader->GetErrorMessage()` 줄·열 + 로드 실패 `UE_LOG` 1회, R65-3 참조 실패 3종의 보존 검사에 `Sets`/`Assets`/`Presets` 항목 단언, R65-4 변이 생성을 텍스트 치환 대신 DOM 수정으로, R65-5 오류 경로의 제어 문자 치환, R65-7 기존 `raises(ValueError)` 40 케이스에 `match=`. R65-6(포맷)은 조치 없음. R65-8은 이 커밋(13e 병합 기록 "(원문 유지)" 정정·빈 줄).
 - **검증 범위**: 리뷰 세션 게이트(ruff·format 106, pytest 1211 passed/3 skipped, g++ audio math 8/8 실행, `test_ue_config_audio` 64/64, check_repo·diff --check)·main 5c4464e 시험 병합 트리 동일·CI 10/10. UE 5.8.3 빌드·`Golmok.Audio` 2/2·전체 32·SoundWave 임포트 7+7은 Astra 보고 수치(Astra 정정, #65 코멘트: "최종 빌드 5.54 s"는 up-to-date 실행이 아니라 `GolmokAudioConfig.cpp`·`GolmokAudioTest.cpp` 실제 컴파일·lib/dll 링크·WriteMetadata 5 actions의 결과이며 문서 커밋 전 최종 C++ 검증, 근거 로컬 `tools/.venv/t10-build.log`). 실제 출력·청취·패키지 발소리는 미실행 — C-07 뒤 V-11 카드(선택 추가: gain을 `"0.5"`로 바꿔 HUD `error: audio.json assets.<id>.gain: expected finite number in [0, 1]` 확인 뒤 원복), C-08 소유자 청취.
 - **(C) 옮긴 것**: STATUS 마지막 갱신·WP-13 행 2개·세션 로그, astra-tasks T10 행 병합 표기·T9 행·우선순위, 이 절.
+
+
+## T13 — WP-19c 노티파이 발소리 결과 (2026-09-30)
+
+이슈 #30의 5907278376 배정. T12 PR #77 위 별도 `astra/wp-19c-footstep-notify` 스택에서 오디오 레인만 변경했다. `footsteps.driver`는 선택 키이며 auto 기본값으로 이전 일반 폰의 distance 동작을 유지한다. C++/Python은 잘못된 문자열·타입을 같은 필드 경로로 거절한다. 데이터 외 음원/라이선스·보폭·볼륨 값은 바꾸지 않았고 크레딧 파이프라인도 같다.
+
+- native GASP 계열 폰의 auto 및 명시 notify는 첫 이벤트 전부터 거리 스테퍼를 멈춘다. `OnFootEvent`를 구독해 Step/Land를 각각 발소리/착지 재생 경로로 전달하고, distance는 이벤트를 무시한다.
+- pause/photo·현재 플레이어 아님을 검사한다. 컴포넌트 등록/해제에 맞춰 구독하고 바뀐 공급 컴포넌트는 tick에서 다시 연결한다. 두 드라이버가 동시 재생하지 않는다.
+- BlueprintPure `UsesNotifyDriver()`는 19b가 읽을 수 있는 설정 훅이다. **GASP 원본 폴리 비활성화 자체는 미구현**이며 V-08b §5 결과 뒤 정확한 BP 경로에 연결한다. 임의 원본 함수/ini/에셋 변경은 없다. 실제 폴리 억제·발 시점·청취·패키지 출력은 19b/V-15 대기다.
+- 기존 `Golmok.Audio.Footstep` 등록 안에 native 폰/합성 이벤트 PIE 검사를 추가했다. 실제 PlayFootstep 진입점 계수는 WITH_DEV_AUTOMATION_TESTS 한정이다. Step/Land 각각 1요청, 거리 중복 0, pause·빙의·구독 해제·재등록 검사를 실행했다. GASP 패키지 없이 도는 계약 검사이며 -nosound 재생 요청을 청취 성공으로 세지 않는다.
+
+검증: UE 5.8.3 build 성공, 오디오 단독 2 state=Success(1 + warning1), Python ruff check/format 113·pytest 1104 passed / 215 skipped / 208 warnings·check_repo 통과. 전체 UE 36 state=Success(succeeded24 + warnings12, failed/notRun0), Locomotion 포함 통과. RenderEvidence는 NOT EXECUTED, GaspSmoke/실제 GASP 시각 통합은 Info skip. 등록 수 36 유지. 자세한 재현·인계는 pc-verify-wp13.md 끝 T13 절.
+
+### 병합 시 반영 — T13
+
+STATUS 병행 트랙 문안: `T13(WP-19c 오디오) 노티파이 발소리 코드·헤드리스 계약 검증 완료. footsteps.driver auto/distance/notify, Step/Land 단일 재생 요청·거리 중복 방지. 기존 일반 폰은 distance 유지, 등록 36. GASP 원본 폴리 비활성화는 설정 조회 훅만 제공; V-08b §5/19b 연결·V-15 청취 실검증 대기.`
+
+WP-19 결과/19b 인계 문안: `T13은 UGolmokFootstepComponent::UsesNotifyDriver() BlueprintPure 조회 훅과 OnFootEvent 구독을 제공한다. 실제 GASP 폴리 경로를 확인한 뒤 원본 재생 차단 + NotifyFootEvent 단일 전달을 19b BP에서 연결해야 한다. auto는 native GASP 계열 폰 기준이며 이벤트가 없으면 거리로 폴백하지 않는다. ABP 로스터를 GASP 폰에서 진단할 때 distance를 명시한다.`
+
+## 병합 기록 — T13 PR [#79](https://github.com/wooklym/golmok/pull/79) (2026-09-30, 오케스트레이터 세션)
+
+**내용**: 위 "T13" 절과 같다. `footsteps.driver`(auto/distance/notify, 기본 auto) 엄격 파싱, `OnFootEvent` 구독(등록·해제·공급 컴포넌트 교체), Step/Land를 기존 표면·착지 재생 경로로 각각 한 번, 첫 이벤트 전부터 거리 스테퍼 정지, pause·photo·이전 폰 이벤트 무시, BlueprintPure `UsesNotifyDriver()`. 등록 수는 36으로 같다.
+
+**병합 전 리뷰(Opus 5.5 ultracode 적대 검증 + 설계 리뷰, [R79](https://github.com/wooklym/golmok/pull/79#issuecomment-5908764323))**: (A) 0 · (B) 2 · (C) 6.
+- 게이트(리눅스): ruff·format, pytest 1316 passed / 3 skipped(#77 위), check_repo, `diff --check` 통과, 등록 36. #78과 `merge-tree` 충돌 0(합친 트리 pytest 1353). UE 빌드·자동화 36 Success는 Astra 보고 수치다.
+- 확인(결함 없음): ① 기본 폰 발소리 틱 경로가 main과 같다(공급 컴포넌트 없음 → 바인딩 즉시 반환, auto → distance). 틱과 이벤트가 같은 술어로 상호 배제되어 이중 재생 경로가 없다. `AddUObject` 약참조·`OnUnregister`/교체 시 해제로 댕글링 없음. #78 C8(착지 값은 틱에서만)과 충돌 없음(페이로드는 종류·좌우뿐). 새 단언이 각각 그럴듯한 결함을 잡는다. 레인·핫스팟 준수.
+- (B) **R79-1 → Astra T15**(19b 착수 전): auto가 폰 클래스로 판정해 GASP 폰에 비GASP ABP가 돌면(모드 기본값 실패 폴백·`golmok.character manny`·19b 연결 전) 발소리가 영구히 무음이다. auto를 "GASP 폰 ∧ `GetMesh()` 애님 클래스가 GASP ABP(`RequiresGaspPawn`, 애님 클래스 키 캐시)"로 바꾼다. ① 영향 없음.
+- (B) **R79-2**: 원본 GASP 발 폴리는 19b BP가 `footsteps.driver`와 무관하게 끈다(오케스트레이터 결정, D-019). (a) Claude 문서(WP-19 §13-3·§16·§17, 런북 §A5·§D)는 WP-19a-2 [#78](https://github.com/wooklym/golmok/pull/78)에서 고쳤다. (c) 헤더 주석·`pc-verify-wp13.md` 문안("진단용 조회, 억제 조건으로 쓰지 않는다")은 T15.
+- (C): R79-3 C++ driver 파서 대소문자 구분(Python과 일치), R79-4 ① 경로 직접 단언·L_Dev 기본 폰 전제 제거, R79-5 HUD `drv=… ev=N`, R79-6 텔레포트 직후 가짜 노티파이·게임 스레드 가드, R79-7 헤더 전방 선언, R79-8 `OnUnregister` 스테퍼 리셋(기록만). R79-3·5는 T15 권장.
+- 설계 리뷰: 이 PR은 채택, "첫 이벤트 전 거리 정지"도 채택. GASP 폰 + ABP 로스터의 무음은 수용하지 않고 애님 클래스 기준(R79-1)으로 바꾼다. N초 무이벤트 폴백은 19b 연결 누락을 가리고 늦은 노티파이와 겹칠 수 있어 기각. 품질 가설(노티파이가 발 접지와 더 잘 맞음)은 바뀌지 않고 V-15에서 검증한다. 새 D 번호 없음.
+
+**병합**: 오케스트레이터 결정(D-019). #77 병합 뒤 base를 main으로 바꾸고, main(#77·#78 포함)을 이 브랜치에 병합한 뒤 이 커밋으로 반영했다. CI 초록이고 (A)가 없어 병합했다. 위 "병합 시 반영 — T13" 문안은 STATUS 병행 트랙 WP-13 행, WP-19 결과 23번, `astra-tasks.md` T13·T15에 옮겼다.
+
+
+## T15 결과 — WP-19c auto 발소리 후속 (2026-09-30 KST)
+
+배정: [이슈 #30 T15](https://github.com/wooklym/golmok/issues/30#issuecomment-5909415427). main `a92cad8` 기준 별도 `astra/wp-19c-footstep-followup`; T14와 독립이며 오디오 C++/시험/WP-13/런북만 변경했다.
+
+- **R79-1**: auto는 native GASP 폰 AND 실제 소스 GetMesh 애님 클래스의 RequiresGaspPawn 계약이다. 약한 클래스 키/bool 캐시로 매 틱 파일 파싱을 피한다. 클래스 변경·재등록으로 갱신한다. GASP 폰+일반 ABP/폴백은 distance이며 시간 기반 무이벤트 폴백은 추가하지 않았다.
+- **R79-2c**: 헤더/런북을 진단용 UsesNotifyDriver·19b 원본 발 폴리 무조건 억제 규칙으로 정정했다. 이 절이 위 T13 인계 문안의 폰 클래스 단독 auto 및 조건부 폴리 억제 가설을 대체한다. 실제 원본 억제는 아직 19b 미구현이다.
+- **C3/4/5/6/7**: driver 대소문자 엄격 파싱/Notify 거절, 직접 생성 일반 폰의 100cm 거리 요청, 합성 이벤트의 명시 notify, auto 음성/테스트 ABP 계약 양성·캐시 갱신, drv/ev HUD, TimeDilation Photo 억제, 게임 스레드 가드 및 헤더 전방 선언. ev는 필터 전 유효 이벤트 수이며 재생 수가 아니다. C6 텔레포트/재초기화 가짜 이벤트 필터는 실제 경로 확인 뒤, C8 스테퍼 해제 리셋은 미변경이다.
+
+검증: UE5.8.3 build 성공(7.83s, 엔진 C4996 경고), Audio 2 Success(경고1)/failed0/notRun0. 설치 테스트 ABP scoped 양성도 이번에 실행했다. pytest **1141 passed/217 skipped/208 warnings,50.79s**, ruff check/format114·check_repo 통과. T14의 교차 검사 8개는 별도 브랜치라 이 수치에 포함되지 않는다. 전체 UE는 **35 Success(23+경고12)/1 Fail/notRun0**: 기존 main #78 Animation.Config의 `Case.Text != FString(BaseConfig)`가 abp/ABP를 같다고 판단하는 변이 단언 실패다. Claude 레인으로 수정 요청했고 전체 게이트는 차단 상태다. 로컬 근거: tools/.venv/t15-{audio,full}-index.json 및 t15-build.txt/t15-pytest.txt. 등록 **36 유지**. 실제 GASP 에셋/원본 폴리/청취/GUI/패키지 출력은 NOT EXECUTED다.
+
+### 병합 시 반영 — T15
+
+- **astra-tasks T15/STATUS**: “T15 R79-1·2c 및 C3/4/5/6 일부/7 구현·Audio 헤드리스 검증 완료. auto는 native GASP AND 소스 애님 클래스 계약, 클래스 키 캐시. drv/ev 진단·엄격 driver 파싱. 등록36 유지, 실제 GASP 원본 폴리 억제·V-15 청취는 19b 대기.” 전체 UE 게이트 차단이 남으면 해소 전 완료 판정에 포함하지 않는다.
+- **WP-19 19b 인계**: “UsesNotifyDriver는 진단 전용, 원본 GASP 발 폴리 억제 조건으로 사용하지 않는다. 19b는 driver와 무관하게 원본 발 폴리를 끄고 Step/Land만 NotifyFootEvent로 단일 전달한다. auto는 native GASP 폰과 실제 GetMesh 소스 애님 클래스 RequiresGaspPawn 둘 다 충족할 때 notify, 그 밖은 distance. 무이벤트 시간 폴백 없음.”
+
+## 병합 기록 — T15 PR [#82](https://github.com/wooklym/golmok/pull/82) (2026-09-30, 오케스트레이터 세션)
+
+**내용**: 위 "T15" 절과 같다. R79-1(auto = 네이티브 GASP 폰 ∧ `GetMesh()` 소스 애님이 `RequiresGaspPawn`, 애님 클래스 약참조 키 캐시·`OnRegister` 리셋, 시간 초과 폴백 없음), R79-2(c)(`UsesNotifyDriver()`는 진단용, 원본 폴리 억제 조건 아님), (C) R79-3 driver 대소문자 구분·R79-4 ① 동적 단언·R79-5 HUD `drv=<실효>(<설정>) ev=<수>`·R79-6 게임 스레드 가드·R79-7 전방 선언. 등록 수는 36으로 같다.
+
+**병합 전 리뷰(Opus 5.5 ultracode 적대 검증 + 짧은 설계 리뷰, [R82](https://github.com/wooklym/golmok/pull/82#issuecomment-5910685446))**: (A) 0 · (B) 0 · (C) 6.
+- 게이트(리눅스): ruff, format 112, pytest 1355 passed / 3 skipped, check_repo, `diff --check`, 등록 36, CI 10/10. main(#83)·#80·#81과 충돌 0, 넷을 합친 트리 pytest 1403. UE 빌드·Audio 2 Success는 Astra 보고이며, 전체 35/1의 원인이던 main `Animation.Config` 단언은 [#83](https://github.com/wooklym/golmok/pull/83)으로 해소됐다(PC 전체 36 재실행 대기).
+- 확인(결함 없음): ① 기본 폰 발소리 경로가 main과 바이트 단위로 같음, 틱·이벤트가 같은 술어·캐시로 상호 배제(이중 재생 없음, GASP↔ABP 전환 때 중복 한 보 없음), 캐시가 로스터 교체·preview·`SetAnimInstanceClass`·BP 재컴파일·GC를 따라감, 디스크 읽기는 클래스가 바뀔 때 1회, 컴파일 위험 낮음, 레인 준수.
+- (C → 선택 과제 T17): R82-1 캐시 테스트가 캐시 존재·non-null 교체 무효화를 증명하지 못함, R82-2 캐시 키에 설정 세대 없음(실사용 영향 없음), R82-3 양성 블록을 건너뛸 때 마지막 Info 과장, R82-4 폰 클래스 조건·`ev` 필터 포함 미단언, R82-6(기존) 오디오 JSON 키 대소문자 C++/Python 불일치. R82-5(문서)는 이 커밋에서 반영(D-021 진행 기록 (2) 문구, WP-19 결과 23번 완료형).
+- 설계 리뷰: 품질 가설 변화 없음, 새 D 번호 없음. GASP 폰에 ABP 로스터를 적용하면 무음이 아니라 거리 발소리가 나서 R79의 품질 결함이 해소된다.
+
+**병합**: 오케스트레이터 결정(D-019). main(#83·#80 포함)을 병합한 뒤 이 커밋으로 반영했다. 위 "병합 시 반영 — T15"의 "전체 UE 게이트 차단"은 #83으로 원인이 해소되어 PC 전체 36 재실행 대기로 옮겼다. STATUS 병행 트랙 WP-13 행, WP-19 결과 23번, `astra-tasks.md` T15·T17, DECISIONS D-021 진행 기록에 반영했다.
