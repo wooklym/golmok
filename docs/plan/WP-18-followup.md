@@ -265,3 +265,46 @@ Python ruff check/format103·pytest740 passed/77 skipped(33.05s)·check_repo·di
 **병합 전 리뷰(Opus 읽기 전용)**: BLOCKING·major 없음. 확인: 레인·hot-spot 준수, IMPLEMENT 28=28, 네임스페이스·unity·컴파일 위험 없음, T4 접촉면 수치(유리 남면 495 = 500 − BlockerThicknessCm/2, 벽 500, 캡슐 반지름 42 → FaceY 453/458)가 PR #41 실측과 일치, 교착 경로 없음, 1 s 변위 <5 cm·접촉면 ±30 cm 단언 의미 불변, T6 파일 보존 경로(StopRecording만 파일을 씀) 확인, T7 경고가 결과를 바꾸지 않음. (B) 3건은 RHI 실행 push에 반영: R52-1 경고 문구에 `walk_01` 경로 명시·주석 "EndPlay"→"Deinitialize", R52-2 유리 면을 `Zone->BlockerThicknessCm`에서 계산, R52-3 타임아웃 메시지에 y·면·속도 수치. 참고: 코스 4 성공 경로가 단언 전에 저장하는 기존 순서(R52-6), 세 수정은 아직 실행된 적 없음(R52-7 — RHI 실행에서 코스 0·1, 플래그 조합, 코스 4 강제 실패로 확인).
 
 **병합**: 오케스트레이터 결정(D-019), 헤드리스·CI 초록 기준. WP-18·V-11 상태 변동 없음(🟡 유지).
+
+
+## T7 RHI 실행·R52 보완·F4 (2026-09-30)
+
+이슈 #30 코멘트 5903520898(C-07 해소·T7 배정), main `99142bf` 기준 `astra/wp-18-zonewalk-rhi`. 코드 변경은 `Tests/GolmokCharacterRosterZoneWalk.cpp`만이며 RenderTest의 기존 조합 경고를 실제 실행으로 확인했다. 새 등록·런타임·공유 훅·에셋 변경 없음. 현재 main의 등록 수는 **32개**(과제의 28은 이전 시점 수치)이며 이 작업은 그대로 유지한다.
+
+- R52-1: 실패 경고에 `walk_01` 실제 경로 및 기존 파일 유무를 표시한다. 주석도 world-subsystem `Deinitialize`의 폐기로 바로잡았다. 실패 시 저장 명령을 보내지 않는다.
+- R52-2: 유리 접촉면을 `Zone->BlockerThicknessCm`의 절반으로 계산한다. 코스 0·1은 접촉면 ±5 cm **그리고** 속도 <1 cm/s에서만 1초 압박을 시작한다(기존 T7 조건 유지).
+- R52-3: 접촉 20 s 타임아웃 메시지에 y·face·수평 속도(cm/s)를 포함한다.
+- F4: W를 누른 이동 구간에서 다음 틱부터 `IsInputKeyDown`을 확인하고 소실이면 `input flushed (viewport focus lost)`로 즉시 실패한다. 입력 발행 프레임은 PlayerInput 처리 전이라 제외한다. 첫 RHI 시행에서 같은 프레임 검사 오탐을 발견했고 이 수정 후 코스 0·1이 통과했다.
+- 재현용 opt-in `-GolmokZoneWalkForceInputFlush`: 코스 4의 두 번째 waypoint에서 W 입력 후 0.25 s에 직접 `FlushPressedKeys()`를 호출한다. 평상시 및 다른 코스에는 영향이 없다. 실제 포커스 변경 대신 엔진 입력 flush 이후의 분기만 시험한다. 런북 §12에 백그라운드/포커스 ini 우회와 실패 판정 방법을 남겼다.
+
+### 실제 RHI 결과
+
+자체 worktree·UE5.8.3·D3D12 offscreen·실시간 PIE·합성 `L_ZoneTest06`, 실행 UTC 04:38~04:39. GUI 잠금이 없고 다른 UE 프로세스가 없음을 확인한 뒤 독점 생성한 잠금을 유지했고 완료 후 해제했다. 새 보안 창을 조작하지 않았다. 화면 품질/fps 판정은 하지 않았다.
+
+| 실행 | 결과 | 근거 |
+|---|---|---|
+| 코스 0 + RenderEvidence 플래그 | Success, 경고 1, 테스트 14.95 s | 우선순위 경고 1회; 압박 1초 변위 0 cm, 접촉 Y=452.89884 cm |
+| 코스 1 | Success, 경고 0, 테스트 16.26 s | 압박 1초 변위 0.00069 cm, 접촉 Y=457.89893 cm |
+| 코스 4 + 강제 flush | 의도된 Fail 1, 경고 2, 테스트 6.78 s | step1 입력 소실 오류; walk_01 경로 경고; Deinitialize에서 35샘플 discarded |
+
+정상 코스 PNG 3장씩 **6장**, 1014×550 디코딩 확인. 로컬 근거는 `Saved/Automation/T7RHI-course0-combo`, `T7RHI-course1`, `T7RHI-course4-flush`의 index.json 및 `Saved/Automation/WP06ZoneWalk/course0_7487648A4B9AA0B6E32BD0833735D2C8`, `course1_5C712A544E40CAA7C4EE5F976583DB0D`의 walk.txt·PNG다. 생성물은 커밋하지 않았다.
+
+기존 `Saved/Golmok/Paths/walk_01.json`은 전후 **61069 bytes**, SHA-256 `fea743b0ef4f9398528396de78fe9fc99e43b8f410628294c95119ed85f5362c`, mtime_ns `1790587719792403000`으로 모두 동일했다. 폐기 로그와 파일 보존을 확인했으며 잘린 녹화 파일은 만들지 않았다. 파일 미존재 경고 분기·20초 접촉 타임아웃·실제 창 포커스 전환·Sequence 플래그 조합은 별도 실행하지 않았다. 기존 코스 4 정상 저장 순서(R52-6)는 이번 범위 밖이다.
+
+검증 게이트: 최종 UE5.8.3 빌드 5.74 s 성공(엔진 Character.h의 기존 deprecated 경고). `test.ps1 -SetupDevLevel` 전체 32 Success(21 + 경고11), 실패0/notRun0, 178.34 s. 기본 RenderEvidence NOT EXECUTED 1건을 제외한 실제 실행은31개이며, opt-in RHI 근거는 위 별도 실행이다. pytest1029 passed/203 skipped/208 warnings(42.01 s), ruff check·format108·check_repo·diff check 통과. 로컬 g++ 없음, 교차검증은 CI. 열린 #21 pc/v08-animation과 변경 파일 겹침 없음. 소유자 결정 필요 없음; Opus ultracode 코드 리뷰 요청.
+
+### 병합 시 반영 — T7 RHI
+
+> STATUS Astra T7 메모: T7 RHI 완료. R52-1/2/3 경고·접촉면·타임아웃 진단 보완, F4 W 입력 소실 즉시 실패(입력 발행 다음 틱부터). D3D12 코스 0·1 성공, opt-in 조합 경고 확인, 코스 4 강제 flush 실패·35샘플 폐기·기존 walk_01 해시/mtime 보존 확인. WP-18/V-11 품질 판정 상태는 별도 PC 카드에 따른다.
+
+> astra-tasks T7 결과: RHI 보류 해소. 위 실행 완료, Opus ultracode 리뷰 후 병합. 코스 4 강제 실패는 의도된 음성 시험이며 정상 테스트 실패로 집계하지 않는다. 실제 포커스 전환과 20 s 타임아웃의 실험은 미실행.
+
+## 병합 기록 — T7 RHI PR [#72](https://github.com/wooklym/golmok/pull/72) (2026-09-30, 오케스트레이터 세션)
+
+**내용**: 위 "T7 RHI 실행·R52 보완·F4" 절 그대로다. 코드는 `Tests/GolmokCharacterRosterZoneWalk.cpp`만 바뀌었고 등록 수는 32로 같다. R52-1/2/3과 F4(이동 중 W 입력 소실 → 다음 틱부터 `input flushed (viewport focus lost)`로 즉시 실패)를 반영했다. 재현용 opt-in `-GolmokZoneWalkForceInputFlush`를 추가했다. D3D12 RHI 결과: 코스 0(+RenderEvidence 조합 경고 1회)과 코스 1이 성공했고, 1 s 압박 변위는 0 / 0.00069 cm였다. 코스 4 강제 flush는 의도된 음성 시험으로 step1에서 즉시 실패했고, 녹화 35샘플은 폐기됐으며 기존 `walk_01.json`의 크기·SHA-256·mtime은 그대로였다. Astra 보고: UE 5.8.3 빌드, 전체 32 Success, pytest·ruff·check_repo 통과.
+
+**병합 전 리뷰(Opus 5.5 읽기 전용, R72)**: (A) 0 · (B) 1 · (C) 5. 레인·핫스팟·공유 문서·등록 수·unity 빌드 위생 모두 문제없다. 입력 발행 프레임 오탐은 없다(검사는 `Now>StepAt`에서만). W를 의도적으로 떼는 경로는 모두 `Key(false)`로 `bKeyExpected`를 끈다. T6 보존 경로와 R52-2/3 수치(접촉 y 453/458 ↔ 실측 452.899/457.899)도 확인했다.
+- (B) **R72-1** 런북 §12 명령 블록에 코스별 필수 플래그(코스 0 `-GolmokCharacterRenderEvidence`, 코스 4 `-GolmokZoneWalkForceInputFlush`)가 없다. 블록을 복사해 `$course = 4`만 바꾸면 정상 코스 4가 `walk_01.json`을 덮어쓴다(R52-6 순서) → **T11**.
+- (C) R72-2 실패 문구가 원인을 포커스 상실로 단정한다(`W seen down since press`·경과 시간 추가 권장). R72-3 새 검사의 실행 근거는 코스 0·1과 코스 4 step1뿐이다 — **코스 2·3·5와 정상 코스 4는 새 검사로 아직 실행하지 않았다**(다음 RHI 실행에서 6코스 1회). R72-4 강제 flush 플래그를 코스 4 외 코스와 함께 주면 표시 없이 무시된다. R72-5 §12의 Astra 작업 트리 고정 경로, 유리면 식은 캡슐 중심 y, 에디터 PIE에서 ResX/ResY 미적용. R72-6 "기존 T7 조건"은 PR #52 리뷰 T4 조건이고, CI g++는 이 `.cpp`를 컴파일하지 않는다(컴파일 근거는 로컬 UE 빌드) → T11(선택).
+
+**병합**: 오케스트레이터 결정(D-019)으로, CI 10/10 초록과 (A) 없음을 기준으로 병합했다. WP-18·V-11 상태는 바뀌지 않는다(🟡 유지; 품질 판정은 V-11 PC 카드).
