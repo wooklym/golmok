@@ -401,3 +401,114 @@ def test_guard_constants_match_gasp_pure():
     # (and this test: with it False, DefaultGameplayTags.ini must stay local in both)
     assert check_repo.GASP_INI_COMMIT_ALLOWED is False
     assert gasp_pure.is_local_only("unreal/Golmok/Config/DefaultGameplayTags.ini")
+
+
+# ---- R81-1: the toplevel compare is os.path.samefile, not resolve() -------------------------------------
+
+
+def test_toplevel_compare_is_samefile_not_resolve(repo, tmp_path, monkeypatch):
+    """R81-1: two spellings whose strings and resolve() both differ, that only samefile calls the same folder
+    (a subst drive / junction on Windows). A symlink test cannot tell them apart: resolve() follows it too."""
+    alias = tmp_path / "subst-drive" / "repo"  # never created: resolve() keeps it, unlike repo
+    assert str(alias) != str(repo) and alias.resolve() != repo.resolve()
+    real_samefile = check_repo.os.path.samefile
+    calls = []
+
+    def samefile(a, b):
+        calls.append((str(a), str(b)))
+        if {str(a), str(b)} == {str(alias), str(repo)}:
+            return True
+        return real_samefile(a, b)
+
+    monkeypatch.setattr(check_repo.os.path, "samefile", samefile)
+    real = check_repo._git_paths
+    monkeypatch.setattr(
+        check_repo,
+        "_git_paths",
+        lambda root, *a: [str(alias) + "\n"] if a[0] == "rev-parse" else real(root, *a),
+    )
+    write(repo, "unreal/Golmok/Content/GASP/X.uasset")
+    (repo / ".gitignore").write_text("", encoding="utf-8")
+    (error,) = check_repo.check_gasp_guard(repo)  # checked, neither skipped nor a toplevel error
+    assert error.startswith("unreal/Golmok/Content/GASP/X.uasset: GASP 가드"), error
+    assert calls == [(str(alias), str(repo))]
+
+
+# ---- R81-2 / R81-3: add-gasp list forms, the matched name in the message ---------------------------------
+
+CVAR_LIST_FAILS = (
+    ('{"cvars":[{"name":"DDCvar.X","value":1}]}\n', "DDCvar.X"),
+    ('{"name":"DDCvar.X","DefaultValueInt":1}\n', "DDCvar.X"),
+    ('[{"name": "DDCvar.Y", "defaultValue": true}]\n', "DDCvar.Y"),
+    # json.dumps(sort_keys=True) with braces in the help text: "default" before and "name" after the "{"
+    (
+        '{"cvars": [{"default": 1, "help": "0 = off {legacy}, 1 = on", "name": "DDCvar.Foot.Mode", '
+        '"type": "int"}]}\n',
+        "DDCvar.Foot.Mode",
+    ),
+    ('{"cvars": [{"default": 1, "help": "a \\"{\\" b", "name": "DDCvar.Q", "type": "int"}]}\n', "DDCvar.Q"),
+    ('{"cvars": [\n  {\n    "help": "}",\n    "name": "DDCvar.Z",\n    "value": 2\n  }\n]}\n', "DDCvar.Z"),
+)
+
+
+@pytest.mark.parametrize(("text", "name"), CVAR_LIST_FAILS)
+def test_add_gasp_list_forms_fail_and_name_the_cvar(repo, text, name):
+    rel = "unreal/Golmok/Config/Golmok/copied.json"
+    write(repo, rel, text)
+    (error,) = check_repo.check_gasp_guard(repo)
+    assert error.startswith(f"{rel}:") and "GASP 가드" in error, error
+    assert f'"{name}"' in error and "({)" not in error, error  # R81-2: the name, not a lone "{"
+
+
+def test_add_gasp_list_line_is_the_object_line(repo):
+    rel = "unreal/Golmok/Config/Golmok/copied.json"
+    write(repo, rel, '{\n "cvars": [\n  {"help": "{", "name": "DDCvar.X", "value": 1}\n ]\n}\n')
+    (error,) = check_repo.check_gasp_guard(repo)
+    assert error.startswith(f"{rel}:3: GASP 가드"), error
+
+
+CVAR_OTHER_FORMS_FAIL = (
+    ('{"cvars": [["DDCvar.X", 1], ["DDCvar.Y", 0.5]]}\n', "DDCvar.X"),  # pair list
+    ('[ [ "ddcvar.x" , true ] ]\n', "ddcvar.x"),
+    ("DDCvar.FootPlacementMode 1\n", "DDCvar.FootPlacementMode"),  # console form (.txt)
+    ("; tuning\n  ddcvar.x -0.5\n", "ddcvar.x"),
+)
+
+
+@pytest.mark.parametrize(("text", "name"), CVAR_OTHER_FORMS_FAIL)
+def test_pair_list_and_console_forms_fail(repo, text, name):
+    rel = "unreal/Golmok/Config/Golmok/cvars.txt"
+    write(repo, rel, text)
+    (error,) = check_repo.check_gasp_guard(repo)
+    assert error.startswith(f"{rel}:") and "GASP 가드" in error and name in error, error
+
+
+CVAR_NAME_TEXTS_PASS = (
+    '{"cvars": ["DDCvar.X", "DDCvar.Y"], "note": "value: 1"}',  # a name list (D-021)
+    '{"name": "DDCvar.X", "values": "see ABP"}',
+    '{"name": "DDCvar.X"}, {"value": 1}',  # value in another object
+    '{"rows": [{"name": "Walk", "value": 1}], "cvar": {"name": "DDCvar.X"}}',
+    '{"help": "{\\"name\\": \\"DDCvar.X\\", \\"value\\": 1}"}',  # quoted inside a string
+    "cvars: DDCvar.X, DDCvar.Y\nDDCvar.X is set in the ABP (1 = on)\n",
+)
+
+
+@pytest.mark.parametrize("text", CVAR_NAME_TEXTS_PASS)
+def test_cvar_names_without_values_pass(repo, text):
+    write(repo, "unreal/Golmok/Config/Golmok/animation.json", text)
+    assert check_repo.check_gasp_guard(repo) == []
+
+
+def test_text_rule_is_linear_on_a_large_config(repo):
+    """Verify round: no catastrophic backtracking on a large JSON with many unclosed objects and strings."""
+    import time
+
+    rel = "unreal/Golmok/Config/Golmok/big.json"
+    chunk = '{"name": "DDCvar.X", "help": "' + "{" * 50 + '", "note": "\\"}" '
+    # one object with many string keys and no value key: overlapping alternatives (a "help" string or any
+    # character) would backtrack 2**20 ways per object, about 7 s for these three
+    many = '{"name": "DDCvar.X", ' + '"help": "a", ' * 20 + "}"
+    write(repo, rel, "[" + chunk * 4000 + many * 3 + "]")
+    start = time.perf_counter()
+    check_repo.GASP_TEXT_INI_FORMS.search((repo / rel).read_text(encoding="utf-8"))
+    assert time.perf_counter() - start < 2.0

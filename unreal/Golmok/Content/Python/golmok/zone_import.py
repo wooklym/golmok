@@ -73,6 +73,7 @@ MASTER_DEFAULT_NAME = "T_ZoneScanDefault"  # the masters' own default texture (n
 MASTER_DEFAULT_PX = 256  # >= the virtual texture tile size
 NULLRHI_FLAG = "-nullrhi"  # headless editor: texture sizes are not measurable (V-04b F1, runbook #4)
 HOW_NO_RHI = "merged by importer (size unverifiable without RHI)"
+HOW_SIZE_ZERO = "merged by importer (size {w}x{h})"  # with RHI, before the texture has data (R81-7)
 
 _warnings: list[str] = []  # messages of the zi.warn lines of the current import_assets() call
 _warned_once: set[str] = set()  # once-per-call warnings already given in the current import_assets() call
@@ -378,7 +379,11 @@ def _byproduct_classes() -> tuple:
 
 
 def _delete_assets(paths: list[str], keep: set[str]) -> list[str]:
-    """Delete the Material / MaterialInstanceConstant / Texture2D assets an import created besides `keep`."""
+    """Delete the Material / MaterialInstanceConstant / Texture2D assets an import created besides `keep`.
+    Returns the deleted keys; a failed delete gets no 'deleted' (zi.cleanup) line and is not returned. Only
+    _discard_failed_import warns about one (R69-11); the other callers leave it to the folder delete that
+    follows (_import_moved's scratch folder, _pack_udim_tiles' Textures/_tiles) or, on _import_in_place's
+    success path, to the cleanup step (_cleanup_folder) after the last import of the same run (R81-6)."""
     lib = unreal.EditorAssetLibrary
     classes = _byproduct_classes()
     deleted = []
@@ -390,7 +395,7 @@ def _delete_assets(paths: list[str], keep: set[str]) -> list[str]:
         if asset is None:
             continue
         if isinstance(asset, classes):
-            if lib.delete_asset(key):  # a failed delete is the caller's to report, never a "deleted" line
+            if lib.delete_asset(key):  # a failed delete is never a "deleted" line (see the docstring)
                 _log("zi.cleanup", asset=key)
                 deleted.append(key)
         else:
@@ -641,7 +646,8 @@ def _without_rhi() -> bool | None:
     -AllowCommandletRendering), None when SystemLibrary.get_command_line is not exposed (runbook #4, #40).
     Without RHI a texture's size comes from its source, and a merged UDIM then seems to report its first
     block (the tile size) [unverified on 5.8.3 source]: the size test cannot tell merged from unmerged, and
-    packing a merged texture again ends the editor (V-04b F1)."""
+    packing a merged texture again ends the editor (V-04b F1). Kept for tests and callers outside this module
+    (R81-7): _import_texture reads _no_rhi_reason() directly, for the WARNING's cause."""
     reason = _no_rhi_reason()
     return None if reason is None else bool(reason)
 
@@ -749,10 +755,11 @@ def _import_texture(tex: dict, asset_folder: str, reimport: bool, work: str) -> 
                 _warn(f"texture {tex['name']}: UDIM merge could not be verified by size (runbook #4)")
             elif no_rhi or 0 in size:
                 # V-04b F1: never pack on a size the editor cannot measure (a wrong pack is an engine assert)
-                how = HOW_NO_RHI
                 if no_rhi:  # R69-6: the cause, as the command line says it
+                    how = HOW_NO_RHI
                     why = f" without RHI ({reason})"
-                else:
+                else:  # R81-7: RHI is there; the size is not yet
+                    how = HOW_SIZE_ZERO.format(w=size[0], h=size[1])
                     why = f": the editor reports size {size[0]}x{size[1]} (no texture data yet)"
                 _warn(
                     f"texture {tex['name']}: UDIM merge not verifiable{why}; pack fallback skipped - check "

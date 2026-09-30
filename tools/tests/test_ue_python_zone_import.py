@@ -739,6 +739,26 @@ def test_zero_size_skips_udim_pack_fallback(monkeypatch, tmp_path, zone):
         "pack fallback skipped - check the texture in a GUI editor (runbook #4)"
     )
     assert result["warnings"] == [message]
+    # R81-7: with RHI the texture line names the size, not a missing RHI
+    facade = next(a for a in result["assets"] if a["asset"].endswith("T_facade"))
+    assert facade["detail"]["how"] == "merged by importer (size 0x0)"
+    assert (
+        f"zone_import: texture {FOLDER}/Textures/T_facade tiles=[1001, 1002, 1011] size=0x0 vt=on "
+        "(merged by importer (size 0x0))"
+    ) in fake.logged("log")
+    assert not [line for line in fake.logged("log") if "without RHI" in line]
+
+
+def test_zero_size_without_rhi_keeps_the_no_rhi_wording(monkeypatch, tmp_path, zone):
+    """R81-7: -nullrhi and a 0x0 size together: the cause is the missing RHI (one WARNING, as before)."""
+    fake = fake_unreal.install(monkeypatch, tmp_path, nullrhi=True)
+    monkeypatch.setattr(fake_unreal.FakeTexture2D, "_reported_size", lambda self: (0, 0))
+    zi = importlib.import_module("golmok.zone_import")
+    result = _run(zi, zone)
+    assert fake.calls_of("make_udim") == []
+    facade = next(a for a in result["assets"] if a["asset"].endswith("T_facade"))
+    assert facade["detail"]["how"] == "merged by importer (size unverifiable without RHI)"
+    assert [w for w in result["warnings"] if "without RHI (-nullrhi)" in w] == result["warnings"]
 
 
 @pytest.mark.parametrize(
