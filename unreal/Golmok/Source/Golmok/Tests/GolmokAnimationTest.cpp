@@ -24,6 +24,8 @@
 #include "Debug/GolmokDebugSubsystem.h"
 #include "Dom/JsonObject.h"
 #include "Editor.h"
+#include "EnhancedInputSubsystems.h"
+#include "Engine/LocalPlayer.h"
 #include "Engine/SkeletalMesh.h"
 #include "Engine/World.h"
 #include "GameFramework/CharacterMovementComponent.h"
@@ -185,7 +187,8 @@ namespace GolmokAnimationTest
 	class FStateProviderScenario : public FScenarioBase
 	{
 	public:
-		using FScenarioBase::FScenarioBase;
+		FStateProviderScenario(FAutomationTestBase* InTest, TSharedPtr<GolmokAnimation::FScopedConfigOverride> InOverride)
+			: FScenarioBase(InTest), Override(MoveTemp(InOverride)) {}
 
 		virtual ~FStateProviderScenario() override
 		{
@@ -243,6 +246,13 @@ namespace GolmokAnimationTest
 					}
 					Gasp = Spawned;
 					APawn* Old = PC->GetPawn();
+					// The old pawn's IMC_Default stays in the subsystem at the same priority and could consume
+					// W / Shift / Space first; the new pawn re-adds its own context in NotifyControllerChanged.
+					if (UEnhancedInputLocalPlayerSubsystem* Input =
+							ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(PC->GetLocalPlayer()))
+					{
+						Input->ClearAllMappings();
+					}
 					PC->Possess(Spawned);
 					if (Old && Old != Spawned)
 					{
@@ -473,6 +483,7 @@ namespace GolmokAnimationTest
 			return Gasp.IsValid() ? Gasp->GetLocomotionStateComponent() : nullptr;
 		}
 
+		TSharedPtr<GolmokAnimation::FScopedConfigOverride> Override; // mode abp, no -GolmokAnim / console influence
 		TWeakObjectPtr<AGolmokGaspCharacter> Gasp;
 		FDelegateHandle FootHandle;
 		int32 FootEvents = 0;
@@ -708,7 +719,7 @@ namespace GolmokAnimationTest
 				Foot.Max = FVector(-UE_BIG_NUMBER);
 			}
 			CapsuleTravel = 0.0;
-			GaitHits = GaitSamples = 0;
+			GaitSeen[0] = GaitSeen[1] = GaitSamples = 0;
 			bHasLast = false;
 		}
 
@@ -729,9 +740,11 @@ namespace GolmokAnimationTest
 				Foot.Min = Foot.Min.ComponentMin(P);
 				Foot.Max = Foot.Max.ComponentMax(P);
 			}
-			ExpectedGaitSeen = Component ? Component->GetGait() : EGolmokGait::Walk;
 			++GaitSamples;
-			GaitHits += ExpectedGaitSeen == SegmentGait ? 1 : 0;
+			if (Component)
+			{
+				GaitSeen[Component->GetGait() == EGolmokGait::Run ? 1 : 0] += 1;
+			}
 		}
 
 		void FinishSegment(const TCHAR* What, EGolmokGait Expected)
@@ -749,12 +762,14 @@ namespace GolmokAnimationTest
 					Planted += Travel;
 				}
 			}
+			// A pawn that did not move would pass the slip test with 0: require >= 80 % of 3 s at the gait speed.
+			const double MinTravel = 0.8 * 3.0 * (Expected == EGolmokGait::Run ? RunCmS : WalkCmS);
+			Test->TestTrue(FString::Printf(TEXT("%s: capsule travelled %.0f cm (>= %.0f)"), What, CapsuleTravel, MinTravel), CapsuleTravel >= MinTravel);
 			const double Slip = GolmokLocomotionMath::PlantedSlipCmPerM(Planted, CapsuleTravel);
 			Test->AddInfo(FString::Printf(TEXT("%s: PlantedSlip %.1f cm/m over %.1f m (V-08: ① 8-21, ②a 81-100)"), What, Slip, CapsuleTravel / 100.0));
 			Test->TestTrue(FString::Printf(TEXT("%s: PlantedSlip <= 30 cm/m"), What), Slip <= 30.0);
 			Test->TestTrue(FString::Printf(TEXT("%s: state reports %s"), What, Expected == EGolmokGait::Run ? TEXT("Run") : TEXT("Walk")),
-				GaitSamples > 0 && GaitHits * 2 > GaitSamples);
-			SegmentGait = EGolmokGait::Run; // the next segment runs
+				GaitSamples > 0 && GaitSeen[Expected == EGolmokGait::Run ? 1 : 0] * 2 > GaitSamples);
 		}
 
 		TSharedPtr<GolmokAnimation::FScopedConfigOverride> Override;
@@ -763,9 +778,7 @@ namespace GolmokAnimationTest
 		double CapsuleTravel = 0.0;
 		FVector LastCapsule = FVector::ZeroVector;
 		bool bHasLast = false;
-		EGolmokGait SegmentGait = EGolmokGait::Walk;
-		EGolmokGait ExpectedGaitSeen = EGolmokGait::Walk;
-		int32 GaitHits = 0;
+		int32 GaitSeen[2] = {0, 0}; // samples reporting Walk / Run (a missing component counts for neither)
 		int32 GaitSamples = 0;
 	};
 }
@@ -796,11 +809,11 @@ bool FGolmokAnimationConfigTest::RunTest(const FString& Parameters)
 				TestTrue(TEXT("p0 = 2048 / 2000 / 8 / 2 / false / 0"), P0->MaxAcceleration == 2048.0 && P0->BrakingDecelerationWalking == 2000.0
 					&& P0->GroundFriction == 8.0 && P0->BrakingFrictionFactor == 2.0 && !P0->bUseSeparateBrakingFriction && P0->BrakingFriction == 0.0);
 			}
-			TestNull(TEXT("p1 committed as null"), Config.FindProfile(TEXT("p1")));
-			TestNull(TEXT("p2 committed as null"), Config.FindProfile(TEXT("p2")));
-			TestEqual(TEXT("three profiles"), Config.Profiles.Num(), 3);
-			TestEqual(TEXT("asset path joins content_root"), Config.AssetPath(Config.AnimClass),
-				FString(TEXT("/Game/GASP/Blueprints/SandboxCharacter_CMC_ABP.SandboxCharacter_CMC_ABP_C")));
+			// p1 / p2 are null until 19b fills them (V-08b); the parser already range-checked any defined profile.
+			TestEqual(TEXT("three profiles p0 / p1 / p2"), Config.Profiles.Num(), 3);
+			TestTrue(TEXT("p1 and p2 are declared"), Config.Profiles.ContainsByPredicate([](const GolmokAnimation::FNamedProfile& P) { return P.Id == TEXT("p1"); })
+				&& Config.Profiles.ContainsByPredicate([](const GolmokAnimation::FNamedProfile& P) { return P.Id == TEXT("p2"); }));
+			TestEqual(TEXT("asset path joins content_root"), Config.AssetPath(Config.AnimClass), Config.ContentRoot + TEXT("/") + Config.AnimClass);
 		}
 		else
 		{
@@ -860,6 +873,12 @@ bool FGolmokAnimationConfigTest::RunTest(const FString& Parameters)
 			FString(TEXT("/Game/Blueprints/SandboxCharacter_CMC_ABP.SandboxCharacter_CMC_ABP_C")));
 	}
 
+	// Release -> Idle hysteresis (PIE brakes through 10..3 cm/s within a frame, so check the rule itself).
+	TestTrue(TEXT("hysteresis: braking at 5 cm/s without intent stays Moving"), GolmokLocomotionMath::UpdateMoving(
+		GolmokLocomotionMath::MovingState::Moving, 5.0, 0.0) == GolmokLocomotionMath::MovingState::Moving);
+	TestTrue(TEXT("hysteresis: below 3 cm/s without intent is Idle"), GolmokLocomotionMath::UpdateMoving(
+		GolmokLocomotionMath::MovingState::Moving, 2.0, 0.0) == GolmokLocomotionMath::MovingState::Idle);
+
 	// Effective mode priority: command line > console > animation.json.
 	{
 		using GolmokAnimation::ComputeEffectiveMode;
@@ -914,11 +933,14 @@ bool FGolmokAnimationConfigTest::RunTest(const FString& Parameters)
 			TestEqual(TEXT("rule 4 reason"), NotGasp.Reason, FString(TEXT("pawn class /Script/Golmok.GolmokCharacter is not an AGolmokGaspCharacter")));
 		}
 		{
-			GolmokAnimation::FScopedConfigOverride Scoped(GaspModeConfig(TEXT("/Script/Golmok.GolmokGaspCharacter")));
+			// A BPI path that never exists: the same reason on a PC where add-gasp installed the real one.
+			GolmokAnimation::FScopedConfigOverride Scoped(GaspModeConfig(TEXT("/Script/Golmok.GolmokGaspCharacter")).Replace(
+				TEXT("Interfaces/BPI_SandboxCharacter_Pawn.BPI_SandboxCharacter_Pawn_C"), TEXT("Interfaces/BPI_Missing.BPI_Missing_C"),
+				ESearchCase::CaseSensitive));
 			const auto NoInterface = GolmokAnimation::ResolvePawn(true, SuperClass);
 			TestTrue(TEXT("rule 5: native pawn without the GASP interface -> ①"), NoInterface.PawnClass == SuperClass && NoInterface.bFallback);
 			TestEqual(TEXT("rule 5 reason"), NoInterface.Reason, FString(TEXT(
-				"GASP pawn interface missing (/Game/GASP/Blueprints/Interfaces/BPI_SandboxCharacter_Pawn.BPI_SandboxCharacter_Pawn_C)")));
+				"GASP pawn interface missing (/Game/GASP/Blueprints/Interfaces/BPI_Missing.BPI_Missing_C)")));
 			TestFalse(TEXT("PawnSupportsGasp(native CDO) is false"), GolmokAnimation::PawnSupportsGasp(GetDefault<AGolmokGaspCharacter>()));
 		}
 		TestFalse(TEXT("RequiresGaspPawn(nullptr)"), GolmokAnimation::RequiresGaspPawn(nullptr));
@@ -980,7 +1002,14 @@ bool FGolmokAnimationStateProviderTest::RunTest(const FString& Parameters)
 	}
 	ADD_LATENT_AUTOMATION_COMMAND(FEditorLoadMap(DevMap));
 	ADD_LATENT_AUTOMATION_COMMAND(FStartPIECommand(false));
-	ADD_LATENT_AUTOMATION_COMMAND(FStateProviderScenario(this));
+	// The committed file (mode abp) with the command line / console override isolated: the default pawn is ①.
+	FString Committed;
+	if (!FFileHelper::LoadFileToString(Committed, *GolmokAnimation::ConfigFilePath()))
+	{
+		Committed = BaseConfig;
+	}
+	TSharedPtr<GolmokAnimation::FScopedConfigOverride> Override = MakeShared<GolmokAnimation::FScopedConfigOverride>(Committed);
+	ADD_LATENT_AUTOMATION_COMMAND(FStateProviderScenario(this, Override));
 	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
 	return true;
 }

@@ -84,7 +84,7 @@ python tools\scripts\check_repo.py
 
 3. 각 함수: `GetLocomotionStateComponent` → `GetLocomotionState`(또는 필드 게터) → GASP 구조체·열거형으로 변환해 반환. 열거형은 `Select`/`Switch on Enum`으로 **이름으로** 대응시키고 순서(바이트 값)에 기대지 않는다: `EGolmokMovementMode::OnGround/InAir`, `EGolmokGait::Walk/Run`, `EGolmokStance::Stand`, `EGolmokRotationMode::OrientToMovement`, `EGolmokMovingState::Idle/Moving`, 의도 `InputIntent`(Z = 0), 착지 `bJustLanded`·`LandVelocity`. GASP에만 있는 값(Sprint, Crouch, Strafe, 넘기 등)은 기본값을 돌려준다.
 4. §13 대안: (a) BPI가 GASP 전용 구조체를 요구하면 BP Make 노드로 만든다. (b) ABP가 BPI 밖에서 GASP 폰 클래스로 캐스트해 필수 값을 읽으면 무수정 원칙으로는 풀 수 없다 → 중단하고 오케스트레이터에 보고(B안·D-021 개정 검토). (d) C++ 네이티브 함수 이름을 BPI에 맞춰 흉내 내는 편법은 쓰지 않는다.
-5. 컴파일·저장(로컬). `golmok.anim mode gasp` 뒤 PIE를 다시 시작 → `golmok.anim status` `pawn: /Game/GolmokLocal/GASP/BP_GolmokCharacter_GASP.BP_GolmokCharacter_GASP_C`, HUD `anim: gasp p0 | ground walk idle | intent 0.00 | land -`.
+5. 컴파일·저장(로컬). `golmok.anim mode gasp` 뒤 PIE를 다시 시작 → `golmok.anim status` `pawn: /Game/GolmokLocal/GASP/BP_GolmokCharacter_GASP.BP_GolmokCharacter_GASP_C`, HUD `anim: gasp p0 | ground walk idle | intent 0.00 | land …`(스폰 낙하 착지 뒤 초·속도).
 
 ### A5. 발 이벤트
 - [ ] GASP 폴리 노티파이가 폰 쪽 인터페이스 함수를 부르면 그 구현에서 `GetLocomotionStateComponent → NotifyFootEvent(Kind, bLeft)`(`Step`/`Land`)를 부른다. 경로와 함수 이름을 §A9에 기록한다(T13이 이 경로로 발소리를 구동한다. 이중 재생 차단은 T13).
@@ -143,7 +143,7 @@ python tools\scripts\check_repo.py
 - [ ] 기존 `+DirectoriesToAlwaysStageAsUFS=(Path="../Config/Golmok")`가 `Config/Golmok/local/`(매니페스트의 GASP 프로젝트 절대 경로·해시, DDCvar JSON)도 패키지에 넣는다. DDCvar 등록에 필요하므로 의도된 동작이다. 다만 add-gasp를 돌린 PC의 패키지는 외부로 배포하지 않는다(GASP 콘텐츠 포함 — D-021 소유자 항목).
 
 ### B8. 결정 게이트
-- [ ] 통과: `animation.json` `mode: gasp`와 로스터 모드별 기본(T12)을 별도 커밋으로 바꾼다(D-021 진행 기록).
+- [ ] 통과: `animation.json` `mode: gasp`와 로스터 모드별 기본(T12)을 별도 커밋으로 바꾼다(D-021 진행 기록). 같은 커밋에서 `Golmok.Animation.Config`의 "committed mode is abp"와 `test_ue_config_animation.py`의 mode 단언을 gasp로 바꾼다.
 - [ ] 미통과: ① 기본 유지, ②는 옵션으로 두고 B안(GASP 데이터 + 우리 ABP)을 검토한다.
 
 ### B9. 결과 (V-15 PC 세션이 작성)

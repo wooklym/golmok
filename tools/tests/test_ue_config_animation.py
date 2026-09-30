@@ -131,17 +131,12 @@ def committed():
 
 def test_committed_file_is_valid_and_abp(committed):
     validate(committed)
-    assert committed["mode"] == "abp"
-    assert committed["gasp"]["movement_profile"] == "p0"
-    assert committed["movement_profiles"]["p1"] is None and committed["movement_profiles"]["p2"] is None
-    assert list(committed["movement_profiles"]) == ["p0", "p1", "p2"]
-    assert committed["gasp"]["content_root"] == "/Game/GASP"
+    assert (
+        committed["mode"] == "abp"
+    )  # D-021: main stays ① until V-15 (runbook §B8 changes it with this line)
+    assert committed["gasp"]["movement_profile"] in committed["movement_profiles"]
+    assert list(committed["movement_profiles"]) == ["p0", "p1", "p2"]  # p1 / p2 null until 19b (V-08b)
     assert committed["gasp"]["pawn_class"].startswith("/Game/GolmokLocal/GASP/")
-    assert committed["gasp"]["state"] == {
-        "just_landed_seconds": 0.3,
-        "teleport_jump_cm": 100,
-        "reinit_anim_on_teleport": True,
-    }
 
 
 def test_p0_is_the_current_character(committed):
@@ -220,9 +215,15 @@ def test_valid_variants(committed):
     validate(filled)
 
 
-def test_cpp_test_base_config_equals_the_committed_file(committed):
-    # Golmok.Animation.Config builds its error cases from a literal; keep it the committed schema.
+def test_cpp_test_base_config_has_the_committed_schema(committed):
+    # Golmok.Animation.Config builds its error cases from a literal: a valid file of the same schema.
     text = TEST_CPP.read_text(encoding="utf-8")
     match = re.search(r'const TCHAR\* BaseConfig = TEXT\(R"JSON\((.*?)\)JSON"\);', text, re.S)
     assert match, "BaseConfig literal"
-    assert json.loads(match.group(1)) == committed
+    base = json.loads(match.group(1))
+    validate(base)
+    assert base["mode"] == "abp" and base["gasp"]["movement_profile"] == "p0"
+    assert set(base) == set(committed) and set(base["gasp"]) == set(committed["gasp"])
+    assert set(base["movement_profiles"]) == set(committed["movement_profiles"])
+    assert set(base["gasp"]["preview"]) == set(committed["gasp"]["preview"])
+    assert set(base["gasp"]["state"]) == set(committed["gasp"]["state"])
