@@ -181,7 +181,10 @@ def _cases(base):
     )
     yield "just_landed 3", edit(lambda d: d["gasp"]["state"].update(just_landed_seconds=3))
     yield "teleport 5", edit(lambda d: d["gasp"]["state"].update(teleport_jump_cm=5))
-    yield "null profile selected", edit(lambda d: d["gasp"].update(movement_profile="p1"))
+    yield (
+        "null profile selected",
+        edit(lambda d: (d["movement_profiles"].update(p1=None), d["gasp"].update(movement_profile="p1"))),
+    )
     yield "unknown profile selected", edit(lambda d: d["gasp"].update(movement_profile="p9"))
     yield (
         "visual mesh alone",

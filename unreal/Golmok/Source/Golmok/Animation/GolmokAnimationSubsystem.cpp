@@ -316,7 +316,7 @@ bool UGolmokAnimationSubsystem::ApplyPreview(bool bOn, FString& OutMessage)
 	{
 		Character->ClearVisualOverride();
 	}
-	OutMessage = FString::Printf(TEXT("preview on: %s + %s, %s (debug only; the next roster apply replaces it)"), *SourcePath, *AnimPath, *Visual);
+	OutMessage = FString::Printf(TEXT("preview on: %s + %s, %s (debug only, not saved; use golmok.anim preview off before a roster change: a roster apply replaces only the source mesh)"), *SourcePath, *AnimPath, *Visual);
 	return true;
 }
 

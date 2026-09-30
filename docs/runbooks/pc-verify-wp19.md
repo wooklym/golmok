@@ -12,11 +12,11 @@
 
 | 파일 | 내용 |
 |---|---|
-| `Source/Golmok/Animation/GolmokLocomotionMath.h` (새) | 순수 규칙(`<cmath>`·`<array>`만): `ClassifyGait`(|MaxWalkSpeed − Run| ≤ 0.5 → Run), `MapMovementMode`(Falling만 InAir), `Intent`(수평 가속도 ÷ 최대 가속도, 길이 ≤ 1, 0.05 미만 0), `UpdateMoving`(10 cm/s 이상 또는 의도 → Moving, 3 cm/s 미만·의도 0 → Idle), `LandingWindow`, `IsTeleportJump`, `ValidateProfile`·`ValidateStateSettings`, `PlantedTravelCm`·`PlantedSlipCmPerM`(V-08 표 A). g++ 교차검증 `tools/tests/test_ue_locomotion_math.py` |
+| `Source/Golmok/Animation/GolmokLocomotionMath.h` (새) | 순수 규칙(`<cmath>`·`<array>`만): `ClassifyGait`(\|MaxWalkSpeed − Run\| ≤ 0.5 → Run), `MapMovementMode`(Falling만 InAir), `Intent`(수평 가속도 ÷ 최대 가속도, 길이 ≤ 1, 0.05 미만 0), `UpdateMoving`(10 cm/s 이상 또는 의도 → Moving, 3 cm/s 미만·의도 0 → Idle), `LandingWindow`, `IsTeleportJump`, `ValidateProfile`·`ValidateStateSettings`, `PlantedTravelCm`·`PlantedSlipCmPerM`(V-08 표 A). g++ 교차검증 `tools/tests/test_ue_locomotion_math.py` |
 | `Source/Golmok/Animation/GolmokLocomotionStateComponent.{h,cpp}` (새) | `UGolmokLocomotionStateComponent`: `TG_PrePhysics`(CMC 뒤, `GetMesh()` 앞) 틱에서 `FGolmokLocomotionState` 계산·캐시, `BlueprintPure`·`BlueprintThreadSafe` 게터(복사만), `LandedDelegate`·`MovementModeChangedDelegate`(`OnRegister`/`OnUnregister`), 텔레포트 감지 → 다음 틱 `GetMesh()->InitAnim(true)`, `NotifyFootEvent`(BlueprintCallable) → 네이티브 `OnFootEvent` |
 | `Source/Golmok/Animation/GolmokGaspCharacter.{h,cpp}` (새) | `AGolmokGaspCharacter : AGolmokCharacter`(19b BP의 C++ 부모): 컴포넌트, 시각 메시 슬롯 `VisualMesh`(`GetMesh()`의 자식, 기본 비어 있음), `SetVisualOverride`/`ClearVisualOverride`, `PostInitializeComponents`에서 `gasp.movement_profile` 적용 |
 | `Source/Golmok/Animation/GolmokAnimationConfig.{h,cpp}` (새) | namespace `GolmokAnimation`: `animation.json` 엄격 파서, 유효 모드(명령줄 > 콘솔 > 파일), 폰 해결 규칙 1~6과 폴백 사유, 로스터 질의 `RequiresGaspPawn`/`PawnSupportsGasp`, DDCvar 파서·등록, 테스트용 `FScopedConfigOverride` |
-| `Source/Golmok/Animation/GolmokAnimationSubsystem.{h,cpp}` (새) | `UGolmokAnimationSubsystem`(Game·PIE): DDCvar 등록, 폴백 Warning 월드당 1회, `anim:` HUD 줄, GASP 폰 클래스 비동기 미리 로드, 콘솔 `golmok.anim status | mode <abp|gasp|config> | profile <id> | preview [off]` |
+| `Source/Golmok/Animation/GolmokAnimationSubsystem.{h,cpp}` (새) | `UGolmokAnimationSubsystem`(Game·PIE): DDCvar 등록, 폴백 Warning 월드당 1회, `anim:` HUD 줄, GASP 폰 클래스 비동기 미리 로드, 콘솔 `golmok.anim status \| mode <abp\|gasp\|config> \| profile <id> \| preview [off]` |
 | `Source/Golmok/Tests/GolmokAnimationTest.cpp` (새) | `Golmok.Animation.Config`·`.StateProvider`·`.Fallback`·`.GaspSmoke`(자동화 총수 32 → 36) |
 | `Source/Golmok/GolmokGameMode.{h,cpp}` (훅) | `GetDefaultPawnClassForController_Implementation` → `GolmokAnimation::ResolvePlayerPawnClass(…, Super 결과)` |
 | `Config/Golmok/animation.json` (새) | mode `abp`, `p0` = 현행 값, `p1`·`p2` = `null`, GASP 경로(일부 [추정] — §A7에서 확정) |
@@ -50,7 +50,7 @@ git pull
 ```
 - [ ] 컴파일 성공(경고는 기록). 실패하면 §C 표의 번호로 고치고 `WP-19: PC fix …` 커밋(핫스팟은 훅 줄만).
 - [ ] 첫 명령: 4개 전부 `Success`. `Golmok.Animation.GaspSmoke`는 GASP가 없으면 `[Info] GASP not installed — skipped (…)`. `Golmok.Animation.Fallback`은 기대 Warning 1개(`anim: falling back to ABP pawn (GASP pawn class missing — add-gasp / 19b (/Game/GolmokLocal/GASP/BP_Missing.BP_Missing_C))`)를 소비한다.
-- [ ] 두 번째 명령: **36개** 전부 `Success`(`pc-verify-wp12.md` §2와 같은 목록 + `Animation` 4개). `Golmok.Player.Movement`·`Golmok.Character.*`·`Golmok.Photo.*`·`Golmok.Audio.*`는 코드 변경 없이 종전과 같아야 한다(① 불변).
+- [ ] 두 번째 명령: **36개** 전부 `Success`(`pc-verify-wp12.md` §1 두 번째 명령과 같은 목록 + `Animation` 4개). `Golmok.Player.Movement`·`Golmok.Character.*`·`Golmok.Photo.*`·`Golmok.Audio.*`는 코드 변경 없이 종전과 같아야 한다(① 불변).
 - [ ] `StateProvider` 로그에 `[Error]`가 없고, `Info` 줄 `GASP pawn after p0: accel 2048/2048 braking 2000/2000 friction 8.00/8.00 factor 2.00/2.00 separate 0/0 braking friction 0.00/0.00 (pawn/CDO)`가 있다(§D #6 p0 = 엔진 기본값 확인). `W intent (…) length 1.000` 근처, 점프 apex 약 90 cm, `land velocity z` < −300.
 - [ ] `Saved/Logs/Golmok.log`에서 `StateProvider` 구간에 `Character mesh '' not found`가 **없다**(§C #14: 파생 C++ 폰이 `[/Script/Golmok.GolmokCharacter]` ini 값을 물려받는지). 있으면 §C #14 대안.
 - [ ] 에디터 PIE(L_Dev) 콘솔 `golmok.anim status` → 첫 줄 `mode abp (animation.json) | animation.json ok`, `pawn: /Script/Golmok.GolmokCharacter | last spawn: /Script/Golmok.GolmokCharacter`. HUD(F1)에 `anim: abp` 한 줄.
@@ -100,7 +100,7 @@ python tools\scripts\check_repo.py
 - [ ] pytest(`test_ue_config_animation.py`)·`check_repo.py` 통과 뒤 커밋 `WP-19: 19b 확정 값`.
 
 ### A8. 확인
-- [ ] `-GolmokAnim=gasp`(또는 `golmok.anim mode gasp`)로 PIE → `golmok.anim preview` → `preview on: … (debug only; the next roster apply replaces it)`. 매니(시각 메시)가 캡슐을 따라 걷고 달린다. `golmok.anim profile p1`·`p2`로 즉시 바뀐다(`profile p1: max_acceleration …`).
+- [ ] `-GolmokAnim=gasp`(또는 `golmok.anim mode gasp`)로 PIE → `golmok.anim preview` → `preview on: … (debug only, not saved; use golmok.anim preview off before a roster change …)`. **로스터를 바꾸기 전에 `golmok.anim preview off`를 먼저 한다**: 로스터 적용(`golmok.character`·빙의 변경)은 소스 메시(`GetMesh()`)만 바꾸므로 시각 메시·숨김·`AlwaysTickPose`가 남는다(19c T12가 `ClearVisualOverride`를 부르기 전까지). 매니(시각 메시)가 캡슐을 따라 걷고 달린다. `golmok.anim profile p1`·`p2`로 즉시 바뀐다(`profile p1: max_acceleration …`).
 - [ ] 텔레포트: `golmok.travel`(또는 포털) 직후 메시가 캡슐 위치에 다시 붙는다. `golmok.anim status`의 `teleports n reinit n`이 오른다. 히치(ms)를 기록한다(§D #7).
 - [ ] 헤드리스 `.\tools\ue\test.ps1 -Filter Golmok.Animation` → `GaspSmoke` `[Info] GASP installed: EXECUTED`, `walk 3 s: PlantedSlip ≤ 30 cm/m`, `run 3 s: PlantedSlip ≤ 30 cm/m`, 발 뼈 4개가 움직임, 상태가 Walk/Run을 보고. 값과 발 뼈별 planted travel을 §A9에 적는다.
 - [ ] `golmok.anim preview off` → 로스터가 현재 항목을 다시 적용(`preview off; roster: selected manny …`).

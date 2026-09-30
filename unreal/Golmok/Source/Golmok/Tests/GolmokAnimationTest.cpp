@@ -87,8 +87,11 @@ namespace GolmokAnimationTest
 			.Replace(TEXT("/Game/GolmokLocal/GASP/BP_GolmokCharacter_GASP.BP_GolmokCharacter_GASP_C"), PawnClass, ESearchCase::CaseSensitive);
 	}
 
-	/** The committed animation.json with "mode" forced to gasp (GaspSmoke); empty when it does not parse. */
-	FString CommittedConfigInGaspMode()
+	/**
+	 * The committed animation.json with "mode" set (and optionally gasp.movement_profile forced to p0), so the
+	 * tests keep their meaning after 19b fills p1 / p2 or picks another profile. Empty when the file does not parse.
+	 */
+	FString CommittedConfigWith(const TCHAR* Mode, bool bForceP0)
 	{
 		FString Text;
 		TSharedPtr<FJsonObject> Root;
@@ -101,7 +104,12 @@ namespace GolmokAnimationTest
 		{
 			return FString();
 		}
-		Root->SetStringField(TEXT("mode"), TEXT("gasp"));
+		Root->SetStringField(TEXT("mode"), Mode);
+		const TSharedPtr<FJsonObject>* Gasp = nullptr;
+		if (bForceP0 && Root->TryGetObjectField(TEXT("gasp"), Gasp) && Gasp && Gasp->IsValid())
+		{
+			(*Gasp)->SetStringField(TEXT("movement_profile"), TEXT("p0"));
+		}
 		FString Out;
 		const TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&Out);
 		return FJsonSerializer::Serialize(Root.ToSharedRef(), Writer) ? Out : FString();
@@ -802,7 +810,7 @@ bool FGolmokAnimationConfigTest::RunTest(const FString& Parameters)
 		if (TestTrue(TEXT("committed animation.json parses"), GolmokAnimation::ParseConfig(Text, Config, Error)))
 		{
 			TestTrue(TEXT("committed mode is abp"), Config.Mode == EMode::Abp);
-			TestEqual(TEXT("committed movement_profile"), Config.MovementProfileId, FString(TEXT("p0")));
+			TestNotNull(TEXT("selected movement_profile is defined"), Config.FindProfile(Config.MovementProfileId));
 			const GolmokAnimation::FMovementProfile* P0 = Config.FindProfile(TEXT("p0"));
 			if (TestNotNull(TEXT("p0 defined"), P0))
 			{
@@ -1002,9 +1010,10 @@ bool FGolmokAnimationStateProviderTest::RunTest(const FString& Parameters)
 	}
 	ADD_LATENT_AUTOMATION_COMMAND(FEditorLoadMap(DevMap));
 	ADD_LATENT_AUTOMATION_COMMAND(FStartPIECommand(false));
-	// The committed file (mode abp) with the command line / console override isolated: the default pawn is ①.
-	FString Committed;
-	if (!FFileHelper::LoadFileToString(Committed, *GolmokAnimation::ConfigFilePath()))
+	// The committed file with mode abp and profile p0 (the test compares p0 with the ABP pawn), command line /
+	// console override isolated: the default pawn is ①.
+	FString Committed = CommittedConfigWith(TEXT("abp"), true);
+	if (Committed.IsEmpty())
 	{
 		Committed = BaseConfig;
 	}
@@ -1048,7 +1057,7 @@ bool FGolmokAnimationGaspSmokeTest::RunTest(const FString& Parameters)
 	using namespace GolmokAnimationTest;
 	GolmokAnimation::FConfig Config;
 	FString Error;
-	const FString GaspText = CommittedConfigInGaspMode();
+	const FString GaspText = CommittedConfigWith(TEXT("gasp"), false); // the profile 19b selected
 	const bool bConfig = !GaspText.IsEmpty() && GolmokAnimation::ParseConfig(GaspText, Config, Error);
 	const bool bManifest = FPaths::FileExists(GolmokAnimation::ManifestFilePath());
 	UClass* Pawn = bConfig ? GolmokAnimation::LoadClassIfPresent(Config.PawnClass, nullptr) : nullptr; // wrong parent = error below

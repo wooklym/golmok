@@ -18,7 +18,8 @@ class UGolmokDebugSubsystem;
  *   golmok.anim status | mode <abp|gasp|config> | profile <id> | preview [off]
  *
  * mode is process-wide (a new PIE picks it up); profile / preview act on the current GASP pawn only (active
- * character view, not paused, not in photo mode), are not saved, and the next roster apply replaces the preview.
+ * character view, not paused, not in photo mode) and are not saved. A roster apply replaces only the source mesh
+ * (GetMesh()); the visual override stays until `golmok.anim preview off` (19c T12 calls ClearVisualOverride).
  */
 UCLASS()
 class GOLMOK_API UGolmokAnimationSubsystem : public UWorldSubsystem

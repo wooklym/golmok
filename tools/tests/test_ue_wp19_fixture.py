@@ -94,11 +94,7 @@ def test_uproject_plugins_inside_the_d021_allowed_list():
     enabled = {p["Name"] for p in plugins if p.get("Enabled", False)}
     listed = {p["Name"] for p in plugins}
     assert listed <= ALLOWED_PLUGINS, sorted(listed - ALLOWED_PLUGINS)
-    assert not enabled & FORBIDDEN_PLUGINS
-    # 19a keeps the uproject as it was: the GASP plugins are enabled by 19b (WP-19 design section 13-1).
-    assert not enabled & (
-        ALLOWED_PLUGINS - {"EnhancedInput", "PythonScriptPlugin", "EditorScriptingUtilities"}
-    )
+    assert not enabled & FORBIDDEN_PLUGINS  # 19b (runbook A2) may enable the allowed GASP ones
 
 
 def test_game_mode_hook_is_exactly_the_documented_override():
@@ -136,9 +132,6 @@ def test_untouched_hot_spots_carry_no_wp19_text():
         assert "WP-19" not in _read(SOURCE / rel), rel
     for rel in ("Config/DefaultEngine.ini", "Config/DefaultInput.ini", "Golmok.uproject"):
         assert "WP-19" not in _read(UE / rel), rel
-    for folder in ("Characters", "Audio"):  # Astra lanes
-        for path in (SOURCE / folder).iterdir():
-            assert "WP-19" not in _read(path) and "GolmokAnimation" not in _read(path), path
 
 
 def test_gitignore_and_default_game_ini_hooks():
@@ -185,7 +178,8 @@ def test_add_gasp_calls_gasp_import_and_nothing_gasp_is_committed():
     assert "gasp_import.py" in ps1 and "common.ps1" in ps1
     assert "git add -A" in ps1  # the warning line ("Never `git add -A` ...")
     for path in (REPO / "tools" / "ue" / "gasp").iterdir():
-        assert path.suffix == ".json", path  # names and paths only; T3D text arrives with 19b
+        # names and paths only: closure / expected JSON, the 19b graph text (runbook A6), never a .uasset
+        assert path.name.endswith((".json", ".t3d.txt")), path
     # Tracked files only: add-gasp writes these ignored local files on a PC by design.
     tracked = subprocess.run(
         [

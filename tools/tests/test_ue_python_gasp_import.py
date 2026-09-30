@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import importlib
 import json
+import re
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -160,10 +161,16 @@ def test_compare_expected():
     )
 
 
-def test_committed_expected_is_null_until_19b():
+def test_committed_expected_is_null_or_a_verified_install():
+    # null until 19b records the first verified install (runbook A7); then all three are set together.
     data = json.loads(EXPECTED.read_text(encoding="utf-8"))
     assert data["schema_version"] == 1
-    assert data["digest"] is None and data["package_count"] is None and data["engine_version"] is None
+    values = (data["digest"], data["package_count"], data["engine_version"])
+    if data["digest"] is None:
+        assert values == (None, None, None)
+    else:
+        assert re.fullmatch(r"[0-9a-f]{64}", data["digest"]) and type(data["package_count"]) is int
+        assert isinstance(data["engine_version"], str) and data["engine_version"]
 
 
 # ---- pure: ini text ----------------------------------------------------------------------------------------
@@ -251,7 +258,7 @@ def test_closure_json_matches_animation_json():
     assert package(gasp["pawn_interface"]) in roots
     assert package(gasp["preview"]["source_mesh"]) in roots
     raw = json.loads(CLOSURE.read_text(encoding="utf-8"))["roots"]
-    assert raw[0]["status"] == "confirmed" and all(r["status"] == "estimated" for r in raw[1:])
+    assert raw[0]["status"] == "confirmed"  # V-08; 19b (A7) confirms the estimated ones
     with pytest.raises(ValueError):
         pure.parse_closure(
             {"schema_version": 1, "roots": [{"path": "/Game/GASP/X", "status": "confirmed", "note": ""}]}
