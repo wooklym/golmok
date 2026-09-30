@@ -1,0 +1,228 @@
+# WP-19 — GASP 모션 매칭 로코모션 통합 (D-021): 19a 클라우드 기반 / 19b PC GUI 바인딩 / 19c Astra 로스터·발소리
+
+상태: ⚪ 설계 확정(2026-09-30, Opus) · 착수 전 · 담당: 19a **Opus 5.5 ultracode**(Claude 레인), 19b PC 세션(Opus 5.5), 19c **ChatGPT Astra**(캐릭터·오디오 레인, 과제 번호 T12·T13은 병합 때 `astra-tasks.md`에 예약) · 선행 PC 실험 **V-08b** · PC 검증 **V-15**(`runbooks/pc-verify-wp19.md`).
+
+## 목표
+[D-021](../DECISIONS.md)의 ② GASP 모션 매칭 로코모션(`SandboxCharacter_CMC_ABP`, 무수정, 저장소 밖)을 **우리 C++ 캐릭터**(`AGolmokCharacter` 계열, CMC)로 구동한다. 이동 의미는 그대로 둔다. 걷기 180·달리기 500 cm/s와 로스터별 속도(WP-18 `SetMovementSpeeds`), 돌아서기(orient-to-movement, 540°/s), 점프 90 cm(JumpZ 420), CMC(Mover 이동 시스템 불채택)다. 바꿀 수 있는 것은 가감속뿐이고 값은 V-08b에서 정한다. ①(Manny + `ABP_Unarmed`)은 설정으로 고르는 상시 폴백이다. GASP가 없는 클론·CI·패키지에서도 빌드와 테스트가 통과해야 한다. 공개 저장소에는 GASP 콘텐츠를 넣지 않는다(Fab EULA §5(a)). 기본값을 ②로 바꾸는 것은 V-15 사전 등록 기준을 통과한 뒤다.
+
+## 분할 근거 (오케스트레이터 결정, D-019, 2026-09-30)
+- **19a 클라우드**: GASP 없이 만들고 시험할 수 있는 것 전부다. 상태 계산(순수 헤더), 상태 공급 컴포넌트와 C++ 폰, 모드 설정과 ① 폴백, 셋업 스크립트, 저장소 가드가 여기에 든다. D-021의 "발효 전에는 GASP 콘텐츠 없이 우리 코드·도구만"에 맞으므로 소유자 라이선스 재확인 전에 시작한다.
+- **19b PC GUI**: C++는 BP 에셋으로 정의된 인터페이스(`BPI_SandboxCharacter_Pawn`)를 구현하지 못한다[추정, §13]. 그래서 얇은 BP 서브클래스가 필요하고, V-08 기록상 인터페이스 함수 그래프는 파이썬으로 만들 수 없다. D-021 발효와 V-08b 결과 뒤에 한다.
+- **19c Astra**: 로스터(`Characters/`, `characters.json`)와 발소리(`Audio/`, `audio.json`)는 Astra 레인이다. 19a는 두 레인을 고치지 않고 §5·§14의 C++ 계약만 만든다. 19c는 19a 병합 뒤 main에서 시작한다.
+- 순서: V-08b ∥ 19a → (D-021 발효) 19b ∥ 19c → V-15.
+
+## 배경(코드에서 확인할 것)
+- `Player/GolmokCharacter`(핫스팟): 생성자 값은 RotationRate 540, `MaxWalkSpeed = WalkSpeed`, `MinAnalogWalkSpeed` 20, `BrakingDecelerationWalking` 2000, `JumpZVelocity` 420, `AirControl` 0.3, `MaxStepHeight` 25다. `MaxAcceleration`·`GroundFriction`·`BrakingFrictionFactor`는 엔진 기본값이다. 달리기는 `StartRun/StopRun`이 `MaxWalkSpeed`를 바꾸는 방식이다. 공개 게터 `GetWalkSpeed/GetRunSpeed`와 WP-18 훅 `SetMovementSpeeds`(달리기 상태 보존)가 있다. 액터 틱은 꺼져 있다. 메시·ABP는 `PostInitializeComponents`에서 private `ApplyCharacterVisuals`가 ini 경로로 넣는다.
+- `GolmokGameMode`(핫스팟): 생성자에서 `DefaultPawnClass = AGolmokCharacter`를 넣는다. `DefaultEngine.ini`의 `GlobalDefaultGameMode`가 이 C++ 클래스다(BP 게임 모드 없음).
+- `Characters/GolmokCharacterSubsystem`(Astra): `OnPossessedPawnChanged`마다 현재 항목(없으면 `default`)을 `Cast<AGolmokCharacter>` 폰에 적용한다. `GetMesh()` 메시·`SetAnimInstanceClass`·상대 변환·붐·FOV·`SetMovementSpeeds`를 바꾸고, 캡슐 크기가 바뀌면 `TeleportPhysics`로 옮긴다. ABP `TargetSkeleton`이 메시 스켈레톤과 다르면 거절한다(18a "같은 스켈레톤만"). 항목 키는 정확히 12개여야 한다(`Keys()`가 개수까지 비교). 필드를 더하려면 파서를 고쳐야 한다.
+- `Audio/GolmokFootstepComponent`(Astra): `UGolmokAmbienceSubsystem::PawnChanged`가 모든 `AGolmokCharacter`에 붙인다. 거리 기반(`stride_cm_by_character`)이고 트리거 `TriggerFootstep(bool bLanding)`은 노티파이 구동용으로 분리돼 있다.
+- 핫스팟을 피한 선례: 발소리 컴포넌트(위), HUD 줄 `UGolmokDebugSubsystem::AddExtraHudLineProvider`(WP-13 훅). 등록부는 `CONSOLE_COMMANDS`·`BUILD_CS_*`(`test_ue_wp09_fixture.py`)와 `CONVENTION_FOLDERS`(`test_ue_zone_fixture.py`)다. 자동화 총수 32는 `pc-verify-wp12.md` "두 번째 명령" 줄과 `test_ue_wp12_fixture.py`가 대조한다. `test_ue_wp05_fixture.py`는 `+DirectoriesToAlwaysCook=` 개수(2)를 단언한다.
+- V-08 사실([런북 §8](../runbooks/pc-verify-animation.md)): ②a(우리 폰 + GASP ABP 설정만)는 인터페이스가 없어 다리가 캡슐을 못 따라갔다(디딘 발 81~100 cm/m). ABP 폐포는 1,187 패키지·1,079 MB(폴리 오디오 278 포함)이고 폰까지 합치면 2,861이다. Migrate는 DDCvar 27개(`[/Script/Engine.DataDrivenConsoleVariableSettings] +CVarsArray`, 이름에 `DDCvar.`/`DDCVar.` 혼용)와 게임플레이 태그 39개(`+GameplayTagList`)를 옮기지 않는다. 또 GASP 경로 그대로 Content 루트에 떨어진다(`rename_assets` 실패). 스켈레톤은 UEFN이라 우리 `SK_Mannequin`과 다르다. 매니 메시는 GASP 런타임 리타깃(`BP_Manny` + `ABP_GenericRetarget` + IK Retargeter)으로 돌린다. ABP가 참조하는 모듈은 AnimationWarping·BlendStack·Chooser·CurveExpression·DrawDebugLibrary·Mover·MovieSceneAnimMixer·PoseSearch(+ MotionWarping·AnimationLocomotionLibrary)다. 같은 에디터 세션에서 GASP BP를 컴파일한 뒤 PIE를 띄우면 BP 게임 모드의 기본 폰이 C++ 기본값으로 스폰된다. `.gitignore` `[WP-19 hook]`(V-08 병합)은 `Content/`에서 `Golmok/`·`Python/`만 추적되게 한다.
+
+## 설계 (확정, 2026-09-30, Opus)
+
+### 1. 파일·클래스 (새 폴더 `Source/Golmok/Animation/`, Claude 레인)
+| 파일 | 내용 |
+|---|---|
+| `GolmokLocomotionMath.h` | 순수 헤더(엔진 헤더 없음, `<cmath>`·`<array>`만), §2 규칙 |
+| `GolmokLocomotionStateComponent.{h,cpp}` | `UGolmokLocomotionStateComponent`: 상태 계산·캐시, BlueprintPure 게터, 발 이벤트 델리게이트(§3) |
+| `GolmokGaspCharacter.{h,cpp}` | `AGolmokGaspCharacter : AGolmokCharacter`: 19b BP의 C++ 부모. 컴포넌트(기본 서브오브젝트), 시각 메시 슬롯(§5), 프로파일 적용(§6) |
+| `GolmokAnimationConfig.{h,cpp}` | namespace `GolmokAnimation`: `animation.json` 파싱(전부 아니면 아무것도), 유효 모드, 폰 클래스 해결과 폴백 사유, DDCvar 등록(§8), 로스터용 질의(§5) |
+| `GolmokAnimationSubsystem.{h,cpp}` | `UGolmokAnimationSubsystem : UWorldSubsystem`(Game·PIE): DDCvar 등록 호출, 콘솔 `golmok.anim`, HUD 줄, 폰 클래스 미리 로드, 미리보기 |
+- 유니티 빌드 규칙을 따른다. 파일 범위 도우미는 `GolmokAnimation` namespace에 두고 콘솔 객체는 `GCmdAnim`, 로그는 `LogGolmok`이다. `Golmok.Build.cs`는 바꾸지 않는다(D-021 조건 1: PoseSearch·Chooser·Mover 모듈 의존 금지, GASP는 에셋 참조로만).
+- `GolmokCharacter.{h,cpp}`와 `GolmokPlayerController`는 **고치지 않는다**. 필요한 값은 모두 공개 API로 읽는다. `GetWalkSpeed/GetRunSpeed`, CMC `MaxWalkSpeed`·`GetCurrentAcceleration`·`GetMaxAcceleration`·`MovementMode`·`Velocity`, `ACharacter::LandedDelegate`·`MovementModeChangedDelegate`다.
+
+### 2. 상태 계산 (`GolmokLocomotionMath.h`, g++ 교차검증)
+단위는 cm·s·도다. GASP 열거형을 흉내 내지 않고 우리 열거형을 둔다. GASP 쪽 매핑은 19b BP가 한다.
+- `ClassifyGait(MaxWalkSpeed, Walk, Run)`: |MaxWalkSpeed − Run| ≤ 0.5면 Run, 아니면 Walk다. WP-18 훅의 달리기 판정과 같아서 로스터 145/380·120/310에서도 성립한다. Sprint와 Crouch는 없다(Stance는 늘 Stand).
+- `MapMovementMode(int)`: Walking(1)·NavWalking(2)는 OnGround, Falling(3)은 InAir, 나머지는 OnGround(방어 코드, 게임에 없음).
+- `Intent(A, MaxAccel, Deadzone)`: 수평 가속도 ÷ 최대 가속도, 길이 ≤ 1, 0.05 미만이면 0. 게임패드 아날로그 크기를 보존한다.
+- `UpdateMoving(Prev, Speed2D, IntentLen)`: 10 cm/s 이상이거나 의도가 있으면 Moving, 3 cm/s 미만이고 의도가 0이면 Idle(히스테리시스).
+- `LandingWindow`: `OnLanded(Vz, Now)` 뒤 `just_landed_seconds`(기본 0.3 [추정, 19b에서 GASP 폰 값 확인]) 동안 `JustLanded`, `LandVelocity`를 보관한다.
+- `IsTeleportJump(Prev, Cur, Speed, Dt, Slack)`: 수평 이동이 Speed·Dt + Slack(`teleport_jump_cm` 100)을 넘으면 참이다(포털·`golmok.travel`·로스터 캡슐 보정).
+- `PlantedSlip`: V-08 표 A 정의를 그대로 쓴다(뼈 높이 ≤ 평지 최저 + 2.5 cm이고 캡슐이 땅 위일 때 디딘 발 수평 이동 ÷ 캡슐 이동 m). GaspSmoke 자동화와 V-15가 같은 식을 쓴다.
+- `ValidateProfile`(§6 범위).
+- 교차검증은 `tools/tests/fixtures/ue/locomotionmath_driver.cpp` + `test_ue_locomotion_math.py`다(`-Wall -Wextra -Wshadow -Werror -pedantic`, 표와 Python 참조 구현 무작위 대조, `test_ue_clock_math.py` 방식).
+
+### 3. 상태 공급 컴포넌트
+- 게임 스레드 틱(`TG_PrePhysics`, CMC 틱을 선행 조건으로, `GetMesh()` 틱이 이 컴포넌트를 선행 조건으로)에서 `FGolmokLocomotionState`(USTRUCT BlueprintType)를 계산해 캐시한다. 필드는 `MovementMode`, `Gait`, `Stance`, `RotationMode`, `MovingState`, `InputIntent`, `Acceleration`, `Velocity`, `Speed2D`, `bJustLanded`, `LandVelocity`, `bTeleportedThisFrame`이다. `RotationMode`는 늘 OrientToMovement이고 설정으로 바꿀 수 없다(D-021).
+- 게터는 캐시를 복사만 한다. ABP의 스레드 안전 갱신에서 불려도 계산하지 않는다. `GetLocomotionState()`와 필드별 BlueprintPure 게터를 둔다.
+- 델리게이트는 `OnRegister`에서 묶고 `OnUnregister`에서 푼다.
+- 텔레포트를 감지하면 `gasp.state.reinit_anim_on_teleport`(기본 true)일 때 다음 틱에 `GetMesh()->InitAnim(true)`를 부른다. Offset Root Bone이 옛 위치에 남는 것을 막기 위한 것이다[추정, 19b·V-15에서 효과와 히치 기록].
+- 발 이벤트: `NotifyFootEvent(EGolmokFootEvent Kind, bool bLeft)`(BlueprintCallable; 19b BP가 GASP 폴리 노티파이 경로에서 부름)와 네이티브 델리게이트 `OnFootEvent`를 둔다. 구독자가 없으면 동작이 바뀌지 않는다(19c T13이 구독).
+
+### 4. 모드·폰 선택·① 폴백
+- 유효 모드 우선순위: 명령줄 `-GolmokAnim=abp|gasp` > 콘솔 `golmok.anim mode`(에디터 프로세스 동안 유지, PIE를 다시 시작하면 적용) > `animation.json` `mode`. 커밋 기본은 `"abp"`다(D-021: V-15 전 main은 ①).
+- `GolmokGameMode` 훅이 `GetDefaultPawnClassForController_Implementation`에서 `GolmokAnimation::ResolvePlayerPawnClass`를 부른다. 규칙은 순서대로다. 실패하면 사유 한 줄을 월드당 1회 Warning으로 남기고 Super 결과(`AGolmokCharacter`)를 쓴다.
+  1. 모드가 abp이거나 플레이어 컨트롤러가 아니면 Super.
+  2. 설정 파싱 실패면 ①(사유 = 파서 오류).
+  3. `gasp.pawn_class`(soft class) 로드 실패면 ①("GASP pawn class missing — add-gasp / 19b").
+  4. `AGolmokGaspCharacter` 파생이 아니면 ①.
+  5. `gasp.pawn_interface`(BPI 클래스)가 로드되지 않거나 폰이 구현하지 않으면 ①. ②a 실패 모드를 막는 규칙이다.
+  6. 통과하면 그 BP 클래스.
+- BP 게임 모드를 쓰지 않고 스폰 때마다 soft path로 해결한다. 그래서 V-08의 "BP 컴파일 뒤 기본 폰 복귀" 함정을 피한다[추정, V-15 §5에서 확인]. 월드 서브시스템이 `Initialize`에서 폰 클래스를 비동기로 미리 로드한다.
+- 폴백은 폰 단위다. ①은 GASP 에셋·플러그인·DDCvar가 전혀 없어도 지금과 같은 코드 경로(`AGolmokCharacter`)다.
+
+### 5. 로스터(WP-18)와의 계약 — 19a는 `Characters/`를 고치지 않는다
+- 로스터는 계속 `GetMesh()`를 "ABP가 도는 메시"로 다룬다. GASP 항목에서 `GetMesh()`는 **소스**(UEFN 메시 + `SandboxCharacter_CMC_ABP`)다. 이 조합은 18a 스켈레톤 검사를 그대로 통과한다(V-08 ②a 로컬 항목과 같음).
+- 매니로 보이게 하는 리타깃은 `AGolmokGaspCharacter::VisualMesh`가 맡는다. `GetMesh()`의 자식 USkeletalMeshComponent이고 기본은 비어 있다.
+  - `bool SetVisualOverride(USkeletalMesh*, TSubclassOf<UAnimInstance>, FString& OutError)`: 시각 메시와 리타깃 ABP를 넣는다. `GetMesh()`는 렌더만 숨기고(`SetHiddenInGame`, 자식에 전파 안 함) `AlwaysTickPoseAndRefreshBones`로 포즈를 계속 만든다. 그림자는 시각 메시가 낸다.
+  - `void ClearVisualOverride()`: 원상 복구.
+  - [추정] `ABP_GenericRetarget`는 "Use Attached Parent"로 소스를 찾는다고 보고 자식으로 붙인다. 아니면 19b가 실제 방식(컴포넌트 태그 등)으로 PC fix한다. 타깃 스켈레톤이 GASP의 `UE5_Mannequins` 사본이면 시각 메시도 그 사본을 쓴다(같은 매니 아트).
+- 로스터가 쓸 질의(T12): `GolmokAnimation::RequiresGaspPawn(const UClass* AnimClass)`(설정 `gasp.anim_class`와 같거나 파생)와 `GolmokAnimation::PawnSupportsGasp(const APawn*)`(§4 규칙 4·5).
+- 19c 전의 동작: GASP 폰에도 로스터가 `default`(`manny`, `ABP_Unarmed`)를 적용하므로 ①처럼 보인다. 고장은 아니다. 19b 확인용으로 `golmok.anim preview`가 `gasp.preview`(소스 메시 + GASP ABP, 선택적 시각 메시)를 현재 GASP 폰에 직접 적용한다. 다음 로스터 적용(빙의 변경·`golmok.character`)이 이를 덮어쓴다(디버그 전용, 저장 안 함).
+
+### 6. 가감속 프로파일
+- `animation.json` `movement_profiles`에 `p0`(현행)·`p1`(중간)·`p2`(GASP)를 둔다. 필드와 허용 범위: `max_acceleration`(100~10000 cm/s²), `braking_deceleration_walking`(0~10000), `ground_friction`(0~20), `braking_friction_factor`(0~10), `use_separate_braking_friction`(bool), `braking_friction`(0~20).
+- `p0` = 2048·2000·8·2·false·0(현 생성자 값 + 엔진 기본값[추정, StateProvider 자동화가 `AGolmokCharacter` CDO와 같은지 단언]). `p1`·`p2`는 `null`로 커밋하고 V-08b A/B 뒤 19b가 채운다. `null` 프로파일을 고르면 파싱 오류이고 결과는 ①이다.
+- 적용: `AGolmokGaspCharacter::PostInitializeComponents`(Super 뒤)가 `gasp.movement_profile`을 CMC에 쓴다. ① 폰에는 적용하지 않는다(P0 그대로). 로스터는 속도만 바꾸므로 충돌하지 않는다. `golmok.anim profile <id>`는 현재 GASP 폰에 즉시 적용한다(A/B용, 저장 안 함).
+- 최고 속도·회전 속도·점프·회전 모드는 프로파일 대상이 아니다. 바꾸려면 D-021을 개정해야 한다.
+
+### 7. `Config/Golmok/animation.json` 스키마 (Claude 레인, 기존 `../Config/Golmok` UFS 스테이징)
+```json
+{
+  "schema_version": 1,
+  "mode": "abp",
+  "gasp": {
+    "content_root": "/Game/GASP",
+    "pawn_class": "/Game/GolmokLocal/GASP/BP_GolmokCharacter_GASP.BP_GolmokCharacter_GASP_C",
+    "pawn_interface": "Blueprints/Interfaces/BPI_SandboxCharacter_Pawn.BPI_SandboxCharacter_Pawn_C",
+    "anim_class": "Blueprints/SandboxCharacter_CMC_ABP.SandboxCharacter_CMC_ABP_C",
+    "preview": {"source_mesh": "Characters/UEFN_Mannequin/Meshes/SKM_UEFN_Mannequin.SKM_UEFN_Mannequin",
+                "visual_mesh": null, "visual_anim_class": null},
+    "movement_profile": "p0",
+    "state": {"just_landed_seconds": 0.3, "teleport_jump_cm": 100, "reinit_anim_on_teleport": true}
+  },
+  "movement_profiles": {"p0": {"max_acceleration": 2048, "braking_deceleration_walking": 2000, "ground_friction": 8,
+                               "braking_friction_factor": 2, "use_separate_braking_friction": false, "braking_friction": 0},
+                        "p1": null, "p2": null}
+}
+```
+- GASP 에셋 경로는 `content_root` 기준 상대 경로(앞 `/` 없음)다. `pawn_class`는 우리 로컬 BP라 절대 경로다. `anim_class` 폴더는 V-08에서 확인됐다. BPI·UEFN 메시 폴더는 기록이 없어 [추정] 값이고 19b가 실제 경로로 고친다(mode abp라 그 전에도 무해).
+- 검증 규칙은 C++ 파서와 pytest가 같다. 키 집합이 정확히 일치해야 하고 `mode` ∈ {abp, gasp}, `content_root` ∈ {`/Game/GASP`, `/Game`}(§8 대안)이다. 경로는 로스터와 같은 ASCII 형식이다. 프로파일은 범위 안이어야 하고 고른 프로파일은 null이 아니어야 한다. `state` 값은 범위 안(0.05~2 s, 20~1000 cm)이어야 한다.
+
+### 8. 셋업 스크립트 `add-gasp`, 매니페스트, DDCvar·태그 (로컬 전용)
+- `tools/ue/add-gasp.ps1 [-GaspProject C:\UE\GASP_58] [-Verify] [-Force]`(`add-mannequin.ps1` 패턴, `common.ps1`)를 둔다. 에디터 Python `Content/Python/golmok/gasp_import.py`는 얇은 `unreal` 어댑터이고 계산은 `gasp_pure.py`(클라우드 pytest)에 둔다. 폐포 루트는 `tools/ue/gasp/closure.json`에 원래 GASP 경로로 적는다. `/Game/Blueprints/SandboxCharacter_CMC_ABP`는 V-08에서 확인됐고, `ABP_GenericRetarget`·IK Retargeter·UEFN 메시는 [추정] 경로라 19b가 확정한다. GASP 폰 `SandboxCharacter_CMC`·레벨·MetaHuman은 루트가 아니다.
+- 단계:
+  1. GASP 프로젝트를 헤드리스로 열어(V-08 방식) 루트의 의존 폐포를 에셋 레지스트리로 구하고 `AssetTools.migrate_packages`(충돌 Skip)로 Golmok `Content`에 옮긴다. GASP 원본 프로젝트는 고치지 않는다.
+  2. 새 Golmok 헤드리스 세션에서 옮겨 온 최상위 폴더마다 `EditorAssetLibrary.rename_directory`로 `/Game/GASP/<폴더>`로 옮기고 리디렉터를 정리한 뒤 옛 경로 참조 0을 확인한다. V-08 `rename_assets` 실패 원인은 모른다[추정]. 실패하면 원래 경로에 두고 매니페스트 `content_root: "/Game"`, 종료 코드 2와 "animation.json content_root를 /Game으로" 안내를 낸다. 두 경우 모두 `.gitignore` 훅이 막는다.
+  3. 로컬 파일을 만든다(모두 git 무시). `Config/Golmok/local/gasp_manifest.json`에는 GASP 프로젝트 경로, 엔진 버전, `content_root`, 패키지별 경로·크기·sha256, 집계 digest, 생성 시각을 적는다. `Config/Golmok/local/gasp_ddcvars.json`에는 GASP `DefaultEngine.ini`의 `+CVarsArray` 27개(이름·형식·기본값·설명)를 옮긴다. `Config/Tags/GASP.ini`에는 GASP `DefaultGameplayTags.ini`의 `+GameplayTagList` 39개를 UE 추가 태그 ini 형식(`[/Script/GameplayTags.GameplayTagsList]`)으로 쓴다.
+  4. 검증(`-Verify` 단독 포함): 매니페스트의 패키지가 전부 있고 크기·해시가 같은지, ABP·BPI 클래스가 로드되는지, DDCvar 27·태그 39인지 본다. 커밋된 `tools/ue/gasp/expected.json`(집계 digest·패키지 수; 19b가 첫 검증 값으로 채우고 그 전에는 `null`)과 다르면 경고한다("GASP 갱신 — V-08b/V-15 재확인"; Fab §7(a) 취득 시점 조건 고정 대비). 마지막으로 `git status --porcelain --untracked-files=all unreal/Golmok`에 추가 가능한 GASP 경로가 있으면 실패한다.
+- DDCvar 등록: `UGolmokAnimationSubsystem::Initialize`가 `gasp_ddcvars.json`이 있으면 아직 없는 이름만 `IConsoleManager::RegisterConsoleVariable`로 등록한다. 엔진 DDCvar 설정이 이미 만든 것은 건너뛴다. 파일이 없으면 아무것도 하지 않는다. [추정] GASP ABP는 DDCvar를 일반 콘솔 변수로 읽는다. 19b에서 `DDCvar.FootPlacementMode` 값이 보이는지 확인한다. `DDCvar.PawnClass`·`VisualOverride`·`LocomotionSetupCMC`는 GASP 폰·레벨용이라 우리 폰에서는 쓰이지 않는다(등록은 무해).
+- 커밋 기본값: DDCvar·태그 **텍스트는 커밋하지 않는다**. GASP 설정 파일이 Fab "Content"인지는 소유자 사실 확인(R21-11-3) 대상이기 때문이다. "커밋 가능"으로 확인되면 `Default*.ini` 훅 섹션으로 옮기고 §9 가드 상수를 바꾸는 소형 후속으로 처리한다.
+
+### 9. 저장소 가드·쿡
+- `.gitignore` 기존 `[WP-19 hook]` 블록에 두 줄을 더한다: `unreal/Golmok/Config/Golmok/local/`, `unreal/Golmok/Config/Tags/GASP*.ini`. `Content/GASP/`·`Content/GolmokLocal/`은 이미 `Content/*` 규칙으로 무시된다.
+- `check_repo.py` 훅 `check_gasp_guard`(표준 라이브러리, `git ls-files` 서브프로세스). 루트가 git 작업 트리 최상위가 아니면 건너뛴다(기존 `test_clean_repo_passes` 유지).
+  - 추적 중(`ls-files`)이거나 추가 가능한(`ls-files --others --exclude-standard`) 파일이 `unreal/Golmok/Content/` 아래인데 `Golmok/`·`Python/` 밖이면 실패.
+  - `Config/Golmok/local/`, `Config/Tags/GASP*.ini`, `Config/DefaultGameplayTags.ini`가 추적 중이거나 추가 가능하면 실패.
+  - `Config/Default*.ini`에 `DDCvar.`(대소문자 무시)가 있으면 실패. 상수 `GASP_INI_COMMIT_ALLOWED = False`(소유자 확인 뒤 바꿈).
+- 쿡: soft path로만 쓰이는 GASP 에셋과 로컬 BP가 패키지에 들어가도록 `DefaultGame.ini` 끝 훅 섹션에 `+DirectoriesToAlwaysCook=(Path="/Game/GASP")`, `(Path="/Game/GolmokLocal")`를 둔다. 폴더가 없는 클론에서는 무해하다고 본다[추정, V-15 ① 패키지로 확인]. `test_ue_wp05_fixture.py`의 개수 단언은 2 → 4(`# [WP-19 hook]` 주석)로 바꾼다.
+
+### 10. 콘솔·HUD
+- `golmok.anim status | mode <abp|gasp|config> | profile <id> | preview [off]`(명령 1개). `status`는 유효 모드와 출처, 설정 오류, 해결된 폰 클래스와 폴백 사유, GASP 설치 상태(매니페스트·ABP·BPI 로드), DDCvar n/27과 태그 파일, 현재 폰 클래스, 상태 스냅샷, 프로파일과 CMC 값을 찍는다. `preview`·`profile`은 로스터와 같은 조건(활성 캐릭터 시점, 일시정지·포토 모드 아님)에서만 된다.
+- HUD 한 줄은 `AddExtraHudLineProvider`로 넣는다. 예: `anim: gasp p1 | ground run moving | intent 0.82 | land 0.12s -512`, `anim: abp`, `anim: abp (fallback: <사유>)`. `Debug/`는 고치지 않는다.
+
+### 11. 핫스팟 훅 (별도 커밋 `WP-19: hook <파일>`, 기존 줄 무수정)
+| 파일 | 내용 |
+|---|---|
+| `GolmokGameMode.h` | `};` 앞 `// [WP-19 hook] …` ~ `// [/WP-19 hook]` 안에 `virtual UClass* GetDefaultPawnClassForController_Implementation(AController* InController) override;` 한 줄 |
+| `GolmokGameMode.cpp` | include 블록 끝 `#include "Animation/GolmokAnimationConfig.h" // [WP-19 hook]`. 파일 끝 훅 블록에 정의 1개, 본문은 `return GolmokAnimation::ResolvePlayerPawnClass(InController, Super::GetDefaultPawnClassForController_Implementation(InController));` 한 줄 |
+| `.gitignore` | 기존 WP-19 블록에 두 줄(§9) |
+| `tools/scripts/check_repo.py` | `CHECKS` 바로 앞 훅 블록(가드 함수·상수), `CHECKS` 끝 `"gasp": check_gasp_guard,  # [WP-19 hook]` |
+| `Config/DefaultGame.ini` | 파일 끝 `; [WP-19 hook]` 섹션(쿡 두 줄) |
+| `test_ue_wp09_fixture.py` | `CONSOLE_COMMANDS` 끝 `"golmok.anim",  # [WP-19 hook]` |
+| `test_ue_zone_fixture.py` | `CONVENTION_FOLDERS += ("Animation",)  # [WP-19 hook]` |
+- 고치지 않는 핫스팟: `GolmokCharacter.{h,cpp}`, `GolmokPlayerController.{h,cpp}`, `Golmok.Build.cs`(`BUILD_CS_*` 그대로), `DefaultEngine.ini`, `DefaultInput.ini`, `pyproject.toml`, CI.
+- `Golmok.uproject` 플러그인은 19a에서 켜지 않는다. D-021 발효 전에 모든 빌드에 Experimental 플러그인(Mover 등)을 싣지 않기 위해서다(19b §13-1).
+
+### 12. 자동화·pytest (GASP 없는 CI·PC에서 통과)
+- `Tests/GolmokAnimationTest.cpp`(`#if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR`, 총 32 → 36, `pc-verify-wp12.md` 두 번째 명령 줄 갱신):
+  - `Golmok.Animation.Config`(PIE 없음): 저장소 `animation.json` 파싱 성공·mode abp·p0 값을 본다. 오류 사례(버전, 키 누락/추가, mode, 경로 형식, content_root, 범위, null 프로파일 선택)마다 결과가 바뀌지 않는지 본다. 해결 규칙 1~6을 본다: 없는 경로(규칙 3), `/Script/Golmok.GolmokCharacter`(규칙 4), `/Script/Golmok.GolmokGaspCharacter` + 없는 BPI(규칙 5)가 모두 ①과 정해진 사유 문구를 낸다. 명령줄·콘솔·설정 우선순위도 본다. 테스트 전용 `GolmokAnimation::FScopedConfigOverride`로 파일과 무관하게 돌린다.
+  - `Golmok.Animation.StateProvider`(L_Dev PIE, `Golmok.Player.Movement`처럼 `InputKey`): 네이티브 `AGolmokGaspCharacter`를 스폰·빙의한다(GASP 불필요). 정지는 Idle·OnGround, W는 Walk·Moving·의도 ≈ 전방 단위, Shift는 Run, `SetMovementSpeeds(145, 380)` 중에도 Run 유지, 놓으면 Idle(히스테리시스), Space는 InAir, 착지 때 `bJustLanded`와 `LandVelocity.Z` < −300, 0.3 s 뒤 거짓. p0 적용 뒤 CMC 값이 `AGolmokCharacter` CDO와 같다. `NotifyFootEvent` 1회에 `OnFootEvent` 1회. 이 폰에서도 걷기 180·달리기 500·점프 90 cm가 같다. 마네킹이 있으면 `SetVisualOverride(Manny, ABP_Unarmed)` 뒤 `GetMesh()` 숨김·시각 메시 보임, `Clear` 뒤 복구(없으면 Info).
+  - `Golmok.Animation.Fallback`(L_Dev PIE): 모드 gasp + 없는 `pawn_class`로 덮어쓰면 스폰 폰이 정확히 `AGolmokCharacter`이고, 기대 Warning 1개, 로스터 `manny` 적용, 이동 값 불변이다. 덮어쓰기라 GASP가 설치된 PC에서도 같다.
+  - `Golmok.Animation.GaspSmoke`: GASP가 없으면(매니페스트 없음 또는 폰 클래스 로드 실패) Info "GASP not installed — skipped"로 Success다. 설치된 PC에서는 해결된 BP 폰을 스폰하고 `preview`를 적용한 뒤 걷기 3 s·달리기 3 s를 돌린다. 애님 클래스가 `gasp.anim_class`, 발 뼈(`foot_l/r`, `ball_l/r`)가 움직임, `PlantedSlip` ≤ 30 cm/m(②a 81~100, ① 8~21 — 인터페이스 연결 회귀 방지), 상태 게터가 Walk/Run을 보고하는지 본다. 메시는 `AlwaysTickPoseAndRefreshBones`(-nullrhi 뼈 갱신 [추정]).
+- pytest:
+  - `test_ue_locomotion_math.py`(+ 드라이버).
+  - `test_ue_config_animation.py`: 스키마, mode abp, p0 == `GolmokCharacter.cpp` 생성자 값, p1/p2 null 허용.
+  - `test_ue_python_gasp_import.py`: `gasp_pure`의 폐포 필터, `/Game/X` → `/Game/GASP/X` 매핑, 매니페스트 digest 안정성·불일치 감지, `+CVarsArray` 파싱(3형식·`DDCVar` 대소문자), 태그 ini 변환. `fake_unreal`에 migrate/rename 기록을 더한다.
+  - `test_check_repo_gasp.py`: 임시 git 저장소로 가드 규칙 각각, 비 git 폴더는 건너뜀.
+  - `test_ue_wp19_fixture.py`: Animation 헤더 규약, GameMode 훅 블록의 정확한 내용, `Source/`에 PoseSearch·Chooser·Mover·GameplayCameras include와 Build.cs 의존이 없음, `.uproject` 플러그인 ⊆ D-021 허용 목록(GameplayCameras·ChaosMover·MoverExamples·Locomotor·SmartObjects·GameplayInteractions·MetaHuman·LiveLink·RigLogic·HairStrands 금지), `.gitignore` 줄, `add-gasp.ps1`가 `gasp_import`를 부름, 콘솔 등록, 자동화 4개 선언.
+
+### 13. 19b PC GUI 바인딩 (D-021 발효·V-08b 뒤, PC 세션, 브랜치 `pc/wp19b-gasp-binding`)
+1. `.uproject`에 V-08b `.uplugin` 표의 최소 플러그인을 켠다. 별도 커밋 `WP-19: plugins (Golmok.uproject)`이고 D-021 허용 목록 안이어야 한다(pytest가 막는다). 빌드 → `add-gasp.ps1` → `-Verify`.
+2. `/Game/GolmokLocal/GASP/BP_GolmokCharacter_GASP`(부모 `AGolmokGaspCharacter`, `.gitignore`로 로컬 전용)를 만든다. Class Settings에 `BPI_SandboxCharacter_Pawn`을 더하고, 각 함수가 `GetLocomotionState()` 값을 GASP 구조체·열거형으로 바꿔 돌려주게 한다. 열거형은 `Select`/`Switch`로 이름 대응시키고 순서에 기대지 않는다. 범위 밖 함수(넘기 등)는 기본값을 돌려준다. 먼저 BPI 함수 목록과 시그니처를 런북에 기록한다.
+3. GASP 폴리 노티파이가 폰 쪽 인터페이스를 부르면 그 함수에서 `NotifyFootEvent`를 부른다(이중 재생 차단은 T13).
+4. 함수 그래프를 Ctrl+C한 T3D 텍스트를 `tools/ue/gasp/BP_GolmokCharacter_GASP.t3d.txt`로 커밋한다. 우리가 만든 그래프이고 GASP 이름만 들어 있다. 다른 PC는 붙여넣기로 재현한다. `.uasset`은 R21-11-4(참조 에셋 커밋 가능 여부) 확인 전 커밋하지 않는다.
+5. `animation.json`에 GASP 경로를 확정하고, `preview` 시각 메시(리타깃), p1/p2(V-08b 값), V-08b 사전 등록 규칙이 고른 `movement_profile`을 넣는다. `expected.json` digest도 채운다. `status`, `preview`, GaspSmoke EXECUTED로 확인한다.
+- [추정] 대안: (a) BPI가 GASP 전용 구조체를 돌려줘야 하면 BP Make 노드로 만든다. (b) ABP가 BPI 밖에서 GASP 폰 클래스로 캐스트해 필수 값을 읽으면 무수정 원칙으로는 못 푼다. 그때는 오케스트레이터에 보고하고 B안(GASP 데이터 + 우리 ABP)이나 D-021 개정을 검토한다. (c) 리타깃이 부모 부착 방식이 아니면 §5 PC fix. (d) C++ 네이티브 함수 이름을 BPI에 맞춰 ProcessEvent로 흉내 내는 편법은 쓰지 않는다.
+
+### 14. 19c Astra 과제 (이슈 #30, 19a 병합 뒤 main에서; Opus 적대 코드 리뷰 + 설계 리뷰)
+- **T12 캐릭터 레인**:
+  - 항목에 선택 필드 `visual`(`mesh`·`anim_class`·`mesh_scale`)을 더한다. 엄격 키 파서, `docs/spec/characters.schema.json`, `test_ue_config_characters.py`를 함께 고친다.
+  - GASP 항목(예: `manny_gasp` 리타깃 매니, `uefn_gasp` 직접)은 `RequiresGaspPawn`이면 `PawnSupportsGasp` 폰에만 적용한다. 아니면 거절하고 기존 항목을 유지한다. 에셋이 없으면 로드 실패로 기존을 유지한다(18a 원칙). ABP 항목을 GASP 폰에 적용할 때는 `ClearVisualOverride`를 부른다.
+  - 모드별 기본 항목(예: 루트 `default_by_anim_mode`)을 둔다.
+  - 새 id의 `stride_cm_by_character`는 R63-3 계약대로 T13과 같은 PR에 넣거나 순서를 맞춘다.
+  - 기존 `Golmok.Character.*`는 GASP 없이 통과해야 한다(GASP 항목은 Info로 건너뜀). 4.5등신 리타깃(D-018)은 V-08b/c 결과를 따른다.
+- **T13 오디오 레인**: `footsteps.driver: distance|notify|auto`를 둔다. GASP 폰의 `OnFootEvent`를 구독해 노티파이 구동으로 바꾸고, 이벤트가 오면 거리 스테퍼를 멈추며, 착지는 `Land` 이벤트로 낸다. GASP 폴리를 끈다(방법은 V-08b §5 결과 [추정]). `Golmok.Audio.Footstep`은 GASP 없이 종전과 같아야 하고, 합성 이벤트 1개가 발소리 1개를 내며 거리 발소리와 겹치지 않아야 한다.
+
+### 15. PC 런북 `docs/runbooks/pc-verify-wp19.md`(A절 19b, B절 V-15) — 기준은 D-021 원문, 사후 변경 금지
+0. 전제: 19a·19b·19c 병합, D-021 발효, V-08b 드라이버·지표 스크립트 `tools/` 커밋, `add-gasp -Verify` 통과.
+1. 빌드와 자동화 전부 Success(GaspSmoke EXECUTED).
+2. 같은 드라이버로 S1~S7(패드가 있으면 S8)을 잰다. 비교 대상은 ①(매니 + `ABP_Unarmed`), ②c(통합본: 리타깃 매니·우리 카메라·선택 프로파일), ②b(참고: GASP 폰, 메시·카메라가 다름을 표기)다. 표 A·B·C와 녹화를 남긴다.
+3. 판정: ②c 합계 ≥ ① + 4 · ②c ≥ ②b − 2 · S1·S2 디딘 발 미끄러짐 ≤ ①의 1/2 · S3은 돌아서기로 측정 · 평균 fps 하락 ≤ 5 % 또는 ≥ 60 fps(1% low 기록). 채점은 시험 세션과 다른 Opus 세션이 순서를 섞은 녹화로 블라인드로 하고, 소유자 채점이 있으면 우선한다. 이동 의미 불변(180/500/90 cm, 로스터 145/380)은 자동으로 확인한다.
+4. 통합 확인(점수 밖, 실패하면 기본 전환 차단): 로스터 교체(abp↔gasp 항목), 포털 왕복, `golmok.travel` 뒤 메시–캡슐 어긋남(텔레포트 재초기화), 포토 모드 구도·keep-height, 80 cm 통로 관통 0, 발소리 동기·이중 재생 없음, 세이브 복원. Offset Root Bone 메시–캡슐 최대 거리는 기록한다.
+5. 에디터를 다시 열지 않고 BP 컴파일 직후 PIE를 띄워 폰 클래스가 BP인지 본다(V-08 함정).
+6. 폴백: `-GolmokAnim=abp`로 한 번, `Content/GASP`·`GolmokLocal`을 저장소 밖으로 옮긴 상태에서 mode gasp로 한 번 띄운다. 둘 다 ①, Warning 1, Movement 통과여야 한다.
+7. 패키지: Development·Shipping cook·실행(gasp/abp), 크기 증가, 태그·DDCvar 경고 0, S4 성능, 플러그인을 켠 ① 패키지 정상.
+8. 결정 게이트: 통과면 `animation.json` `mode: gasp`와 로스터 모드별 기본을 별도 커밋으로 바꾼다(D-021 진행 기록). 미통과면 ① 기본을 유지하고 ②는 옵션으로 두며 B안을 검토한다.
+
+### 16. 다른 WP 계약과의 충돌·위험
+- WP-18: ① 로스터가 빙의마다 `GetMesh()`를 덮어써 19c 전에는 GASP 폰도 ①로 보인다(§5 preview로 우회). ② 18a "같은 스켈레톤만"은 소스 메시에는 그대로 성립하지만 시각 메시에는 T12 스키마 확장이 필요하다(엄격 키). ③ 로스터 `mesh_scale`은 소스에 걸리고 시각 메시가 물려받는다. 축소 프록시에서 GASP 발 IK·보폭이 달라질 수 있다[추정, D-018 V-08b/c]. ④ 캡슐 크기 변경 텔레포트는 §3 감지 대상이다. ⑤ 새 로스터 id와 `stride_cm_by_character`(R63-3).
+- WP-12: 포토 모드는 캡슐 중심 3 m 구를 기준으로 하는데 Offset Root Bone은 메시를 캡슐에서 떼어 둔다(V-08 ②b 정지 뒤 발 98~175 cm). 구도 중심이 어긋날 수 있다[추정, V-15 §4]. 포토 폰 빙의 왕복은 로스터 재적용과 같은 경로라 T12 뒤 시각 메시도 복구돼야 한다.
+- WP-13: T13 전에는 거리 발소리와 GASP 폴리가 겹칠 수 있다[추정]. 그래서 V-15는 T13 뒤다.
+- WP-15: `golmok.travel`과 세이브 복원은 텔레포트다(§3). 모드는 설정이라 저장하지 않는다.
+- WP-05·기존 자동화: 기본이 ①이라 `Golmok.Player.Movement`·`Golmok.Character.*`·`Golmok.Photo.*`는 그대로 통과해야 한다.
+- D-003: 로직은 C++, BP는 인터페이스 구현 하나(불가피한 곳)다.
+
+### 17. [추정] 목록과 해소
+| # | 내용 | 해소 |
+|---|---|---|
+| 1 | C++는 BP 인터페이스를 구현할 수 없다 | 19b BP, §13 대안 |
+| 2 | BPI 함수·구조체 목록, ABP가 BPI·CMC 밖에서 폰을 읽지 않음 | 19b 2단계 첫 기록 |
+| 3 | 리타깃 ABP가 부모 부착으로 소스를 찾고 타깃은 GASP 매니 사본 | V-08b §3, 19b |
+| 4 | 헤드리스 `rename_directory`가 된다 | 19b `add-gasp`; 실패 시 `content_root: /Game` |
+| 5 | `Config/Tags/*.ini`가 로드·스테이징되고, JSON으로 등록한 DDCvar가 설정 DDCvar와 같게 동작 | 19b `status`, V-15 패키지 로그 |
+| 6 | p0 = 엔진 기본값 | StateProvider 자동화 |
+| 7 | 착지 창 0.3 s, 텔레포트 재초기화가 Offset Root Bone을 정리 | 19b, V-15 §4 |
+| 8 | 폴리 경로와 끄는 방법 | V-08b §5 → T13 |
+| 9 | 플러그인과 없는 쿡 폴더가 ①에 무해 | V-15 §7 |
+| 10 | 우리 속도(180, 로스터 145/380)에서 스트라이드 워핑 품질 | V-08b P0 측정, V-15 |
+
+### 18. 하지 않는 것
+넘기(traversal), GameplayCameras, Mover 폰·ChaosMover, MetaHuman, UAF, `MotionMatchMulti`, NPC. 뒷걸음/스트레이프 회전 모드, 웅크리기, 전력 질주. GASP 걷기 200·점프 높이·회전 속도 도입. GASP 에셋 수정과 커밋. 18b 최종 캐릭터·리타깃 에셋 제작. B안(우리 ABP). 비공개 에셋 저장소(소유자 결정). ② 기본값 전환(V-15 뒤).
+
+## 산출물
+- 19a:
+  1. `Source/Golmok/Animation/` 파일(§1)과 `Tests/GolmokAnimationTest.cpp`(자동화 4개).
+  2. `Config/Golmok/animation.json`.
+  3. `tools/ue/add-gasp.ps1`, `tools/ue/gasp/closure.json`·`expected.json`, `Content/Python/golmok/gasp_import.py`·`gasp_pure.py`.
+  4. 훅 커밋(§11), pytest 5개와 `fake_unreal` 확장, `pc-verify-wp12.md` 총수 줄.
+  5. `docs/runbooks/pc-verify-wp19.md`(A절 19b·B절 V-15), 이 문서 "결과", STATUS WP-19 행, ROADMAP 애니메이션 행, research/09 §7에서 이 문서 링크.
+- 19b: `.uproject` 플러그인 커밋, `animation.json` 확정 값, `expected.json` digest, T3D 텍스트, 런북 A절 결과, PC fix.
+- 19c: T12·T13 PR.
+
+## 완료 기준
+- 19a: 산출물이 전부 있고 ①이 종전과 같다(기존 자동화·런북 무수정 통과). GASP 없는 환경에서 새 자동화 4개가 Success다(GaspSmoke는 Info skip). pytest·ruff·check_repo·CI가 초록이고 적대 검증 1라운드를 반영한다. 상태는 🟡 코드 완료·PC 대기가 된다.
+- 19b: 런북 A절 통과(BP 바인딩, preview에서 GaspSmoke EXECUTED·`PlantedSlip` ≤ 30 cm/m), 확정 값 커밋.
+- WP-19 🟢: 19c 병합과 V-15 판정 기록. 통과든 미통과든 §15-8 결정 게이트대로 처리하면 완료다.
+
+## 주의
+- 핫스팟은 §11 훅만 별도 커밋으로 고친다. Astra 레인(`Characters/`, `Audio/`, `characters.json`, `audio.json`, 해당 테스트·스키마)은 고치지 않는다.
+- GASP 원본·수정본, DDCvar/태그 텍스트, GASP를 참조하는 `.uasset`은 커밋하지 않는다. 런북에도 `git add -A` 금지를 적는다. GASP 에셋 이름·경로 문자열(JSON·T3D·문서)은 커밋해도 된다.
+- 라이선스 판단을 새로 하지 않는다. 소유자 사실 확인(R21-11: NoAI 정의, 티어, ini 범위, 참조 에셋)이 오기 전 기본값은 "로컬 전용"이다.
+- 엔진 5.8.3 공개 API만 쓴다. 이름이 바뀐 API는 런북 불확실 API 표에 대안과 함께 적는다.
+- 세션 운영: Opus ultracode(구현 → 적대 검증 1라운드), 브랜치 규칙은 DEVELOPMENT-PLAN §7을 따른다. 착수 때와 PR 전에 `git diff --stat origin/main...origin/<branch>`로 `astra/*`·`pc/*`와 겹침을 확인한다(특히 `test_ue_wp09_fixture.py`, `.gitignore`, `DefaultGame.ini`, `pc-verify-wp12.md`).
+
+## 결과
+(비어 있음 — 19a 세션이 채운다)
