@@ -411,7 +411,7 @@ T2 digest 의존성, T4 이름 규칙(UE `INVALID_LONGPACKAGE_CHARACTERS`와 동
   - R79-2(a): 스펙 §13-3·§16·§17 8행과 런북 §A5·§D 8행의 "이중 재생 차단은 T13"을 "19b BP가 원본 GASP 발 폴리를 `footsteps.driver`와 무관하게 끄고 Step·Land만 `NotifyFootEvent`"로 고쳤다(오케스트레이터 결정, D-019). §A5에 폴리 종류 대응표·게임 스레드 조건(R79-6)을 더했다.
   - (C) R78-3 `FileNotFoundError` 런북 행, R78-4 폐포 1,187 대조 문구(리타깃 루트 몫), R78-6 `ls-files` 실패 분기 테스트(뮤테이션 `if False:`가 이제 잡힘), R78-10 §C #15 대안 문구.
   - pytest 1324 → **1326**.
-- **남긴 (C)**(다음 Claude 레인 push, 19b 전이면 좋음): R78-5 가드 구멍(Config 아래 ini가 아닌 텍스트·`unreal/Golmok` 밖 ini·이름을 바꿔 `Content/Golmok`에 넣은 GASP 에셋 — 의도적 우회만 해당), R78-7 `.git`이 있는데 toplevel 표기가 다르면(subst·정션) 조용히 건너뜀 → `os.path.samefile` 또는 실패, R78-8 플러그인 Content·`__ExternalActors__`를 쓰게 되면 허용 경로 추가(훅 주석 한 줄), R78-9 `GASP_INI_COMMIT_ALLOWED`와 `gasp_pure` 상수 동기화 주석, R78-11 D8 헤더 규칙을 엔진 헤더 이름 목록으로 좁힘, R78-12 커밋 순서 메모(내용 위반 없음). R78-5·7·8·9는 `check_repo.py` 훅 블록 안 수정이라 별도 훅 커밋으로 한다.
+- **남긴 (C)**(다음 Claude 레인 push, 19b 전이면 좋음): R78-5 가드 구멍(Config 아래 ini가 아닌 텍스트·`unreal/Golmok` 밖 ini·이름을 바꿔 `Content/Golmok`에 넣은 GASP 에셋 — 의도적 우회만 해당), R78-7 `.git`이 있는데 toplevel 표기가 다르면(subst·정션) 조용히 건너뜀 → `os.path.samefile` 또는 실패, R78-8 플러그인 Content·`__ExternalActors__`를 쓰게 되면 허용 경로 추가(훅 주석 한 줄), R78-9 `GASP_INI_COMMIT_ALLOWED`와 `gasp_pure` 상수 동기화 주석, R78-11 D8 헤더 규칙을 엔진 헤더 이름 목록으로 좁힘, R78-12 커밋 순서 메모(내용 위반 없음). R78-5·7·8·9는 `check_repo.py` 훅 블록 안 수정이라 별도 훅 커밋으로 한다. → [PR #81](https://github.com/wooklym/golmok/pull/81)에서 해소(R78-12는 조치 없음).
 - **병합**: [PR #78](https://github.com/wooklym/golmok/pull/78) → main(오케스트레이터 결정 D-019; 리뷰 전문 [R78](https://github.com/wooklym/golmok/pull/78#issuecomment-5909290591)). 위 "병합 시 반영(문안)"은 STATUS WP-19 행·마지막 갱신, ROADMAP 애니메이션 행에 옮겼다.
 
 ### 19a-2 후속 — 병합 리뷰 R78 남은 (C) (2026-09-30, Opus 5.5 ultracode, 세션 `session_018jS3GS3eQh6nV78bWyUb1m`, 브랜치 `claude/claude-lane-c-followups`) — 🟡 코드 완료(클라우드 게이트 통과, PC 영향 없음)
@@ -446,3 +446,4 @@ R78-5·7·8·9·11을 처리했다. 설계(§1~§18, D-021)와 ① 동작은 바
 **병합 시 반영(문안)**
 - STATUS WP-19 행 비고 끝에 `· R78 (C) 후속(R78-5·7·8·9·11) PR #<번호> 병합`.
 - 이 절 "19a-2 병합 리뷰 R78"의 "남긴 (C)" 끝에 `→ PR #<번호>에서 해소(R78-12는 조치 없음)`.
+- **병합**: [PR #81](https://github.com/wooklym/golmok/pull/81) → main(오케스트레이터 결정 D-019; 리뷰 전문 [R81](https://github.com/wooklym/golmok/pull/81#issuecomment-5910698240) — (A)·(B) 0, 원격 브랜치 56개 가드 오탐 0, 뮤테이션 23개 중 22개 검출). 남은 (C)는 다음 Claude 레인 push: R81-1 `samefile` 고정 테스트, R81-2 add-gasp 목록 매치 오류 문구(`({)`), R81-3 손으로 형식을 바꾼 값(`value` 키·쌍 목록·콘솔 형식·YAML·BOM 없는 UTF-16·`Config` 밖)은 리뷰 몫이라는 판단 문구 또는 패턴 확장, R81-5 커밋 순서 기록. WP-06 쪽은 R81-4·6·7.
