@@ -231,6 +231,9 @@ void UGolmokAmbienceSubsystem::Tick(float DeltaTime)
 
 void UGolmokAmbienceSubsystem::PlayFootstep(const FString& Set, bool bLanding)
 {
+#if WITH_DEV_AUTOMATION_TESTS
+	if (bLanding) ++LandingRequests; else ++FootstepRequests;
+#endif
 	LastFootstepSet = Config.Sets.Contains(Set) ? Set : TEXT("default");
 	if (!bReady || IsMuted()) return;
 	const TArray<FString>* Samples = Config.Sets.Find(LastFootstepSet);

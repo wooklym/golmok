@@ -138,6 +138,9 @@ def parse_config(data):
         raise ValueError(
             "footsteps.stride_scale_by_mesh: expected absent; superseded by stride_cm_by_character"
         )
+    driver = steps.get("driver", "auto")
+    if not isinstance(driver, str) or driver not in ("auto", "distance", "notify"):
+        raise ValueError("footsteps.driver: expected auto, distance or notify")
     strides = steps.get("stride_cm_by_character", {})
     if not isinstance(strides, dict):
         raise ValueError("footsteps.stride_cm_by_character: expected object")
