@@ -60,9 +60,14 @@ bool UGolmokFootstepComponent::UsesNotifyDriver() const
 		CachedAnimClass.Reset(); bAnimClassCached = true; bCachedRequiresGasp = false;
 		return false;
 	}
-	if (!bAnimClassCached || CachedAnimClass.Get() != AnimClass)
+	const uint32 Generation = GolmokAnimation::GetModeSourceGeneration();
+	if (!bAnimClassCached || CachedAnimClass.Get() != AnimClass || CachedModeGeneration != Generation)
 	{
 		CachedAnimClass = AnimClass;
+		CachedModeGeneration = Generation;
+#if WITH_DEV_AUTOMATION_TESTS
+		++AnimContractEvaluations;
+#endif
 		bCachedRequiresGasp = AnimClass && GolmokAnimation::RequiresGaspPawn(AnimClass);
 		bAnimClassCached = true;
 	}

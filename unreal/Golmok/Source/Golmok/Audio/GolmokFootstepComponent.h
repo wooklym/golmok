@@ -21,6 +21,9 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Golmok|Audio")
 	bool UsesNotifyDriver() const;
 	uint64 GetFootEventCount() const { return FootEventCount; }
+#if WITH_DEV_AUTOMATION_TESTS
+	uint32 GetAnimContractEvaluationsForTest() const { return AnimContractEvaluations; }
+#endif
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 	void TriggerFootstep(bool bLanding);
 	static FString SurfaceDiagnostic(const FGolmokAudioConfig& Config, int32 Surface);
@@ -33,6 +36,10 @@ private:
 	FDelegateHandle FootEventHandle;
 	uint64 FootEventCount = 0; // Valid Step/Land events received, including events filtered out by driver/pause/possession.
 	mutable TWeakObjectPtr<const UClass> CachedAnimClass;
+	mutable uint32 CachedModeGeneration = 0;
+#if WITH_DEV_AUTOMATION_TESTS
+	mutable uint32 AnimContractEvaluations = 0;
+#endif
 	mutable bool bAnimClassCached = false, bCachedRequiresGasp = false;
 	GolmokAudioMath::DistanceStepper Stepper;
 	FString LastRosterId;

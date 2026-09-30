@@ -19,6 +19,16 @@ namespace GolmokAudio
 			if (!bValid) Error = FString::Printf(TEXT("audio.json %s: expected %s"), *Field(Key), Expected);
 			return bValid;
 		}
+		// Reject case aliases before UE's case-insensitive lookup. Preserve unrelated extension keys.
+		bool KeyCase(std::initializer_list<const TCHAR*> Names) const
+		{
+			if (!Valid()) return false;
+			for (const auto& Pair : Data->Values)
+				for (const TCHAR* Name : Names)
+					if (Pair.Key.ToView().Equals(Name, ESearchCase::IgnoreCase)
+						&& !Check(Pair.Key.ToView().Equals(Name, ESearchCase::CaseSensitive), FString(*Pair.Key), Name)) return false;
+			return true;
+		}
 		bool Valid() const { return Check(Data.IsValid(), TEXT(""), TEXT("object")); }
 		FConfigReader Child(const TCHAR* Key) const
 		{
@@ -70,6 +80,7 @@ namespace GolmokAudio
 		if (!FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Json), RootObject) || !RootObject.IsValid())
 		{ Error = TEXT("audio.json $: expected valid JSON object"); return false; }
 		const FConfigReader Root{RootObject, TEXT(""), Error};
+		if (!Root.KeyCase({TEXT("schema_version"), TEXT("master_volume"), TEXT("crossfade_seconds"), TEXT("pause_policy"), TEXT("photo_mute_fade_seconds"), TEXT("crossfade_seconds_by_state"), TEXT("assets"), TEXT("ambience"), TEXT("preset_states"), TEXT("footsteps")})) return false;
 		FGolmokAudioConfig Next;
 		double Version = 0; FString Pause;
 		if (!Root.Number(TEXT("schema_version"), Version, 1, 1)
@@ -82,7 +93,7 @@ namespace GolmokAudio
 		if (Root.Data->HasField(TEXT("crossfade_seconds_by_state")))
 		{
 			const auto Durations = Root.Child(TEXT("crossfade_seconds_by_state"));
-			if (!Durations.Valid()) return false;
+			if (!Durations.KeyCase({TEXT("outdoor_day"), TEXT("outdoor_night"), TEXT("interior")})) return false;
 			for (const auto& Pair : Durations.Data->Values)
 			{
 				const FString Key(*Pair.Key); double Seconds = 0;
@@ -97,7 +108,7 @@ namespace GolmokAudio
 		for (const auto& Pair : Assets.Data->Values)
 		{
 			const auto Item = Assets.Child(*Pair.Key);
-			if (!Item.Valid()) return false;
+			if (!Item.KeyCase({TEXT("asset"), TEXT("loop"), TEXT("gain"), TEXT("title"), TEXT("author"), TEXT("source_url"), TEXT("verified"), TEXT("license"), TEXT("changes"), TEXT("license_url"), TEXT("placeholder")})) return false;
 			FGolmokAudioAsset Asset;
 			FString Title, Author, Source, License, LicenseUrl, Changes, Verified; double Gain = 0; bool bPlaceholder = false;
 			if (!Item.String(TEXT("asset"), Asset.Path)
@@ -123,6 +134,8 @@ namespace GolmokAudio
 		const auto Presets = Root.Child(TEXT("preset_states"));
 		const auto Steps = Root.Child(TEXT("footsteps"));
 		if (!Ambience.Valid() || !Ambience.Check(Ambience.Data->Values.Num() == 3, TEXT(""), TEXT("three ambience states")) || !Presets.Valid() || !Steps.Valid()) return false;
+		if (!Ambience.KeyCase({TEXT("outdoor_day"), TEXT("outdoor_night"), TEXT("interior")})
+			|| !Steps.KeyCase({TEXT("driver"), TEXT("walk_stride_cm"), TEXT("run_stride_cm"), TEXT("run_threshold_cm_s"), TEXT("teleport_threshold_cm"), TEXT("pitch_range"), TEXT("volume_range"), TEXT("landing"), TEXT("stride_scale_by_mesh"), TEXT("stride_cm_by_character"), TEXT("sets"), TEXT("surface_sets")})) return false;
 		for (const TCHAR* Name : {TEXT("outdoor_day"), TEXT("outdoor_night"), TEXT("interior")})
 		{
 			FString Key;
@@ -158,7 +171,7 @@ namespace GolmokAudio
 				for (const TCHAR C : Id) if (!(C >= 'a' && C <= 'z') && !(C >= '0' && C <= '9') && C != '_') bValidId = false;
 				if (!Strides.Check(bValidId, Id, TEXT("character id [a-z][a-z0-9_]{0,47}"))) return false;
 				const auto Entry = Strides.Child(*Id); double Walk = 0, Run = 0;
-				if (!Entry.Valid() || !Entry.Check(Entry.Data->Values.Num() == 2, TEXT(""), TEXT("object with walk and run"))
+				if (!Entry.KeyCase({TEXT("walk"), TEXT("run")}) || !Entry.Check(Entry.Data->Values.Num() == 2, TEXT(""), TEXT("object with walk and run"))
 					|| !Entry.Number(TEXT("walk"), Walk, 1, 10000) || !Entry.Number(TEXT("run"), Run, 1, 10000)) return false;
 				Next.StrideByCharacter.Add(Id, FVector2D(Walk, Run));
 			}
