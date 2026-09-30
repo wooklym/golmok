@@ -230,7 +230,7 @@ GASP_TEXT_INI_FORMS = re.compile(  # ini sections / keys, a DDCvar key with a va
 )
 GASP_MANIFEST = "unreal/Golmok/Config/Golmok/local/gasp_manifest.json"
 # R87-2: every DDCvar branch needs "ddcvar."; without it only the section literals run (the list body keeps
-# memory per character of a brace-less region: about 120 MB per MB of a {"samples": [...]} file)
+# memory per character of a brace-less region: about 140 MB per MB of a {"samples": [...]} file)
 GASP_TEXT_SECTIONS = re.compile(  # no group: _gasp_text_form callers read group 1 only when m.re.groups
     r"DataDrivenConsoleVariableSettings|CVarsArray|GameplayTagList", re.IGNORECASE
 )
