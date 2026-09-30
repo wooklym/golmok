@@ -490,20 +490,34 @@ R87-1·2·6을 처리했다(R87-7은 #87 병합 커밋에서 반영). 설계(§1
 
 | 항목 | 변경 | 테스트 |
 |---|---|---|
-| R87-1 이스케이프 뒤 키 | 키+값 분기 lookbehind를 `(?:(?<![\w.])\|(?<=\\[nrt]))ddcvar\.`로 바꿨다. JSON 문자열 속 `\n`·`\r`·`\t` 이스케이프 바로 뒤의 `DDCvar.X=1`을 main처럼 다시 잡는다 | 음성 `test_pair_list_and_console_forms_fail`에 `{"ini": "[ConsoleVariables]\nDDCvar.X=1"}`·`{"ini": "\tDDCvar.X=1"}`, 성능 `…_on_escapes_and_long_name_runs`에 `"\\nddcvar."*n`(140 KB·1 MB)·`"ddcvar."*n`(1 MB) |
-| R87-2 메모리 | 새 `_gasp_text_form(text)`: `"ddcvar." in text.lower()`일 때만 전체 `GASP_TEXT_INI_FORMS`, 아니면 섹션 리터럴 세 개만 있는 `GASP_TEXT_SECTIONS`(그룹 없음 → 문구는 `m.re.groups`일 때만 그룹 1). DDCvar 분기는 모두 `ddcvar.`가 있어야 걸리므로 판정이 같다 | `test_text_form_matches_the_full_rule`(32: 기존 양·음성 입력 전부 + 섹션만·섹션 뒤 키·대문자 `DDCVAR.`·`ddcvar\n.`에서 첫 매치 위치·문자열·그룹 1 동일), `test_large_braceless_json_without_ddcvar_is_cheap`(4 MB `{"samples": [수…]}`: `tracemalloc` 최고 64 MB 미만, 2 s 미만; 고치기 전 약 556 MB·1.7 s) |
+| R87-1 이스케이프 뒤 키 | 키+값 분기 lookbehind를 `(?:(?<![\w.])\|(?<=\\[nrt]))ddcvar\.`로 바꿨다. JSON 문자열 속 `\n`·`\r`·`\t` 이스케이프 바로 뒤의 `DDCvar.X=1`을 main처럼 다시 잡는다 | 음성 `test_pair_list_and_console_forms_fail`에 `{"ini": "[ConsoleVariables]\nDDCvar.X=1"}`·`{"ini": "\tDDCvar.X=1"}`·`{"ini": "a\rDDCvar.X=1"}`(검증 V1), 성능 `…_on_escapes_and_long_name_runs`에 `"\\nddcvar."*n`(140 KB·1 MB)·`"ddcvar."*n`(1 MB) |
+| R87-2 메모리 | 새 `_gasp_text_form(text)`: `"ddcvar." in text.lower()`일 때만 전체 `GASP_TEXT_INI_FORMS`, 아니면 섹션 리터럴 세 개만 있는 `GASP_TEXT_SECTIONS`(그룹 없음 → 문구는 `m.re.groups`일 때만 그룹 1). DDCvar 분기는 모두 `ddcvar.`가 있어야 걸리므로 판정이 같다 | `test_text_form_matches_the_full_rule`(33: 기존 양·음성 입력 전부 + 섹션만·섹션 뒤 키·대문자 `DDCVAR.`·`ddcvar\n.`에서 첫 매치 위치·문자열·그룹 1 동일), `test_large_braceless_json_without_ddcvar_is_cheap`(4 MB `{"samples": [수…]}`: `tracemalloc` 최고 64 MB 미만, 2 s 미만; 고치기 전 약 556 MB·1.7 s) |
 | R87-6 콘솔 bool·쌍 값·문구 | 콘솔 형식 값에 `true\b\|false\b`. 오류 문구 `shown`은 `" ".join((이름 또는 매치).split())`로 한 줄 | 음성 `DDCvar.X true`·`\tDDCvar.Y False`, 쌍 목록 `[["DDCvar.Y", -0.5]]` 단독(뮤테이션 G7c), 양성 `DDCvar.X truthy …`, `test_pretty_pair_list_error_is_one_line`(여러 줄 쌍 목록 → `([ "DDCvar.X", 1)`, 2행) |
 
 **판단(오케스트레이터가 뒤집을 수 있음)**
 1. R87-2 분기 조건은 `text.lower()`의 부분 문자열 검사다. `d`·`c`·`v`·`a`·`r`·`.`에는 `re.IGNORECASE`와 `str.lower()`가 다르게 접는 문자(켈빈 기호 등)가 없어 두 경로의 판정이 같다. `ddcvar.`가 **있는** 큰 중괄호 없는 파일은 전처럼 전체 규칙을 쓴다(1 MB에 약 145 MB). 그런 Config 파일은 지금 어느 ref에도 없고, 그 경우까지 줄이려면 목록 분기를 다시 짜야 해 범위 밖으로 남긴다.
 2. `(?<=\\[nrt])`는 이스케이프된 역슬래시 뒤의 글자 `n`도 이스케이프로 본다(JSON 소스 `"a\\nDDCvar.X=1"`: 역슬래시 두 개 + `n`, 디코드하면 줄바꿈이 아님). 짝수·홀수 역슬래시를 구별하려면 가변 길이 lookbehind가 필요하다. 이 표기는 main에서도 실패했으므로(실패 쪽으로 닫힘) 그대로 둔다.
 3. 콘솔 bool 메모 규칙은 "19a-2 후속" 판단 2에, 이스케이프 뒤 키는 "19a-2 후속 2" 판단 4에 한 줄씩 더했다.
+4. `\u000a`·`\f`·`\b` 같은 다른 이스케이프 뒤의 키는 잡지 않는다(검증 V3; main도 잡지 못했다). 직렬화기가 내는 형식이 아니다.
 
-**게이트**: `ruff check`·`ruff format --check`(112) 통과, pytest **1477 passed / 3 skipped**(main `a716c4b` 1432 + 45: GASP 43, zone_import 2), `check_repo.py` OK, `git diff --check` 깨끗. **가드 오탐 0**: `git for-each-ref refs/remotes/origin` 60개 ref(astra 23·claude 28·pc 8·main)의 파일 22,887개 중 Config 파일 408개(고유 blob 22개)에서 오류 0, main 규칙과 판정이 다른 파일 0. 성능(`_gasp_text_form`): 중괄호 없는 8 MB JSON 0.26 s·최고 8 MB(고치기 전 8 MB에 약 1 GB), `"ddcvar."*n` 8 MB 1.25 s·8 MB, `"\\nddcvar."*n` 1 MB 0.10 s.
+**게이트**: `ruff check`·`ruff format --check`(112) 통과, pytest **1479 passed / 3 skipped**(main `a716c4b` 1432 + 47: GASP 45, zone_import 2), `check_repo.py` OK, `git diff --check` 깨끗. **가드 오탐 0**: `git for-each-ref refs/remotes/origin` 60개 ref(astra 23·claude 28·pc 8·main)의 파일 22,887개 중 Config 파일 408개(고유 blob 22개)에서 오류 0, main 규칙과 판정이 다른 파일 0. 성능(`_gasp_text_form`): 중괄호 없는 8 MB JSON 0.26 s·최고 8 MB(고치기 전 8 MB에 약 1 GB), `"ddcvar."*n` 8 MB 1.25 s·8 MB, `"\\nddcvar."*n` 1 MB 0.10 s.
 
-**적대 검증 1라운드(별도 에이전트, 읽기 전용)**: 진행 중 — 결과와 반영은 다음 커밋에 적는다.
+**적대 검증 1라운드(별도 에이전트, 읽기 전용) — (A) 0 · (B) 0 · (C) 4, 반영**
+- 오탐 0: origin/main과 원격 ref 60개의 Config 텍스트 blob 22개에서 새 규칙·main 규칙·#87 이전 규칙 모두 0건이었다. 게이트한 경로와 전체 규칙의 판정도 모두 같았다.
+- 미탐: 합성 입력 1,007개(이스케이프 `\n`·`\r`·`\t`·`\r\n`·`\"`, `+`/`-` 접두, 목록 객체 24가지 키 순서, 쌍·콘솔 값 11종)에서 main이 잡고 새 규칙이 놓친 것은 0개다. 유니코드 코드 포인트 전체를 대조했고 `re.IGNORECASE`와 `lower()`가 `ddcvar.`에서 달라지는 문자는 없었다. 무작위 문자열 30만 개에서도 두 경로의 차이는 0이다.
+- 시간은 1–8 MB 적대 입력 모두 선형이다(`"ddcvar."*n` 8 MB 1.25 s, `{` 반복 8 MB 2.35 s). 메모리가 입력에 비례해 커지는 경우는 `ddcvar.`가 **있고** `{` 뒤에 긴 중괄호 없는 몸통이 오는 입력뿐이다(1 MB 146 MB, 8 MB 약 1.1–1.4 GB). 판단 1의 남는 위험이다.
+- 핫스팟: `check_repo.py` 변경은 모두 `[WP-19 hook]` 블록 안에 있다. 훅 커밋은 그 파일만 바꾼다. main + ① 단독은 38 failed(새 동등성·메모리 테스트), main + ② 단독은 1432 passed / OK다.
+- 문구: 런북 §2·§12 #8·#40과 코드(`zi.warn` 접두 포함)가 글자 단위로 같다.
+- 뮤테이션 12개가 모두 잡혔다(lookbehind 대안 제거, `[nrt]`→`[n]`, 콘솔 bool 제거, 쌍 `-?\.?\d`→`\d`, 게이트 고정 양쪽, 한 줄 문구 제거, zone_import `WxH` 4종, 크기 0 경로의 #40 WARNING).
+
+| # | 지적 | 등급 | 처리 |
+|---|---|---|---|
+| V1 | `\r` 이스케이프를 고정하는 테스트가 없다(`[nt]` 뮤테이션 생존) | C | 음성 입력 `{"ini": "a\rDDCvar.X=1"}`을 추가했다. `[nt]` 뮤테이션이 잡히는 것을 확인했다 |
+| V2 | 훅 주석 "약 120 MB/MB"가 실측(135–170 MB/MB)과 다르다 | C | "약 140 MB"로 고쳤다(훅 커밋) |
+| V3 | `\u000a`·`\f`·`\b` 이스케이프 뒤 키는 #87 이전에만 잡혔다(main도 못 잡음) | C | 조치하지 않았다. `json.dumps`와 UE JSON 작성기는 `\n`을 쓰므로 손으로 바꾼 형식이고, 리뷰 몫이다(판단 4) |
+| V4 | 런북 §12 #40 행이 크기 0 경로(#40 WARNING 없음)를 빠뜨렸다 | C | #40 행에 한 구절을 넣었다: 이 경고는 팩 폴백을 탈 때만 나오고, 크기에 0이 있으면 크기 WARNING 한 줄만 나온다 |
 
 **병합 시 반영(문안)**
 - STATUS WP-19 행 비고 끝에 `· R87 (C) 후속(R87-1·2·6) PR #<번호> 병합`.
 - "19a-2 후속 2"의 **병합** 줄 끝에 `→ R87-1·2·6은 PR #<번호>에서 해소`.
-- 훅 재적용 메모: 충돌로 훅 커밋만 다시 적용할 때는 ②(`WP-19: hook tools/scripts/check_repo.py`)에 ①(레인 테스트)이 따라간다(① 단독 트리는 새 GASP 테스트가 실패하고, main + ② 트리는 기존 테스트가 모두 통과한다).
+- 훅 재적용 메모: 커밋은 ① 레인 → ② 훅 → ③ 문서 → ④ 레인(검증 V1 테스트) → ⑤ 훅(검증 V2 주석) → ⑥ 문서다. 충돌로 훅 커밋만 다시 적용할 때는 ②(`WP-19: hook tools/scripts/check_repo.py`)에 ①이 따라간다(① 단독 트리는 새 GASP 테스트 38개가 실패하고, main + ② 트리는 1432 passed / OK다). ④·⑤는 서로 독립이다.

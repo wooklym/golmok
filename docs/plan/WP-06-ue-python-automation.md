@@ -1240,7 +1240,10 @@ PR #87 병합 리뷰 R87의 WP-06 쪽 (C) 3건을 처리했다. 설계·동작 �
 | R87-4 #40에서 크기 0 | `zone_import.py` 주석 `# R81-7: RHI present (or not detectable, #40); the size is not yet (R87-4)`. 런북 §2 "RHI가 있는데(또는 #40으로 판정 불가) 크기가 아직 0이라 건너뛴 것(R81-7·R87-4)". 동작은 그대로다: `get_command_line`이 없고 크기에 0이 있으면 크기 WARNING 한 줄만 나오고(#40 WARNING 없음), 팩도 하지 않는다 | `test_zero_size_without_get_command_line_names_the_size`(크기 `0x512`: WARNING 한 줄, `how` `(size 0x512)`, `make_udim` 호출 없음) |
 | R87-5 런북 #8 | §12 #8 행 끝에 한 문장: cleanup 단계(`_cleanup_folder`)가 계획 밖 by-product(Texture2D·Material)를 지우지 못하면 텍스처 실패가 없어도 `zone_import: WARNING cleanup: could not delete <path> (runbook #8)`이 나온다. 기록한 뒤 에디터를 닫고 손으로 삭제한다 | 문구는 코드(`_cleanup_folder`, `zi.warn`)·기존 테스트 `test_cleanup_step_that_cannot_delete_…`와 글자 단위로 같다 |
 
-**게이트·검증**: WP-19 "19a-2 후속 3" 절과 같은 게이트(pytest 1477 passed / 3 skipped)와 적대 검증 라운드를 거쳤다(한 PR).
+**게이트·검증**: WP-19 "19a-2 후속 3" 절과 같은 게이트(pytest 1479 passed / 3 skipped)와 적대 검증 라운드를 거쳤다(한 PR). 이 절에 해당하는 결과는 다음과 같다.
+- 문구 대조: 런북 §2·§12 #8·#40과 코드가 일치한다.
+- 뮤테이션: `WxH` 4종과 "크기 0 경로에서도 #40 WARNING"이 모두 잡힌다.
+- 검증 V4(C): §12 #40 행이 크기 0 경로를 빠뜨렸다. 그 행에 한 구절을 넣었다(이 경고는 팩 폴백을 탈 때만 나온다).
 
 **병합 시 반영(문안)**
 - STATUS WP-06 행 비고 끝에 `· R87 (C) 후속(R87-3·4·5, 테스트·주석·런북) PR #<번호> 병합`.
