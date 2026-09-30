@@ -70,7 +70,7 @@ python tools\scripts\check_repo.py
 ```
 - [ ] 시작 전 확인(스크립트가 편집기 세션 전에 멈춘다): 저장소 경로에 공백이 없다(`-ExecutePythonScript=`가 공백에서 끊긴다), Golmok·GASP 편집기가 모두 닫혀 있다, `add-mannequin.ps1`을 먼저 돌렸다(`Content\Characters\Mannequins`).
 - [ ] 세 헤드리스 세션(migrate → relocate → verify)이 끝나고 `add-gasp migrate: <n> closure packages, <m> copied, source_digest <sha256>`와 `add-gasp verify: <n> packages, digest <sha256>, source <n> packages, source_digest <sha256>`가 찍힌다. `Saved/Golmok/add-gasp/*.json`에 단계별 결과가, `migrated-history.json`에 이 체크아웃에 복사한 패키지 목록이 있다.
-- [ ] **폐포 수 대조**: migrate의 `<n> closure packages`(= `source_package_count`)를 V-08 폐포 **1,187**과 비교해 §A9에 적는다. 크게 다르면 `closure.json` 루트 또는 의존 옵션이 다르다. `/Game dependency with a name no package can have`가 보이면 그 이름을 §A9에 기록하고 멈춘다(복사 전에 멈췄으므로 지울 것 없음).
+- [ ] **폐포 수 대조**: migrate의 `<n> closure packages`(= `source_package_count`)를 V-08 폐포 **1,187**과 비교해 §A9에 적는다. 1,187은 ABP 한 루트의 폐포다. `closure.json`에는 리타깃 루트(`ABP_GenericRetarget`·GASP 매니 사본 등)도 있어 정상 설치도 그보다 **조금 크다**(수십 개 예상, 리뷰 R78-4). 1,187보다 작거나 수백 개 이상 크면 `closure.json` 루트 또는 의존 옵션이 다르다. `/Game dependency with a name no package can have`가 보이면 그 이름을 §A9에 기록하고 멈춘다(복사 전에 멈췄으므로 지울 것 없음).
 - [ ] migrate 메시지 `closure root not in the GASP project (19b fixes the path): …`가 있으면 그 루트([추정] 경로)의 실제 경로를 GASP 콘텐츠 브라우저에서 찾아 `tools/ue/gasp/closure.json`을 고친다. 그다음 **아래 "다시 설치"** 절차로 다시 돈다.
 - [ ] 종료 코드 2(`GASP stays at the Migrate paths`)면 헤드리스 `rename_directory` 또는 리디렉터 정리가 실패한 것이다(§D #4, §C #16). `animation.json` `gasp.content_root`를 `/Game`으로 바꾸고 `-Verify`를 다시 돈다(스크립트는 이때 검증 전에 멈춘다). 이 경우 `DefaultGame.ini`의 `/Game/GASP` 쿡 줄이 GASP를 덮지 못하므로 패키지(§B7) 전에 PC fix로 쿡 경로를 정한다. 원인(로그의 `rename_directory` 실패 줄)을 §A9에 기록한다. GUI로 옮기려면 §C #16 대안(Move + Fix Up Redirectors 뒤 `-Manifest`).
 - [ ] 검증: 패키지 전부 크기·해시 일치, ABP·BPI 클래스 로드, DDCvar **27**, 태그 **39**, `expected.json`은 첫 설치라 `expected.json not filled yet (19b records the first verified source_digest)` 경고. migrate 메시지에 `GASP project changed during migrate`가 **없다**(원본 무수정). 있으면 GASP 프로젝트를 열어 저장한 적이 있는지 확인하고 §A9에 적는다.
@@ -85,7 +85,8 @@ python tools\scripts\check_repo.py
 | 설치됨(`Content\GASP` 있음), `-Force` | `add-gasp -Force never overwrites an install` 로 즉시 멈춤 | 아래 "다시 설치" |
 | 종료 코드 2 설치(`content_root /Game`, `Content\GASP` 없음, 매니페스트 있음), 옵션 없이 실행 | `Already installed (…gasp_manifest.json, content_root /Game?); verifying.` | 없음(검증만). 매니페스트를 덮지 않는다 |
 | 같은 경우 `-Force` | migrate가 Migrate 경로의 GASP 패키지를 잔재로 보고 복사 전에 멈추며 **지울 폴더·파일 목록**(`delete Content/Blueprints, …`)을 낸다 | 목록만 지우고(아래) 다시 실행 |
-| 중단된 실행이 남긴 Migrate 경로 사본(이력 `migrated-history.json`에 있거나 GASP 원본과 바이트가 같음) | 같은 목록으로 복사 전에 멈춤 | 목록만 지우고 다시 실행 |
+| 중단된 실행이 남긴 Migrate 경로 사본(이력 `migrated-history.json`에 있거나 GASP 원본과 바이트가 같음. 이력은 **복사를 시작할 때** 계획한 패키지를 적으므로 편집기가 복사 도중 죽어 반쯤 쓴 파일도 잡는다 — 리뷰 R78-1) | 같은 목록으로 복사 전에 멈춤 | 목록만 지우고 다시 실행 |
+| `FileNotFoundError: <n> closure packages have no file in the GASP project: […]` | migrate가 복사 전에 멈춤(GASP 안의 끊어진 참조, 리뷰 R78-3) | GASP 프로젝트를 Fab에서 다시 받아 확인. 그래도 나오면 이름을 §A9에 적고 오케스트레이터에 보고 |
 | migrate가 실패했거나 0 패키지 | relocate가 `nothing relocated, the previous manifest is kept`로 실패 | migrate 메시지를 고친 뒤 다시 실행 |
 | GASP ini 누락·파싱 실패·개수 불일치(`GASP ini: …`) | migrate가 복사 전에 멈춤(migrate 뒤 ini가 바뀌었으면 relocate가 `nothing moved`) | `-GaspProject`가 GASP 5.8 프로젝트인지 확인, 원인을 §A9에 적고 오케스트레이터에 보고 |
 | DDCvar·태그 파일만 없어짐·깨짐 | — | `.\tools\ue\add-gasp.ps1 -LocalFiles` (GASP ini가 없거나 개수가 다르면 기존 파일을 덮지 않고 실패) |
@@ -113,7 +114,8 @@ python tools\scripts\check_repo.py
 5. 컴파일·저장(로컬). `golmok.anim mode gasp` 뒤 PIE를 다시 시작 → `golmok.anim status` `pawn: /Game/GolmokLocal/GASP/BP_GolmokCharacter_GASP.BP_GolmokCharacter_GASP_C`, HUD `anim: gasp p0 | ground walk idle | intent 0.00 | land …`(스폰 낙하 착지 뒤 초·속도).
 
 ### A5. 발 이벤트
-- [ ] GASP 폴리 노티파이가 폰 쪽 인터페이스 함수를 부르면 그 구현에서 `GetLocomotionStateComponent → NotifyFootEvent(Kind, bLeft)`(`Step`/`Land`)를 부른다. 경로와 함수 이름을 §A9에 기록한다(T13이 이 경로로 발소리를 구동한다. 이중 재생 차단은 T13).
+- [ ] GASP 폴리 노티파이가 폰 쪽 인터페이스 함수를 부르면 그 구현에서 `GetLocomotionStateComponent → NotifyFootEvent(Kind, bLeft)`(`Step`/`Land`)를 부른다. 경로와 함수 이름을 §A9에 기록한다(T13 컴포넌트가 이 이벤트로 발소리를 낸다). 부르는 곳은 AnimNotify(게임 스레드)여야 한다(리뷰 R79-6).
+- [ ] **원본 GASP 발 폴리(발소리 재생)는 `footsteps.driver`와 무관하게 이 BP에서 늘 끈다**. Step·Land만 `NotifyFootEvent`로 보낸다. `UGolmokFootstepComponent::UsesNotifyDriver()`는 진단용 조회이고 억제 조건으로 쓰지 않는다: 조건으로 쓰면 driver=distance 진단에서 원본 폴리와 거리 발소리가 함께 나고, 빙의 전 폰에서는 컴포넌트가 없다(리뷰 R79-2, 오케스트레이터 결정 2026-09-30, D-019). driver가 distance면 컴포넌트가 이벤트를 무시한다. 폴리 이벤트 종류 → Step / Land / 무시 대응표와 끈 방법(노티파이 이름·`Foley.Event.*` 태그·MetaSound 경로)을 §A9에 적는다. 점프 발성·옷 스침 같은 발 이외 폴리도 쓰지 않는 것이 기본이다(쓰려면 D-016/D-021 범위에서 따로 판단).
 
 ### A6. T3D 텍스트 (커밋 가능한 재현 수단)
 - [ ] 각 인터페이스 함수 그래프를 전부 선택 → Ctrl+C → `tools/ue/gasp/BP_GolmokCharacter_GASP.t3d.txt`에 함수별 절(`# <함수 이름>`)로 붙여 넣어 커밋한다(우리 그래프, GASP 이름만 포함). `.uasset`은 R21-11-4 확인 전 커밋하지 않는다. 다른 PC는 같은 부모·인터페이스로 BP를 만들고 붙여 넣어 재현한다.
@@ -126,7 +128,7 @@ python tools\scripts\check_repo.py
 - [ ] pytest(`test_ue_config_animation.py`)·`check_repo.py` 통과 뒤 커밋 `WP-19: 19b 확정 값`.
 
 ### A8. 확인
-- [ ] `-GolmokAnim=gasp`(또는 `golmok.anim mode gasp`, 대소문자 무관)로 PIE → `golmok.anim preview` → `preview on: … (debug only, not saved; use golmok.anim preview off before a roster change …)`. `preview: … is not an anim Blueprint for the skeleton of …`가 나오면 ABP `TargetSkeleton`과 소스 메시 스켈레톤이 다르다(로스터와 같은 엄격 규칙, §D #17) — 두 스켈레톤 이름을 §A9에 적는다. **로스터를 바꾸기 전에 `golmok.anim preview off`를 먼저 한다**: 로스터 적용(`golmok.character`·빙의 변경)은 소스 메시(`GetMesh()`)만 바꾸므로 시각 메시·숨김·`AlwaysTickPose`가 남는다(19c T12가 `ClearVisualOverride`를 부르기 전까지). 매니(시각 메시)가 캡슐을 따라 걷고 달린다. `golmok.anim profile p1`·`p2`로 즉시 바뀐다(`profile p1: max_acceleration …`).
+- [ ] `-GolmokAnim=gasp`(또는 `golmok.anim mode gasp`, 대소문자 무관)로 PIE → `golmok.anim preview` → `preview on: … (debug only, not saved; a roster apply replaces it, golmok.anim preview off restores the roster entry)`. `preview: … is not an anim Blueprint for the skeleton of …`가 나오면 ABP `TargetSkeleton`과 소스 메시 스켈레톤이 다르다(로스터와 같은 엄격 규칙, §D #17) — 두 스켈레톤 이름을 §A9에 적는다. 시각 ABP는 로스터와 같은 규칙이라 `TargetSkeleton`이 비어 있어도(템플릿 ABP) 받는다(리뷰 R78-2). `ABP_GenericRetarget`의 `TargetSkeleton` 값(없음 또는 스켈레톤 이름)을 §A9에 적는다(§D #19). 로스터 적용(`golmok.character`·빙의 변경)은 preview를 덮어쓴다(19c T12 [#77](https://github.com/wooklym/golmok/pull/77): 소스 메시를 바꾸고 시각 메시를 설정하거나 해제한다). `golmok.anim preview off`는 로스터 항목을 다시 적용한다. 매니(시각 메시)가 캡슐을 따라 걷고 달린다. `golmok.anim profile p1`·`p2`로 즉시 바뀐다(`profile p1: max_acceleration …`).
 - [ ] 텔레포트: `golmok.travel`(또는 포털) 직후 메시가 캡슐 위치에 다시 붙는다. `golmok.anim status`의 `teleports n reinit n`이 오른다. 히치(ms)를 기록한다(§D #7).
 - [ ] 헤드리스 `.\tools\ue\test.ps1 -Filter Golmok.Animation` → `GaspSmoke` `[Info] GASP installed: EXECUTED`, `walk 3 s: PlantedSlip ≤ 30 cm/m`, `run 3 s: PlantedSlip ≤ 30 cm/m`, 발 뼈 4개가 움직임, 상태가 Walk/Run을 보고. 값과 발 뼈별 planted travel을 §A9에 적는다.
 - [ ] `golmok.anim preview off` → 로스터가 현재 항목을 다시 적용(`preview off; roster: selected manny …`).
@@ -196,7 +198,7 @@ python tools\scripts\check_repo.py
 | 12 | 서브시스템 | `FStreamableManager::RequestAsyncLoad(FSoftObjectPath, FStreamableDelegate, Priority, bool, bool, FString)`(Zones 선례와 같은 방식의 이름 있는 델리게이트) | `TArray<FSoftObjectPath>` 오버로드 | 빌드 | |
 | 13 | 테스트 | `TEXT(R"JSON(…)JSON")` 원시 문자열, `AddExpectedMessagePlain`, `FInputKeyEventArgs::CreateSimulated`, `TestNull`/`TestNotNull` bool 반환 | 원시 문자열이 매크로에서 안 되면 일반 문자열 이어 붙이기 | 빌드 | |
 | 14 | `AGolmokGaspCharacter` ini | 파생 C++ 클래스 CDO가 `[/Script/Golmok.GolmokCharacter]` 값(메시·ABP 경로·속도)을 물려받는다(CDO `LoadConfig`가 부모 섹션을 읽음) | 로그에 `Character mesh '' not found`가 보이면 `DefaultGame.ini` `; [WP-19 hook]` 섹션에 `[/Script/Golmok.GolmokGaspCharacter]`로 같은 네 키를 추가(핫스팟 훅) | §A1 로그 | |
-| 15 | `gasp_import.py` migrate | `unreal.AssetRegistryDependencyOptions` 필드 5개, `AssetRegistry.get_dependencies(Name, options)`, `unreal.MigrationOptions`(`prompt`·`ignore_dependencies`·`asset_conflict`·`orphan_folder`), `unreal.AssetMigrationConflict.SKIP`, `AssetTools.migrate_packages(names, dest_dir, options)` | 이름이 다르면 `dir(unreal.MigrationOptions)`로 확인해 고친다. 없으면 V-08 방식(GUI Migrate) 뒤 relocate부터 | §A3 | |
+| 15 | `gasp_import.py` migrate | `unreal.AssetRegistryDependencyOptions` 필드 5개, `AssetRegistry.get_dependencies(Name, options)`, `unreal.MigrationOptions`(`prompt`·`ignore_dependencies`·`asset_conflict`·`orphan_folder`), `unreal.AssetMigrationConflict.SKIP`, `AssetTools.migrate_packages(names, dest_dir, options)` | 이름이 다르면 `dir(unreal.MigrationOptions)`로 확인해 고친다. 없으면 멈추고 §A9·오케스트레이터 보고(GUI Migrate로 둔 파일은 migrate가 잔재로 보고 멈추고, relocate는 migrate 보고서를 요구한다 — PC fix로 폐포에서 보고서를 만드는 단계를 더한다, 리뷰 R78-10) | §A3 | |
 | 16 | `gasp_import.py` relocate/verify | `EditorAssetLibrary.rename_directory`/`rename_asset`, `AssetTools.fixup_referencers(redirectors)`(리디렉터를 고친 뒤 지운다), `unreal.load_class(None, path)` | `fixup_referencers`가 없거나 리디렉터가 남으면 스크립트가 되돌리고 종료 코드 2(`content_root /Game`)로 끝난다. GUI로 옮기려면 콘텐츠 브라우저에서 Migrate 경로 폴더를 `/Game/GASP/…`로 Move → 원래 폴더에 "Fix Up Redirectors" → `animation.json` `content_root`를 `/Game/GASP`로 되돌리고 `.\tools\ue\add-gasp.ps1 -Manifest`(매니페스트 재생성, 이동 없음) | §A3 | |
 | 17 | `add-gasp.ps1` | `UnrealEditor-Cmd <uproject> -ExecutePythonScript=<file>`가 파일을 스크립트로 실행하고 `quit_editor()`로 끝난다(환경 변수 `GOLMOK_GASP_JOB`은 자식 프로세스에 전달). 경로에 공백이 있으면 값이 끊기므로 스크립트가 미리 거부한다 | `-run=pythonscript -script=<file>` 또는 `-ExecCmds="py <file>"` | §A3 | |
 | 18 | `gasp_import.py` 리디렉터 판정(19a-2 R76 T5) | `AssetRegistry.get_assets(unreal.ARFilter(package_paths=[Name], recursive_paths=True))`·`ARFilter(package_names=[Name])`, `AssetRegistryHelpers.is_redirector(AssetData)`(없으면 `asset_class_path.asset_name == "ObjectRedirector"`), `AssetData.get_asset()`. rename·fixup 뒤 레지스트리가 같은 세션에서 바로 갱신된다 | 필드 이름이 다르면 `dir(unreal.ARFilter)`로 확인해 고친다. 레지스트리가 늦게 갱신되면 `wait_for_completion()` 뒤 다시 조회 | §A3 relocate 로그 | |
@@ -216,7 +218,7 @@ python tools\scripts\check_repo.py
 | 5 | `Config/Tags/*.ini`가 로드·스테이징되고, JSON으로 등록한 DDCvar가 설정 DDCvar와 같게 동작(`DDCvar.FootPlacementMode` 값이 ABP에 보임) | §A3 로그, §B7 패키지 로그 |
 | 6 | p0 = 엔진 기본값(2048·8·2·false·0) | §A1 StateProvider Info |
 | 7 | 착지 창 0.3 s(GASP 폰 값 확인), 텔레포트 재초기화가 Offset Root Bone을 정리 | §A8, §B4 |
-| 8 | 폴리 노티파이 경로와 끄는 방법 | V-08b §5 → §A5 → T13 |
+| 8 | 폴리 노티파이 경로와 끄는 방법 | V-08b §5 → §A5(19b BP가 원본 발 폴리를 driver와 무관하게 끄고 Step·Land만 보냄, 리뷰 R79-2) |
 | 9 | 켠 플러그인과 없는 쿡 폴더(`/Game/GASP`·`/Game/GolmokLocal`)가 ①에 무해 | §A2, §B7 |
 | 10 | 우리 속도(180, 로스터 145/380)에서 스트라이드 워핑 품질 | V-08b P0 측정, §B2 |
 | 11 | `closure.json`의 estimated 루트 4개 경로(BPI·UEFN 메시·`ABP_GenericRetarget`·GASP 매니 사본), `animation.json`의 BPI·UEFN 메시 경로 | §A3 migrate 메시지, §A7 |
@@ -227,4 +229,4 @@ python tools\scripts\check_repo.py
 | 16 | 헤드리스로 GASP 프로젝트를 열어도 원본 `.uasset`이 바뀌지 않는다(`source_unchanged`) | §A3 `GASP project changed during migrate`가 없음 |
 | 17 | GASP ABP의 `TargetSkeleton`이 UEFN 소스 메시의 스켈레톤과 **같은 객체**다(preview가 로스터 규칙으로 엄격 비교) — 호환 스켈레톤만이면 preview가 거부한다 | §A8 preview 메시지 |
 | 18 | `/Game/GASP` 상시 쿡이 GASP 플러그인 없는 PC에서 쿡 오류를 낸다, abp 패키지도 GASP를 포함한다 | §B7 |
-| 19 | `ABP_GenericRetarget`(시각 메시 리타깃 ABP)가 템플릿 ABP(`TargetSkeleton` 없음)가 아니다 — 템플릿이면 preview가 시각 메시를 늘 거부한다(`visual mesh not applied (… is not for its skeleton)`) | §A8; 템플릿이면 PC fix로 시각 메시 검사를 `TargetSkeleton`이 null일 때 건너뛰게 한다 |
+| 19 | `ABP_GenericRetarget`(시각 메시 리타깃 ABP)의 `TargetSkeleton`이 없거나(템플릿) 시각 메시 스켈레톤과 같다 — preview와 로스터(T12)는 둘 다 받는다(리뷰 R78-2·R77-13에서 규칙 통일). 다른 스켈레톤이 지정돼 있으면 둘 다 거부한다(`visual mesh not applied (… is not for its skeleton)`) | §A8 `TargetSkeleton` 값. null이 아니면 null 허용을 지우고 엄격 규칙으로 되돌리는 것을 오케스트레이터가 판단 |

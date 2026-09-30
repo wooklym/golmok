@@ -136,12 +136,14 @@ def migrate(closure_path, dest_content_dir, source_content_dir=None, history_pat
     migration.set_editor_property("prompt", False)
     migration.set_editor_property("ignore_dependencies", True)  # the closure above is the dependency set
     migration.set_editor_property("asset_conflict", unreal.AssetMigrationConflict.SKIP)
+    migrated = sorted(set(packages) - existing)
+    # Recorded before copying: an editor that dies mid-copy leaves partly written files that neither the
+    # history nor a byte match would catch, and the next run would skip them as name conflicts (review R78-1).
+    pure.record_history(history_path, migrated)
     _tools().migrate_packages([unreal.Name(p) for p in packages], str(dest), migration)
     after = pure.packages_on_disk(dest)
-    migrated = sorted(set(packages) - existing)
     not_copied = [p for p in migrated if p not in after]
     copied = [p for p in migrated if p not in not_copied]
-    pure.record_history(history_path, copied)
     unchanged = pure.aggregate_digest(pure.source_entries(source, packages)) == source_digest
     unreal.log(f"WP-19 add-gasp migrate: {len(packages)} closure packages, {len(copied)} copied")
     messages = notes + [f"kept the existing Golmok package (name conflict skipped): {p}" for p in conflicts]

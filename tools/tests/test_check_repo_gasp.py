@@ -220,3 +220,13 @@ def test_git_failure_in_a_git_work_tree_is_reported(repo, monkeypatch):
     monkeypatch.setattr(check_repo, "_git_paths", lambda root, *args: None)
     (error,) = check_repo.check_gasp_guard(repo)
     assert error.startswith("gasp: git") and "safe.directory" in error
+
+
+def test_git_ls_files_failure_after_a_good_rev_parse_is_reported(repo, monkeypatch):
+    """R78-6: the ls-files branch, not only rev-parse, reports instead of skipping."""
+    real = check_repo._git_paths
+    monkeypatch.setattr(
+        check_repo, "_git_paths", lambda root, *args: None if args[0] == "ls-files" else real(root, *args)
+    )
+    (error,) = check_repo.check_gasp_guard(repo)
+    assert error.startswith("gasp: git") and "ls-files" in error

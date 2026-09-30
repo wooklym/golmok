@@ -70,7 +70,7 @@
   - `void ClearVisualOverride()`: 원상 복구.
   - [추정] `ABP_GenericRetarget`는 "Use Attached Parent"로 소스를 찾는다고 보고 자식으로 붙인다. 아니면 19b가 실제 방식(컴포넌트 태그 등)으로 PC fix한다. 타깃 스켈레톤이 GASP의 `UE5_Mannequins` 사본이면 시각 메시도 그 사본을 쓴다(같은 매니 아트).
 - 로스터가 쓸 질의(T12): `GolmokAnimation::RequiresGaspPawn(const UClass* AnimClass)`(설정 `gasp.anim_class`와 같거나 파생)와 `GolmokAnimation::PawnSupportsGasp(const APawn*)`(§4 규칙 4·5).
-- 19c 전의 동작: GASP 폰에도 로스터가 `default`(`manny`, `ABP_Unarmed`)를 적용하므로 ①처럼 보인다. 고장은 아니다. 19b 확인용으로 `golmok.anim preview`가 `gasp.preview`(소스 메시 + GASP ABP, 선택적 시각 메시)를 현재 GASP 폰에 직접 적용한다. 다음 로스터 적용(빙의 변경·`golmok.character`)이 이를 덮어쓴다(디버그 전용, 저장 안 함).
+- 19c 전의 동작: GASP 폰에도 로스터가 `default`(`manny`, `ABP_Unarmed`)를 적용하므로 ①처럼 보인다. 고장은 아니다. 19b 확인용으로 `golmok.anim preview`가 `gasp.preview`(소스 메시 + GASP ABP, 선택적 시각 메시)를 현재 GASP 폰에 직접 적용한다. 다음 로스터 적용(빙의 변경·`golmok.character`)이 이를 덮어쓴다(디버그 전용, 저장 안 함). 19c T12([#77](https://github.com/wooklym/golmok/pull/77), 2026-09-30) 뒤에는 로스터가 GASP 폰에서 모드별 기본(`default_by_anim_mode`)을 고르고, ABP 항목은 시각 메시를 해제하고 GASP 항목은 설정한다.
 
 ### 6. 가감속 프로파일
 - `animation.json` `movement_profiles`에 `p0`(현행)·`p1`(중간)·`p2`(GASP)를 둔다. 필드와 허용 범위: `max_acceleration`(100~10000 cm/s²), `braking_deceleration_walking`(0~10000), `ground_friction`(0~20), `braking_friction_factor`(0~10), `use_separate_braking_friction`(bool), `braking_friction`(0~20).
@@ -152,7 +152,7 @@
 ### 13. 19b PC GUI 바인딩 (D-021 발효·V-08b 뒤, PC 세션, 브랜치 `pc/wp19b-gasp-binding`)
 1. `.uproject`에 V-08b `.uplugin` 표의 최소 플러그인을 켠다. 별도 커밋 `WP-19: plugins (Golmok.uproject)`이고 D-021 허용 목록 안이어야 한다(pytest가 막는다). 빌드 → `add-gasp.ps1` → `-Verify`.
 2. `/Game/GolmokLocal/GASP/BP_GolmokCharacter_GASP`(부모 `AGolmokGaspCharacter`, `.gitignore`로 로컬 전용)를 만든다. Class Settings에 `BPI_SandboxCharacter_Pawn`을 더하고, 각 함수가 `GetLocomotionState()` 값을 GASP 구조체·열거형으로 바꿔 돌려주게 한다. 열거형은 `Select`/`Switch`로 이름 대응시키고 순서에 기대지 않는다. 범위 밖 함수(넘기 등)는 기본값을 돌려준다. 먼저 BPI 함수 목록과 시그니처를 런북에 기록한다.
-3. GASP 폴리 노티파이가 폰 쪽 인터페이스를 부르면 그 함수에서 `NotifyFootEvent`를 부른다(이중 재생 차단은 T13).
+3. GASP 폴리 노티파이가 폰 쪽 인터페이스를 부르면 그 함수에서 `NotifyFootEvent`를 부른다. 원본 GASP 발 폴리는 `footsteps.driver`와 무관하게 이 BP에서 늘 끄고 Step·Land만 보낸다(리뷰 R79-2, 오케스트레이터 결정 2026-09-30 — 처음 문안 "이중 재생 차단은 T13"을 고침: T13은 구독·드라이버 선택만 하고 원본 차단은 이 BP 몫이다).
 4. 함수 그래프를 Ctrl+C한 T3D 텍스트를 `tools/ue/gasp/BP_GolmokCharacter_GASP.t3d.txt`로 커밋한다. 우리가 만든 그래프이고 GASP 이름만 들어 있다. 다른 PC는 붙여넣기로 재현한다. `.uasset`은 R21-11-4(참조 에셋 커밋 가능 여부) 확인 전 커밋하지 않는다.
 5. `animation.json`에 GASP 경로를 확정하고, `preview` 시각 메시(리타깃), p1/p2(V-08b 값), V-08b 사전 등록 규칙이 고른 `movement_profile`을 넣는다. `expected.json` digest도 채운다. `status`, `preview`, GaspSmoke EXECUTED로 확인한다.
 - [추정] 대안: (a) BPI가 GASP 전용 구조체를 돌려줘야 하면 BP Make 노드로 만든다. (b) ABP가 BPI 밖에서 GASP 폰 클래스로 캐스트해 필수 값을 읽으면 무수정 원칙으로는 못 푼다. 그때는 오케스트레이터에 보고하고 B안(GASP 데이터 + 우리 ABP)이나 D-021 개정을 검토한다. (c) 리타깃이 부모 부착 방식이 아니면 §5 PC fix. (d) C++ 네이티브 함수 이름을 BPI에 맞춰 ProcessEvent로 흉내 내는 편법은 쓰지 않는다.
@@ -175,12 +175,12 @@
 5. 에디터를 다시 열지 않고 BP 컴파일 직후 PIE를 띄워 폰 클래스가 BP인지 본다(V-08 함정).
 6. 폴백: `-GolmokAnim=abp`로 한 번, `Content/GASP`·`GolmokLocal`을 저장소 밖으로 옮긴 상태에서 mode gasp로 한 번 띄운다. 둘 다 ①, Warning 1, Movement 통과여야 한다.
 7. 패키지: Development·Shipping cook·실행(gasp/abp), 크기 증가, 태그·DDCvar 경고 0, S4 성능, 플러그인을 켠 ① 패키지 정상.
-8. 결정 게이트: 통과면 `animation.json` `mode: gasp`와 로스터 모드별 기본을 별도 커밋으로 바꾼다(D-021 진행 기록). 미통과면 ① 기본을 유지하고 ②는 옵션으로 두며 B안을 검토한다.
+8. 결정 게이트: 통과면 `animation.json` `mode: gasp`와 로스터 모드별 기본을 별도 커밋으로 바꾼다(D-021 진행 기록). T12가 `default_by_anim_mode.gasp`를 이미 두었으므로 로스터 쪽은 확인만 한다(리뷰 R77-13). 미통과면 ① 기본을 유지하고 ②는 옵션으로 두며 B안을 검토한다.
 
 ### 16. 다른 WP 계약과의 충돌·위험
 - WP-18: ① 로스터가 빙의마다 `GetMesh()`를 덮어써 19c 전에는 GASP 폰도 ①로 보인다(§5 preview로 우회). ② 18a "같은 스켈레톤만"은 소스 메시에는 그대로 성립하지만 시각 메시에는 T12 스키마 확장이 필요하다(엄격 키). ③ 로스터 `mesh_scale`은 소스에 걸리고 시각 메시가 물려받는다. 축소 프록시에서 GASP 발 IK·보폭이 달라질 수 있다[추정, D-018 V-08b/c]. ④ 캡슐 크기 변경 텔레포트는 §3 감지 대상이다. ⑤ 새 로스터 id와 `stride_cm_by_character`(R63-3).
 - WP-12: 포토 모드는 캡슐 중심 3 m 구를 기준으로 하는데 Offset Root Bone은 메시를 캡슐에서 떼어 둔다(V-08 ②b 정지 뒤 발 98~175 cm). 구도 중심이 어긋날 수 있다[추정, V-15 §4]. 포토 폰 빙의 왕복은 로스터 재적용과 같은 경로라 T12 뒤 시각 메시도 복구돼야 한다.
-- WP-13: T13 전에는 거리 발소리와 GASP 폴리가 겹칠 수 있다[추정]. 그래서 V-15는 T13 뒤다.
+- WP-13: T13 전에는 거리 발소리와 GASP 폴리가 겹칠 수 있다[추정]. 그래서 V-15는 T13 뒤다. 원본 폴리 차단은 19b BP 몫이다(§13-3, 리뷰 R79-2).
 - WP-15: `golmok.travel`과 세이브 복원은 텔레포트다(§3). 모드는 설정이라 저장하지 않는다.
 - WP-05·기존 자동화: 기본이 ①이라 `Golmok.Player.Movement`·`Golmok.Character.*`·`Golmok.Photo.*`는 그대로 통과해야 한다.
 - D-003: 로직은 C++, BP는 인터페이스 구현 하나(불가피한 곳)다.
@@ -195,7 +195,7 @@
 | 5 | `Config/Tags/*.ini`가 로드·스테이징되고, JSON으로 등록한 DDCvar가 설정 DDCvar와 같게 동작 | 19b `status`, V-15 패키지 로그 |
 | 6 | p0 = 엔진 기본값 | StateProvider 자동화 |
 | 7 | 착지 창 0.3 s, 텔레포트 재초기화가 Offset Root Bone을 정리 | 19b, V-15 §4 |
-| 8 | 폴리 경로와 끄는 방법 | V-08b §5 → T13 |
+| 8 | 폴리 경로와 끄는 방법 | V-08b §5 → 19b BP(§13-3, R79-2) |
 | 9 | 플러그인과 없는 쿡 폴더가 ①에 무해 | V-15 §7 |
 | 10 | 우리 속도(180, 로스터 145/380)에서 스트라이드 워핑 품질 | V-08b P0 측정, V-15 |
 
@@ -348,7 +348,7 @@ UE 컴파일·UHT 리뷰에서 A급 결함은 없었다. 순수 헤더는 g++(`-
 
 **판단(오케스트레이터가 뒤집을 수 있음)**
 1. `-Force`는 설치를 덮거나 지우지 않는다. `Content\GASP`가 있으면 멈추고, 지우는 일은 사용자가 런북 §A3 "다시 설치"로 한다. `Content/Characters`에 마네킹 팩이 섞여 있어서, 스크립트가 지우는 것보다 목록을 알리는 편이 안전하다.
-2. 잔재 판정은 두 가지를 합친다. 하나는 누적 이력이고, 다른 하나는 이력이 없을 때를 위한 원본과 바이트가 같은 사본이다. 직전 `migrate.json`은 ps1이 실행마다 지우고, 실패한 실행이 덮어써서 목록을 잃는다. 그래서 이력을 따로 둔다. 이력은 복사가 일부 실패해도 복사된 것을 남긴다. 바이트가 다르고 이력에도 없는 이름 충돌은 종전처럼 "기존 Golmok 패키지"로 건너뛴다.
+2. 잔재 판정은 두 가지를 합친다. 하나는 누적 이력이고, 다른 하나는 이력이 없을 때를 위한 원본과 바이트가 같은 사본이다. 직전 `migrate.json`은 ps1이 실행마다 지우고, 실패한 실행이 덮어써서 목록을 잃는다. 그래서 이력을 따로 둔다. 이력은 복사가 일부 실패해도 복사된 것을 남긴다. 바이트가 다르고 이력에도 없는 이름 충돌은 종전처럼 "기존 Golmok 패키지"로 건너뛴다. → 병합 리뷰 R78-1: 이력은 복사를 **시작할 때** 계획한 패키지로 적는다(복사 도중 죽은 편집기가 남긴 반쯤 쓴 파일도 잡도록).
 3. `-Manifest` 단계를 더했다(R76 T5가 말한 "GUI Move + Fix Up 뒤 매니페스트 재생성"의 수단). 마지막 성공 migrate의 패키지가 모두 `/Game/GASP`에 있거나 모두 Migrate 경로에 있을 때만 쓴다.
 4. `source_digest`는 폐포 **전체**(이름 충돌로 건너뛴 것 포함)의 원본 파일로 만든다. 그래서 로컬 상태, 종료 코드 0/2, PC와 무관하다. 복사 뒤 원본이 바뀌었으면(`source_unchanged false`) 실패가 아니라 경고로 둔다. 이미 복사가 끝났고, 실패로 멈추면 잔재 처리만 늘어난다.
 5. `expected.json`은 schema 2로 올리고 `digest` 키를 `source_digest`로 바꿨다(값은 아직 null이라 잃는 것이 없음). `package_count`는 원본 폐포 수다(V-08 1,187과 대조, 런북 §A3).
@@ -361,7 +361,7 @@ UE 컴파일·UHT 리뷰에서 A급 결함은 없었다. 순수 헤더는 g++(`-
 12. C3: 캐시 키는 `GFrameCounter`, `SuperClass`, 모드 원천 세대다. 세대는 콘솔 모드 변경과 `FScopedConfigOverride` 생성·소멸 때 오른다. 같은 프레임 안에서만 쓰고, 포인터는 비교만 한다. AI 컨트롤러는 설정을 읽지 않고 바로 `SuperClass`를 돌려준다(종전과 결과 같음).
 13. C4: 파일의 `mode`는 대소문자를 구분하도록 바꿨다(`ParseModeName`). 19a의 `FString ==`는 대소문자를 무시해 pytest 스키마와 달랐다. 명령줄·콘솔은 `ParseModeArgument`(대소문자 무시·공백 제거)를 쓴다. 틀린 `-GolmokAnim` Warning은 순수 함수 `ComputeEffectiveMode`가 아니라 `GetEffectiveMode`·`ResolvePawn`에서 프로세스당 1회 낸다. 그래서 자동화의 bogus 사례가 Warning을 만들지 않는다.
 14. C5: HUD는 마지막 스폰이 GASP 폰이었는데 다른 폰에 빙의했을 때만 `anim: abp (possessed <클래스> is not the GASP pawn)`를 보인다. 폴백 사유가 우선이다.
-15. C6: preview는 로스터와 같은 엄격 규칙(`TargetSkeleton == 메시 스켈레톤`)을 소스 메시와 GASP ABP, 시각 메시와 리타깃 ABP 둘 다에 쓴다. GASP가 호환 스켈레톤만 쓰면 preview가 거부된다([추정] 런북 §D #17).
+15. C6: preview는 로스터와 같은 엄격 규칙(`TargetSkeleton == 메시 스켈레톤`)을 소스 메시와 GASP ABP, 시각 메시와 리타깃 ABP 둘 다에 쓴다. GASP가 호환 스켈레톤만 쓰면 preview가 거부된다([추정] 런북 §D #17). → 병합 리뷰 R78-2·R77-13: 시각 메시 쌍은 T12 로스터와 같게 `TargetSkeleton`이 없는 템플릿 ABP도 받는다(소스 쌍은 엄격 그대로).
 16. D8: 금지 헤더는 include의 파일 이름에 `PoseSearch|Chooser|Mover|GameplayCamera`가 들어가는지로 잡는다(`CharacterMoverComponent.h` 포함). `.uproject` `Modules`는 통째로 고정한다.
 17. 바이트 비교 잔재 규칙은 마네킹 팩(`/Game/Characters/Mannequins/`)에 쓰지 않는다. 그 아래는 이력으로만 잔재가 된다(적대 검증 C).
 18. GASP ini는 migrate(복사 전)·relocate(이동 전)·`-LocalFiles`(쓰기 전) 세 곳에서 파일 존재와 V-08 개수(27/39)까지 확인한다. 다른 프로젝트를 가리키면 아무것도 복사·이동·덮어쓰기 하지 않는다(적대 검증 B).
@@ -398,3 +398,16 @@ T2 digest 의존성, T4 이름 규칙(UE `INVALID_LONGPACKAGE_CHARACTERS`와 동
 **병합 시 반영(문안)**
 - STATUS WP-19 행: 상태 칸 끝에 `· 19a-2 셋업·가드 보강 병합(PR #<번호>; R76 T1~T4·(C))`를 더한다. 비고 끝에 `19a-2: add-gasp 재실행 복구(복사 전 정지·잔재 목록·빈 migrate 거부·-LocalFiles/-Manifest), expected.json source_digest(schema 2), 가드 내용·대소문자·위치 규칙, golmok.anim status 무로드, pytest 1287 → 1324`를 더한다.
 - ROADMAP 애니메이션 행: `WP-19a-2(2026-09-30): add-gasp 재실행·복구와 원본 digest, GASP 저장소 가드 보강(리뷰 R76 후속), PC 19b 대기`.
+
+#### 19a-2 병합 리뷰 R78 (2026-09-30, 오케스트레이터 세션, Opus 5.5 읽기 전용 적대 검증) — (A) 0 · (B) 2 · (C) 10
+- 게이트(리뷰 세션): ruff·format, pytest 1324 passed / 3 skipped(PR 주장과 같음), check_repo, `diff --check`, CI 10/10. #77·#79와 합친 트리 충돌 0·pytest 1353. 드라이버는 g++·clang++ 엄격 플래그로 경고 없이 컴파일되고 nan/inf가 헤더까지 간다.
+- R76 T1~T4 **해결됨**(fake_unreal 재현, 뮤테이션 14개 중 12개 검출 — 살아남은 둘은 R78-6과 동치 변이). T4 금지 문자 집합은 UE `INVALID_LONGPACKAGE_CHARACTERS`와 글자 단위로 같다[추정, 엔진 소스 없음]. 가드 오탐 없음(main·병합 트리·열린 브랜치 4개). 핫스팟은 `[WP-19 hook]` 블록 안·별도 훅 커밋 2개, 금지 파일·Astra 레인 무변경, V-15 기준 불변, Astra가 쓰는 공개 API 서명·의미 불변.
+- 참고: R76-C4의 전제("19a가 대소문자를 구분")는 틀렸다. `FString ==`는 원래 대소문자를 무시한다. 19a-2의 실제 효과는 **파일** `mode`를 엄격하게 만든 것이고 커밋 값이 `abp`라 ①은 그대로다.
+- **이 병합 전에 고친 것**(오케스트레이터 커밋 `WP-19a-2: 병합 리뷰 R78 반영`):
+  - (B) R78-1 `gasp_import.migrate`: 이력을 복사 **전에** 계획한 패키지(`packages − existing`)로 기록한다(복사 뒤 기록은 지움 — 상위 집합). 테스트 `test_an_editor_that_dies_mid_copy_leaves_no_leftover_the_next_run_misses`(복사 3개 뒤 반쯤 쓴 파일을 남기고 죽는 편집기 → 둘째 실행이 잔재로 멈추고 목록대로 지우면 셋째 실행이 충돌 없이 전부 복사; 수정 전에는 실패 확인). 런북 §A3 표 문구.
+  - (B) R78-2 `SkeletonMatches(…, bAllowTemplate)`: preview의 시각 메시 쌍만 `TargetSkeleton`이 null(템플릿)이어도 받는다 — T12 로스터(`GolmokCharacterSubsystem::ApplyEntry` 시각 규칙)와 같다. 소스 쌍은 엄격 그대로. 런북 §A8·§D #19.
+  - R77-13(Claude 레인): `ApplyPreview` 메시지·헤더 주석을 T12 뒤 사실로(`a roster apply replaces it, golmok.anim preview off restores the roster entry`), 런북 §A8, 스펙 §5 끝·§15-8.
+  - R79-2(a): 스펙 §13-3·§16·§17 8행과 런북 §A5·§D 8행의 "이중 재생 차단은 T13"을 "19b BP가 원본 GASP 발 폴리를 `footsteps.driver`와 무관하게 끄고 Step·Land만 `NotifyFootEvent`"로 고쳤다(오케스트레이터 결정, D-019). §A5에 폴리 종류 대응표·게임 스레드 조건(R79-6)을 더했다.
+  - (C) R78-3 `FileNotFoundError` 런북 행, R78-4 폐포 1,187 대조 문구(리타깃 루트 몫), R78-6 `ls-files` 실패 분기 테스트(뮤테이션 `if False:`가 이제 잡힘), R78-10 §C #15 대안 문구.
+  - pytest 1324 → **1326**.
+- **남긴 (C)**(다음 Claude 레인 push, 19b 전이면 좋음): R78-5 가드 구멍(Config 아래 ini가 아닌 텍스트·`unreal/Golmok` 밖 ini·이름을 바꿔 `Content/Golmok`에 넣은 GASP 에셋 — 의도적 우회만 해당), R78-7 `.git`이 있는데 toplevel 표기가 다르면(subst·정션) 조용히 건너뜀 → `os.path.samefile` 또는 실패, R78-8 플러그인 Content·`__ExternalActors__`를 쓰게 되면 허용 경로 추가(훅 주석 한 줄), R78-9 `GASP_INI_COMMIT_ALLOWED`와 `gasp_pure` 상수 동기화 주석, R78-11 D8 헤더 규칙을 엔진 헤더 이름 목록으로 좁힘, R78-12 커밋 순서 메모(내용 위반 없음). R78-5·7·8·9는 `check_repo.py` 훅 블록 안 수정이라 별도 훅 커밋으로 한다.

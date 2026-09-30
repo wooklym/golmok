@@ -73,11 +73,19 @@ namespace GolmokAnimation
 			: TEXT("no");
 	}
 
-	/** The roster rule (UGolmokCharacterSubsystem::ApplyEntry): an anim Blueprint whose target skeleton is the mesh's. */
-	bool SkeletonMatches(const USkeletalMesh* Mesh, const UClass* AnimClass)
+	/**
+	 * The roster rule (UGolmokCharacterSubsystem::ApplyEntry): an anim Blueprint whose target skeleton is the mesh's.
+	 * bAllowTemplate is the roster's visual rule: a retarget ABP may declare no target skeleton (review R78-2).
+	 */
+	bool SkeletonMatches(const USkeletalMesh* Mesh, const UClass* AnimClass, bool bAllowTemplate = false)
 	{
 		const UAnimBlueprintGeneratedClass* AnimBP = Cast<UAnimBlueprintGeneratedClass>(AnimClass);
-		return Mesh && AnimBP && Mesh->GetSkeleton() && AnimBP->GetTargetSkeleton() == Mesh->GetSkeleton();
+		if (!Mesh || !AnimBP || !Mesh->GetSkeleton())
+		{
+			return false;
+		}
+		const USkeleton* Target = AnimBP->GetTargetSkeleton();
+		return Target == Mesh->GetSkeleton() || (bAllowTemplate && !Target);
 	}
 
 	void CmdAnim(const TArray<FString>& Args, UWorld* World)
@@ -358,7 +366,7 @@ bool UGolmokAnimationSubsystem::ApplyPreview(bool bOn, FString& OutMessage)
 		USkeletalMesh* VisualMesh = Cast<USkeletalMesh>(GolmokAnimation::LoadObjectIfPresent(VisualMeshPath, USkeletalMesh::StaticClass()));
 		UClass* VisualAnim = GolmokAnimation::LoadClassIfPresent(VisualAnimPath, UAnimInstance::StaticClass());
 		FString VisualError;
-		if (VisualMesh && VisualAnim && !GolmokAnimation::SkeletonMatches(VisualMesh, VisualAnim))
+		if (VisualMesh && VisualAnim && !GolmokAnimation::SkeletonMatches(VisualMesh, VisualAnim, /*bAllowTemplate*/ true))
 		{
 			Character->ClearVisualOverride();
 			Visual = FString::Printf(TEXT("visual mesh not applied (%s: %s is not for its skeleton)"), *VisualMeshPath, *VisualAnimPath);
@@ -376,7 +384,7 @@ bool UGolmokAnimationSubsystem::ApplyPreview(bool bOn, FString& OutMessage)
 	{
 		Character->ClearVisualOverride();
 	}
-	OutMessage = FString::Printf(TEXT("preview on: %s + %s, %s (debug only, not saved; use golmok.anim preview off before a roster change: a roster apply replaces only the source mesh)"), *SourcePath, *AnimPath, *Visual);
+	OutMessage = FString::Printf(TEXT("preview on: %s + %s, %s (debug only, not saved; a roster apply replaces it, golmok.anim preview off restores the roster entry)"), *SourcePath, *AnimPath, *Visual);
 	return true;
 }
 

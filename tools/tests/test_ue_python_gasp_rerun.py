@@ -191,6 +191,34 @@ def test_leftovers_are_found_through_the_history_when_the_bytes_differ(setup):
     assert len(setup["fake"].calls_of("migrate")) == 1
 
 
+def test_an_editor_that_dies_mid_copy_leaves_no_leftover_the_next_run_misses(setup, monkeypatch):
+    """R78-1: the history is written before copying, so a partly written copy is a leftover."""
+    original = fake_unreal.FakeAssetTools.migrate_packages
+    dying = {}
+
+    def dies_mid_copy(self, names, dest, options=None):
+        names = [str(n) for n in names]
+        original(self, names[:3], dest, options)
+        dying["package"] = names[2]
+        partial = Path(dest) / (names[2][len("/Game/") :] + ".uasset")
+        partial.write_bytes(partial.read_bytes()[:3])  # the file being written when the editor died
+        raise SystemExit("editor process died")  # no result file: add-gasp.ps1 stops
+
+    monkeypatch.setattr(fake_unreal.FakeAssetTools, "migrate_packages", dies_mid_copy)
+    with pytest.raises(SystemExit):
+        run(setup, "migrate")
+    monkeypatch.setattr(fake_unreal.FakeAssetTools, "migrate_packages", original)
+    open_gasp_project(setup)
+    second = run(setup, "migrate")
+    assert not second["ok"] and dying["package"] in second["leftovers"]
+    for rel in second["delete"]:  # the user deletes exactly what the message lists
+        target = setup["content"] / rel[len("Content/") :]
+        shutil.rmtree(target) if target.is_dir() else target.unlink()
+    open_gasp_project(setup)
+    third = run(setup, "migrate")
+    assert third["ok"] and third["conflicts"] == [] and dying["package"] in third["migrated"]
+
+
 def test_relocate_refuses_an_empty_migration_and_keeps_the_manifest(setup):
     setup["local"].mkdir()
     (setup["local"] / "gasp_manifest.json").write_text('{"sentinel": 1}\n', encoding="utf-8")

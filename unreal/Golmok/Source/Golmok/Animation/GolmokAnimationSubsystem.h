@@ -20,8 +20,8 @@ class UGolmokDebugSubsystem;
  *
  * status only checks that the GASP assets exist (asset registry / package on disk; "status load" loads them).
  * mode is process-wide (a new PIE picks it up); profile / preview act on the current GASP pawn only (active
- * character view, not paused, not in photo mode) and are not saved. A roster apply replaces only the source mesh
- * (GetMesh()); the visual override stays until `golmok.anim preview off` (19c T12 calls ClearVisualOverride).
+ * character view, not paused, not in photo mode) and are not saved. A roster apply replaces the preview (19c T12:
+ * the source mesh, and the visual override is set or cleared); `golmok.anim preview off` restores the roster entry.
  */
 UCLASS()
 class GOLMOK_API UGolmokAnimationSubsystem : public UWorldSubsystem
