@@ -272,7 +272,7 @@ Python ruff check/format103·pytest740 passed/77 skipped(33.05s)·check_repo·di
 이슈 #30 코멘트 5903520898(C-07 해소·T7 배정), main `99142bf` 기준 `astra/wp-18-zonewalk-rhi`. 코드 변경은 `Tests/GolmokCharacterRosterZoneWalk.cpp`만이며 RenderTest의 기존 조합 경고를 실제 실행으로 확인했다. 새 등록·런타임·공유 훅·에셋 변경 없음. 현재 main의 등록 수는 **32개**(과제의 28은 이전 시점 수치)이며 이 작업은 그대로 유지한다.
 
 - R52-1: 실패 경고에 `walk_01` 실제 경로 및 기존 파일 유무를 표시한다. 주석도 world-subsystem `Deinitialize`의 폐기로 바로잡았다. 실패 시 저장 명령을 보내지 않는다.
-- R52-2: 유리 접촉면을 `Zone->BlockerThicknessCm`의 절반으로 계산한다. 코스 0·1은 접촉면 ±5 cm **그리고** 속도 <1 cm/s에서만 1초 압박을 시작한다(기존 T7 조건 유지).
+- R52-2: 유리 접촉면을 `Zone->BlockerThicknessCm`의 절반으로 계산한다. 코스 0·1은 접촉면 ±5 cm **그리고** 속도 <1 cm/s에서만 1초 압박을 시작한다(PR #52 T4 조건 유지).
 - R52-3: 접촉 20 s 타임아웃 메시지에 y·face·수평 속도(cm/s)를 포함한다.
 - F4: W를 누른 이동 구간에서 다음 틱부터 `IsInputKeyDown`을 확인하고 소실이면 `input flushed (viewport focus lost)`로 즉시 실패한다. 입력 발행 프레임은 PlayerInput 처리 전이라 제외한다. 첫 RHI 시행에서 같은 프레임 검사 오탐을 발견했고 이 수정 후 코스 0·1이 통과했다.
 - 재현용 opt-in `-GolmokZoneWalkForceInputFlush`: 코스 4의 두 번째 waypoint에서 W 입력 후 0.25 s에 직접 `FlushPressedKeys()`를 호출한다. 평상시 및 다른 코스에는 영향이 없다. 실제 포커스 변경 대신 엔진 입력 flush 이후의 분기만 시험한다. 런북 §12에 백그라운드/포커스 ini 우회와 실패 판정 방법을 남겼다.
@@ -291,7 +291,7 @@ Python ruff check/format103·pytest740 passed/77 skipped(33.05s)·check_repo·di
 
 기존 `Saved/Golmok/Paths/walk_01.json`은 전후 **61069 bytes**, SHA-256 `fea743b0ef4f9398528396de78fe9fc99e43b8f410628294c95119ed85f5362c`, mtime_ns `1790587719792403000`으로 모두 동일했다. 폐기 로그와 파일 보존을 확인했으며 잘린 녹화 파일은 만들지 않았다. 파일 미존재 경고 분기·20초 접촉 타임아웃·실제 창 포커스 전환·Sequence 플래그 조합은 별도 실행하지 않았다. 기존 코스 4 정상 저장 순서(R52-6)는 이번 범위 밖이다.
 
-검증 게이트: 최종 UE5.8.3 빌드 5.74 s 성공(엔진 Character.h의 기존 deprecated 경고). `test.ps1 -SetupDevLevel` 전체 32 Success(21 + 경고11), 실패0/notRun0, 178.34 s. 기본 RenderEvidence NOT EXECUTED 1건을 제외한 실제 실행은31개이며, opt-in RHI 근거는 위 별도 실행이다. pytest1029 passed/203 skipped/208 warnings(42.01 s), ruff check·format108·check_repo·diff check 통과. 로컬 g++ 없음, 교차검증은 CI. 열린 #21 pc/v08-animation과 변경 파일 겹침 없음. 소유자 결정 필요 없음; Opus ultracode 코드 리뷰 요청.
+검증 게이트: 최종 UE5.8.3 빌드 5.74 s 성공(엔진 Character.h의 기존 deprecated 경고). `test.ps1 -SetupDevLevel` 전체 32 Success(21 + 경고11), 실패0/notRun0, 178.34 s. 기본 RenderEvidence NOT EXECUTED 1건을 제외한 실제 실행은31개이며, opt-in RHI 근거는 위 별도 실행이다. pytest1029 passed/203 skipped/208 warnings(42.01 s), ruff check·format108·check_repo·diff check 통과. 로컬 g++ 없음. CI g++는 순수 수학 헤더만 교차검증하며 이 UE .cpp의 컴파일 근거는 로컬 UE5.8.3 빌드다. 열린 #21 pc/v08-animation과 변경 파일 겹침 없음. 소유자 결정 필요 없음; Opus ultracode 코드 리뷰 요청.
 
 ### 병합 시 반영 — T7 RHI
 
@@ -308,3 +308,46 @@ Python ruff check/format103·pytest740 passed/77 skipped(33.05s)·check_repo·di
 - (C) R72-2 실패 문구가 원인을 포커스 상실로 단정한다(`W seen down since press`·경과 시간 추가 권장). R72-3 새 검사의 실행 근거는 코스 0·1과 코스 4 step1뿐이다 — **코스 2·3·5와 정상 코스 4는 새 검사로 아직 실행하지 않았다**(다음 RHI 실행에서 6코스 1회). R72-4 강제 flush 플래그를 코스 4 외 코스와 함께 주면 표시 없이 무시된다. R72-5 §12의 Astra 작업 트리 고정 경로, 유리면 식은 캡슐 중심 y, 에디터 PIE에서 ResX/ResY 미적용. R72-6 "기존 T7 조건"은 PR #52 리뷰 T4 조건이고, CI g++는 이 `.cpp`를 컴파일하지 않는다(컴파일 근거는 로컬 UE 빌드) → T11(선택).
 
 **병합**: 오케스트레이터 결정(D-019)으로, CI 10/10 초록과 (A) 없음을 기준으로 병합했다. WP-18·V-11 상태는 바뀌지 않는다(🟡 유지; 품질 판정은 V-11 PC 카드).
+
+
+## T11 R72 후속 결과 (2026-09-30)
+
+배정: 이슈 #30 코멘트 5904874219, PR #72 R72 리뷰. main `48ba577`에서 새 `astra/wp-18-zonewalk-r72`로 시작했다. 배정 3파일만 수정, 등록32 유지. GASP 통합(WP-19)·품질 가설·런타임·공유 훅 변경 없음.
+
+- R72-1: 런북 §12 코드 블록이 코스 0 조합 플래그와 코스 4 강제 flush를 직접 붙인다. 코스 4를 포함하면 `.pre-t7` 백업·SHA-256·mtime 기록, finally 복원·해시/mtime 확인을 수행한다. 기존 백업은 덮어쓰지 않는다. `$course=-1`은 강제 flush 없는 정상 6코스이며 이때도 기준 녹화를 복원한다.
+- R72-2: 지정 입력 소실 문자열 뒤에 `W seen down since press`와 `Now-StepAt`를 붙였다. 각 press에서 이력을 초기화하고 다음 틱부터 실제 W 상태를 누적한다. 진단은 입력을 한 번이라도 인식했는지 구별하며 포커스 상실의 직접 관찰을 뜻하지 않는다.
+- R72-4: 코스 4를 제외한 단일 코스에 강제 flush 플래그를 주면 무시 경고. 전체 코스 선택에는 4가 포함되므로 이 경고가 없다.
+- R72-5/6: worktree 루트 상대 경로, 접촉 시 캡슐 중심 y와 유리 면 구분, PIE 해상도 실제값 안내, PR #52 T4 조건 표기 및 CI g++/로컬 UE 컴파일 범위를 정정했다.
+
+### R72-3 실제 정상 6코스 RHI
+
+UE5.8.3·D3D12 offscreen·실시간 PIE·`L_ZoneTest06`, UTC 06:37~06:41. 다른 UE 프로세스·GUI 잠금 없음 확인 뒤 자체 잠금을 생성·유지·해제했다. 기존 `walk_01.json`을 `.pre-t7`로 백업했고 아래 모든 실행 뒤 복원했다. 새 보안 창을 조작하지 않았다.
+
+정상 6코스를 **한 프로세스에서 한 번** 실행: `Golmok.Character.RenderEvidence` 1 Success, 경고0/실패0, 테스트200.83 s(프로세스233.86 s). 입력 소실 오탐 없음. 6개의 COMPLETE, 단언25개 PASS, PNG37장 전부1014×550 디코딩 확인. 코스 4 정상 녹화73.05068 s, 포털 진입·복귀·언로드·녹화 종료 통과. 코스 5 실내 3면·천장·조명 overlay 단언도 통과. 이는 엔진 입력 회귀 근거이며 키보드 지속 입력·영상·최종 품질/fps 판정이 아니다.
+
+| 코스 | PNG | PASS 단언 | 로컬 Saved/Automation/WP06ZoneWalk 하위 폴더 |
+|---|---:|---:|---|
+| 0 | 3 | 2 | `course0_C5536BEB463417434C0F8F9C7DAC7357` |
+| 1 | 3 | 2 | `course1_588CA3514C2ECBE0E97ABCAC799E1BAB` |
+| 2 | 3 | 2 | `course2_4C0FB6444EFFC89789E069A6CECD66A2` |
+| 3 | 3 | 1 | `course3_EEAC39E04383A12BB281C593BAF11C68` |
+| 4 | 12 | 6 | `course4_7752B8F9453055AEA3EB2E816D950202` |
+| 5 | 13 | 12 | `course5_E94B0B714A2B2382D87F0AA0708B51C1` |
+
+보고서는 `Saved/Automation/T11-normal-six/index.json`. 정상 녹화 직후 파일은60912 bytes·SHA-256 `c6befa2e6a23084d51a5480d3f25af4eb200ddb612d0ff3acc773ae62f09a972`였으며, 실행 뒤 기준 파일 **61069 bytes·SHA-256 `fea743b0ef4f9398528396de78fe9fc99e43b8f410628294c95119ed85f5362c`·mtime_ns `1790587719792403000`**으로 복원됐다. 백업은 로컬에 보존했고 생성 에셋·녹화·PNG는 커밋하지 않았다.
+
+추가 RHI 확인:
+- `T11-flush4`: 의도된 Fail1·경고2,6.90 s. `input flushed (viewport focus lost); W seen down since press=true; Now-StepAt=0.400 s`, Deinitialize 36샘플 discarded. 복원 전에도 기준 파일 해시/mtime/크기가 동일했다.
+- `T11-wrong-flag0`: Success·경고1,14.98 s. `GolmokZoneWalkForceInputFlush applies only to course 4; ignored for the selected course.` 확인. 기준 파일 불변.
+
+런북 PowerShell 블록은 Parser 검사와 임시 파일/엔진 stub로 코스0·4·-1 인자 전달, 정상 녹화 덮어쓰기 뒤 finally 복원, 기존 백업 거부(IOException)를 확인했다. 이 stub 결과를 UE 실행으로 세지 않는다. 실제 RHI는 동일 인자의 Python 실행기로 위 별도 결과를 얻었다.
+
+미실행: W가 처음부터 등록되지 않는 경우(`seen=false`)의 주입 시험, 실제 창 포커스 전환, 접촉20초 타임아웃·파일 미존재 경고. 정상 코스4의 기존 저장 순서(R52-6)는 변경하지 않았다. 기준 녹화는 런북 백업/복원으로 보호한다.
+
+검증 게이트: UE5.8.3 빌드7.90 s 성공, `test.ps1 -SetupDevLevel` 전체32 Success(21+경고11), failed0/notRun0, 178.39 s. 기본 RenderEvidence NOT EXECUTED1을 제외한 실제31개, RHI는 위 별도 실행이다. Python1029 passed/203 skipped/208 warnings(43.09 s), ruff check·format108·check_repo·diff check 통과. 소유자 결정 필요 없음; Opus ultracode 리뷰 요청. CI는 PR에서 확인한다.
+
+### 병합 시 반영 — T11
+
+> STATUS WP-18/T11 메모: R72-1 런북 코스별 플래그·walk_01 백업/복원, R72-2 입력 인식 이력, R72-4 잘못 지정한 강제 flush 경고, R72-5/6 표기 정정. 정상 D3D12 6코스1회 경고0/실패0·단언25 PASS·PNG37장, 기준 경로 복원 확인. 엔진 입력 회귀 근거이며 WP-18/V-11 품질 판정은 별도 PC 카드에 따른다.
+
+> astra-tasks T11 결과: R72 후속 완료. 정상 코스4 포함 6코스 통과, 강제 flush 진단·잘못 지정한 플래그 경고 확인, 백업 파일 보존·원본 해시/mtime 복원. Opus ultracode 리뷰 후 병합. WP-19 3단계는 별도 배정 뒤 시작.
