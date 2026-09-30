@@ -67,3 +67,11 @@ unreal/Golmok/Content/Golmok/Maps/L_ZoneTest09*
 # (audio.json + the WAVs are the source; the runbook re-imports before packaging)
 unreal/Golmok/Content/Golmok/Audio/*/SW_*.uasset
 # [/WP-13 hook]
+
+# [WP-19 hook] V-08 (D-021): GASP Migrate lands at the Content root (Audio/Blueprints/Input/Levels/MetaHumans/Misc/...).
+# Fab EULA §5(a) forbids distributing GASP content from this public repo, so only Content/Golmok and Content/Python are
+# committable at the Content root; everything else there stays local (Characters/ = mannequin pack, see above).
+unreal/Golmok/Content/*
+!unreal/Golmok/Content/Golmok/
+!unreal/Golmok/Content/Python/
+# [/WP-19 hook]
