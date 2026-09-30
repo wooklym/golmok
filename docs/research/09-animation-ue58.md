@@ -11,6 +11,7 @@ PC 평가 절차: [`runbooks/pc-verify-animation.md`](../runbooks/pc-verify-anim
 3. **5.8 변경점**: Pose Search에 다중 캐릭터 검색(`MotionMatchMulti`, Experimental)·Chooser 연동 수정이 들어갔고, Mover/ChaosMover는 motion matching용 궤적 예측을 얻었지만 Mover는 **아직 Experimental**이다 [확인: 5.8 릴리스 노트]. 우리 캐릭터는 `CharacterMovementComponent`를 쓰므로 Mover는 대상이 아니다. **Chooser 플러그인도 5.8 문서에 Experimental로 표시**돼 있다 [확인: Dynamic Asset Selection 문서 배너] — ②(GASP)는 Chooser 테이블에 의존하므로 이 점을 ② 리스크에 적었고, ③은 Chooser를 쓰지 않는다.
 4. **라이선스**: Fab 라이선스 종류(CC-BY / Standard)와 Personal·Professional 가격 구간은 공식 문서로 확인했다 [확인]. 그러나 **Fab EULA 원문·Unreal Engine EULA(엔진 동봉 콘텐츠 조항)·GASP Fab 리스팅은 컨테이너에서 403**이라 조항을 인용하지 못했다 → **[확인 필요]**, V-08 §0에서 사용자가 확인한다. GASP는 Epic이 만든 샘플이지만(가격·무료 여부도 리스팅에서 확인), 조건을 확인하기 전에는 "상용 게임 배포 가능"이라고 쓰지 않는다(CLAUDE.md 규칙).
 5. **권장: ② GASP 에셋 이식(Motion Matching 로코모션만)**을 PC에서 먼저 시험하고(V-08), 실패하거나 비용이 크면 ③ 최소 구성, 그래도 안 되면 ① 현행 유지. 이유는 퀄리티 최우선(D-003·최우선 원칙)과 "Epic이 유지보수하는 5.8 대응 에셋"이라 직접 만드는 것보다 리스크가 작기 때문이다. 채택은 **라이선스 확인 + V-08 채점** 뒤 사용자 결정이다(ROADMAP 1.3 행의 구현 선택. 에셋 라이선스는 D-002 항목에 기록).
+6. **V-08 뒤 갱신(2026-09-30)**: 위 3~5는 V-08 이전 서술이다. 라이선스 원문은 V-08 §0에서 PC 세션이 인용했고(소유자 재확인 대기), 채택은 D-019에 따라 오케스트레이터가 **D-021로 방향 채택**했다. 5.8.3 설치본 `.uplugin`에는 Chooser·Pose Search 플래그가 없고, 5.8 GASP는 궤적을 ABP 함수로 만들며, 통합에는 폰 인터페이스 공급이 필요하다(§3 표의 "C++ 변경: 소"는 틀림). 상세는 §7.
 
 ## 1. 현재 프로젝트 상태 (코드에서 확인)
 
@@ -35,7 +36,7 @@ PC 평가 절차: [`runbooks/pc-verify-animation.md`](../runbooks/pc-verify-anim
 - 정의: "Motion Matching in Unreal Engine is a query-based animation pose selection system. Contained within the Pose Search plugin, you can use the Motion Matching Animation Blueprint node as a dynamic alternative to State Machines, or Blendspaces." [확인: https://dev.epicgames.com/documentation/unreal-engine/motion-matching-in-unreal-engine?lang=en-US]
 - 구성 요소(같은 문서): Pose Search **Schema**(무엇을 비교할지: 채널), **Database**(후보 애니메이션), ABP의 **Motion Matching 노드**. 궤적 채널은 "designed to be used in conjunction with the Character Trajectory blueprint component"다.
 - 비용 주의(같은 문서): "the more channels and samples within the channels you have, the more performance it will take to run", "It is recommended to use as few channels as necessary". 일부 채널은 "experimental, and their functionality should not be relied upon in production"(Crashing Legs 등).
-- 플러그인 성숙도(Beta/Experimental 여부)는 문서에서 찾지 못했다 → **[확인 필요]**: V-08 §1에서 에디터 Plugins 창의 표시를 기록한다.
+- 플러그인 성숙도(Beta/Experimental 여부)는 문서에서 찾지 못했다 → **[확인 필요]**: V-08 §1에서 에디터 Plugins 창의 표시를 기록한다. → **V-08(2026-09-26) 결과**: 5.8.3 `.uplugin` 기준 Pose Search·Chooser·Animation Warping은 플래그 없음, Motion Warping·Animation Locomotion Library는 Beta, Motion Trajectory·Mover·CurveExpression·DrawDebugLibrary·MovieSceneAnimMixer는 Experimental (`runbooks/pc-verify-animation.md` §8 표 1). GASP CMC ABP는 Experimental 모듈 4개(Mover·CurveExpression·DrawDebugLibrary·MovieSceneAnimMixer)를 직접 참조한다.
 
 ### 2.3 Chooser
 - "you can use Chooser Tables to dynamically select individual animation assets … the system itself is generic and can be used to select any type of Asset, Object, or Class." 전제: "Enable the Chooser plugin." [확인: https://dev.epicgames.com/documentation/en-us/unreal-engine/dynamic-asset-selection-in-unreal-engine]
@@ -50,7 +51,7 @@ PC 평가 절차: [`runbooks/pc-verify-animation.md`](../runbooks/pc-verify-anim
 - 이식: "you can … even migrate the animation assets and systems into your own project", 방법은 콘텐츠 브라우저 우클릭 **Migrate**. "The Game Animation Sample Project is designed to be built upon as Engine and feature development continues, so it is recommended that you continue to follow updates with upcoming releases."
 - 얻는 곳: "download the Game Animation Sample Project from Fab", 런처 Library의 Vault에서 **Create Project**.
 - 구현 형태: 캐릭터 `CBP_SandboxCharacter`와 `ABP_SandboxCharacter`가 **Blueprint**이고, ABP는 `CharacterMovementComponent`를 참조한다(문서의 함수 설명: "references to the CBP_SandboxCharacter blueprint and the Character Movement component"). → 우리 규칙(로직 C++, BP 최소, D-003)과 맞추려면 **ABP만 가져오고 캐릭터 BP는 쓰지 않는다**(ABP는 D-003이 허용하는 "불가피한 곳").
-- 5.8 업데이트 내용: Epic 기술 블로그 "Download the latest Game Animation Sample Project—now updated for UE 5.8"(https://www.unrealengine.com/tech-blog/download-the-latest-game-animation-sample-project-now-updated-for-ue-5-8)는 컨테이너에서 403 → **[확인 필요]**. 검색 요약으로는 Smart Object 레벨의 벤치 상호작용(State Tree)·Pose Search Interaction 에셋이 추가됐다 [2차].
+- 5.8 업데이트 내용: Epic 기술 블로그 "Download the latest Game Animation Sample Project—now updated for UE 5.8"(https://www.unrealengine.com/tech-blog/download-the-latest-game-animation-sample-project-now-updated-for-ue-5-8, 2026-08-12) — **[확인: V-08 PC 세션이 2026-09-26 브라우저로 열어 확인, 국문판]**. 새 기능: Physics Control 컴포넌트·에셋으로 구동하는 **래그돌 폰 `SandboxCharacter_Mover_Ragdoll`**(Mover 기반 — 우리 CMC 캐릭터와 무관, 제외), 다중 캐릭터 모션 매칭·Pose Search Interaction 에셋(`Motion Match Multi`), RagdollLevel, 실험 단계 Additive Look-At POI 솔버(컨트롤 릭). 향상: "로코모션 향상 — 향상된 포즈 매치 열(PoseSearch column)을 통합한 새로운 추저(Chooser)를 적용해 **무버 폰**의 스테이트 머신 기반 블렌드 스택 구성을 새롭게 개편", "**새로운 경사 애니메이션**을 추가하여 추저와 블렌드 스택에서 블렌드 스페이스를 활용하는 방법을 시연"(경사·계단 품질에 직접 관련 → V-08 S5·S6에서 확인), Smart Object 레벨 벤치 상호작용(State Tree). 즉 5.8 GASP에는 CMC 기반 `CBP_SandboxCharacter`/`ABP_SandboxCharacter` 계열과 Mover 기반 폰이 함께 들어 있다 — ②는 CMC 계열만 가져온다.
 - 애니메이션 개수·용량: 문서에 숫자 없음 → **[미확인]**, V-08 §1에서 실측(폴더 용량·시퀀스 수).
 
 ### 2.5 5.8 릴리스 노트의 관련 변경 (원문 인용)
@@ -98,15 +99,15 @@ PC 평가 절차: [`runbooks/pc-verify-animation.md`](../runbooks/pc-verify-anim
 | Fab 라이선스 종류 | "Fab offers the following license types: Creative Commons Attribution (CC-BY) (Free) / Standard (Free or For Sale)" | [확인] https://dev.epicgames.com/documentation/en-us/fab/licenses-and-pricing-in-fab |
 | Standard 가격 구간 | "Personal: For buyers who have not generated more than $100,000 USD in gross revenue from commercial activity in the last 12 months." / "Professional: For buyers who have generated more than $100,000 USD …" / "For more information on how the Personal and Professional tier thresholds are calculated, see the Fab End User License Agreement." | [확인] 같은 문서 |
 | 구 Marketplace 라이선스 | "Epic Games is phasing out the UE Marketplace License." 리스팅의 Details에 표시된다 | [확인] 같은 문서 |
-| **Fab EULA 원문**(Standard License 허용·금지 조항, Epic 제작 콘텐츠·"UE 전용" 조건) | https://www.fab.com/eula — 403 | **[확인 필요]** (검색 요약에는 "commercially distribute your Projects with the Fab assets incorporated" 류 문구가 있으나 [2차]라 근거로 쓰지 않음) |
-| **Unreal Engine EULA**(템플릿 마네킹 등 엔진 동봉 콘텐츠) | https://www.unrealengine.com/eula/unreal — 403 | **[확인 필요]** |
-| Epic Content License Agreement | https://www.unrealengine.com/eula/content — 403 | **[확인 필요]**(GASP에 이 라이선스가 적용되는지도 리스팅에서 확인) |
-| **GASP Fab 리스팅**(어느 라이선스로 배포되는지) | https://www.fab.com/listings/880e319a-a59e-4ed2-b268-b32dac7fa016(GASP 공식 문서가 링크) — 403 | **[확인 필요]** |
+| **Fab EULA 원문**(Standard License 허용·금지 조항, Epic 제작 콘텐츠·"UE 전용" 조건) | https://www.fab.com/eula — 403 | **[확인: V-08 PC 세션 2026-09-26 브라우저, 영문 원문 인용은 `runbooks/pc-verify-animation.md` §8 표 1]** — 소유자 사실 확인(D-019). 상용 배포 허용(§3(a)·§4(c)), 독자 재배포 금지(§5(a) → 공개 저장소에 원본 커밋 불가), GPL/CC-BY-SA 결합 금지(§6(a)), NoAI(§6(b)(vii)) |
+| **Unreal Engine EULA**(템플릿 마네킹 등 엔진 동봉 콘텐츠) | https://www.unrealengine.com/eula/unreal — 403 | **[확인: V-08, `runbooks/pc-verify-animation.md` §8 표 1]** — 템플릿 마네킹은 Examples(§1), §5(b) 배포 허용. Fab 에셋은 UE EULA 대상이 아님(§1) |
+| Epic Content License Agreement | https://www.unrealengine.com/eula/content — 403 | UE EULA §8(b): 이 계약에 동의하면 Epic Content License Agreement는 "superseded completely" [확인: V-08] — GASP는 Fab Standard License |
+| **GASP Fab 리스팅**(어느 라이선스로 배포되는지) | https://www.fab.com/listings/880e319a-a59e-4ed2-b268-b32dac7fa016(GASP 공식 문서가 링크) — 403 | **[확인: V-08]** Standard License, 무료, 판매자 Epic Games, "언리얼 엔진 전용 콘텐츠", AI 사용 허용 아니요, 엔진 5.4–5.8 (`runbooks/pc-verify-animation.md` §8 표 1) |
 
 → 비상업 조건이 있으면 D-002에 따라 제외한다. 유료 에셋(Fab의 다른 모션 팩 등)은 **제안만** 하고 사지 않는다(§5).
 
 ## 5. 참고: 쓰지 않거나 나중에 볼 것
-- **Mover / ChaosMover**: 5.8에서도 Experimental [확인]. MVP에 들이지 않는다.
+- **Mover / ChaosMover**: 5.8에서도 Experimental [확인]. Mover 이동 시스템(Mover 폰·ChaosMover)은 MVP에 들이지 않는다. 단 D-021(2026-09-30): 무수정 GASP ABP가 `/Script/Mover`를 참조하므로 **플러그인 활성화는 허용**하고, 이동은 CMC 그대로 둔다.
 - **UAF(Unreal Animation Framework)**: 5.8 노트에 UAF 소절(OffsetRootBone 노드, translational retargeting trait, OverrideRootMotionTrait, 이벤트 end tick group)과 시퀀서 믹서·MetaHuman Crowd 언급이 있다 [확인]. 로코모션 예제·성숙도 표기는 없음 → Phase 2 이후 재평가.
 - **MetaHuman 플레이어 캐릭터**: GASP가 예제를 준다 [확인]. 캐릭터 커스터마이즈(DEVELOPMENT-PLAN §1.3 결정 대기)와 함께 Phase 2 이후.
 - **유료 모션 팩(Fab)**: ②가 부족할 때만 후보. 구매는 사용자 승인 사항(CLAUDE.md).
@@ -123,3 +124,13 @@ PC 평가 절차: [`runbooks/pc-verify-animation.md`](../runbooks/pc-verify-anim
 8. Fab EULA — https://www.fab.com/eula [확인 필요, 403]
 9. Unreal Engine EULA — https://www.unrealengine.com/eula/unreal [확인 필요, 403]
 10. Epic Content License Agreement — https://www.unrealengine.com/eula/content [확인 필요, 403]
+
+## 7. V-08 PC 평가 결과 (2026-09-30)
+
+상세·녹화 위치는 [`runbooks/pc-verify-animation.md`](../runbooks/pc-verify-animation.md) §8.
+- 같은 무인 시나리오(S1~S7)와 1080p `-game`에서 ① 현행 181.0 fps, ② GASP 자체 CMC 폰(품질 상한) 183.1 fps로 성능 차이가 없다. 게임 스레드는 ②가 +0.84 ms.
+- 디딘 발 미끄러짐(캡슐 1 m당)은 ① 8~21 cm, ②b 3~7 cm(S1·S2는 ①의 약 1/4, S4는 −16 %; S3은 ②b가 뒷걸음이라 참고치). 출발·정지·계단 동작도 ②b가 좋다. 채점 1~5 합계 ① 16, ②b 21. 런북 정의의 ②(우리 폰·우리 이동 값)는 ②a에서 통합되지 않아 판정되지 않았다.
+- 우리 C++ 캐릭터에 GASP ABP를 설정만으로 붙이면 작동하지 않는다. ABP가 폰의 `BPI_SandboxCharacter_Pawn`(보행 모드·자세·입력 의도)을 읽기 때문이다. §3 표의 "C++ 변경: 소"는 틀렸고, 통합 WP가 필요하다.
+- GASP의 자연스러움 일부는 느린 가감속에서 나온다(최고 속도 90 % 도달 ① 0.08~0.23 s, ② 0.23~0.57 s). 채택하면 조작감과 맞바꾼다는 해석은 [추정]이다(V-08b에서 우리 이동 값으로 확인).
+- Migrate는 GASP의 데이터 기반 콘솔 변수(발 배치 IK 등 27개)와 게임플레이 태그를 옮기지 않는다. 이식할 때 ini도 옮겨야 한다.
+- 결론: ② 조건부 채택 제안 → **D-021(2026-09-30, 오케스트레이터 결정)로 방향 채택**. 이동 의미(180/500·돌아서기·점프 90 cm)는 유지하고 가감속만 V-08b A/B로 정한다. GASP 원본은 무수정으로 저장소 밖에 두고 ① 폴백을 유지한다. 통합은 WP-19, 최종 판정은 V-15. 소유자 항목: 라이선스 원문 재확인, 에셋 보관 방식.

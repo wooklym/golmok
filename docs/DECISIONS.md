@@ -25,6 +25,7 @@
 - WP-13 사운드 출처 조사(2026-09-27, Astra [#28](https://github.com/wooklym/golmok/pull/28)): Freesound CC0 1.0 7항목과 CC-BY 4.0 예비 항목의 개별 페이지 및 라이선스 법문을 확인했다(`research/10-ambience-sources.md`). **아직 소스 채택·파일 반입 없음**, 새 런타임/도구 의존성도 없음. 채택 후 실제 파일별 저자·URL·라이선스/버전·확인일·수정 내역을 `Content/Golmok/Audio/ATTRIBUTION.md`와 배포 크레딧에 남긴다. CC0는 법문상 표기 의무가 없지만 제3자 권리 확인을 대체하지 않는다. 유료 BOOM 음원은 완성 게임 사용권과 원본/가공 파일 공유 금지가 구분되고 EULA §3 'Real-time Exploitation' 조항이 있어 공개 저장소에 넣지 않으며 구매 전 적용 범위를 확인한다. 구매·계정·약관 동의는 실행하지 않았다.
 - WP-13 13b(2026-09-28, Astra [#34](https://github.com/wooklym/golmok/pull/34)): 현재 `Content/Golmok/Audio/src/` WAV 7개는 프로젝트의 **결정적 합성 플레이스홀더**(`tools/scripts/make_placeholder_audio.py`, 기존 numpy 의존성, 48 kHz PCM16 mono, 합계 1,280,308바이트, LFS). 출처 표기 `project-generated`는 외부 라이선스 채택이나 CC0 권리 포기 선언이 아니다. Freesound CC0 청취 후보 7개의 조사·채택 기록은 13a 그대로이고 원본 다운로드·계정 약정은 하지 않았다(소유자 결정 대기). 출처·저자·라이선스 URL·수정 내역은 `Config/Golmok/audio.json` → `ATTRIBUTION.md`/`Credits/audio-credits.txt` 파이프라인으로 보존한다. 새 런타임/도구 의존성 없음. 패키징은 `DefaultGame.ini` `+DirectoriesToAlwaysCook=(Path="/Game/Golmok/Audio")` 훅(`[WP-13 hook]`).
 - 베이스맵 `golmok-basemap contour-dem`(2026-09-25, `basemap` extra)도 위의 **scipy**(BSD-3-Clause)를 쓴다(TIN 보간·가우시안 필터). 게임 패키지에는 들어가지 않는다.
+- 캐릭터 애니메이션 에셋(V-08, 2026-09-26 PC 세션이 브라우저로 원문 확인 — **사용자 재확인 필요**, 인용 전문은 `runbooks/pc-verify-animation.md` §8 표 1): **Game Animation Sample(GASP, Epic Games)** — Fab **Standard License**, 무료 [확인: Fab 리스팅 https://www.fab.com/listings/880e319a-a59e-4ed2-b268-b32dac7fa016 "License terms: Standard License", Fab EULA https://www.fab.com/eula (영문 지배)]. 허용: 사용·복제·수정(§3(a) "privately use, reproduce, display, perform, and modify"), 프로젝트에 통합한 배포 — 비디오 게임 등 일반 공개 배포 포함(§4(c)). 조건·금지: **독자 재배포 금지**(§5(a) — 협업자·비공개 저장소만; 이 저장소는 공개라 **원본 에셋을 커밋하지 않는다**), GPL/LGPL(동적 링크 제외)/CC-BY-SA 콘텐츠와 결합 금지(§6(a)), 리스팅 표기 "언리얼 엔진 전용 콘텐츠", "AI 사용 허용: 아니요"(NoAI, §6(b)(vii)). **템플릿 마네킹**(`SKM_Manny_Simple`·`ABP_Unarmed`, 엔진 `Templates/` 동봉) — UE EULA의 **Examples**(§1)로 §5(b) "You may Distribute Examples (including as modified by you) in Source Code or object code to any third party." [확인: https://www.unrealengine.com/eula/unreal]. Fab 에셋은 UE EULA 대상이 아님(§1). 어느 안을 채택하든 GPL/CC-BY-SA 콘텐츠·코드와의 결합 금지는 두 EULA 공통(§6).
 - 개발·CI 전용 도구(제품에 포함되지 않음, WP-01): **ruff** — MIT [확인: https://github.com/astral-sh/ruff/blob/main/LICENSE], **3d-tiles-validator**(CesiumGS, `npx`로 CI에서만 실행) — Apache-2.0 [확인: https://github.com/CesiumGS/3d-tiles-validator/blob/main/LICENSE.md]. 2026-09-24 원문 확인.
 
 - WP-18 컨셉 자료(2026-09-27 병합 기록): **OpenAI 내장 image_gen** 출력은 공개 컨셉 JPG7장에만 사용한다. [약관·저작물성·표시 확인과 한계](design/character-concept.md#a5-권리-점검)를 따르며 최종 에셋/비침해 보증으로 취급하지 않는다. UE 템플릿 Manny/Quinn은 기존 설치에서 로컬 복사하고 원본을 커밋하지 않는다. Meshy/VRoid/VRM4U/MetaHuman/Fab 구매·신규 라이선스 의존성은 채택하지 않았다. 외주 계약과 비공개 에셋 보관은 D-018 ② 이후 항목별로 기록한다.
@@ -244,3 +245,28 @@
 - **관례**: 병합 시 반영 커밋 제목은 앞으로 `WP-NN: 병합 시 반영 (Opus)`, PC 결과의 클라우드 병합 브랜치는 `V-xx: 병합 시 반영 (Opus)`로 한다. 이전 커밋의 `(Fable)`은 그대로 둔다.
 - **이력**: 세션 로그·병합 기록에 적힌 "Fable 5.1" 판단(WP-13 T8 오디오 폴리시, WP-14a §2a, WP-15a, WP-12 keep-height 슬라이드, V-12 채점표 등)은 기록대로 두고, 다시 판단할 일이 생기면 Opus가 한다.
 - 반영: CLAUDE.md 모델 정책·Astra 절, DEVELOPMENT-PLAN §7.4·§7.6(표·리뷰 절차·리뷰 세션 템플릿), AGENTS.md(품질 판단·리뷰·병합 커밋), astra-tasks.md, STATUS 마지막 갱신, 이슈 #30 알림.
+
+### D-021 | 승인(오케스트레이터 결정, D-019) | 2026-09-30 — 캐릭터 로코모션: GASP Motion Matching 방향 채택
+- **근거**: V-08(PC, [PR #21](https://github.com/wooklym/golmok/pull/21), [런북 §8](runbooks/pc-verify-animation.md)). GASP 자체 CMC 폰 ②b는 ① 현행(매니+`ABP_Unarmed`)보다 디딘 발 미끄러짐이 S1·S2에서 약 1/4, S4에서 −16 %였다. 1080p 성능 차이는 없었다(181.0 → 183.1 fps, 게임 스레드 +0.84 ms). 채점은 ① 16 / ②b 21(PC 세션 Opus, 소유자 채점 우선). 단 ②b는 런북 §3-4 조건 밖(GASP 폰·카메라·이동 값)의 **품질 상한**이다. 우리 C++ 폰에 설정만 붙인 ②a는 폰 인터페이스(`BPI_SandboxCharacter_Pawn`)가 없어 작동하지 않았다. 병합 리뷰 R21(Opus)은 방향 채택 근거로는 충분하지만 채택 판정은 통합본으로 다시 해야 한다고 봤다.
+- **결정**: ② GASP Motion Matching 로코모션을 **방향으로 채택**한다. 퀄리티 최우선 원칙에 맞고 되돌릴 수 있다. 발효는 소유자의 라이선스 원문 재확인 뒤다(CLAUDE.md: 클라우드에서 원문을 확인할 수 없는 에셋은 소유자 사실 확인 전 채택하지 않는다). 그 전의 통합 작업은 GASP 콘텐츠 없이 우리 코드·도구만 다룬다. 최종 기본값 전환(`manny` 기본 ① → ②)은 WP-19 통합본이 V-15 사전 등록 기준을 통과한 뒤에 한다.
+  - V-15 기준: 같은 메시·같은 카메라·블라인드 채점. 합계 ≥ ① + 4, ≥ ②b − 2. S1·S2 미끄러짐 ≤ ①의 1/2. S3은 돌아서기로 측정. 평균 fps 하락 5 % 이하 또는 60 fps 이상.
+  - 미통과 시: ① 기본을 유지한다. ②는 설정 옵션으로 남기고 B안(GASP 데이터 + 우리 ABP)을 검토한다.
+- **되돌릴 수 있게**: GASP 원본은 **수정하지 않고 저장소 밖**에 둔다. 공개 저장소 커밋 금지(Fab EULA §5(a)). 기본안은 각 PC가 Fab에서 받아 스크립트로 복사하는 방식이다(`add-mannequin.ps1` 패턴). ① 경로는 상시 폴백으로 유지하고, ①↔②는 설정으로 전환한다. GASP가 없는 클론·CI에서도 빌드·테스트가 통과해야 한다.
+- **이동 감각**: 최고 속도(걷기 180·달리기 500, 로스터별 145/380 등), 돌아서기(orient-to-movement), 점프 90 cm는 **유지**한다. GASP의 걷기 200·뒷걸음·넘기(traversal)는 채택하지 않는다. **가감속만** V-08b A/B로 정한다. 후보는 P0 현행·P1 중간·P2 GASP이고, 규칙은 미리 정한다. S1·S2 미끄러짐이 ①의 1/2 이하이고 1~5 합이 가장 높은 프로파일을 고른다. 동점이면 빠른 쪽을 고르고, 조작감 2 이하는 탈락이다.
+- **Experimental 허용 범위**: 무수정 GASP 로코모션 에셋이 참조해서 켜야 하는 플러그인과 그 의존 플러그인만 허용한다. 기록상 PoseSearch·Chooser·AnimationWarping·MotionWarping(Beta)·AnimationLocomotionLibrary(Beta)·BlendStack·CurveExpression·DrawDebugLibrary·MovieSceneAnimMixer·Mover이고, Offset Root Bone 노드도 포함한다. 조건은 다섯 가지다.
+  1. 우리 C++ 모듈은 이들에 의존을 추가하지 않는다(에셋 참조만).
+  2. 이동은 CMC 그대로 둔다(Mover 이동 시스템 불채택).
+  3. Development·Shipping 패키지 스모크를 통과한다.
+  4. `.uplugin` 플래그 표를 기록한다(V-08b).
+  5. 엔진 버전을 바꿀 때 재검증한다.
+  - 불허: GameplayCameras, Mover 폰·ChaosMover, 넘기·SmartObjects·GameplayInteractions·Locomotor, MetaHuman·LiveLink·RigLogic·HairStrands, `MotionMatchMulti`·UAF. research/09 §5의 Mover 문장은 이 범위로 바꿨다.
+- **후속**:
+  - **V-08b**(PC 실험, 코드 변경 없음, GASP 폰 그대로): 이동 값 A/B, 돌아서기 모드, Manny·4.5등신 리타깃(D-018 V-08 추가 시험), Offset Root Bone 거리·80 cm 통로·포토 구도·포털, `.uplugin` 플래그 표, 폴리 노티파이, 패키지 스모크, 드라이버·지표 스크립트 `tools/` 커밋, 블라인드 채점.
+  - **WP-19**(통합): 1단계 클라우드(Claude 레인)는 상태 공급 컴포넌트·폴백·셋업 스크립트·경로 가드, 2단계 PC GUI는 인터페이스 구현 BP, 3단계 Astra는 로스터 GASP 항목·노티파이 구동 발소리와 GASP 폴리 비활성이다.
+  - **V-15**: 통합 검증.
+  - 병합 리뷰 R21 (B) 7~12는 V-08b·WP-19에 넣는다.
+- **소유자 항목**(STATUS 결정 필요):
+  - 라이선스 원문 재확인(사실 확인). Fab EULA NoAI 정의와 AI 에이전트 작업 흐름의 관계, Personal/Professional 티어, GASP 설정 파일(ini)이 Content에 드는지, GASP를 참조만 하는 우리 에셋을 공개 저장소에 커밋해도 되는지를 함께 본다.
+  - 비공개 에셋 저장소 여부(D-018 ②와 같은 결정).
+  - (선택) 녹화 재채점.
+- 이 결정은 소유자가 언제든 뒤집을 수 있다.
