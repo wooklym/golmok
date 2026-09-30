@@ -6,6 +6,7 @@
 | `golmok-frames <영상> <출력폴더>` | 영상에서 선명한 프레임만 추출(창마다 가장 선명한 1장). ffmpeg 필요 |
 | `golmok-blur <입력폴더> <출력폴더> --face-model … --lp-model …` | **얼굴·번호판 블러**(Meta EgoBlur, Apache-2.0). 재구성(RealityScan/Postshot)에는 **출력 폴더만** 쓴다 |
 | `golmok-perf <csv…> [--label …] [--markdown]` | Unreal CSV 프로파일(`CsvProfile Start/Stop`) 요약: 평균·1% low fps, Game/Render/GPU ms. 스파이크 비교표용 |
+| `python -m golmok_tools.audio_analysis <wav> [--event t …] [--fade s] [--exclude t0:t1 …] [--json] [--trace] [--check]` | **녹음 WAV 분석**(V-10 방법, `tools/`에서 실행): 피크·clipping·RMS, 클릭 z(판정 ≥ 8, 무음 제외), 급정지(10 ms 안 ≥ 20 dB 하강; 둘 다 믹스·채널별), 이벤트별 1 dB 안착·크로스페이드 dip. 종료 코드 0은 분석 완료일 뿐이고 판정은 `--check`(결함 시 1). [pc-verify-wp13 런북](../docs/runbooks/pc-verify-wp13.md) §7-1a |
 | `golmok-zone init/validate/index build/exclude/transform/bump` | **Zone manifest**(스펙 [docs/spec/zone-manifest.md](../docs/spec/zone-manifest.md)): 새 zone 만들기, 검사, Zone Index, 베이스맵 제외 폴리곤, 좌표 변환, 새 버전 |
 | `golmok-mesh inspect/reproject/chunk/collision/blockers` | **재구성 메시 후처리**: RealityScan OBJ → zone-local, 청크(UV·UDIM 보존), 충돌 메시, 유리·접근 금지 평면. 절차는 [recon-postprocess 런북](../docs/runbooks/recon-postprocess.md) |
 | `golmok-splat inspect/crop/clean/transform/tiles` | **3DGS PLY 후처리**: 자르기, 플로터 제거, 좌표 변환(SH 회전 포함), 로컬 3D Tiles(glTF `KHR_gaussian_splatting`) |

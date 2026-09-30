@@ -24,6 +24,7 @@ import html
 import itertools
 import json
 import math
+import ntpath
 import os
 import posixpath
 import re
@@ -101,6 +102,8 @@ SCREENSHOT_FOLDER = "Screenshots/Golmok"  # DefaultGame.ini [GolmokDebugSubsyste
 PATH_FOLDER = "Golmok/Paths"  # DefaultGame.ini [GolmokDebugSubsystem] PathFolder
 DWELL_S = 600.0  # dwell path length: even background PIE at 8 fps never runs off the end
 ENGINE_VERSION_KEY = "5.8"  # %LOCALAPPDATA%/UnrealEngine/<key>/Saved (Launcher build, -game runs)
+# DefaultGame.ini section of UGolmokZoneSubsystem (WP-09 bDiscoverFromIndex); game_command_line overrides it
+ZONE_SUBSYSTEM_SECTION = "/Script/Golmok.GolmokZoneSubsystem"
 AREA_ORIGIN = (37.56, 126.923, 40.0)  # docs/spec/zone-manifest.md §4 area origin (== synthetic_zone)
 PERF_HEADER = (  # == perf_report.to_markdown header line
     "| 구성 | 프레임 | 평균 fps | 1% low fps | 프레임 p50 ms | p99 ms | Game ms | Render ms | GPU ms |"
@@ -1706,11 +1709,17 @@ def game_command_line(
     preset: str,
     res: tuple[int, int] = (1920, 1080),
     log_path: str,
+    discover_from_index: bool | None = None,
 ) -> list[str]:
-    """argv of one unattended -game CSV run (design §4-8): the path playback starts and stops CsvProfile."""
+    """argv of one unattended -game CSV run (design §4-8): the path playback starts and stops CsvProfile.
+    discover_from_index None leaves the WP-09 zone index discovery to DefaultGame.ini; True/False adds
+    discover_from_index_arg (before -ExecCmds) - False keeps the other synthetic zones of the index out of
+    a synthetic-zone run (V-04 T5, runbook #39)."""
     validate_name(walk)
     validate_name(preset)
-    return [
+    if discover_from_index is not None and not isinstance(discover_from_index, bool):
+        raise TypeError(f"discover_from_index must be None, True or False, not {discover_from_index!r}")
+    argv = [
         exe,
         uproject,
         map_path,
@@ -1722,9 +1731,19 @@ def game_command_line(
         "-ExitAfterCsvProfiling",
         "-unattended",
         "-nosplash",
+    ]
+    if discover_from_index is not None:
+        argv.append(discover_from_index_arg(discover_from_index))
+    return argv + [
         exec_cmds(["golmok.hud 0", f"golmok.tod {preset}", f"golmok.path play {walk} --csv"]),
         "-abslog=" + log_path,
     ]
+
+
+def discover_from_index_arg(enabled: bool) -> str:
+    """'-ini:Game:[/Script/Golmok.GolmokZoneSubsystem]:bDiscoverFromIndex=False' (or =True): the engine's
+    command-line ini override for one process; Config/DefaultGame.ini stays as it is."""
+    return f"-ini:Game:[{ZONE_SUBSYSTEM_SECTION}]:bDiscoverFromIndex={bool(enabled)}"
 
 
 def saved_dir_candidates(
@@ -1765,6 +1784,43 @@ def newest_file(
     return None if best is None else best[1]
 
 
+def csv_settle_s(max_gap_s: float | None, base_s: float, cap_s: float, factor: float = 1.5) -> float:
+    """Adaptive settle time of spike_runner._PiePerf WAIT_CSV (PR #44 review F1, follow-up #29): a CSV
+    writer that flushes less often than base_s would look settled between two flushes, so the quiet time
+    csv_complete asks for grows with the largest gap seen between two consecutive changes of the same file
+    (max_gap_s, state machine clock; its appearance is not a change, so a file seen to appear and change at
+    most once has gap 0): min(max(base_s, factor * max_gap_s), cap_s). None / negative / not finite = 0."""
+    gap = max_gap_s if max_gap_s is not None and math.isfinite(max_gap_s) and max_gap_s > 0.0 else 0.0
+    return min(max(base_s, factor * gap), cap_s)
+
+
+def csv_complete(
+    changed_at: float | None,
+    now: float,
+    play_started_at: float,
+    length_s: float | None,
+    settle_s: float,
+    end_slack_s: float,
+) -> bool:
+    """WAIT_CSV judgement of spike_runner._PiePerf (V-04 T5, runbook §11 handover 6). The engine creates
+    Profile(<stamp>).csv right at CsvProfile Start and writes it until the path ends (CsvProfile Stop), so
+    "a new file exists" is not "the capture is written". All times are seconds on one clock (the state
+    machine's _now); changed_at = when the newest Profile*.csv was first seen or last seen to change (mtime or
+    size; None = no file yet). Complete only when
+    - the file has not changed for settle_s (a file still being written is never taken; the caller passes
+      csv_settle_s(...), which grows with the writer's observed flush gap), and
+    - for a path of known length (> 0, finite): the path has had time to end (now >= play_started_at +
+      length_s) and the file changed at or after that end less end_slack_s (the flush at CsvProfile Stop; the
+      path pawn's first tick can count up to one frame from before the play command).
+    Length 0 / unknown / not finite: no path condition (as before), the settle rule still applies."""
+    if changed_at is None or now - changed_at < settle_s:
+        return False
+    if length_s is None or not math.isfinite(length_s) or length_s <= 0.0:
+        return True
+    end = play_started_at + length_s
+    return now >= end and changed_at >= end - end_slack_s
+
+
 def _ps_str(text: str) -> str:
     """PowerShell single-quoted literal."""
     return "'" + text.replace("'", "''") + "'"
@@ -1791,20 +1847,41 @@ def perf_label(tag: str, preset: str, walk: str) -> str:
     return f"{tag}_{preset}_{walk}"
 
 
+def _win_key(path: str) -> str:
+    """Comparison key of a Windows path: '/' -> '\\', ntpath.normpath, no trailing separator, case-folded."""
+    return ntpath.normpath(_win(path)).rstrip("\\").casefold()
+
+
+def copy_path_dirs(path_files: list[str], candidates: list[str]) -> list[str]:
+    """path_dirs(candidates) the path JSONs are copied into: a folder that already holds every path file
+    (Windows paths, normalized, case-insensitive) is left out - Copy-Item of a file onto itself only warns
+    (V-04 T5, runbook §11). game_scripts' path files all live in the project Saved/Golmok/Paths, so only the
+    %LOCALAPPDATA% candidate stays; path files from several folders keep every candidate."""
+    sources = {_win_key(ntpath.dirname(_win(p))) for p in path_files}
+    return [d for d in path_dirs(candidates) if not (sources and sources == {_win_key(d)})]
+
+
 def powershell_script(
     runs: list[dict], path_files: list[str], candidates: list[str], out_dir: str, timeout_s: int
 ) -> str:
-    """run_game_perf.ps1 (design §4-8): copies the path JSONs into every Saved candidate, runs each
-    {'label', 'argv'} with a timeout, collects the newest CSV into out_dir/<label>.csv and checks the log."""
+    """run_game_perf.ps1 (design §4-8): copies the path JSONs into the other Saved candidates
+    (copy_path_dirs; no copy block when none is left), runs each {'label', 'argv'} with a timeout,
+    collects the newest CSV into out_dir/<label>.csv and checks the log."""
     out_dir_w = _win(out_dir)
+    copy_dirs = copy_path_dirs(path_files, candidates)
     lines = [
         "# generated by golmok.spike_runner.game_scripts - do not edit",
         "$ErrorActionPreference = 'Continue'",
-        "$pathDirs = @(" + ", ".join(_ps_str(_win(d)) for d in path_dirs(candidates)) + ")",
+        "$pathDirs = @(" + ", ".join(_ps_str(_win(d)) for d in copy_dirs) + ")",
         "$csvDirs = @(" + ", ".join(_ps_str(_win(d)) for d in csv_dirs(candidates)) + ")",
-        "foreach ($d in $pathDirs) { New-Item -ItemType Directory -Force -Path $d | Out-Null; "
-        + "; ".join(f"Copy-Item -Force {_ps_str(_win(p))} $d" for p in path_files)
-        + " }",
+    ]
+    if copy_dirs:
+        lines.append(
+            "foreach ($d in $pathDirs) { New-Item -ItemType Directory -Force -Path $d | Out-Null; "
+            + "; ".join(f"Copy-Item -Force {_ps_str(_win(p))} $d" for p in path_files)
+            + " }"
+        )
+    lines += [
         f"New-Item -ItemType Directory -Force -Path {_ps_str(out_dir_w)} | Out-Null",
         "function Invoke-GolmokRun($label, $exe, $argv, $timeoutSec, $log) {",
         "  $t0 = Get-Date",

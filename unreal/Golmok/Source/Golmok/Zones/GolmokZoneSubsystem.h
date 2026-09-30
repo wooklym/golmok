@@ -18,7 +18,9 @@ enum class EGolmokZoneRequestSource : uint8
 	Console,
 	Portal,
 	/** Reserved (logs only). */
-	Discovery
+	Discovery,
+	/** WP-15a UGolmokTravelSubsystem: pinned like the console, not portal-managed; spawns the actor from the index when it is not in the level yet. */
+	Travel
 };
 
 /** Bookkeeping for one registered zone. */
@@ -172,6 +174,12 @@ public:
 	bool RequestLoad(const FString& ZoneId, bool bPin, FString& OutMessage, EGolmokZoneRequestSource Source = EGolmokZoneRequestSource::Console);
 	bool RequestUnload(const FString& ZoneId, FString& OutMessage, EGolmokZoneRequestSource Source = EGolmokZoneRequestSource::Console);
 
+	/** WP-15a: drop the pin of a RequestLoad(bPin) without unloading (the distance rules take over; not "blocked"). False when unknown. */
+	bool ReleasePin(const FString& ZoneId);
+
+	/** WP-15a: true while ZoneId's record is pinned (tests / golmok.travel status). */
+	bool IsZonePinned(const FString& ZoneId) const;
+
 	/** Called by AGolmokZone after a successful Load() / Unload() (any caller): re-resolve overlaps and basemap. */
 	void NotifyZoneLoaded(AGolmokZone* Zone);
 	void NotifyZoneUnloaded(AGolmokZone* Zone);
@@ -223,6 +231,9 @@ public:
 	/** Highest-version level-placed actor with this id, else the first discovered one (placed wins). */
 	AGolmokZone* FindZone(const FString& ZoneId) const;
 	int32 NumZones() const { return Zones.Num(); }
+
+	/** Loaded zone whose footprint contains the level XY point; several -> ZoneWins order (interior 20 before its parent 10). Null when none. Read-only. */
+	AGolmokZone* FindLoadedZoneAt(const FVector2D& LevelUEPointCm) const;
 
 private:
 	/** Timer callback: DiscoverZones() when due, then Evaluate(). The only place both run in one stack, discovery first. */

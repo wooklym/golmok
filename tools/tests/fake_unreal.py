@@ -11,7 +11,8 @@ every name is restored, or removed again, after the test. It returns a Fake the 
                current_level = the level spawns go to (load_level/new_level set both; add_level_to_world
                makes the added sublevel current, like UEditorLevelUtils::AddLevelToWorld; V-03);
                actors = the current level's list; saved_levels = level packages written to disk, in order
-               (save_current_level -> current_level, save_map -> its path)
+               (save_current_level -> current_level, save_map -> its path); dirty_maps = map packages
+               with unsaved changes (tests seed it; get_dirty_map_packages lists it, saving clears it)
     logs       ("log" | "warning" | "error", text) from unreal.log/log_warning/log_error plus the errors
                the C++ console commands would print (golmok.path play without a path file, ...)
     clock      fake seconds; tick() advances it and fake.now replaces golmok.spike_runner._now
@@ -29,8 +30,9 @@ Importer (AssetToolsHelpers.get_asset_tools().import_asset_tasks) parses the rea
           glTF mesh name; slots from the glTF materials; no material assets (design §5-0).
     .png  IHDR size; a BaseName.####.ext tile with sibling tiles becomes tile x canvas_blocks when
           udim_merge (asset BaseName), otherwise a single texture named after the file (facade_1001).
-    Name clashes: replace_existing overwrites, otherwise "_2". fail_import (basenames) or a missing file:
-    empty result. imported_object_paths and list_assets return object paths "/Game/A/B.B".
+    Name clashes: replace_existing re-imports onto the existing asset of the same class (the same object:
+    what referenced it keeps it, like a UE re-import; V-04b F3), otherwise "_2". fail_import (basenames) or a
+    missing file: empty result. imported_object_paths and list_assets return object paths "/Game/A/B.B".
     delete_asset / delete_directory are force deletes (UE 5.8 API: "doesn't check if the asset has
     references"): material expression textures, MI texture parameters and MI parents that pointed at a
     deleted object become None. rename_asset keeps the object (references follow it).
@@ -45,41 +47,59 @@ RECORDS (fake.calls, design §5-0; "spawn" gets its label when set_actor_label i
     ("save_current_level",) ("duplicate_asset", src, dst) ("play_settings", width, height)
     additive: ("hidden_in_editor", label, hidden) ("make_udim", output_path, [(u, v), ...])
     ("add_level_to_world", package) ("get_streaming_level", package) ("high_res_screenshot", path)
-    ("save_map", package) ("quit_editor",)
+    ("save_map", world package, path) ("quit_editor",)
     ("set_current_level", package) (LevelEditorSubsystem.set_current_level_by_name)
 
 KNOBS (install(**cfg) keywords = Fake attributes): obj_mapping=(100.0, M_OBJ) glb_mapping=(100.0, M_GLB)
     obj_routes_ok={"fbx","interchange","legacy_flag"} udim_merge=True texture_vt_default=True
     vt_settable=True importer_makes_materials=True slot_names_from_usemtl=True fail_import=set()
-    bounds_offset={} pie=False screenshot_delay_s=0.3 csv_delay_s=0.5 screenshot_fallback_name=False
+    bounds_offset={} pie=False screenshot_delay_s=0.3 csv_delay_s=0.5 csv_flush_s=1.0 csv_stop_s=0.2
+    csv_lag_s=0.0 screenshot_fallback_name=False
     viewport_size=(1014, 550) (the level viewport a PIE from editor_request_begin_play plays in; V-03 size)
     nested_glb=False (True: V-03 Interchange layout, a .glb lands at <dest>/<source stem>/StaticMeshes/<name>
     and each glTF material as a MaterialInstanceConstant at <dest>/<source stem>/Materials/<material> that is
     NOT in imported_object_paths; runbook §12 #37) engine_udim_regex=False (True: a .png whose stem ends in
     [._]#### with #### >= 1001 is placed as one UDIM block like UTextureFactory's default UdimRegexPattern,
     unless the task options carry import_udi_ms=False; runbook §12 #38)
+    nullrhi=False (True: SystemLibrary.get_command_line() carries -nullrhi and a merged UDIM texture reports
+    its first block, the tile size, from blueprint_get_size_x/y - the V-04b F1 headless case; runbook §12 #4)
+    relative_paths=False (True: Paths.project_*_dir() are relative to the fake editor binaries folder
+    <tmp_path>/UE_5.8/Engine/Binaries/Win64 (fake.binaries_dir), like the editor;
+    convert_relative_path_to_full resolves them against it; V-04b F2, runbook §12 #31)
+    save_map_renames=True (EditorLoadingAndSavingUtils.save_map(world, other_path) is a Save As: the open
+    world's actors are written to other_path and that level becomes the open world, like FEditorFileUtils::
+    SaveMap -> SaveWorld(bRenamePackageToFile=true); the source level keeps its list = what is on disk.
+    False: the copy is written but the source stays open; runbook §12 #18)
     zone_transform=ZONE_ROOT_CM begin_play_starts_pie=True level=DEFAULT_LEVEL (registered as an existing
     FakeLevel and opened) lit=True (that level already holds the five L_Dev lighting actors, seeded without
     spawn records, so synthetic_zone.open_or_create_level takes the plain load_level path; lit=False leaves
     it empty and the V-03 "had no lighting; rebuilt" branch runs on the first open)
 
-Console (SystemLibrary.execute_console_command): "golmok.tod <preset>" picks the screenshot folder;
+Console (SystemLibrary.execute_console_command): "golmok.tod <preset>" picks the screenshot folder
+(fake.tod_commands records every golmok.tod argument list; the WP-14a subcommands time / mode / rate / status
+leave the folder as is);
 "golmok.screenshot <tag> [name]" writes <Saved>/Screenshots/Golmok/<tag>/<preset or current>/<name>.png
 (PNG signature + IHDR of viewport_size x 2 - the C++ sizes it from the game viewport, which in a PIE started
 by editor_request_begin_play() is the level viewport; "<name>00000.png" with screenshot_fallback_name) after
 screenshot_delay_s of fake time, only while PIE runs; 'HighResShot <W>x<H> filename="<stem>"' writes
 <stem>00000.png (next unused counter) at WxH the same way; "golmok.path play <name> [--csv]" needs
-<Saved>/Golmok/Paths/<name>.json (version 1, monotonic samples, else an error log) and with --csv writes
-<Saved>/Profiling/CSV/Profile(<n>).csv after csv_delay_s; "golmok.path stopplay"; "golmok.hud 0";
-"Interchange.FeatureFlags.Import.OBJ 0" arms the legacy_flag route. tick(fake, n, dt) runs the registered
-slate post-tick callbacks n times, advancing the clock by dt each time and creating the files that fell due.
+<Saved>/Golmok/Paths/<name>.json (version 1, monotonic samples, else an error log) and with --csv is a
+CsvProfile capture like the engine's (V-04 T5, runbook §11 handover 6): <Saved>/Profiling/CSV/Profile(<n>).csv
+is created csv_delay_s after the command and grows by a row every csv_flush_s (the write buffer; 0 = no
+writes in between) until the capture stops - csv_stop_s after the path's end (its last sample t) plus
+csv_lag_s (hitches: game time lags wall time, so the playback outlasts the JSON length by that much; PR #44
+review F1), after "golmok.path stopplay" or after the end of PIE - which appends the last row and logs
+"GolmokDebugSubsystem: csv: <path>" (the C++ LogLatestCsv at the end of playback); "golmok.path stopplay";
+"golmok.hud 0"; "Interchange.FeatureFlags.Import.OBJ 0" arms the legacy_flag route. tick(fake, n, dt) runs
+the registered slate post-tick callbacks n times, advancing the clock by dt each time and creating the files
+that fell due.
 
 Libraries (EditorAssetLibrary, SystemLibrary, Paths, ...) are classes of static methods bound to the Fake, so
 monkeypatch.delattr(unreal.SystemLibrary, "get_engine_version") removes one for a hasattr test; subsystems
 are classes too (delattr on unreal.StaticMeshEditorSubsystem); get_editor_subsystem returns Fake instances.
 EditorLevelLibrary and CesiumGeoreference are absent by default (fallback tests add them). Where the fake
-merely assumes real-API behaviour (UDIM canvas size, usemtl slot names, HighResShot fallback name) the
-runbook rows are docs/runbooks/pc-verify-wp06.md §12 #4, #7 and #30.
+merely assumes real-API behaviour (UDIM canvas size, usemtl slot names, HighResShot fallback name, save_map
+renaming the open world) the runbook rows are docs/runbooks/pc-verify-wp06.md §12 #4, #7, #30 and #18.
 """
 
 from __future__ import annotations
@@ -113,15 +133,18 @@ ENGINE_VERSION = "5.8.3-fake"
 DEFAULT_LEVEL = "/Game/Golmok/Maps/L_ZoneTest"
 ZONE_ROOT_CM = (17670.59, -22198.0, 999.37)  # expected.json zone_root_ue_cm (spec §4 table C)
 PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
+TOD_CLOCK_SUBCOMMANDS = frozenset({"time", "mode", "rate", "status"})  # golmok.tod WP-14a (not preset names)
 ABSENT_BY_DEFAULT = ("EditorLevelLibrary", "CesiumGeoreference")
 KNOBS = {
     "obj_mapping": (100.0, M_OBJ), "glb_mapping": (100.0, M_GLB),
     "obj_routes_ok": frozenset({"fbx", "interchange", "legacy_flag"}), "udim_merge": True,
     "texture_vt_default": True, "vt_settable": True, "importer_makes_materials": True,
     "slot_names_from_usemtl": True, "fail_import": frozenset(), "bounds_offset": {}, "pie": False,
-    "screenshot_delay_s": 0.3, "csv_delay_s": 0.5, "screenshot_fallback_name": False,
+    "screenshot_delay_s": 0.3, "csv_delay_s": 0.5, "csv_flush_s": 1.0, "csv_stop_s": 0.2, "csv_lag_s": 0.0,
+    "screenshot_fallback_name": False,
     "viewport_size": (1014, 550), "nested_glb": False, "engine_udim_regex": False,
     "zone_transform": ZONE_ROOT_CM, "begin_play_starts_pie": True, "level": DEFAULT_LEVEL, "lit": True,
+    "save_map_renames": True, "nullrhi": False, "relative_paths": False,
 }  # fmt: skip
 # (class, label, tags) of setup_dev_level._build_lighting(), seeded into the initial level when lit=True.
 L_DEV_LIGHTING = (
@@ -181,6 +204,12 @@ def _path_file_problem(path: str) -> str | None:
             return "samples need p[3] and r[3]"
         last = t
     return None
+
+
+def _path_length_s(saved_dir: str, name: str) -> float:
+    """Last sample t of <Saved>/Golmok/Paths/<name>.json (a file _path_file_problem accepted)."""
+    with open(os.path.join(saved_dir, "Golmok", "Paths", f"{name}.json"), encoding="utf-8") as f:
+        return float(json.load(f)["samples"][-1]["t"])
 
 
 # ---- value types -----------------------------------------------------------------------------------------
@@ -518,15 +547,20 @@ class FakeTexture2D(FakeAsset):
         self.size = (int(size[0]), int(size[1]))
         self.source = source
         self.tiles: list[int] = []
+        self.block_size = self.size  # one UDIM block (the tile) of a multi-block texture
         vt = fake.texture_vt_default if vt is None else bool(vt)
         self.props.update(virtual_texture_streaming=vt, srgb=True, compression_settings="TC_DEFAULT",
                           lod_group="TEXTUREGROUP_WORLD", never_stream=False)  # fmt: skip
 
+    def _reported_size(self):
+        # -nullrhi: no platform data, the size falls back to the source's first block (V-04b F1, runbook #4)
+        return self.block_size if self._fake.nullrhi and len(self.tiles) > 1 else self.size
+
     def blueprint_get_size_x(self):
-        return self.size[0]
+        return self._reported_size()[0]
 
     def blueprint_get_size_y(self):
-        return self.size[1]
+        return self._reported_size()[1]
 
     def set_editor_property(self, name, value):
         if name == "virtual_texture_streaming" and not self._fake.vt_settable:
@@ -834,6 +868,7 @@ class LevelEditorSubsystem(_Bound):
     def save_current_level(self):
         self._fake.calls.append(("save_current_level",))
         self._fake.saved_levels.append(self._fake.current_level)
+        self._fake.dirty_maps.discard(self._fake.current_level)
         return True
 
     def set_current_level_by_name(self, level_name):
@@ -854,6 +889,7 @@ class LevelEditorSubsystem(_Bound):
     def editor_request_end_play(self):
         self._fake.calls.append(("end_play",))
         self._fake.pie, self._fake.playing = False, None
+        self._fake.stop_csv_captures()  # the PIE world ends: StopPlayback -> CsvProfile Stop
 
     def is_in_play_in_editor(self):
         return self._fake.pie
@@ -1076,6 +1112,10 @@ class FakeSystemLibrary(_Bound):
     def get_engine_version(self):
         return ENGINE_VERSION
 
+    def get_command_line(self):
+        extra = " -nullrhi -unattended" if self._fake.nullrhi else ""
+        return f'"{self._fake.root.as_posix()}/Golmok.uproject" -log{extra}'
+
     def execute_console_command(self, world_context_object, command, specific_player=None):
         fake = self._fake
         fake.calls.append(("console", command))
@@ -1084,7 +1124,9 @@ class FakeSystemLibrary(_Bound):
         if head == "Interchange.FeatureFlags.Import.OBJ":
             fake.legacy_flag = bool(args) and args[0] == "0"
         elif head == "golmok.tod" and args:
-            fake.preset = args[0]
+            fake.tod_commands.append(list(args))
+            if args[0] not in TOD_CLOCK_SUBCOMMANDS:  # WP-14a clock subcommands keep the preset folder
+                fake.preset = args[0]
         elif head == "golmok.hud":
             fake.hud = not (args and args[0] == "0")
         elif head == "golmok.screenshot":
@@ -1125,14 +1167,26 @@ class FakeUdimLibrary(_Bound):
         coords = [(int(p.x), int(p.y)) for p in block_coords]
         if not coords or len(coords) != len(source_textures):
             raise ValueError("fake unreal: block_coords must match source_textures")
+        for t in source_textures:  # UE 5.8 check(): an appError that ends the editor (V-04b F1, runbook #4)
+            stem = os.path.splitext(os.path.basename(t.source))[0]
+            engine = ENGINE_UDIM_RE.match(stem)
+            udim_name = engine is not None and int(engine.group(2)) >= pure.UDIM_MIN
+            # a tile whose file name matches [._]#### counts as multi-block: whether import_udi_ms=False is
+            # honoured is unconfirmed (runbook #3, #38), so the fake takes the unsafe reading
+            if len(t.tiles) > 1 or udim_name:
+                raise RuntimeError(
+                    "fake unreal: Assertion failed: Texture->Source.GetNumLayers() == 1 && "
+                    f"Texture->Source.GetNumBlocks() == 1 ({t.path} from {os.path.basename(t.source)})"
+                )
         tile_w, tile_h = (max(t.size[i] for t in source_textures) for i in (0, 1))
         size = ((max(u for u, _ in coords) + 1) * tile_w, (max(v for _, v in coords) + 1) * tile_h)
         tex = self._fake.registry.get(_key(output_path_name))
         if isinstance(tex, FakeTexture2D):  # an existing texture at the path is rebuilt in place
-            tex.size, tex.source = size, ""
+            tex.size, tex.source, tex.block_size = size, "", (tile_w, tile_h)
             tex.props["virtual_texture_streaming"] = True
         else:
             tex = FakeTexture2D(self._fake, _key(output_path_name), size, vt=True)
+            tex.block_size = (tile_w, tile_h)
         tex.tiles = sorted(pure.UDIM_MIN + u + 10 * v for u, v in coords)
         self._fake.registry[tex.path] = tex
         self._fake.calls.append(("make_udim", tex.path, coords))
@@ -1140,7 +1194,12 @@ class FakeUdimLibrary(_Bound):
 
 
 class FakePaths(_Bound):
-    """project_saved_dir() etc.: '<tmp_path>/Saved/' (forward slashes + trailing slash, like the editor)."""
+    """project_saved_dir() etc.: '<tmp_path>/Saved/' (forward slashes + trailing slash, like the editor);
+    relative_paths=True: '../../../../Saved/' relative to fake.binaries_dir (the editor form, runbook #31)."""
+
+    def convert_relative_path_to_full(self, path):
+        full = os.path.normpath(os.path.join(self._fake.binaries_dir, str(path)))
+        return Path(full).as_posix()
 
     def get_project_file_path(self):
         return f"{self._fake.root.as_posix()}/Golmok.uproject"
@@ -1149,11 +1208,15 @@ class FakePaths(_Bound):
         return self._fake.root.as_posix() + "/"
 
 
+def _project_dir(fake, folder: str) -> str:
+    if fake.relative_paths and folder != "Engine":
+        return Path(os.path.relpath(fake.root / folder, fake.binaries_dir)).as_posix() + "/"
+    return f"{fake.root.as_posix()}/{folder}/"
+
+
 for _method, _folder in (("project_saved_dir", "Saved"), ("project_content_dir", "Content"),
                          ("project_config_dir", "Config"), ("engine_dir", "Engine")):  # fmt: skip
-    setattr(
-        FakePaths, _method, (lambda folder: lambda self: f"{self._fake.root.as_posix()}/{folder}/")(_folder)
-    )
+    setattr(FakePaths, _method, (lambda folder: lambda self: _project_dir(self._fake, folder))(_folder))
 
 
 class FakeAutomationLibrary(_Bound):
@@ -1180,14 +1243,50 @@ class FakeEditorLevelUtils(_Bound):
         return streaming
 
 
+class FakePackage:
+    """UPackage from get_dirty_map_packages: get_name() / get_path_name() are the long package name."""
+
+    def __init__(self, path):
+        self.path = path
+
+    def get_name(self):
+        return self.path
+
+    def get_path_name(self):
+        return self.path
+
+
 class FakeEditorLoadingAndSavingUtils(_Bound):
-    """save_map(world, asset_path) -> True; synthetic_zone.register_interior_sublevel saves the persistent
-    map by path with it (V-03) because add_level_to_world made the sublevel current."""
+    """save_map(world, asset_path) -> True. Same path: synthetic_zone.register_interior_sublevel saves the
+    persistent map by path with it (V-03) because add_level_to_world made the sublevel current. Another
+    path is a Save As (spike_runner.save_layer_levels, runbook §12 #18): FakeLevel + clones of the world's
+    actors (and Levels entries) at that path, the source keeps its own = what is on disk; with the
+    save_map_renames knob the new level becomes the open world (FEditorFileUtils::SaveMap renames the
+    world's package), otherwise the source stays open. get_dirty_map_packages(): a FakePackage per
+    dirty_maps entry."""
 
     def save_map(self, world, asset_path):
-        self._fake.calls.append(("save_map", _key(asset_path)))
-        self._fake.saved_levels.append(_key(asset_path))
+        fake = self._fake
+        src, dst = _key(world.get_path_name()), _key(asset_path)
+        fake.calls.append(("save_map", src, dst))
+        if dst != src:
+            fake.registry[dst] = FakeLevel(fake, dst)
+            fake.levels[dst] = [a._clone() for a in fake.levels.get(src, [])]
+            for (persistent, sub), streaming in list(fake.streaming_levels.items()):
+                if persistent == src:
+                    fake.streaming_levels[(dst, sub)] = copy.copy(streaming)
+            if fake.save_map_renames:
+                if fake.current_level == src:
+                    fake.current_level = dst
+                fake.persistent_level = dst
+        if dst == src or fake.save_map_renames:
+            fake.dirty_maps.discard(src)
+        fake.dirty_maps.discard(dst)
+        fake.saved_levels.append(dst)
         return True
+
+    def get_dirty_map_packages(self):
+        return [FakePackage(path) for path in sorted(self._fake.dirty_maps)]
 
 
 class ScopedSlowTask(Recorder):
@@ -1220,6 +1319,12 @@ def _register(fake, asset, replace_existing):
     if not replace_existing:
         while asset.path in fake.registry:
             asset.path += "_2"
+    old = fake.registry.get(asset.path)
+    if replace_existing and old is not None and type(old) is type(asset):
+        props = old.props  # a re-import keeps the asset's settings (sRGB, VT, ...) on the same object
+        old.__dict__.update(asset.__dict__)  # a re-import updates the existing object (references keep it)
+        old.props = props
+        return old
     fake.registry[asset.path] = asset
     return asset
 
@@ -1286,6 +1391,7 @@ def _udim_detection_on(options) -> bool:
 def _import_png(fake, task, filename, dest, name, route=None):
     with open(filename, "rb") as f:
         w, h = pure.png_size(f.read(24))
+    w0, h0 = w, h
     basename = os.path.basename(filename)
     split = pure.udim_split(basename)
     detect = _udim_detection_on(task.options)
@@ -1301,7 +1407,9 @@ def _import_png(fake, task, filename, dest, name, route=None):
         t = int(engine.group(2)) - 1001  # one tile placed at its block of a (u+1) x (v+1) canvas
         w, h = w * (t % 10 + 1), h * (t // 10 + 1)
     default = split[0] if merged else pure.asset_name_safe(basename.rsplit(".", 1)[0])
+    tile_size = (w0, h0)
     tex = FakeTexture2D(fake, f"{dest}/{name or default}", (w, h), None, filename)
+    tex.block_size = tile_size
     tex.tiles = tiles if len(tiles) > 1 else []
     return [_register(fake, tex, task.replace_existing)]
 
@@ -1325,6 +1433,7 @@ class Fake:
             raise TypeError(f"fake_unreal.install: unknown knobs {sorted(unknown)}")
         self._monkeypatch, self.module = monkeypatch, module
         self.root = Path(tmp_path)
+        self.binaries_dir = str(self.root / "UE_5.8" / "Engine" / "Binaries" / "Win64")  # the editor's CWD
         self.saved_dir, self.content_dir, self.config_dir = (
             str(self.root / d) for d in ("Saved", "Content", "Config")
         )
@@ -1341,6 +1450,8 @@ class Fake:
             elif knob == "level":
                 continue
             setattr(self, knob, value)
+        if self.relative_paths:
+            os.makedirs(self.binaries_dir, exist_ok=True)
         self.calls: list[tuple] = []
         self.registry: dict[str, FakeAsset] = {}
         self.levels: dict[str, list[FakeActor]] = {}
@@ -1350,10 +1461,12 @@ class Fake:
         self.callbacks: dict[int, object] = {}
         self._next_handle = 1
         self.pending_files: list[tuple[float, str, bytes, str | None]] = []
+        self.csv_captures: list[dict] = []  # golmok.path play --csv (see _write_csv_captures)
         self.clock = 0.0
         self.now = self._clock_now  # one bound method object: bind_clock() and tests compare it by identity
         self.legacy_flag = False
         self.preset: str | None = None
+        self.tod_commands: list[list[str]] = []  # golmok.tod argument lists in order (WP-14a)
         self.hud = True
         self.playing: str | None = None
         self.csv_count = 0
@@ -1371,6 +1484,7 @@ class Fake:
         # load_level like the entry saved in the persistent map (GameplayStatics.get_streaming_level)
         self.streaming_levels: dict[tuple[str, str], LevelStreamingDynamic] = {}
         self.saved_levels: list[str] = []
+        self.dirty_maps: set[str] = set()  # map packages with unsaved changes (get_dirty_map_packages)
         if self.lit:
             for cls_name, label, tags in L_DEV_LIGHTING:
                 self.add_actor(cls_name, label, tags=list(tags))
@@ -1431,6 +1545,36 @@ class Fake:
                 f.write(content)
             if message:
                 self.logs.append(("log", message))
+        self._write_csv_captures()
+
+    def _write_csv_captures(self):
+        """Create, grow and finish the CsvProfile files that fell due (see golmok.path play --csv)."""
+        now = self.clock + 1e-9
+        for cap in self.csv_captures:
+            if cap["stopped"] or now < cap["create_at"]:
+                continue
+            if not cap["created"]:
+                os.makedirs(os.path.dirname(cap["path"]), exist_ok=True)
+                with open(cap["path"], "wb") as f:
+                    f.write(b"FrameTime\n")
+                cap["created"] = True
+            rows = 0
+            while self.csv_flush_s and cap["next_at"] <= now and cap["next_at"] < cap["stop_at"]:
+                cap["next_at"] += self.csv_flush_s
+                rows += 1
+            final = now >= cap["stop_at"]
+            if rows or final:
+                with open(cap["path"], "ab") as f:
+                    f.write(b"16.7\n" * (rows + int(final)))
+            if final:
+                cap["stopped"] = True
+                self.logs.append(("log", f"GolmokDebugSubsystem: csv: {cap['path']}"))
+
+    def stop_csv_captures(self):
+        """CsvProfile Stop (golmok.path stopplay, end of PIE): running captures finish csv_stop_s from now."""
+        for cap in self.csv_captures:
+            if not cap["stopped"]:
+                cap["stop_at"] = min(cap["stop_at"], self.clock + self.csv_stop_s)
 
     # -- console command semantics --
 
@@ -1501,13 +1645,25 @@ class Fake:
             if "--csv" in args[2:]:
                 self.csv_count += 1
                 path = os.path.join(self.saved_dir, "Profiling", "CSV", f"Profile({self.csv_count}).csv")
-                self.schedule_file(
-                    self.csv_delay_s, path, b"FrameTime\n16.7\n", f"GolmokDebugSubsystem: csv: {path}"
+                create_at = self.clock + self.csv_delay_s
+                self.csv_captures.append(
+                    {
+                        "path": os.path.normpath(path),
+                        "create_at": create_at,
+                        "next_at": create_at + (self.csv_flush_s or 0.0),
+                        "stop_at": self.clock
+                        + _path_length_s(self.saved_dir, name)
+                        + self.csv_lag_s
+                        + self.csv_stop_s,
+                        "created": False,
+                        "stopped": False,
+                    }
                 )
         elif sub == "stopplay":
             if self.playing is None:
                 self.logs.append(("log", "golmok.path stopplay: ERROR not playing"))
             self.playing = None
+            self.stop_csv_captures()
 
 
 # ---- install / tick --------------------------------------------------------------------------------------

@@ -193,6 +193,14 @@ public:
 	 */
 	bool TakeScreenshot(const FString& Tag, const FString& NameOrEmpty, FString& OutMessage);
 
+	/**
+	 * Public part of TakeScreenshot for callers that own the path: requests <AbsolutePathNoExt>.png at InMultiplier x the game
+	 * viewport. OutEffectiveMultiplier = what was applied: drops to 1 when SetResolution() refuses or TakeHighResScreenShot()
+	 * returns false at the requested size (retried once at 1x); the requested value on the HighResShot console fallback
+	 * (no sized viewport, file <name>00000.png). Messages are the three golmok.screenshot strings (unchanged).
+	 */
+	bool RequestHighResScreenshot(const FString& InAbsolutePathNoExt, int32 InMultiplier, FString& OutMessage, int32& OutEffectiveMultiplier);
+
 private:
 	void OnEndFrame();
 	void OnBeginFrame();                                   // caches RenderCyclesAtBeginFrame (source 1 / 2)
@@ -262,4 +270,22 @@ private:
 	TObjectPtr<UMaterialInterface> WireMaterial;
 
 	FTimerHandle CollisionTimer;
+	// [WP-13 hook] World-local extension providers, registered by Audio.
+public:
+	FDelegateHandle AddExtraHudLineProvider(TFunction<FString()> Provider)
+	{
+		const FDelegateHandle Handle(FDelegateHandle::GenerateNewHandle);
+		ExtraHudLineProviders.Add(Handle, MoveTemp(Provider));
+		HudLinesTime = -1.0;
+		return Handle;
+	}
+	void RemoveExtraHudLineProvider(FDelegateHandle Handle)
+	{
+		ExtraHudLineProviders.Remove(Handle);
+		HudLinesTime = -1.0;
+	}
+	int32 NumExtraHudLineProviders() const { return ExtraHudLineProviders.Num(); }
+private:
+	TMap<FDelegateHandle, TFunction<FString()>> ExtraHudLineProviders;
+	// [/WP-13 hook]
 };

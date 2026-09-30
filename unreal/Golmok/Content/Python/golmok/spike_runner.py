@@ -9,6 +9,7 @@ performance numbers come from -game runs (D12); the PIE CSV is a reference value
     s.capture_all(tags=("a",), presets=("clear_noon", "night"), mode="editor")   # attended, editor viewport
     s.save_layer_levels(); s.game_scripts(paths=("walk_01",))   # -game CSV runs -> Saved/Golmok/spike/*.ps1
     s.game_scripts(paths=("walk_01",), res=(2560, 1440))        # labels *_1440p (label_suffix= for DLSS)
+    s.game_scripts(paths=("walk_01",), discover_from_index=False)   # synthetic zones: no WP-09 index zones
     s.perf_all(paths=("walk_01",))                 # PIE CSV (reference only)
     s.contact_sheet(); s.report_template(perf_markdown=open(...).read())
 
@@ -29,6 +30,7 @@ docs/runbooks/pc-verify-wp06.md section 12; log lines come from _pure.LOG (the r
 
 import glob
 import json
+import math
 import os
 import time
 
@@ -48,6 +50,10 @@ STOPPLAY_WAIT_S = 0.3
 PIE_RESTART_GAP_S = 1.0  # between the end of one tag's PIE and the next editor_request_begin_play
 QUIT_WAIT_S = 5.0  # quit_editor: at most this long for PIE to end (end_play is deferred) before quitting
 CSV_GRACE_S = 60.0  # WAIT_CSV timeout = path length + this
+CSV_SETTLE_S = 2.0  # WAIT_CSV: the newest Profile*.csv must not change for this long (_pure.csv_complete)
+CSV_SETTLE_MAX_S = 10.0  # ... or 1.5 x the writer's largest flush gap seen, at most this (_pure.csv_settle_s)
+CSV_END_SLACK_S = 1.0  # ... and must change at or after PLAY + path length - this (the CsvProfile Stop flush)
+CSV_POLL_S = 0.25  # WAIT_CSV lists and stats the CSV folders at most this often (review F3)
 LAYER_LEVEL_PREFIX = "/Game/Golmok/Maps/L_Spike_"
 MANUAL_WINDOW_HOW = "manual: Editor Preferences > Level Editor > Play > New Window Size (runbook #21)"
 PHOTO_EXTENSIONS = ("jpg", "jpeg", "png", "JPG", "JPEG", "PNG")
@@ -84,6 +90,10 @@ def _level_editor():
 
 def _editor_actors():
     return unreal.get_editor_subsystem(unreal.EditorActorSubsystem).get_all_level_actors()
+
+
+def _editor_world():
+    return unreal.get_editor_subsystem(unreal.UnrealEditorSubsystem).get_editor_world()
 
 
 def _layer_level(tag):
@@ -300,12 +310,69 @@ def apply_layers(tag, world=None):
     return {**state, "actors": n}
 
 
-def save_layer_levels(tags=("b", "c", "ac"), base_level=None):
-    """Duplicate the level once per tag with that tag's layers applied and AutoManaged off where the zone
-    visual layer is hidden (-game must not distance-load it): /Game/Golmok/Maps/L_Spike_<tag>."""
+_EXTERNAL = ("__ExternalActors__", "__ExternalObjects__")  # one-file-per-actor packages of a map
+
+
+def _dirty_map_packages():
+    """Package paths of the maps with unsaved changes (EditorLoadingAndSavingUtils.get_dirty_map_packages),
+    or None when the editor does not expose it."""
+    utils = unreal.EditorLoadingAndSavingUtils
+    if not hasattr(utils, "get_dirty_map_packages"):
+        return None
+    return {str(p.get_path_name()).split(".")[0] for p in utils.get_dirty_map_packages()}
+
+
+def _require_base_saved(base):
+    """Nothing here writes the base: every layer level is saved from the base as it is on disk (load_level
+    per tag), so unsaved changes of the base or of its one-file-per-actor packages stop the run instead of
+    being saved from here or silently dropped (J26: layer flags capture_all left on the open map must not
+    reach the user's map). Another open map is only warned about: load_level(base) replaces it."""
     from . import synthetic_zone as sz
 
-    base = base_level or sz._current_level_path()
+    dirty = _dirty_map_packages()
+    if dirty is None:
+        _warn(f"cannot check {base} for unsaved changes (runbook #18); using its saved state")
+    else:
+        root, _, rest = base.lstrip("/").partition("/")
+        external = tuple(f"/{root}/{kind}/{rest}/" for kind in _EXTERNAL)
+        if any(p == base or p.startswith(external) for p in dirty):
+            raise RuntimeError(
+                f"{base} has unsaved changes; save or discard them, then rerun save_layer_levels"
+                " (runbook #18)"
+            )
+    if (current := sz._current_level_path()) != base:
+        _warn(
+            f"open map {current} is not {base}; its unsaved changes will be discarded by load_level({base})"
+            " (runbook #18)"
+        )
+
+
+def save_layer_levels(tags=("b", "c", "ac"), base_level=None):
+    """Save the base level once per tag as /Game/Golmok/Maps/L_Spike_<tag> with that tag's layers applied
+    and AutoManaged off where the zone visual layer is hidden (-game must not distance-load it).
+
+    Save As, never duplicate_asset: on UE 5.8.3 a World copied with duplicate_asset stays in memory with
+    RF_Standalone, and load_level of it dies in UEditorEngine::Map_Load ("Old world ... not cleaned up by
+    garbage collection", World Memory Leaks, EditorServer.cpp:2544; PC 2026-09-28). Every tag reopens the
+    saved base and saves it as the layer level (EditorLoadingAndSavingUtils.save_map to the other path:
+    FEditorFileUtils::SaveMap renames the open world's package; if the base is still open afterwards, the
+    saved copy is opened from disk). Actors are touched only once the layer level is the open world, and the
+    base is never written: unknown tags, a layer level as the base and a base with unsaved changes stop the
+    run before the first load_level (_require_base_saved). base_level may be a package or object path."""
+    from . import synthetic_zone as sz
+
+    tags = tuple(tags)
+    for tag in tags:
+        _pure.layer_state(tag)  # unknown tag: ValueError before anything in the editor is touched
+    if not tags:
+        return []
+    base = str(base_level or sz._current_level_path()).replace("\\", "/").split(".")[0]
+    if base.startswith(LAYER_LEVEL_PREFIX):
+        raise RuntimeError(
+            f"{base} is a layer level (it would be deleted and overwritten); open the base map or pass"
+            " base_level=, then rerun save_layer_levels (runbook #18)"
+        )
+    _require_base_saved(base)  # before try: nothing to reopen if it fails
     level_editor = _level_editor()
     library = unreal.EditorAssetLibrary
     out = []
@@ -315,13 +382,19 @@ def save_layer_levels(tags=("b", "c", "ac"), base_level=None):
             dst = _layer_level(tag)
             if library.does_asset_exist(dst):
                 library.delete_asset(dst)
-            if not library.duplicate_asset(base, dst):
+            if not level_editor.load_level(base):
+                raise RuntimeError(f"could not open {base} (runbook #18)")
+            if not unreal.EditorLoadingAndSavingUtils.save_map(_editor_world(), dst):
                 raise RuntimeError(
-                    f"could not duplicate {base} -> {dst} (runbook #18: File > Save Current Level As, then"
+                    f"could not save {base} as {dst} (runbook #18: File > Save Current Level As, then"
                     f" apply_layers({tag!r}))"
                 )
-            if not level_editor.load_level(dst):
-                raise RuntimeError(f"could not open {dst} (runbook #18)")
+            if (current := sz._current_level_path()) != dst:
+                _warn(f"save_map left {current} open; opening {dst} from disk (runbook #18)")
+                if not level_editor.load_level(dst):
+                    raise RuntimeError(f"could not open {dst} after saving it (runbook #18)")
+            if (current := sz._current_level_path()) != dst:
+                raise RuntimeError(f"{current} is open instead of {dst}; layers not applied (runbook #18)")
             apply_layers(tag)
             for actor in _editor_actors():
                 if isinstance(actor, unreal.GolmokZone):
@@ -634,8 +707,13 @@ class _PieCapture(_PieSession):
 
 
 class _PiePerf(_PieSession):
-    """CSV in PIE (reference only): per job PLAY (golmok.path play <walk> --csv) -> WAIT_CSV (newest
-    Profile*.csv in the Saved candidates, timeout = path length + CSV_GRACE_S)."""
+    """CSV in PIE (reference only): per job PLAY (golmok.path play <walk> --csv) -> WAIT_CSV: the newest
+    Profile*.csv in the Saved candidates once it is written (_pure.csv_complete: unchanged for the settle time
+    and, for a path of known length, changed at or after the path's end - the engine creates the file at
+    CsvProfile Start and writes it until the path ends, V-04 T5); timeout = path length + CSV_GRACE_S. The
+    settle time is CSV_SETTLE_S, or 1.5 x the largest gap seen between two changes of the same file in this
+    job up to CSV_SETTLE_MAX_S (_pure.csv_settle_s: a writer that flushes less often than CSV_SETTLE_S while
+    the playback outlasts the path length, PR #44 review F1). The folders are polled every CSV_POLL_S (F3)."""
 
     what = "perf (PIE, reference only)"
     first_job_state = "PLAY"
@@ -643,32 +721,81 @@ class _PiePerf(_PieSession):
     def __init__(self, jobs, lengths_s, quit_editor=False):
         self.lengths = dict(lengths_s)
         self.not_before = 0.0
+        self.play_at = 0.0  # _now() at PLAY
+        self.csv_stamp = None  # (path, mtime, size) of the newest Profile*.csv last seen
+        self.csv_changed_at = None  # _now() when csv_stamp was first seen or last changed
+        self.csv_written_at = None  # _now() of that file's last change after it was first seen, or None
+        self.csv_max_gap = 0.0  # largest _now() gap between two consecutive changes of one file (this job)
+        self.csv_polled_at = None  # _now() of the last look at the CSV folders (this job), None = not yet
         super().__init__(jobs, quit_editor)
         self.root = os.path.join(self.saved_dir, "Profiling", "CSV")
         candidates = _pure.saved_dir_candidates(self.saved_dir, os.environ.get("LOCALAPPDATA"))
         self.csv_dirs = _pure.csv_dirs(candidates)
 
-    def _job_step(self):
-        s = self.state
-        tag, preset, walk = self.job
-        if s == "PLAY":
-            self.not_before = time.time() - 1.0
-            _console(self.world, f"golmok.path play {walk} --csv")
-            return self._wait(self.lengths.get(walk, 0.0) + CSV_GRACE_S, "WAIT_CSV")
-        if s == "WAIT_CSV":
+    def _length(self, walk):
+        """Path length in s; 0.0 (= unknown: no path condition) when missing, negative or not finite."""
+        try:
+            length = float(self.lengths.get(walk) or 0.0)
+        except (TypeError, ValueError):
+            return 0.0
+        return length if math.isfinite(length) and length > 0.0 else 0.0
+
+    def _newest_csv(self):
+        """(path, mtime, size) of the newest Profile*.csv written since PLAY, or None."""
+        try:
             path = _pure.newest_file(
                 self.csv_dirs, "Profile*.csv", self.not_before, os.path.isfile, os.path.getmtime, glob.glob
             )
-            if path is None and not self._elapsed():
+            st = None if path is None else os.stat(path)
+        except OSError:
+            return None  # a file removed between the listing and the stat: look again next tick
+        return None if st is None else (os.path.normpath(path), st.st_mtime, st.st_size)
+
+    def _job_step(self):
+        s = self.state
+        tag, preset, walk = self.job
+        length = self._length(walk)
+        if s == "PLAY":
+            self.not_before = time.time() - 1.0
+            self.play_at = _now()
+            self.csv_stamp = self.csv_changed_at = self.csv_written_at = self.csv_polled_at = None
+            self.csv_max_gap = 0.0
+            _console(self.world, f"golmok.path play {walk} --csv")
+            return self._wait(length + CSV_GRACE_S, "WAIT_CSV")
+        if s == "WAIT_CSV":
+            now = _now()
+            if self.csv_polled_at is not None and now - self.csv_polled_at < CSV_POLL_S:
+                return False  # no glob / stat between polls (F3); the timeout is checked at the next poll
+            self.csv_polled_at = now
+            stamp = self._newest_csv()
+            if stamp != self.csv_stamp:  # new file, another file, or the file grew / was touched
+                if stamp is not None and self.csv_stamp is not None and stamp[0] == self.csv_stamp[0]:
+                    if self.csv_written_at is not None:  # the file's appearance is not a writer flush
+                        self.csv_max_gap = max(self.csv_max_gap, now - self.csv_written_at)
+                    self.csv_written_at = now
+                else:
+                    self.csv_written_at = None
+                self.csv_stamp, self.csv_changed_at = stamp, (None if stamp is None else now)
+            settle = _pure.csv_settle_s(self.csv_max_gap, CSV_SETTLE_S, CSV_SETTLE_MAX_S)
+            complete = _pure.csv_complete(
+                self.csv_changed_at, now, self.play_at, length, settle, CSV_END_SLACK_S
+            )
+            if not complete and not self._elapsed():
                 return False
             label = _pure.perf_label(tag, preset, walk)
-            if path is not None:
-                path = os.path.normpath(path)
+            if complete:
+                path = stamp[0]
                 _log("sr.csv", path=path, label=label)
                 self.saved.append(path)
             else:
                 pattern = os.path.normpath(os.path.join(self.root, "Profile*.csv"))
-                unreal.log_warning(_pure.fmt("sr.missing", path=pattern, why=f"timeout, {label}"))
+                why = f"timeout, {label}"
+                if stamp is not None:
+                    why += (
+                        f"; {stamp[0]} not complete: last change"
+                        f" {self.csv_changed_at - self.play_at:.1f} s after play, path {length:.1f} s"
+                    )
+                unreal.log_warning(_pure.fmt("sr.missing", path=pattern, why=why))
                 self.missing.append(label)
             self.state = "JOB"
             return True
@@ -779,12 +906,16 @@ def game_scripts(
     base_level=None,
     timeout_s=900,
     label_suffix=None,
+    discover_from_index=None,
 ):
     """Write Saved/Golmok/spike/run_game_perf.ps1: one -game -RenderOffscreen CSV run per (tag, preset, path)
     on L_Spike_<tag> (tag a: the base level); returns the script path. Labels (CSV, game_<label>.log,
     golmok-perf --label) are <tag>_<preset>_<walk>[_<suffix>]: the suffix defaults to "<height>p" for a
     resolution other than 1920x1080 (so a 1440p run does not overwrite the 1080p CSVs); pass label_suffix
-    (e.g. "1440p_dlss") for DLSS runs, "" for none. Only the .ps1 itself is overwritten by the next call."""
+    (e.g. "1440p_dlss") for DLSS runs, "" for none. discover_from_index=False adds the -ini: override that
+    turns the WP-09 zone index discovery off for these runs (synthetic-zone checks: other indexed synthetic
+    zones would load over the zone under test, runbook #39); None (default) leaves DefaultGame.ini in charge
+    (the real spike keeps discovery on). Only the .ps1 itself is overwritten by the next call."""
     from . import synthetic_zone as sz
 
     saved = _saved_dir()
@@ -812,6 +943,7 @@ def game_scripts(
                     preset=preset,
                     res=res,
                     log_path=os.path.join(spike_dir, f"game_{label}.log"),
+                    discover_from_index=discover_from_index,
                 )
                 runs.append({"label": label, "argv": argv})
     candidates = _pure.saved_dir_candidates(saved, os.environ.get("LOCALAPPDATA"))

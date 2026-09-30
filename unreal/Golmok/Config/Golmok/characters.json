@@ -1,0 +1,162 @@
+{
+  "schema_version": 1,
+  "default": "manny",
+  "characters": [
+    {
+      "id": "manny",
+      "display_name": {
+        "ko": "매니",
+        "en": "Manny"
+      },
+      "mesh": "/Game/Characters/Mannequins/Meshes/SKM_Manny_Simple.SKM_Manny_Simple",
+      "anim_class": "/Game/Characters/Mannequins/Anims/Unarmed/ABP_Unarmed.ABP_Unarmed_C",
+      "height_cm": 180,
+      "capsule": {
+        "radius_cm": 42,
+        "half_height_cm": 92
+      },
+      "mesh_offset_cm": [
+        0,
+        0,
+        -92
+      ],
+      "mesh_scale": [
+        1,
+        1,
+        1
+      ],
+      "mesh_yaw_deg": -90,
+      "camera": {
+        "boom_cm": 320,
+        "socket_cm": [
+          0,
+          45,
+          55
+        ],
+        "fov_deg": 80
+      },
+      "movement": {
+        "walk_cm_s": 180,
+        "run_cm_s": 500
+      },
+      "footstep_set": null
+    },
+    {
+      "id": "quinn",
+      "display_name": {
+        "ko": "퀸",
+        "en": "Quinn"
+      },
+      "mesh": "/Game/Characters/Mannequins/Meshes/SKM_Quinn_Simple.SKM_Quinn_Simple",
+      "anim_class": "/Game/Characters/Mannequins/Anims/Unarmed/ABP_Unarmed.ABP_Unarmed_C",
+      "height_cm": 180,
+      "capsule": {
+        "radius_cm": 42,
+        "half_height_cm": 92
+      },
+      "mesh_offset_cm": [
+        0,
+        0,
+        -92
+      ],
+      "mesh_scale": [
+        1,
+        1,
+        1
+      ],
+      "mesh_yaw_deg": -90,
+      "camera": {
+        "boom_cm": 320,
+        "socket_cm": [
+          0,
+          45,
+          55
+        ],
+        "fov_deg": 80
+      },
+      "movement": {
+        "walk_cm_s": 180,
+        "run_cm_s": 500
+      },
+      "footstep_set": null
+    },
+    {
+      "id": "proxy135",
+      "display_name": {
+        "ko": "135cm 비율 프록시",
+        "en": "135cm proportion proxy"
+      },
+      "mesh": "/Game/Characters/Mannequins/Meshes/SKM_Manny_Simple.SKM_Manny_Simple",
+      "anim_class": "/Game/Characters/Mannequins/Anims/Unarmed/ABP_Unarmed.ABP_Unarmed_C",
+      "height_cm": 135,
+      "capsule": {
+        "radius_cm": 33.6,
+        "half_height_cm": 69
+      },
+      "mesh_offset_cm": [
+        0,
+        0,
+        -69
+      ],
+      "mesh_scale": [
+        0.8,
+        0.8,
+        0.75
+      ],
+      "mesh_yaw_deg": -90,
+      "camera": {
+        "boom_cm": 260,
+        "socket_cm": [
+          0,
+          35,
+          45
+        ],
+        "fov_deg": 75
+      },
+      "movement": {
+        "walk_cm_s": 145,
+        "run_cm_s": 380
+      },
+      "footstep_set": null
+    },
+    {
+      "id": "proxy110",
+      "display_name": {
+        "ko": "110cm 비율 프록시",
+        "en": "110cm proportion proxy"
+      },
+      "mesh": "/Game/Characters/Mannequins/Meshes/SKM_Manny_Simple.SKM_Manny_Simple",
+      "anim_class": "/Game/Characters/Mannequins/Anims/Unarmed/ABP_Unarmed.ABP_Unarmed_C",
+      "height_cm": 110,
+      "capsule": {
+        "radius_cm": 33.6,
+        "half_height_cm": 56.22222222222222
+      },
+      "mesh_offset_cm": [
+        0,
+        0,
+        -56.22222222222222
+      ],
+      "mesh_scale": [
+        0.8,
+        0.8,
+        0.6111111111111112
+      ],
+      "mesh_yaw_deg": -90,
+      "camera": {
+        "boom_cm": 226.66666666666666,
+        "socket_cm": [
+          0,
+          29.444444444444443,
+          39.44444444444444
+        ],
+        "fov_deg": 72.22222222222223
+      },
+      "movement": {
+        "walk_cm_s": 120,
+        "run_cm_s": 310
+      },
+      "footstep_set": null
+    }
+  ]
+}

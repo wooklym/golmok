@@ -447,6 +447,43 @@ namespace
 		}
 		return true;
 	}
+
+	/** schema_version 2 keys (spec §3, WP-15a). spawn malformed = error (like a portal pose); a blank display_name only warns. */
+	bool ParseSchema2(const FJsonObjectPtr& Root, FGolmokZoneManifest& Out, FString& Error)
+	{
+		FJsonObjectPtr Spawn;
+		if (GetObject(Root, TEXT("spawn"), Spawn, Error, /*bRequired*/ false) && Spawn.IsValid())
+		{
+			if (!GetVec3(Spawn, TEXT("position_enu"), Out.SpawnPositionEnu, Error) || !GetNumber(Spawn, TEXT("yaw_deg"), Out.SpawnYawDeg, Error))
+			{
+				Error = FString::Printf(TEXT("spawn: %s"), *Error);
+				return false;
+			}
+			if (!FMath::IsFinite(Out.SpawnYawDeg) || !FMath::IsFinite(Out.SpawnPositionEnu.X) || !FMath::IsFinite(Out.SpawnPositionEnu.Y)
+				|| !FMath::IsFinite(Out.SpawnPositionEnu.Z))
+			{
+				return Fail(Error, TEXT("spawn has a non-finite value"));
+			}
+			Out.bHasSpawn = true;
+		}
+		else if (Root->HasField(FString(TEXT("spawn"))))
+		{
+			return Fail(Error, TEXT("spawn is not an object {position_enu, yaw_deg}"));
+		}
+		if (Root->HasField(FString(TEXT("display_name"))))
+		{
+			if (!GetString(Root, TEXT("display_name"), Out.DisplayName, Error))
+			{
+				return Fail(Error, TEXT("display_name is not a string"));
+			}
+			Out.DisplayName.TrimStartAndEndInline();
+			if (Out.DisplayName.IsEmpty())
+			{
+				UE_LOG(LogGolmok, Warning, TEXT("Zone manifest %s: display_name is blank; zone_id is shown instead."), *Out.ZoneId);
+			}
+		}
+		return true;
+	}
 } // namespace
 
 namespace GolmokZoneManifest
@@ -520,9 +557,9 @@ namespace GolmokZoneManifest
 			return false;
 		}
 		Out.SchemaVersion = static_cast<int32>(Number);
-		if (Out.SchemaVersion != 1)
+		if (Out.SchemaVersion != 1 && Out.SchemaVersion != 2)
 		{
-			return Fail(Error, FString::Printf(TEXT("unsupported schema_version %d (expected 1)"), Out.SchemaVersion));
+			return Fail(Error, FString::Printf(TEXT("unsupported schema_version %d (expected 1 or 2)"), Out.SchemaVersion));
 		}
 		if (!GetString(Root, TEXT("zone_id"), Out.ZoneId, Error))
 		{
@@ -642,15 +679,27 @@ namespace GolmokZoneManifest
 			Out.Sources.Add(MoveTemp(Source));
 		}
 
+		// schema_version 2 (WP-15a): optional spawn / display_name. A v1 file carrying them is a validator error; at
+		// runtime they are ignored with the unknown-key warning below (v1 files load exactly as before).
+		if (Out.SchemaVersion >= 2 && !ParseSchema2(Root, Out, Error))
+		{
+			return false;
+		}
+
 		static const TCHAR* KnownTopLevel[] = {TEXT("schema_version"), TEXT("zone_id"), TEXT("version"), TEXT("kind"), TEXT("parent_zone"),
 			TEXT("origin"), TEXT("origin_ecef"), TEXT("transform"), TEXT("footprint_wgs84"), TEXT("replaces"), TEXT("layers"), TEXT("portals"),
 			TEXT("priority"), TEXT("quality"), TEXT("consent"), TEXT("attribution"), TEXT("sources")};
+		static const TCHAR* KnownTopLevelV2[] = {TEXT("spawn"), TEXT("display_name")};
 		for (const auto& Pair : Root->Values)
 		{
 			bool bKnown = false;
 			for (const TCHAR* K : KnownTopLevel)
 			{
 				bKnown = bKnown || Pair.Key == K;
+			}
+			for (const TCHAR* K : KnownTopLevelV2)
+			{
+				bKnown = bKnown || (Out.SchemaVersion >= 2 && Pair.Key == K);
 			}
 			if (!bKnown)
 			{

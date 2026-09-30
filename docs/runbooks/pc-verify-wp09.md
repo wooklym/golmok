@@ -111,14 +111,15 @@ git pull
 검증용 맵 사본 `L_ZoneTest09`를 만들고 `Zone_*` 액터만 지운다(GeoOrigin·바닥·PlayerStart·조명·서브레벨 등록 유지). 원본 `L_ZoneTest`는 자동화 테스트가 계속 쓰므로 건드리지 않는다(`.gitignore`에 사본 포함). Output Log → Python:
 ```python
 import unreal
-unreal.EditorAssetLibrary.duplicate_asset("/Game/Golmok/Maps/L_ZoneTest", "/Game/Golmok/Maps/L_ZoneTest09")
-les = unreal.get_editor_subsystem(unreal.LevelEditorSubsystem); les.load_level("/Game/Golmok/Maps/L_ZoneTest09")
+# 원본을 열어 Zone 액터만 지우고 "다른 이름으로 저장"한다. duplicate_asset 뒤 같은 프로세스에서 사본을 load_level 하면
+# "Old world … not cleaned up by garbage collection" Fatal(V-07, §11 #35). 원본 L_ZoneTest.umap은 저장하지 않으므로 그대로다.
+les = unreal.get_editor_subsystem(unreal.LevelEditorSubsystem); les.load_level("/Game/Golmok/Maps/L_ZoneTest")
 eas = unreal.get_editor_subsystem(unreal.EditorActorSubsystem)
 for a in eas.get_all_level_actors():
-    if a.get_actor_label() in ("Zone_z_synthetic_001", "Zone_z_synthetic_001_interior"):
+    if isinstance(a, unreal.GolmokZone):
         eas.destroy_actor(a)
 world = unreal.get_editor_subsystem(unreal.UnrealEditorSubsystem).get_editor_world()
-unreal.EditorLoadingAndSavingUtils.save_map(world, "/Game/Golmok/Maps/L_ZoneTest09")
+unreal.EditorLoadingAndSavingUtils.save_map(world, "/Game/Golmok/Maps/L_ZoneTest09")   # Save As
 ```
 - [ ] `L_ZoneTest09`에 `AGolmokZone` 0개(`Portal_…`은 Transient라 원래 저장되지 않음). PIE 시작 = PlayerStart(001 zone-local (0, −5, 0) m) = 셀 `16/55873/25380`.
 
@@ -312,62 +313,85 @@ HUD(F1) `game … ms  render … ms  gpu … ms` 줄과 `stat unit`의 `Draw`를
 
 | # | 파일 | API | 불확실한 점 | 대안 | PC 결과 |
 |---|---|---|---|---|---|
-| 1 | GolmokZoneSubsystem | `FStreamableManager Streamable;`를 `UWorldSubsystem` 값 멤버로(`FGCObject` 파생, 비복사) | `UAssetManager`가 같은 패턴. CDO에도 인스턴스 1개(무해) | `UAssetManager::IsInitialized() ? &UAssetManager::Get().GetStreamableManager() : nullptr`(`Engine/AssetManager.h`, 새 모듈 없음); null이면 동기 폴백 | |
-| 2 | GolmokZone | `RequestAsyncLoad(TArray<FSoftObjectPath>, FStreamableDelegate, TAsyncLoadPriority, bool, bool, FString)` — 5.4+ `FStreamableAsyncLoadParams&&`·`TFunction` 오버로드 | 델리게이트를 이름 있는 변수로 넘기면 정확 일치 | ① `RequestAsyncLoad(MoveTemp(Paths), Done)` ② `FStreamableAsyncLoadParams P; P.TargetsToStream = MoveTemp(Paths); P.OnComplete = FStreamableDelegateWithHandle::CreateWeakLambda(this, [this, Serial](TSharedPtr<FStreamableHandle>){ OnStreamableComplete(Serial); }); P.Priority = …; P.DebugName = …; RequestAsyncLoad(MoveTemp(P))` | |
-| 3 | GolmokZone | 완료 델리게이트 발화 시점(`FStreamableDelegateDelayHelper`가 항상 다음 틱인지) | 불확실 — 설계가 의존하지 않음(항상 미룸 + 세대) | 런북 §4 로그로 관찰만 | |
-| 4 | GolmokZone | `FStreamableHandle::CancelHandle()` 뒤 큐에 든 완료 델리게이트가 불리는지 | 불확실 | 세대 불일치로 무시. `ReleaseHandle()`은 쓰지 않는다(로드 계속·델리게이트 발화) | |
-| 5 | GolmokZone | `FStreamableDelegate::CreateWeakLambda(UObject*, Lambda)` | `TDelegate::CreateWeakLambda` 4.2x+ | `CreateUObject(this, &AGolmokZone::OnStreamableComplete, Serial)`(payload) | |
-| 6 | GolmokZone | `FSoftObjectPath(const FString&)`로 `/Game/…/SM_x.SM_x` 파싱 | 안정; `IsNull()`로 실패 검사 | `FSoftObjectPath P; P.SetPath(FStringView(Path));` | |
-| 7 | GolmokZone | `FSoftObjectPath::ResolveObject()` | 안정(찾기만) | `StaticFindObject(UStaticMesh::StaticClass(), nullptr, *Path)`; 최후 `StaticLoadObject`(상주라 즉시) | |
-| 8 | GolmokZone | `FPackageName::DoesPackageExist(const FString&)`, `FPackageName::ObjectPathToPackageName` | 전자는 V-03에서 컴파일 확인. 쿠킹(IoStore)에서 pak을 보는지 | 후자: `Path.Left(Path.Find(TEXT(".")))`. 전자가 쿠킹에서 false면(런북 §9) `#if WITH_EDITOR`에서만 검사하고 패키지 빌드는 `LogStreaming` 오류 허용 | |
-| 9 | GolmokZoneSubsystem | `AActor::SetFolderPath(FName)`(`#if WITH_EDITOR`) | 에디터 전용 | 줄 삭제(라벨만) | |
-| 10 | GolmokZoneSubsystem | `FActorSpawnParameters{bDeferConstruction, ObjectFlags\|RF_Transient, SpawnCollisionHandlingOverride}` + `FinishSpawning` | V-03에서 포털로 확인. `SpawnActorDeferred<T>`는 `ObjectFlags`를 못 받아 쓰지 않음 | `SpawnActorDeferred<AGolmokZone>(…)` 뒤 `Zone->SetFlags(RF_Transient)` | |
-| 11 | GolmokZone / Portal | `FTimerManager::SetTimerForNextTick(UserClass*, MethodPtr)`가 **`FTimerHandle`을 반환** | 반환형 확인(4.2x+에서 반환); 저장해 `ClearTimer` | `FTimerHandle H = SetTimerForNextTick(FTimerDelegate::CreateUObject(this, &AGolmokZone::FinishAsyncLoad))`; 핸들이 없으면 `SetTimer(H, …, 0.001f, false)`; 어차피 세대 검사가 최종 방어 | |
-| 12 | GolmokZone/Subsystem | `FStreamableManager::AsyncLoadHighPriority`(100)/`DefaultAsyncLoadPriority`(0), `TAsyncLoadPriority` | 정적 상수 이름 | 리터럴 `100`/`0` | |
-| 13 | GolmokZone | `FStreamableHandle::HasLoadCompleted()/WasCanceled()` | 4.17+ 안정 | 상태 검사만 `State`로 | |
-| 14 | GolmokZoneSubsystem | `FStreamableManager::SetManagerName(FString)` | 존재(4.2x+) | 줄 삭제 | |
-| 15 | GolmokDebugSubsystem | `GRenderThreadTimeCriticalPath`(`RenderTimer.h`) | `GRenderThreadTime`과 같은 헤더라 봄 | 링크 오류면 소스 1(`#if == 2` 블록만 컴파일) | |
-| 16 | GolmokDebugSubsystem | `FCoreDelegates::OnBeginFrame.AddUObject/Remove` | `OnEndFrame`과 쌍(V-03 확인) | `FWorldDelegates::OnWorldPreActorTick` | |
-| 17 | GolmokDebugSubsystem | `GRenderThreadTime`이 `OnBeginFrame` 시점에 직전 프레임 최종값인지(0.00 원인) | 엔진 순서 미확인 | 매크로 0/1/2 + hold 규칙; 런북 §7이 확정 | |
-| 18 | GolmokZoneTest | 자동화가 `LogStreamableManager`/`LogStreaming` Warning·Error에 반응 | 없는 패키지는 요청하지 않음 | 뜻밖의 경고면 `AddExpectedError(TEXT("Couldn't find file for package"), EAutomationExpectedErrorFlags::Contains, 0)` | |
-| 19 | GolmokZoneSubsystem | `UWorld::HasBegunPlay()`, `UWorld::IsGameWorld()`, `UWorld::bIsTearingDown` | 후자는 WP-05에서 컴파일 확인 | `GetBegunPlay()`; `WorldType == Game/PIE` 직접 비교 | |
-| 20 | GolmokGeoMath | `std::ldexp/asinh/sinh/atan`(`<cmath>`) MSVC | 안정. `tan/asinh` 마지막 ulp | 결과 차이는 셀 경계 위 점만; 런북 §3에 기록 | |
-| 21 | GolmokZoneIndex | `TryGetArrayField/TryGetNumberField/TryGetStringField/TryGetObjectField(const FString&, …)` | V-03 확정: `FString` 키 객체 | `TryGetField(FStringView)` + `AsArray()/AsNumber()/AsString()` | |
-| 22 | GolmokZoneIndex | `TFunction<bool(const FString&, FString&)>` 기본 생성·`operator bool` | `TFunction`에 `bool` 변환 있음 | 함수 포인터 + 컨텍스트 | |
-| 23 | GolmokZoneIndex | `FFileHelper::LoadFileToString` + `IFileManager::Get().FileExists`가 UFS pak 안에서 동작 | WP-04 manifest로 확인 | 존재 검사 없이 `LoadFileToString` 실패를 "없음"으로 | |
-| 24 | GolmokZone | `EGolmokZoneState`에 `Loading` 추가(끝) | BlueprintType enum 값 추가 안전; `State`는 Transient | — | |
-| 25 | GolmokZoneSubsystem | `FStreamableManager` 소멸(GC) 시 살아있는 핸들 | `Deinitialize`에서 전 zone `CancelAsyncLoad()` | 문제면 `TUniquePtr<FStreamableManager>` + **사용자 선언 소멸자를 .cpp에 정의**(불완전형 함정 회피) 후 `Deinitialize`에서 명시 파괴 | |
-| 26 | GolmokPortal | `SetTimerForNextTick(this, &AGolmokPortal::PreloadInterior)` UObject 메서드 오버로드 | #11과 동일 | `FTimerDelegate::CreateUObject` | |
-| 27 | GolmokZoneTest | `GEngine->Exec(World, TEXT("golmok.zone.index"))` | 콘솔 실행 경로 | `UKismetSystemLibrary::ExecuteConsoleCommand` | |
-| 28 | GolmokZoneTest | `IMPLEMENT_SIMPLE_AUTOMATION_TEST(…, EditorContext \| ProductFilter)`, `FStartPIECommand`, `GEditor->PlayWorld` | WP-05 4파일과 동일 패턴(V-03 통과) | — | |
-| 29 | GolmokZoneSubsystem | `UGolmokGeoSubsystem::LevelUEToLonLat(const FVector&, double& Lat, double& Lon, double& H)` | 자체 코드(WP-04) | — | |
-| 30 | 정적 검사 | MSVC C4458: `FGolmokZoneIndexCell` 멤버 `X/Y/Zoom`·`FGolmokZoneIndex` 멤버 `IndexDir` vs 정적 함수 인자 | `In*` 규칙 + pytest | 컴파일 오류 시 인자 이름만 변경 | |
-| 31 | 유니티 빌드 | Zones/*.cpp 익명 namespace 이름(`MakeComponentName`, `ZoneSubsystemFor`, 새 `IndexJson*`, `CmdZoneIndex`) | 파일 접두 + pytest | 충돌 시 이름 변경 | |
-| 32 | GolmokPortalTest | `StreamInTimeoutSeconds` 5.0이 비동기 실내 + 서브레벨 스트리밍에 충분한지 | 합성 실내는 에셋 수 개 | 부족하면 10.0(상한만; 결과에 기록) | |
-| 33 | Python | `unreal.Paths.project_content_dir()` | WP-06 사용 | — | |
-| 34 | 런북 | 콘솔 `teleport` 부재 → 에디터 Python 드라이버로 폰 이동 | V-03 방식 | `golmok.path play`로 원거리 경로 재생 | |
+| 1 | GolmokZoneSubsystem | `FStreamableManager Streamable;`를 `UWorldSubsystem` 값 멤버로(`FGCObject` 파생, 비복사) | `UAssetManager`가 같은 패턴. CDO에도 인스턴스 1개(무해) | `UAssetManager::IsInitialized() ? &UAssetManager::Get().GetStreamableManager() : nullptr`(`Engine/AssetManager.h`, 새 모듈 없음); null이면 동기 폴백 | ✅ 값 멤버 그대로 컴파일·동작(핸들 발급, 자동화 5개 통과) |
+| 2 | GolmokZone | `RequestAsyncLoad(TArray<FSoftObjectPath>, FStreamableDelegate, TAsyncLoadPriority, bool, bool, FString)` — 5.4+ `FStreamableAsyncLoadParams&&`·`TFunction` 오버로드 | 델리게이트를 이름 있는 변수로 넘기면 정확 일치 | ① `RequestAsyncLoad(MoveTemp(Paths), Done)` ② `FStreamableAsyncLoadParams P; P.TargetsToStream = MoveTemp(Paths); P.OnComplete = FStreamableDelegateWithHandle::CreateWeakLambda(this, [this, Serial](TSharedPtr<FStreamableHandle>){ OnStreamableComplete(Serial); }); P.Priority = …; P.DebugName = …; RequestAsyncLoad(MoveTemp(P))` | ✅ 이름 있는 `FStreamableDelegate` 변수로 고전 오버로드 선택됨(수정 없음) |
+| 3 | GolmokZone | 완료 델리게이트 발화 시점(`FStreamableDelegateDelayHelper`가 항상 다음 틱인지) | 불확실 — 설계가 의존하지 않음(항상 미룸 + 세대) | 런북 §4 로그로 관찰만 | ✅ 관찰: 에셋이 상주하면 완료 델리게이트가 `RequestAsyncLoad` 안에서 바로 오고(§4 `wait` 34.8 ms는 첫 로드·이후 7~9 ms = 다음 틱 1회) 설계대로 항상 다음 틱에 build |
+| 4 | GolmokZone | `FStreamableHandle::CancelHandle()` 뒤 큐에 든 완료 델리게이트가 불리는지 | 불확실 | 세대 불일치로 무시. `ReleaseHandle()`은 쓰지 않는다(로드 계속·델리게이트 발화) | ✅ 관찰: `CancelHandle()` 뒤 `loaded (async …)` 줄 없음(§10 `async load cancelled after 41.8 ms` 뒤 침묵) |
+| 5 | GolmokZone | `FStreamableDelegate::CreateWeakLambda(UObject*, Lambda)` | `TDelegate::CreateWeakLambda` 4.2x+ | `CreateUObject(this, &AGolmokZone::OnStreamableComplete, Serial)`(payload) | ✅ |
+| 6 | GolmokZone | `FSoftObjectPath(const FString&)`로 `/Game/…/SM_x.SM_x` 파싱 | 안정; `IsNull()`로 실패 검사 | `FSoftObjectPath P; P.SetPath(FStringView(Path));` | ✅ |
+| 7 | GolmokZone | `FSoftObjectPath::ResolveObject()` | 안정(찾기만) | `StaticFindObject(UStaticMesh::StaticClass(), nullptr, *Path)`; 최후 `StaticLoadObject`(상주라 즉시) | ✅ |
+| 8 | GolmokZone | `FPackageName::DoesPackageExist(const FString&)`, `FPackageName::ObjectPathToPackageName` | 전자는 V-03에서 컴파일 확인. 쿠킹(IoStore)에서 pak을 보는지 | 후자: `Path.Left(Path.Find(TEXT(".")))`. 전자가 쿠킹에서 false면(런북 §9) `#if WITH_EDITOR`에서만 검사하고 패키지 빌드는 `LogStreaming` 오류 허용 | ✅ 에디터/PIE에서 `4 existing, 0 missing`·002 `0개 → 동기 경로`. 쿠킹(§9)은 미실행 |
+| 9 | GolmokZoneSubsystem | `AActor::SetFolderPath(FName)`(`#if WITH_EDITOR`) | 에디터 전용 | 줄 삭제(라벨만) | ✅ (아웃라이너 `Golmok/Zones/Discovered`) |
+| 10 | GolmokZoneSubsystem | `FActorSpawnParameters{bDeferConstruction, ObjectFlags\|RF_Transient, SpawnCollisionHandlingOverride}` + `FinishSpawning` | V-03에서 포털로 확인. `SpawnActorDeferred<T>`는 `ObjectFlags`를 못 받아 쓰지 않음 | `SpawnActorDeferred<AGolmokZone>(…)` 뒤 `Zone->SetFlags(RF_Transient)` | ✅ |
+| 11 | GolmokZone / Portal | `FTimerManager::SetTimerForNextTick(UserClass*, MethodPtr)`가 **`FTimerHandle`을 반환** | 반환형 확인(4.2x+에서 반환); 저장해 `ClearTimer` | `FTimerHandle H = SetTimerForNextTick(FTimerDelegate::CreateUObject(this, &AGolmokZone::FinishAsyncLoad))`; 핸들이 없으면 `SetTimer(H, …, 0.001f, false)`; 어차피 세대 검사가 최종 방어 | ✅ `FTimerHandle` 반환(수정 없음) |
+| 12 | GolmokZone/Subsystem | `FStreamableManager::AsyncLoadHighPriority`(100)/`DefaultAsyncLoadPriority`(0), `TAsyncLoadPriority` | 정적 상수 이름 | 리터럴 `100`/`0` | ✅ |
+| 13 | GolmokZone | `FStreamableHandle::HasLoadCompleted()/WasCanceled()` | 4.17+ 안정 | 상태 검사만 `State`로 | ✅ |
+| 14 | GolmokZoneSubsystem | `FStreamableManager::SetManagerName(FString)` | 존재(4.2x+) | 줄 삭제 | ✅ |
+| 15 | GolmokDebugSubsystem | `GRenderThreadTimeCriticalPath`(`RenderTimer.h`) | `GRenderThreadTime`과 같은 헤더라 봄 | 링크 오류면 소스 1(`#if == 2` 블록만 컴파일) | ✅ 매크로 2로도 링크됨(§7 재빌드) |
+| 16 | GolmokDebugSubsystem | `FCoreDelegates::OnBeginFrame.AddUObject/Remove` | `OnEndFrame`과 쌍(V-03 확인) | `FWorldDelegates::OnWorldPreActorTick` | ✅ |
+| 17 | GolmokDebugSubsystem | `GRenderThreadTime`이 `OnBeginFrame` 시점에 직전 프레임 최종값인지(0.00 원인) | 엔진 순서 미확인 | 매크로 0/1/2 + hold 규칙; 런북 §7이 확정 | 관찰: 소스 1의 `begin`과 `end` cycles가 항상 같다(엔진이 `FSlateRHIRenderer`에서 렌더 스레드에 기록) → §7·§12 |
+| 18 | GolmokZoneTest | 자동화가 `LogStreamableManager`/`LogStreaming` Warning·Error에 반응 | 없는 패키지는 요청하지 않음 | 뜻밖의 경고면 `AddExpectedError(TEXT("Couldn't find file for package"), EAutomationExpectedErrorFlags::Contains, 0)` | ✅ 자동화·PIE 모두 `LogStreaming`/`LogStreamableManager` `Couldn't find file` 0건 |
+| 19 | GolmokZoneSubsystem | `UWorld::HasBegunPlay()`, `UWorld::IsGameWorld()`, `UWorld::bIsTearingDown` | 후자는 WP-05에서 컴파일 확인 | `GetBegunPlay()`; `WorldType == Game/PIE` 직접 비교 | ✅ |
+| 20 | GolmokGeoMath | `std::ldexp/asinh/sinh/atan`(`<cmath>`) MSVC | 안정. `tan/asinh` 마지막 ulp | 결과 차이는 셀 경계 위 점만; 런북 §3에 기록 | ✅ `LonLatToCell` 단언 통과; 경계 점 없음 |
+| 21 | GolmokZoneIndex | `TryGetArrayField/TryGetNumberField/TryGetStringField/TryGetObjectField(const FString&, …)` | V-03 확정: `FString` 키 객체 | `TryGetField(FStringView)` + `AsArray()/AsNumber()/AsString()` | ✅ |
+| 22 | GolmokZoneIndex | `TFunction<bool(const FString&, FString&)>` 기본 생성·`operator bool` | `TFunction`에 `bool` 변환 있음 | 함수 포인터 + 컨텍스트 | ✅ |
+| 23 | GolmokZoneIndex | `FFileHelper::LoadFileToString` + `IFileManager::Get().FileExists`가 UFS pak 안에서 동작 | WP-04 manifest로 확인 | 존재 검사 없이 `LoadFileToString` 실패를 "없음"으로 | ✅ 없는 셀 파일에 엔진 로그 없음(`no cell file … (empty cell)`만) |
+| 24 | GolmokZone | `EGolmokZoneState`에 `Loading` 추가(끝) | BlueprintType enum 값 추가 안전; `State`는 Transient | — | ✅ |
+| 25 | GolmokZoneSubsystem | `FStreamableManager` 소멸(GC) 시 살아있는 핸들 | `Deinitialize`에서 전 zone `CancelAsyncLoad()` | 문제면 `TUniquePtr<FStreamableManager>` + **사용자 선언 소멸자를 .cpp에 정의**(불완전형 함정 회피) 후 `Deinitialize`에서 명시 파괴 | ✅ (PIE 종료·재시작 반복 OK) |
+| 26 | GolmokPortal | `SetTimerForNextTick(this, &AGolmokPortal::PreloadInterior)` UObject 메서드 오버로드 | #11과 동일 | `FTimerDelegate::CreateUObject` | ✅ |
+| 27 | GolmokZoneTest | `GEngine->Exec(World, TEXT("golmok.zone.index"))` | 콘솔 실행 경로 | `UKismetSystemLibrary::ExecuteConsoleCommand` | ✅ `golmok.zone.index via GEngine->Exec: handled` |
+| 28 | GolmokZoneTest | `IMPLEMENT_SIMPLE_AUTOMATION_TEST(…, EditorContext \| ProductFilter)`, `FStartPIECommand`, `GEditor->PlayWorld` | WP-05 4파일과 동일 패턴(V-03 통과) | — | ✅ |
+| 29 | GolmokZoneSubsystem | `UGolmokGeoSubsystem::LevelUEToLonLat(const FVector&, double& Lat, double& Lon, double& H)` | 자체 코드(WP-04) | — | ✅ |
+| 30 | 정적 검사 | MSVC C4458: `FGolmokZoneIndexCell` 멤버 `X/Y/Zoom`·`FGolmokZoneIndex` 멤버 `IndexDir` vs 정적 함수 인자 | `In*` 규칙 + pytest | 컴파일 오류 시 인자 이름만 변경 | ✅ C4458 없음(프로젝트 경고 0건) |
+| 31 | 유니티 빌드 | Zones/*.cpp 익명 namespace 이름(`MakeComponentName`, `ZoneSubsystemFor`, 새 `IndexJson*`, `CmdZoneIndex`) | 파일 접두 + pytest | 충돌 시 이름 변경 | ✅ 유니티 빌드 충돌 없음 |
+| 32 | GolmokPortalTest | `StreamInTimeoutSeconds` 5.0이 비동기 실내 + 서브레벨 스트리밍에 충분한지 | 합성 실내는 에셋 수 개 | 부족하면 10.0(상한만; 결과에 기록) | ✅ 5.0 s 충분(`cycle 1: interior ready after 0.09 s`) |
+| 33 | Python | `unreal.Paths.project_content_dir()` | WP-06 사용 | — | ✅ |
+| 34 | 런북 | 콘솔 `teleport` 부재 → 에디터 Python 드라이버로 폰 이동 | V-03 방식 | `golmok.path play`로 원거리 경로 재생 | ✅ 에디터 Python 드라이버 텔레포트(`set_actor_location`)로 1.5 km 이동·복귀 |
+| 35 | pre-step Python | `EditorAssetLibrary.duplicate_asset(맵)` 뒤 같은 프로세스에서 `load_level(사본)` | §4 절차 그대로면 헤드리스에서 `Old world … not cleaned up by garbage collection` Fatal | 원본 맵을 열어 Zone 액터를 지우고 `EditorLoadingAndSavingUtils.save_map(world, "/Game/Golmok/Maps/L_ZoneTest09")`(Save As; 원본 파일은 안 건드림) | 수정(런북 §4 코드 교체, 커밋) |
 | 35+ | (PC 세션 추가 — 예: `FFileHelper::LoadFileToString(…, FFileHelper::EHashOptions::None, FILEREAD_Silent)` 인자 순서, `AActor::SetActorLabel(FString, bool bMarkDirty)`, `FString::Printf`의 `%llu`/`%u`, `TFunction` 명시적 `operator bool`) | | | | |
 
 ## 12. 결과 기록
-V-07 PC 세션(… , 사용자 PC, 모델 …), 날짜 …. UE 5.8.3, VS …, 브랜치 `pc/v07-verify-wp09`.
-**검증 방식**: (V-03과 같은 에디터 Python PIE 드라이버 여부, 키 입력 방식, 헤드리스 명령을 적는다.)
+V-07 PC 세션(Claude Desktop 워크트리 `cool-sinoussi-82af80`, 사용자 PC, **Fable 5.1**), 2026-09-26. UE 5.8.3(Launcher), VS 2026 Community(MSVC 14.51), 브랜치 `pc/v07-verify-wp09`(origin/main `3d94370` 기준, PR #15 병합본).
+**검증 방식**: V-03과 같은 에디터 Python PIE 드라이버(Slate post-tick 콜백에서 `editor_request_begin_play` → 콘솔 명령·`set_actor_location` 텔레포트·`add_movement_input` 보행(run 500 cm/s)·`shot showui`/`golmok.screenshot`·액터 상태 프로브·PIE 종료·에디터 월드 검사; 시나리오 JSON 8개 `wp09a`~`wp09h`, 세션 스크래치에만 있음). 키 입력(SendInput)은 쓰지 않았다(콘솔 명령만으로 충분). 헤드리스는 `UnrealEditor-Cmd -unattended -nullrhi`(`test.ps1`, index sync·`L_ZoneTest09` 생성 pre-step, 끝은 `quit_editor()`). `stat unit` 값은 `shot showui` PNG를 잘라 읽었다. 같은 PC에서 동시에 도는 다른 세션(V-08)과 포그라운드 잠금 파일로 순서를 맞췄고 fps 측정 중 다른 UE 프로세스는 없었다. Python은 워크트리 venv(`pip install -e ".[zone,mesh,basemap,dev]"`, `PYTHONUTF8=1`).
 
 | 항목 | 결과 | 메모·실측 |
 |---|---|---|
-| 빌드 | | 컴파일 오류·링크 오류 건수, §11 번호, 커밋 |
-| 헤드리스 자동화 16개(Zone 5 + 기존 11) | | `[Info]` 실측(discovered after, asset packages, finished after), 재진입 Error 0 |
-| §1 index 동기화(`git status` 깨끗) | | |
-| §4 발견(로그·`golmok.zone.index`·목록·HUD·아웃라이너) | | 발견까지 걸린 시간, `async … wait` ms |
-| §4 002 동기 폴백(와이어 박스·엔진 LogStreaming 경고 0) | | |
-| §5 파괴·재발견 | | 파괴까지 걸린 시간(10~12 s), `despawned … m` 값 |
-| §6 히치 표(async / sync) | | `golmok-perf` 표 2행 + 최대 프레임 ms 출처, `loaded in X ms` vs `async X wait + Y build` |
-| §7 render ms 소스·held 비율 | | 5회 표(소스 1; 필요 시 2·0), 커밋한 매크로 기본값 |
-| §8 실내 표시·포털 대기 | | 로그 순서, `waiting` 줄 유무, `pending(loading …)`, `portal` 행, 콘솔 회귀, `load cancelled` |
-| §9 패키징(선택) | | pak 목록, `-game` `golmok.zone.index`, `DoesPackageExist` 쿠킹 결과 |
-| §10 PIE 종료 | | `async load cancelled`, Discovered 잔류 없음, dirty 없음 |
-| 고친 API 번호(§11)·커밋 | | |
-| 설계와 다른 동작 발견 | | 이 문서에 없는 추가분 |
+| 빌드 | ✅ | 클린 빌드 104 s, 컴파일·링크 오류 0, 프로젝트 소스 경고 0(엔진 헤더 C4996만). §11 표 1~34 전부 그대로 통과(C++ 수정 없음). 추가 #35: 런북 §4의 맵 사본 코드(`duplicate_asset` → `load_level`)가 헤드리스에서 GC Fatal → Save-As 방식으로 교체. 에디터 열림 OK, 에디터 월드에서는 발견 없음(`Discovered` 폴더·`zone index` 줄 없음) |
+| 헤드리스 자동화 16개(Zone 5 + 기존 11) | ✅ 16/16 `Success` | Zone 5개는 "Success with warning"(`index.json` `succeededWithWarnings`): `IndexParse` 의도된 Warning `cell 16_55872_25381 lists z_synthetic_002@v2 but zones.json has v1 (skipped)`, `IndexDiscover` 002 청크/충돌 누락 Warning 4×2. `[Info]`: `content index …/index: 3 zones`, `z_synthetic_002 discovered after 0.01 s`, `golmok.zone.index via GEngine->Exec: handled`, AsyncLoad `asset packages: 4 existing, 0 missing`·`async load finished after 0.02 s: missing 0, error ''`, AsyncCancel `second request finished after 0.02 s`, InteriorNotBlocked 행 `… unloaded  dist       15.0 m portal [placed]`. `Portal.SpawnFromManifest` 동기 `loaded in 0.6 ms`, `Zone.AsyncLoad` 비동기 `loaded (async 5.7~31.4 ms wait + 0.6~0.8 ms build)`, 실내 `async 11.8~60.0 ms wait`, `Portal.RoundTrip` `cycle 1: interior ready after 0.09 s`(5.0 s 안). 재진입 Error 0, `LogGolmok: Error` 0, 엔진 `Couldn't find file for package` 0. `test.ps1` 요약 `Succeeded: 0`(Zone만)·`7`(전체)은 warning 계수 방식(V-03) — 상태 열로 판정. 셀 공식: 경계 점 없음 |
+| §1 index 동기화(`git status` 깨끗) | ✅ | `golmok-zone index build --strict` → `zone 3개, 셀 4개 → … (5 파일)`, WARN 0, 셀 파일 4개. 에디터 `zx.sync` 로그 3줄(`plan 3 zones, 4 cells` → `copied zones.json + 4 cells` → `done 3 zones, 4 cells`) 기대와 동일, `removed`/`WARNING` 없음, `zx.describe()` = `index: 3 zones, 4 cells at …`. 커밋본과 **바이트 동일(LF)**: `git diff --exit-code` 비어 있음. 이 PC는 `core.autocrlf=true`라 체크아웃이 CRLF여서 동기화 뒤 `git status`에 " M" 5개로 보이는 것은 개행뿐(`git checkout --`으로 되돌림). `zi.run(with_index=True)` 선택 항목은 미실행 |
+| §4 발견(로그·`golmok.zone.index`·목록·HUD·아웃라이너) | ✅ | PIE 시작 2줄 동일(`zone index …: 3 zones; discovery every 2.0 s`, `0 zones registered; load < 150 m, unload > 250 m, every 0.50 s`). BeginPlay **+0.18 s**(첫 타이머 틱)에 없는 셀 5개 Log → `001_interior → 001 → 002 discovered from index (cell 16/55873/25380)` → `discovery: cell 16/55873/25380, 3x3 zones 3, spawned 3, destroyed 0, retired 0, actors 3` → root 3줄(001 `(17670.59, -22198.00, 999.37)`, 001_interior `(18170.57, -23498.01, 999.31)`) → `Zone z_synthetic_001 v1: async load requested (4 assets, 0 missing, priority 0)` → 36 ms 뒤 청크 3·blocker·portal 줄 → `loaded (async 34.8 ms wait + 1.0 ms build): chunks 3/3 (0 wire boxes), collision 1/1, blockers 1/1, portals 1`(재로드 때는 `7.8~8.5 ms wait`). `golmok.zone.index` 블록(`9 cells cached, 5 missing cell files`, `player: … cell 16/55873/25380 (W 126.9196 E 126.9250 S 37.5576 N 37.5620)`, 3×3 표, `near:` 순서 001_interior·001·002)·`golmok.zone.list` 3행(002 `unloaded  dist >=   184.0 m [index]`)·HUD `zones:` 4행·아웃라이너 `Golmok/Zones/Discovered`의 `Zone_… (index)` 3개(`SpawnedFromIndex` True) 전부 기대와 동일(`docs/images/pc-verify-wp09-discovered-hud.jpg`). `golmok.zone.index reload` → `index reloaded: 3 zones` + 없는 셀 5줄 재출력, 재스폰 없음 |
+| §4 002 동기 폴백(와이어 박스·엔진 LogStreaming 경고 0) | ✅ | `golmok.zone.radius 300 400` → `radii now load < 300 m, unload > 400 m` → 같은 틱 `Zone z_synthetic_002 v1 loaded in 1.2 ms: chunks 0/2 (2 wire boxes), collision 0/2, blockers 1/1, portals 0`(우리 Warning 4개, `async load requested` 없음), 엔진 `LogStreaming`/`LogStreamableManager` 경고 0. 목록 002 행 `loaded    dist      184.0 m [index]`(`>=` 사라짐). 주황 와이어 박스 2개(`docs/images/pc-verify-wp09-002-wireboxes.jpg`, 150 m 동쪽에서 촬영). `golmok.zone.refresh` 메시지 동일. 이후 `discovery:` 줄에 `despawn > 800 m`(= 2×400) |
+| §5 파괴·재발견 | ✅ | 텔레포트 +0.45 s: `Zone z_synthetic_001 v1 unloaded`·`002 unloaded`; 새 3×3 없는 셀 9줄(1회씩); `golmok.zone.index` → `player: lon 126.941978 … -> cell 16/55877/25380`, `18 cells cached, 14 missing cell files`, 3×3 전부 `-`, `near: (none)`; `discovery:` 요약 없음. **11.5 s** 뒤 3건 동시 파괴 `zone z_synthetic_001_interior despawned (index; 1491 m, cells far)`·`001 … 1480 m`·`002 … 1284 m` + `discovery: cell 16/55877/25380, 3x3 zones 0, spawned 0, destroyed 3, retired 0, actors 0`, 목록 `0 zones … 0 discovered, 0 loading`, 액터 0. 복귀 **1.85 s** 뒤 재발견 3 + 001 `async load requested` → `loaded (async 7.8 ms wait + 0.9 ms build)`. 북쪽 7 m(셀 `16/55873/25379`, `21 cells cached, 17 missing`): 파괴·재스폰 없음 |
+| §6 히치 표(async / sync) | ✅ | 아래 §6 표. 판정 "async가 sync보다 나쁘지 않다" 충족 |
+| §7 render ms 소스·held 비율 | ✅ 소스 **1 유지**(매크로 변경 없음) | 아래 §7 표. HUD `render` = `stat unit` Draw(5/5, ±0.2 ms); 세 소스 모두 같은 값(`begin`=`end`) |
+| §8 실내 표시·포털 대기 | ✅ | ① 트리거 진입 다음 틱 `Zone z_synthetic_001_interior v1: async load requested (2 assets, 0 missing, priority 100)` → `Portal door_1: interior preload requested -> zone z_synthetic_001_interior loading (pinned)` → **27 ms** 뒤 ② `loaded (async 25.2 ms wait + 0.8 ms build)`(이후 8.1~13.2 ms) → ③ 디바운스 뒤 `player within 150 cm -> load [zone z_synthetic_001_interior loaded (pinned)]; sublevel …/L_z_synthetic_001_interior (LevelInstance)`. `waiting` 줄 없음(0.25 s 안에 로드); `pending(loading 0.0 s) inside`는 `golmok.portal list`로 확인. ④ V-03과 동일, ⑤ `Zone … unloaded` → `Portal door_1: player left -> unload z_synthetic_001_interior (zone z_synthetic_001_interior unloaded (portal)); sublevel out`. 방 바닥 있음(z 94). 목록 실내 행 `unloaded  dist        4.1 m portal [placed]`(방 안에서는 `loaded … pinned portal`), `blocked` 없음, HUD 동일(`docs/images/pc-verify-wp09-interior-portal-row.jpg`). 콘솔 회귀: unload → `blocked [placed]`; load → 같은 틱 `loading … pinned (loading 0.0 s) [placed]`·헤더 `1 loading` → 다음 틱 `loaded … pinned [placed]`. 디바운스 전 후퇴: `LEAVING`(`left trigger outward while interior loading`) → 3 s 뒤 `unloaded` + `… sublevel … was not streamed`(합성 실내는 3 s 안에 로드되므로 취소 줄은 §10에서). 3 s 안 재진입(활성화된 적 없는 Leaving): Pending 재개 → **0.24 s** 뒤 ③ Portal 줄로 Active, `preload requested`·`async load requested` 재출력 없음, 서브레벨·바닥 있음. `golmok.portal enter door_1`: `interior loading; activates when ready [zone … loading (pinned)]` → 12.8 ms 뒤 Active; enter+leave 같은 틱: `leaving (interior was still loading)` → 3 s 뒤 `unloaded`+`was not streamed`. 10 s 타임아웃 Warning 없음. `bAsyncLoad=False`(§6-2 상태): ① `preload requested -> … loaded (pinned)` 동기 |
+| §9 패키징(선택) | 미실행 | `DoesPackageExist` 쿠킹 동작은 미확인(§11 #8) |
+| §10 PIE 종료 | ✅ | unload+load+종료를 같은 틱에 → `Zone z_synthetic_001 v1: async load cancelled after 41.8 ms`, 이후 `loaded (async …)`·Warning·Error·ensure 없음. 방 안 종료 → `Portal door_1: end play while active -> sublevel out` → `TimeOfDay: interior overlay off` → `Zone z_synthetic_001_interior v1 unloaded`; `; zone unload scheduled`·`gone ->` 없음. Pending 종료(진입 0.2 s 뒤) → `end play while pending -> sublevel …/L_z_synthetic_001_interior was not streamed`. 종료 뒤 에디터 월드: Discovered 액터 0, Transient 포털·재생 폰 0, dirty 없음(`L_ZoneTest09`·`L_ZoneTest`, 저장 프롬프트 없음). 재PIE → 발견·로드 반복. (선택) PIE 중 실외 언로드(방 안): `end play while active -> sublevel out; zone unload scheduled` → 다음 틱 `Portal door_1: gone -> zone z_synthetic_001_interior unloaded (portal)`, `golmok.zone.load z_synthetic_001`로 복구 |
+| 고친 API 번호(§11)·커밋 | C++ 수정 없음 | 런북 §4 맵 사본 코드 교체(#35), `GOLMOK_RENDER_TIME_SOURCE` 기본 1 확정(변경 없음) |
+| 설계와 다른 동작 발견 | 4건 | (1) HUD `render` 0.00은 엔진 값 자체(§7). (2) `test.ps1` 요약 `Succeeded`가 warning 있는 테스트를 빼고 센다(V-03 재확인). (3) `duplicate_asset` 뒤 `load_level`(같은 프로세스) GC Fatal(#35). (4) `pytest`는 이 PC(한국어 로캘)에서 `PYTHONUTF8=1` 없이는 `test_console_script_entry_point` 1건 실패(CI는 전역으로 설정) — 코드 문제 아님 |
 | STATUS | `🟡 → 🟢` | |
+
+**§6 히치 표** — `L_ZoneTest09`, `golmok.zone.radius 60 100`, 경로 `hitch`(10 Hz 녹화 1096 샘플·109.5 s: 3 s 정지 → 남 130 m → 복귀 → 동 130 m → 복귀, run 500 cm/s), `golmok.path play hitch --csv` 재생(경로 폰 possess) 1회씩, `golmok-perf … --skip-seconds 2 --markdown`. 재생 중 zone 사이클: 001 언로드(≈25 s) → 001 재로드(≈41 s) → 001 언로드·002 로드(≈81 s) → 002 언로드·001 재로드(≈93 s). 1·2행은 첫 측정(async는 110 s 녹화 뒤 재생, sync는 PIE 시작 3 s 뒤 재생 — 워밍업이 달라 sync 행의 35~50 s 구간에 11~17 ms 프레임 148개가 몰렸고 재로드 순간(41 s)과는 무관), 3·4행은 **같은 조건으로 재측정**(PIE 시작 뒤 90 s 대기 → 재생; 판정은 이 두 행으로).
+
+| 구성 | 프레임 | 평균 fps | 1% low fps | 프레임 p50 ms | p99 ms | Game ms | Render ms | GPU ms | 최대 프레임 ms(CSV `FrameTime` max, 시점) |
+|---|---|---|---|---|---|---|---|---|---|
+| async(첫 측정, C) | 12873 | 119.8 | 116.3 | 8.33 | 8.60 | 5.11 | 4.69 | 4.02 | 25.7 (4.9 s, GC 이벤트) |
+| sync(첫 측정, D) | 12751 | 118.6 | 88.6 | 8.33 | 11.28 | 5.26 | 4.75 | 4.01 | 22.9 (54.9 s, GC); 35~50 s 워밍업 구간 |
+| **async(재측정, e)** | 12888 | 119.9 | 118.9 | 8.33 | 8.41 | 5.37 | 0.01* | 4.09 | 23.7 (27.1 s, GC) |
+| **sync(재측정, f)** | 12880 | 119.8 | 116.5 | 8.33 | 8.58 | 5.48 | 0.01* | 4.10 | 25.4 (27.1 s, GC) |
+
+\* e·f 세션은 엔진 CSV `RenderThreadTime` 열 자체가 0.01 ms(§7의 현상; C·D 세션은 4.7 ms). 로그: async `Zone z_synthetic_001 v1 loaded (async 8.1~8.5 ms wait + 0.9~1.1 ms build)`(첫 로드만 30.5 ms wait), sync `Zone z_synthetic_001 v1 loaded in 1.0~1.7 ms`(`StaticLoadObject` 4개, 에셋 상주), 002는 두 구성 모두 `loaded in 0.7~1.5 ms`(동기 폴백). 재로드 순간(41 s·93 s) 전후 ±2 s에 11 ms를 넘는 프레임은 async·sync 모두 0개 — 합성 zone(메시 3+1개, 수 KB)은 동기 로드가 1~2 ms라 스파이크가 나지 않는다. 11 ms 초과 프레임(2 s 뒤): async(e) 6개(GC 2회 + 95 s 부근 4개), sync(f) 3개(GC 2회 + 9 s 1개). 최대값은 전부 GC 이벤트(`CSVEvent "GC"`) 프레임. **판정: async가 sync보다 나쁘지 않다(1% low 118.9 vs 116.5, p99 8.41 vs 8.58 — 차이는 잡음 수준).** 실측 메시 크기의 zone에서는 V-05/V-06에서 다시 잰다. 스크린샷 `golmok.screenshot wp09 hitch`는 HUD 없는 평범한 장면이라 문서에 넣지 않았다.
+
+**§7 render ms 표** — 각 표는 PIE 한 세션에서 `golmok.stats`(2 s 창) 직후 `shot showui`로 찍은 `stat unit`의 Draw를 읽은 것(같은 순간, 정지·보행 섞음). `held a/b`는 `render source N: … held a/b frames (since bind)`.
+
+| 소스(빌드) | 샘플 | HUD render ms | `stat unit` Draw ms | held a/b | 비고 |
+|---|---|---|---|---|---|
+| **1**(기본, `OnBeginFrame` 캐시) | 정지 / 보행 / 정지 / 보행 / 정지(시선 변경) | 0.00 / 0.00 / 4.49 / 4.72 / 4.77 | 0.00 / 0.00 / 4.53 / 4.91 / 4.82 | 1/1506 → 1/2894 | PIE 시작 13·16 s 샘플은 0, 20 s 이후 4.5~4.8; `begin`=`end` cycles(9 / 8 / 42311 / 45039 / 43482) |
+| 2(`GRenderThreadTimeCriticalPath`) | 같은 5샘플(PIE 시작 4~17 s) | 0.00 / 0.03 / 0.00 / 0.03 / 0.03 | 0.00 / 0.00 / 0.00 / 0.00 / 0.00 | 1/804 → 1/2280 | `begin`=`end`(7 / 7 / 17 / 11 / 10 cycles) |
+| 0(V-03 구동작 `OnEndFrame` + hold) | 같은 5샘플(PIE 시작 4~17 s) | 0.00 / 0.02 / 0.00 / 0.00 / 0.00 | 0.00 / 0.00 / 0.00 / 0.00 / 0.00 | 0/807 → 0/2282 | `begin` 0(소스 0은 begin을 안 읽음), `end` 6~11 cycles |
+
+시간 프로파일(소스 1 최종 빌드, HUD 끄고 `golmok.stats`만 2.2 s마다, PIE 시작 5~28 s, 그 뒤 HUD 켜고 4회): 13회 전부 `render 0.00 ms`(begin=end 5~10 cycles). 반면 §8 세션(B)은 PIE 시작 19 s에 4.53 ms, §4 세션(A)은 18 s 무렵 0 → 4.5 ms로 바뀜, 재생 세션 C·D는 CSV `RenderThreadTime` 4.7 ms, e·f는 0.01 ms. 즉 **세 소스가 읽는 값은 항상 같고(우리 코드는 문제없음), 엔진 전역 `GRenderThreadTime` 자체가 에디터 PIE 세션 상태에 따라 0이거나 정상**이다(`stat unit`·CSV 프로파일러도 같은 값). 엔진 코드: `FSlateRHIRenderer` 창 draw 끝에서 `GRenderThreadTime = ThreadTime − RenderThreadIdle`(`SlateRHIRenderer.cpp` ≈1359; `stat unit`은 `UnrealClient.cpp` 392, CSV는 `LaunchEngineLoop.cpp` `UpdateCoreCsvStats_EndFrame`). 원인 후보(미확정): 프레임에 Slate 창이 둘 이상 그려질 때 마지막 창의 `ThreadTime`이 ≈0. **결론: `GOLMOK_RENDER_TIME_SOURCE` 기본 1 유지(코드 변경·커밋 없음)**, `HoldLastPositive`는 연속 0에는 효과 없음(held 1/N). 패키지(`-game`, 창 1개)에서는 재확인 필요(§9 미실행).
+
 
 무인 검증: 에디터 Python PIE 드라이버 + `unreal.SystemLibrary.quit_editor()`; `golmok.screenshot`은 HUD를 포함하므로 캡처 전에 `golmok.hud 0`. 백그라운드 에디터 창은 뷰포트를 렌더하지 않는다(V-03).
 

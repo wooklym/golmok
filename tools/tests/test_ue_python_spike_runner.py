@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import time
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -216,35 +217,306 @@ def test_apply_layers_editor_and_pie(fake, unreal):
     assert any("runbook #19" in text and "Spike_c_cesium" in text for _, text in fake.logs)
 
 
+LAYER_LEVEL_KINDS = ("duplicate_asset", "delete_asset", "load_level", "save_map", "save_current_level")
+
+
 def test_save_layer_levels(fake, unreal):
+    """Save As per tag (runbook #18): reopen the base, save_map it to L_Spike_<tag> (the open world becomes
+    the copy), apply the layers there and save; never duplicate_asset + load_level (World Memory Leaks)."""
     zone = fake.add_actor("GolmokZone", "Zone_x", zone_id="z_x")
     fake.add_actor(unreal.Actor, "Spike_b_lcc")
     assert sr.save_layer_levels(tags=("b",)) == [f"{L_SPIKE}b"]
-    kinds = ("duplicate_asset", "delete_asset", "load_level", "set_visual_visible", "hidden_in_game",
-             "hidden_in_editor", "save_current_level")  # fmt: skip
+    kinds = LAYER_LEVEL_KINDS + ("set_visual_visible", "hidden_in_game", "hidden_in_editor")
     assert [c for c in fake.calls if c[0] in kinds] == [
-        ("duplicate_asset", DEFAULT_LEVEL, f"{L_SPIKE}b"),
-        ("load_level", f"{L_SPIKE}b"),
+        ("load_level", DEFAULT_LEVEL),
+        ("save_map", DEFAULT_LEVEL, f"{L_SPIKE}b"),
         ("set_visual_visible", "z_x", False),
         ("hidden_in_game", "Spike_b_lcc", False),
         ("hidden_in_editor", "Spike_b_lcc", False),
         ("save_current_level",),
         ("load_level", DEFAULT_LEVEL),
     ]
+    assert fake.saved_levels == [f"{L_SPIKE}b", f"{L_SPIKE}b"]
     copies = {a.label: a for a in fake.levels[f"{L_SPIKE}b"]}
     assert copies["Zone_x"].get_editor_property("auto_managed") is False
     assert zone.get_editor_property("auto_managed") is True and fake.current_level == DEFAULT_LEVEL
     assert ("log", f"spike_runner: layer level {L_SPIKE}b saved (tag b)") in fake.logs
-    # default tags b, c, ac; an existing layer level is deleted before the duplicate
+    assert fake.logged("warning") == []
+    # default tags b, c, ac: an existing layer level is deleted first, and every tag starts from the base
     fake.calls.clear()
     assert sr.save_layer_levels() == [f"{L_SPIKE}b", f"{L_SPIKE}c", f"{L_SPIKE}ac"]
-    assert fake.calls[:2] == [
-        ("delete_asset", f"{L_SPIKE}b"),
-        ("duplicate_asset", DEFAULT_LEVEL, f"{L_SPIKE}b"),
+    per_tag = [
+        [
+            ("load_level", DEFAULT_LEVEL),
+            ("save_map", DEFAULT_LEVEL, f"{L_SPIKE}{tag}"),
+            ("save_current_level",),
+        ]
+        for tag in ("b", "c", "ac")
     ]
-    assert fake.calls[-1] == ("load_level", DEFAULT_LEVEL)
+    assert [c for c in fake.calls if c[0] in LAYER_LEVEL_KINDS] == [
+        ("delete_asset", f"{L_SPIKE}b"),
+        *per_tag[0],
+        *per_tag[1],
+        *per_tag[2],
+        ("load_level", DEFAULT_LEVEL),
+    ]
     ac = {a.label: a for a in fake.levels[f"{L_SPIKE}ac"]}
     assert ac["Zone_x"].get_editor_property("auto_managed") is True and ac["Spike_b_lcc"].hidden_in_game
+    c = {a.label: a for a in fake.levels[f"{L_SPIKE}c"]}
+    assert c["Zone_x"].get_editor_property("auto_managed") is False and c["Spike_b_lcc"].hidden_in_game
+    assert "duplicate_asset(" not in Path(sr.__file__).read_text("utf-8")
+
+
+def test_save_layer_levels_opens_the_copy_when_save_map_does_not_rename(fake, unreal):
+    """save_map_renames=False: SaveMap wrote L_Spike_<tag> but the base is still the open world (runbook
+    #18), so the copy is opened from disk before any actor is touched."""
+    fake.save_map_renames = False
+    zone = fake.add_actor("GolmokZone", "Zone_x", zone_id="z_x")
+    assert sr.save_layer_levels(tags=("b", "c")) == [f"{L_SPIKE}b", f"{L_SPIKE}c"]
+    assert [c for c in fake.calls if c[0] in LAYER_LEVEL_KINDS] == [
+        ("load_level", DEFAULT_LEVEL),
+        ("save_map", DEFAULT_LEVEL, f"{L_SPIKE}b"),
+        ("load_level", f"{L_SPIKE}b"),
+        ("save_current_level",),
+        ("load_level", DEFAULT_LEVEL),
+        ("save_map", DEFAULT_LEVEL, f"{L_SPIKE}c"),
+        ("load_level", f"{L_SPIKE}c"),
+        ("save_current_level",),
+        ("load_level", DEFAULT_LEVEL),
+    ]
+    assert fake.saved_levels == [f"{L_SPIKE}b", f"{L_SPIKE}b", f"{L_SPIKE}c", f"{L_SPIKE}c"]
+    assert fake.logged("warning") == [
+        f"spike_runner: WARNING save_map left {DEFAULT_LEVEL} open; opening {L_SPIKE}{tag} from disk"
+        " (runbook #18)"
+        for tag in ("b", "c")
+    ]  # the runbook §8 step 2 check for the PC: SaveMap did not rename the open world
+    for tag in ("b", "c"):
+        copies = {a.label: a for a in fake.levels[f"{L_SPIKE}{tag}"]}
+        assert copies["Zone_x"] is not zone and copies["Zone_x"].get_editor_property("auto_managed") is False
+    assert zone.get_editor_property("auto_managed") is True and fake.current_level == DEFAULT_LEVEL
+
+
+@pytest.mark.parametrize("renames", [True, False])
+def test_save_layer_levels_never_modifies_the_base(fake, unreal, monkeypatch, renames):
+    """Every actor edit (layers, AutoManaged) happens while L_Spike_<tag> is the open world and on its own
+    actors; the base level's actors keep their state and the base is never saved."""
+    fake.save_map_renames = renames
+    fake.add_actor("GolmokZone", "Zone_x", zone_id="z_x")
+    fake.add_actor(unreal.Actor, "Spike_b_lcc")
+    fake.add_actor(unreal.Actor, "Spike_c_cesium")
+    base_actors = list(fake.levels[DEFAULT_LEVEL])
+
+    def snapshot():
+        return [(a.label, a.hidden_in_game, a.hidden_in_editor, dict(a.props)) for a in base_actors]
+
+    before, touched = snapshot(), []
+
+    def spy(original):
+        def call(self, *args):
+            touched.append((fake.current_level, any(self is a for a in base_actors)))
+            return original(self, *args)
+
+        return call
+
+    for cls, name in (
+        (fake_unreal.FakeActor, "set_editor_property"),
+        (fake_unreal.FakeActor, "set_actor_hidden_in_game"),
+        (fake_unreal.FakeActor, "set_is_temporarily_hidden_in_editor"),
+        (fake_unreal.FakeZoneActor, "set_visual_visible"),
+    ):
+        monkeypatch.setattr(cls, name, spy(getattr(cls, name)))
+    assert sr.save_layer_levels() == [f"{L_SPIKE}b", f"{L_SPIKE}c", f"{L_SPIKE}ac"]
+    assert touched and not any(on_base for _, on_base in touched)
+    assert {level for level, _ in touched} == {f"{L_SPIKE}b", f"{L_SPIKE}c", f"{L_SPIKE}ac"}
+    assert snapshot() == before and fake.levels[DEFAULT_LEVEL] == base_actors
+    assert DEFAULT_LEVEL not in fake.saved_levels and fake.current_level == DEFAULT_LEVEL
+
+
+def test_save_layer_levels_save_map_fails(fake, unreal, monkeypatch):
+    zone = fake.add_actor("GolmokZone", "Zone_x", zone_id="z_x")
+    monkeypatch.setattr(
+        unreal.EditorLoadingAndSavingUtils, "save_map", staticmethod(lambda world, path: False)
+    )
+    with pytest.raises(RuntimeError) as err:
+        sr.save_layer_levels()
+    assert str(err.value) == (
+        f"could not save {DEFAULT_LEVEL} as {L_SPIKE}b (runbook #18: File > Save Current Level As, then"
+        " apply_layers('b'))"
+    )
+    assert fake.calls_of("set_visual_visible") == [] and fake.calls_of("save_current_level") == []
+    assert fake.calls[-1] == ("load_level", DEFAULT_LEVEL) and fake.current_level == DEFAULT_LEVEL
+    assert zone.get_editor_property("auto_managed") is True and f"{L_SPIKE}b" not in fake.registry
+
+
+@pytest.mark.parametrize(
+    "opened, message",
+    [
+        (False, f"could not open {L_SPIKE}b after saving it (runbook #18)"),
+        (True, f"{DEFAULT_LEVEL} is open instead of {L_SPIKE}b; layers not applied (runbook #18)"),
+    ],
+)
+def test_save_layer_levels_copy_not_open(fake, unreal, monkeypatch, opened, message):
+    """No rename and the copy does not become the open world: stop before touching the base's actors."""
+    fake.save_map_renames = False
+    fake.add_actor("GolmokZone", "Zone_x", zone_id="z_x")
+    load_level = fake.level_editor.load_level
+
+    def load(path):
+        if str(path).startswith(L_SPIKE):
+            fake.calls.append(("load_level", str(path)))
+            return opened  # True: reported as opened, but the base is still the editor world
+        return load_level(path)
+
+    monkeypatch.setattr(fake.level_editor, "load_level", load)
+    with pytest.raises(RuntimeError) as err:
+        sr.save_layer_levels(tags=("b",))
+    assert str(err.value) == message
+    assert fake.calls_of("set_visual_visible") == [] and fake.calls_of("save_current_level") == []
+    assert fake.calls[-1] == ("load_level", DEFAULT_LEVEL)
+
+
+L_OTHER = "/Game/Golmok/Maps/L_Other"
+DIRTY_BASE = (
+    f"{DEFAULT_LEVEL} has unsaved changes; save or discard them, then rerun save_layer_levels (runbook #18)"
+)
+
+
+@pytest.mark.parametrize("other_open", [False, True])
+@pytest.mark.parametrize(
+    "dirty",
+    [
+        {DEFAULT_LEVEL},
+        {"/Game/__ExternalActors__/Golmok/Maps/L_ZoneTest/A/B/XYZ"},
+        {"/Game/__ExternalObjects__/Golmok/Maps/L_ZoneTest/C/D"},
+        {DEFAULT_LEVEL, L_OTHER},
+    ],
+)
+def test_save_layer_levels_stops_on_a_dirty_base(fake, unreal, dirty, other_open):
+    """Unsaved changes of the base (or of its one-file-per-actor packages) stop the run before anything is
+    reopened, copied or saved: they may be layer flags capture_all left on it (J26), and nothing here writes
+    the user's map (runbook #18). This wins over the open-map warning when another map is open."""
+    zone = fake.add_actor("GolmokZone", "Zone_x", zone_id="z_x")
+    if other_open:
+        fake.level_editor.new_level(L_OTHER)
+    fake.calls.clear()
+    fake.dirty_maps = set(dirty)
+    with pytest.raises(RuntimeError) as err:
+        sr.save_layer_levels(tags=("b",), base_level=DEFAULT_LEVEL)
+    assert str(err.value) == DIRTY_BASE and "runbook #18" in str(err.value)
+    assert fake.calls == []  # no save_map to the base, no delete_asset, no load_level
+    assert fake.saved_levels == [] and fake.dirty_maps == set(dirty) and fake.logged("warning") == []
+    assert zone.get_editor_property("auto_managed") is True and f"{L_SPIKE}b" not in fake.registry
+
+
+def test_save_layer_levels_ignores_other_dirty_maps(fake, unreal):
+    """Dirty maps whose names merely start with the base's name (L_ZoneTest06, its external actors) are not
+    the base: no error, no warning, and the base is not saved."""
+    fake.add_actor("GolmokZone", "Zone_x", zone_id="z_x")
+    fake.dirty_maps = {
+        "/Game/Golmok/Maps/L_ZoneTest06",
+        "/Game/__ExternalActors__/Golmok/Maps/L_ZoneTest06/A/B",
+        "/Game/__ExternalObjects__/Golmok/Maps/L_ZoneTestX/C",
+    }
+    assert sr.save_layer_levels(tags=("b",)) == [f"{L_SPIKE}b"]
+    assert fake.logged("warning") == [] and DEFAULT_LEVEL not in fake.saved_levels
+    assert fake.calls_of("save_map") == [("save_map", DEFAULT_LEVEL, f"{L_SPIKE}b")]
+
+
+@pytest.mark.parametrize("other_dirty", [False, True])
+def test_save_layer_levels_from_another_open_map(fake, unreal, other_dirty):
+    """base_level names a map that is not the open one (W1): the open map is never saved into the base; one
+    warning says load_level(base) discards the open map's unsaved changes, then the run proceeds from the
+    base on disk."""
+    fake.add_actor("GolmokZone", "Zone_x", zone_id="z_x")
+    fake.level_editor.new_level(L_OTHER)
+    fake.add_actor(unreal.Actor, "Spike_b_other")
+    fake.dirty_maps = {L_OTHER} if other_dirty else set()
+    fake.calls.clear()
+    assert sr.save_layer_levels(tags=("b",), base_level=DEFAULT_LEVEL) == [f"{L_SPIKE}b"]
+    assert ("save_map", L_OTHER, DEFAULT_LEVEL) not in fake.calls
+    assert [c for c in fake.calls if c[0] in LAYER_LEVEL_KINDS] == [
+        ("load_level", DEFAULT_LEVEL),
+        ("save_map", DEFAULT_LEVEL, f"{L_SPIKE}b"),
+        ("save_current_level",),
+        ("load_level", DEFAULT_LEVEL),
+    ]
+    assert DEFAULT_LEVEL not in fake.saved_levels and L_OTHER not in fake.saved_levels
+    assert fake.logged("warning") == [
+        f"spike_runner: WARNING open map {L_OTHER} is not {DEFAULT_LEVEL}; its unsaved changes will be"
+        f" discarded by load_level({DEFAULT_LEVEL}) (runbook #18)"
+    ]
+    labels = {a.label for a in fake.levels[f"{L_SPIKE}b"]}
+    assert "Zone_x" in labels and "Spike_b_other" not in labels  # the base's actors, not L_Other's
+    assert fake.current_level == DEFAULT_LEVEL
+
+
+@pytest.mark.parametrize(
+    "form", [f"{DEFAULT_LEVEL}.L_ZoneTest", "\\Game\\Golmok\\Maps\\L_ZoneTest.L_ZoneTest"]
+)
+def test_save_layer_levels_normalises_base_level(fake, unreal, form):
+    """base_level as an object path (or with backslashes) is the package sz._current_level_path() returns
+    (W3): no open-map warning, the same calls as the default, and the dirty check still finds the base's
+    external actor packages."""
+    fake.add_actor("GolmokZone", "Zone_x", zone_id="z_x")
+    assert sr.save_layer_levels(tags=("b",), base_level=form) == [f"{L_SPIKE}b"]
+    assert [c for c in fake.calls if c[0] in LAYER_LEVEL_KINDS] == [
+        ("load_level", DEFAULT_LEVEL),
+        ("save_map", DEFAULT_LEVEL, f"{L_SPIKE}b"),
+        ("save_current_level",),
+        ("load_level", DEFAULT_LEVEL),
+    ]
+    assert fake.logged("warning") == []
+    fake.calls.clear()
+    fake.dirty_maps = {"/Game/__ExternalActors__/Golmok/Maps/L_ZoneTest/A/B/XYZ"}
+    with pytest.raises(RuntimeError) as err:
+        sr.save_layer_levels(tags=("b",), base_level=form)
+    assert str(err.value) == DIRTY_BASE and fake.calls == []
+
+
+def test_save_layer_levels_checks_before_touching_the_editor(fake, unreal, monkeypatch):
+    """Unknown tags and a layer level as the base stop the run before any editor call (W10); no tags, no
+    editor call at all."""
+    fake.add_actor("GolmokZone", "Zone_x", zone_id="z_x")
+    get_editor_subsystem = unreal.get_editor_subsystem
+
+    def no_editor(*args):
+        raise AssertionError(f"editor call {args}")
+
+    monkeypatch.setattr(unreal, "get_editor_subsystem", no_editor)
+    with pytest.raises(ValueError, match="unknown spike tag 'x'"):
+        sr.save_layer_levels(tags=("b", "x"))
+    assert sr.save_layer_levels(tags=()) == []
+    layer = (
+        f"{L_SPIKE}b is a layer level (it would be deleted and overwritten); open the base map or pass"
+        " base_level=, then rerun save_layer_levels (runbook #18)"
+    )
+    for form in (f"{L_SPIKE}b", f"{L_SPIKE}b.L_Spike_b"):
+        with pytest.raises(RuntimeError) as err:
+            sr.save_layer_levels(tags=("b",), base_level=form)
+        assert str(err.value) == layer
+    assert fake.calls == [] and fake.logs == [] and f"{L_SPIKE}b" not in fake.registry
+    # the open map is a layer level (a stopped run left it open): the same stop, it is neither deleted nor
+    # reloaded
+    monkeypatch.setattr(unreal, "get_editor_subsystem", get_editor_subsystem)
+    fake.level_editor.new_level(f"{L_SPIKE}b")
+    fake.calls.clear()
+    with pytest.raises(RuntimeError) as err:
+        sr.save_layer_levels()
+    assert str(err.value) == layer and fake.calls == [] and f"{L_SPIKE}b" in fake.registry
+
+
+def test_save_layer_levels_without_dirty_map_api(fake, unreal, monkeypatch):
+    """An editor without get_dirty_map_packages: one warning, then every tag starts from the saved base
+    (which is never written)."""
+    fake.dirty_maps = {DEFAULT_LEVEL}
+    monkeypatch.delattr(unreal.EditorLoadingAndSavingUtils, "get_dirty_map_packages")
+    assert sr.save_layer_levels(tags=("b",)) == [f"{L_SPIKE}b"]
+    assert fake.logged("warning") == [
+        f"spike_runner: WARNING cannot check {DEFAULT_LEVEL} for unsaved changes (runbook #18); using its"
+        " saved state"
+    ]
+    assert fake.calls_of("save_map") == [("save_map", DEFAULT_LEVEL, f"{L_SPIKE}b")]
+    assert DEFAULT_LEVEL not in fake.saved_levels
 
 
 # ---- PIE capture -------------------------------------------------------------------------------------------
@@ -604,9 +876,45 @@ def test_viewpoints_on_done_is_optional(fake, unreal):
 # ---- PIE perf, -game scripts -------------------------------------------------------------------------------
 
 
-def test_pie_perf_waits_for_csv(fake, unreal):
+# WAIT_CSV looks at the CSV folders every CSV_POLL_S (review F3), i.e. every third 0.1 s test tick: a change
+# is seen up to 0.2 s late and the settle time and the timeout are judged at looks only.
+POLL_TICK_S = 0.3
+
+
+def _csv(fake, n=1):
+    return os.path.normpath(os.path.join(fake.saved_dir, "Profiling", "CSV", f"Profile({n}).csv"))
+
+
+def _csv_line(path, label="a_clear_noon_walk_01"):
+    return ("log", f'spike_runner: csv {path} -> golmok-perf "{path}" --label {label} --markdown')
+
+
+def _until(fake, predicate, max_ticks=2000):
+    """Tick (0.1 s) until predicate() holds; returns the fake clock the deciding tick's callbacks ran at (the
+    state machine's _now then; files the fake writes in that tick carry the clock + 0.1)."""
+    for _ in range(max_ticks):
+        at = fake.clock
+        fake_unreal.tick(fake, 1)
+        if predicate():
+            return at
+    raise AssertionError(f"not reached after {max_ticks} ticks")
+
+
+def _perf_in_wait_csv(fake, monkeypatch, length_s=5.0):
+    """perf_all on walk_01 (tag a, clear_noon, no %LOCALAPPDATA% candidate) ticked up to WAIT_CSV."""
+    monkeypatch.delenv("LOCALAPPDATA", raising=False)
+    _write_walk(fake, "walk_01", length_s=length_s)
+    perf = sr.perf_all(paths=("walk_01",), tags=("a",), presets=("clear_noon",))
+    _until(fake, lambda: perf.state == "WAIT_CSV")
+    return perf
+
+
+def test_pie_perf_waits_for_csv(fake, unreal, monkeypatch):
+    """V-04 T5 (runbook §11 handover 6): the engine creates Profile(<stamp>).csv right at CsvProfile Start;
+    WAIT_CSV takes it only after the path's end (its Stop flush) and CSV_SETTLE_S without a change."""
     with pytest.raises(RuntimeError, match="record it first: golmok.path record walk_01"):
         sr.perf_all(paths=("walk_01",), tags=("a",))
+    monkeypatch.delenv("LOCALAPPDATA", raising=False)
     _write_walk(fake, "walk_01", length_s=5.0)
     perf = sr.perf_all(paths=("walk_01",), tags=("a",), presets=("clear_noon",))
     assert isinstance(perf, sr._PiePerf) and perf.lengths == {"walk_01": 5.0}
@@ -618,13 +926,16 @@ def test_pie_perf_waits_for_csv(fake, unreal):
         ("console", "golmok.path play walk_01 --csv"),
     ]
     assert not fake.logged("warning")
-    fake_unreal.tick(fake, 10)  # csv_delay_s 0.5 -> the CSV appears
-    csv = os.path.normpath(os.path.join(fake.saved_dir, "Profiling", "CSV", "Profile(1).csv"))
-    assert perf.saved == [csv]
-    assert (
-        "log",
-        f'spike_runner: csv {csv} -> golmok-perf "{csv}" --label a_clear_noon_walk_01 --markdown',
-    ) in fake.logs
+    play_at, csv = perf.play_at, _csv(fake)
+    fake_unreal.tick(fake, 10)  # csv_delay_s 0.5: the file exists and grows (T5 took it here, 2 frames)
+    assert os.path.isfile(csv) and perf.state == "WAIT_CSV" and perf.saved == []
+    stop = _until(fake, lambda: any(t.startswith("GolmokDebugSubsystem: csv:") for t in fake.logged()))
+    assert stop == pytest.approx(play_at + 5.0 + 0.2, abs=0.11)  # path end + the fake's csv_stop_s
+    assert perf.state == "WAIT_CSV" and perf.saved == []
+    done = _until(fake, lambda: perf.saved)
+    upper = play_at + 5.2 + sr.CSV_SETTLE_S + POLL_TICK_S + 0.15  # at most one poll late (review R29-3)
+    assert play_at + 5.2 + sr.CSV_SETTLE_S - 1e-6 <= done <= upper
+    assert perf.saved == [csv] and _csv_line(csv) in fake.logs
     fake_unreal.tick(fake, 400)
     assert perf.done and fake.calls_of("end_play") == [("end_play",)] and fake.callbacks == {}
     root = os.path.join(os.path.normpath(fake.saved_dir), "Profiling", "CSV")
@@ -636,7 +947,9 @@ def test_pie_perf_waits_for_csv(fake, unreal):
 
 
 def test_pie_perf_csv_timeout(monkeypatch, tmp_path):
+    """No CSV at all: missing after path length + CSV_GRACE_S (unchanged)."""
     fake = fake_unreal.install(monkeypatch, tmp_path, csv_delay_s=10_000)
+    monkeypatch.delenv("LOCALAPPDATA", raising=False)
     _write_walk(fake, "walk_01", length_s=5.0)
     perf = sr.perf_all(paths=("walk_01",), tags=("a",), presets=("clear_noon",))
     fake_unreal.tick(fake, 600)  # 3 + 3 + (5 + 60) s
@@ -648,6 +961,185 @@ def test_pie_perf_csv_timeout(monkeypatch, tmp_path):
         f"spike_runner: missing {pattern} (timeout, a_clear_noon_walk_01)",
         f"spike_runner: done perf (PIE, reference only): 0 saved, 1 missing -> {os.path.dirname(pattern)}",
     ]
+
+
+def test_pie_perf_csv_still_written_at_timeout(monkeypatch, tmp_path):
+    """A CSV whose mtime keeps changing is never taken: missing at the timeout, naming the file."""
+    fake = fake_unreal.install(monkeypatch, tmp_path, csv_stop_s=10_000)  # the capture never stops
+    perf = _perf_in_wait_csv(fake, monkeypatch)
+    play_at, csv = perf.play_at, _csv(fake)
+    done = _until(fake, lambda: perf.state != "WAIT_CSV")
+    assert play_at + 5.0 + sr.CSV_GRACE_S - 1e-6 <= done <= play_at + 5.0 + sr.CSV_GRACE_S + POLL_TICK_S
+    assert perf.saved == [] and perf.missing == ["a_clear_noon_walk_01"] and os.path.getsize(csv) > 60
+    pattern = os.path.normpath(os.path.join(fake.saved_dir, "Profiling", "CSV", "Profile*.csv"))
+    warning = fake.logged("warning")[0]
+    assert warning.startswith(
+        f"spike_runner: missing {pattern} (timeout, a_clear_noon_walk_01; {csv} not complete: last change "
+    ) and warning.endswith(" s after play, path 5.0 s)")
+    last = float(re.search(r"last change (\d+\.\d) s after play", warning).group(1))
+    assert 5.0 + sr.CSV_GRACE_S - 1.0 - 0.15 <= last <= done - play_at + 0.05  # written every csv_flush_s
+    assert not any(line[1].startswith("spike_runner: csv ") for line in fake.logs)
+
+
+@pytest.mark.parametrize(("length_s", "expect_done"), [(5.0, 5.2 + 2.0), (0.0, 0.5 + 2.0)])
+def test_pie_perf_quiet_capture(monkeypatch, tmp_path, length_s, expect_done):
+    """csv_flush_s=0: the engine writes nothing between creating the file and the Stop flush (a write buffer
+    that fills slower than CSV_SETTLE_S). A known path length waits for the flush after the path's end; length
+    0 (unknown) has no path condition, as before - only the settle time."""
+    fake = fake_unreal.install(monkeypatch, tmp_path, csv_flush_s=0)
+    if not length_s:
+        monkeypatch.setattr(sr, "_path_length_s", lambda path: 0.0)
+    perf = _perf_in_wait_csv(fake, monkeypatch)
+    assert perf.lengths == {"walk_01": length_s}
+    play_at = perf.play_at
+    done = _until(fake, lambda: perf.saved)
+    assert play_at + expect_done - 1e-6 <= done <= play_at + expect_done + POLL_TICK_S + 0.15
+    assert perf.saved == [_csv(fake)] and _csv_line(_csv(fake)) in fake.logs
+    assert perf.csv_max_gap == 0.0  # the file's appearance is not a writer flush: one change, no gap
+
+
+def _stop_logged(fake):
+    return any(t.startswith("GolmokDebugSubsystem: csv:") for t in fake.logged())
+
+
+@pytest.mark.parametrize(
+    ("flush_s", "lag_s", "length_s", "settle_s"),
+    [
+        (1.0, 0.0, 5.0, 2.0),  # the fake's default writer: 1.5 x 1 s < CSV_SETTLE_S, timing as before
+        (3.0, 8.0, 5.0, 4.5),  # PR #44 review F1: taken at play + 8.6 s with the fixed 2 s, stop at + 13.2 s
+        (20.0, 0.0, 45.0, 10.0),  # 1.5 x 20 s = 30 s, capped at CSV_SETTLE_MAX_S
+    ],
+)
+def test_pie_perf_adaptive_settle(monkeypatch, tmp_path, flush_s, lag_s, length_s, settle_s):
+    """Follow-up #29 (review F1): a writer that flushes every flush_s while hitches make the playback outlast
+    the path's JSON length by lag_s. WAIT_CSV waits 1.5 x the largest gap seen between two changes of the
+    file (at least CSV_SETTLE_S, at most CSV_SETTLE_MAX_S), so the file is taken only after its Stop flush."""
+    fake = fake_unreal.install(monkeypatch, tmp_path, csv_flush_s=flush_s, csv_lag_s=lag_s)
+    perf = _perf_in_wait_csv(fake, monkeypatch, length_s=length_s)
+    play_at, csv = perf.play_at, _csv(fake)
+    stop_at = fake.csv_captures[0]["stop_at"]
+    assert stop_at == pytest.approx(play_at + length_s + lag_s + 0.2)  # + the fake's csv_stop_s
+    _until(fake, lambda: _stop_logged(fake))
+    assert perf.state == "WAIT_CSV" and perf.saved == []  # never taken before the Stop flush
+    size = os.path.getsize(csv)
+    done = _until(fake, lambda: perf.saved)
+    assert perf.saved == [csv] and _csv_line(csv) in fake.logs and os.path.getsize(csv) == size
+    assert perf.csv_max_gap == pytest.approx(flush_s, abs=POLL_TICK_S)  # changes seen at looks
+    settle = pure.csv_settle_s(perf.csv_max_gap, sr.CSV_SETTLE_S, sr.CSV_SETTLE_MAX_S)
+    assert settle == pytest.approx(settle_s, abs=1.5 * POLL_TICK_S)
+    assert sr.CSV_SETTLE_S <= settle <= sr.CSV_SETTLE_MAX_S
+    assert stop_at - 1e-6 <= perf.csv_changed_at < stop_at + POLL_TICK_S  # the Stop flush, seen at a look
+    assert perf.csv_changed_at + settle - 1e-6 <= done < perf.csv_changed_at + settle + POLL_TICK_S
+    assert stop_at + settle_s - 1.5 * POLL_TICK_S <= done <= stop_at + settle_s + 2 * POLL_TICK_S
+
+
+def test_pie_perf_fixed_settle_takes_a_lagging_csv_early(monkeypatch, tmp_path):
+    """The review F1 reproduction with the settle held at CSV_SETTLE_S (the rule before follow-up #29): a 3 s
+    writer whose playback outlasts the path by 8 s is taken while it is still being written."""
+    monkeypatch.setattr(sr, "CSV_SETTLE_MAX_S", sr.CSV_SETTLE_S)
+    fake = fake_unreal.install(monkeypatch, tmp_path, csv_flush_s=3.0, csv_lag_s=8.0)
+    perf = _perf_in_wait_csv(fake, monkeypatch)
+    play_at, stop_at = perf.play_at, fake.csv_captures[0]["stop_at"]
+    done = _until(fake, lambda: perf.saved or _stop_logged(fake))
+    assert perf.saved == [_csv(fake)] and not _stop_logged(fake)
+    assert play_at + 8.5 - 1e-6 <= done <= play_at + 8.5 + 2 * POLL_TICK_S < stop_at  # write at 6.5 s + 2 s
+
+
+def test_pie_perf_settle_cap_then_timeout(monkeypatch, tmp_path):
+    """A writer that flushes every 9 s through the timeout: the settle is min(1.5 x 9 s, CSV_SETTLE_MAX_S) =
+    10 s, which a file changing every 9 s never reaches, so the timeout (path length + CSV_GRACE_S) rules as
+    before - missing, naming the file and its last change."""
+    fake = fake_unreal.install(monkeypatch, tmp_path, csv_flush_s=9.0, csv_lag_s=100.0)
+    perf = _perf_in_wait_csv(fake, monkeypatch, length_s=20.0)
+    play_at, csv = perf.play_at, _csv(fake)
+    done = _until(fake, lambda: perf.state != "WAIT_CSV")
+    assert play_at + 20.0 + sr.CSV_GRACE_S - 1e-6 <= done <= play_at + 20.0 + sr.CSV_GRACE_S + POLL_TICK_S
+    assert perf.saved == [] and perf.missing == ["a_clear_noon_walk_01"] and not _stop_logged(fake)
+    assert perf.csv_max_gap == pytest.approx(9.0, abs=POLL_TICK_S)
+    assert pure.csv_settle_s(perf.csv_max_gap, sr.CSV_SETTLE_S, sr.CSV_SETTLE_MAX_S) == sr.CSV_SETTLE_MAX_S
+    warning = fake.logged("warning")[0]
+    assert f"(timeout, a_clear_noon_walk_01; {csv} not complete: last change " in warning
+    last = float(re.search(r"last change (\d+\.\d) s after play", warning).group(1))
+    assert last == pytest.approx(0.5 + 8 * 9.0, abs=POLL_TICK_S)  # created at 0.5 s, a row every 9 s
+
+
+def test_pie_perf_polls_every_csv_poll_s(fake, unreal, monkeypatch, tmp_path):
+    """Review F3: WAIT_CSV lists (glob) and stats both CSV folders at most every CSV_POLL_S of the state
+    machine clock; the ticks in between touch no file."""
+    local = tmp_path / "LocalAppData"
+    monkeypatch.setenv("LOCALAPPDATA", str(local))
+    _write_walk(fake, "walk_01", length_s=5.0)
+    perf = sr.perf_all(paths=("walk_01",), tags=("a",), presets=("clear_noon",))
+    assert len(perf.csv_dirs) == 2
+    globs, stats = [], []
+    real_glob, real_stat = sr.glob.glob, sr.os.stat
+
+    def counting_glob(pattern, *args, **kwargs):
+        if pattern.endswith("Profile*.csv"):
+            globs.append((fake.clock, pattern))
+        return real_glob(pattern, *args, **kwargs)
+
+    def counting_stat(path, *args, **kwargs):
+        if isinstance(path, str) and re.fullmatch(r"Profile.*\.csv", os.path.basename(path)):
+            stats.append(fake.clock)
+        return real_stat(path, *args, **kwargs)
+
+    monkeypatch.setattr(sr.glob, "glob", counting_glob)
+    monkeypatch.setattr(sr.os, "stat", counting_stat)
+    _until(fake, lambda: perf.state == "WAIT_CSV")
+    play_at = perf.play_at
+    ticks = 0
+    while not perf.saved:
+        fake_unreal.tick(fake, 1)
+        ticks += 1
+    looks = sorted({at for at, _ in globs})
+    assert all(at >= play_at for at in looks)
+    assert all(b - a >= sr.CSV_POLL_S for a, b in zip(looks, looks[1:], strict=False))
+    assert len(globs) == 2 * len(looks)  # both candidate folders at every look
+    assert stats and set(stats) <= set(looks)  # isfile / getmtime / stat of the newest file only at looks
+    assert ticks > 2 * len(looks)  # every third 0.1 s tick
+    assert len(looks) >= (fake.clock - play_at) / POLL_TICK_S - 2
+
+
+def test_pie_perf_two_candidate_folders(fake, unreal, monkeypatch, tmp_path):
+    """Profile*.csv in both Saved candidates: the newest (last written) file is the candidate and a switch of
+    file restarts the settle time; an earlier file in the other folder does not take the result."""
+    local = tmp_path / "LocalAppData"
+    other_dir = local / "UnrealEngine" / "5.8" / "Saved" / "Profiling" / "CSV"
+    other_dir.mkdir(parents=True)
+    other_1 = os.path.normpath(str(other_dir / "Profile(other1).csv"))
+    other_2 = os.path.normpath(str(other_dir / "Profile(other2).csv"))
+    _write_walk(fake, "walk_01", length_s=5.0)
+    monkeypatch.setenv("LOCALAPPDATA", str(local))
+    perf = sr.perf_all(paths=("walk_01",), tags=("a",), presets=("clear_noon", "night"))
+    # job 1: a file in the other folder written after PLAY, before the project file appears
+    _until(fake, lambda: perf.state == "WAIT_CSV")
+    play_at = perf.play_at
+    Path(other_1).write_text("FrameTime\n", encoding="utf-8")
+    stamp = time.time() - 0.5  # newer than PLAY - 1 s (not_before), older than the project file
+    os.utime(other_1, (stamp, stamp))
+    fake_unreal.tick(fake, 2)
+    assert perf.csv_stamp[0] == other_1 and perf.saved == []
+    done = _until(fake, lambda: len(perf.saved) == 1)
+    assert perf.saved == [_csv(fake, 1)] and done >= play_at + 5.2 + sr.CSV_SETTLE_S - 1e-6
+    # job 2: a file written in the other folder after the project file's Stop flush takes over
+    _until(fake, lambda: perf.state == "WAIT_CSV" and fake.csv_count == 2)
+    _until(fake, lambda: fake.logged()[-1].startswith("GolmokDebugSubsystem: csv:"))
+    fake_unreal.tick(fake, 10)
+    assert len(perf.saved) == 1  # the project file (stopped 1 s ago) has not settled yet
+    gap_before = perf.csv_max_gap
+    Path(other_2).write_text("FrameTime\n", encoding="utf-8")
+    stamp = time.time() + 5.0  # the newest file
+    os.utime(other_2, (stamp, stamp))
+    written = fake.clock
+    _until(fake, lambda: perf.csv_stamp is not None and perf.csv_stamp[0] == other_2)
+    # a switch of file resets the same-file write clock but keeps the job's largest gap (PR #47 review R29-2)
+    assert perf.csv_written_at is None and perf.csv_max_gap == gap_before
+    done = _until(fake, lambda: len(perf.saved) == 2)
+    assert perf.saved[1] == other_2 and done >= written + sr.CSV_SETTLE_S - 1e-6
+    assert _csv_line(other_2, "a_night_walk_01") in fake.logs
+    _run(fake, perf)
+    assert perf.missing == []
 
 
 def test_game_scripts_written(fake, unreal, monkeypatch):
@@ -681,6 +1173,17 @@ def test_game_scripts_written(fake, unreal, monkeypatch):
     assert body == expected
     assert body.count("\nInvoke-GolmokRun ") == 2 and "-csvCaptureFrames" not in body
     assert "UnrealEngine\\5.8\\Saved\\Profiling\\CSV" in body and f"{L_SPIKE}b" in body
+    # the path JSON already lives in the project Saved: only the %LOCALAPPDATA% candidate gets a copy
+    # (V-04 T5: Copy-Item onto itself warned)
+    lines = body.splitlines()
+    local_paths = "C:\\Users\\me\\AppData\\Local\\UnrealEngine\\5.8\\Saved\\Golmok\\Paths"
+    assert lines[2] == f"$pathDirs = @('{local_paths}')"
+    source = os.path.normpath(str(walk)).replace("/", "\\")
+    assert lines[4] == (
+        "foreach ($d in $pathDirs) { New-Item -ItemType Directory -Force -Path $d | Out-Null; "
+        f"Copy-Item -Force '{source}' $d }}"
+    )
+    assert "-ini:" not in body  # discover_from_index=None: DefaultGame.ini decides
     assert fake.logs[-1] == ("log", f"spike_runner: -game script -> {script} (2 runs)")
     # engine folder: Paths.engine_dir -> UE_ROOT -> error (runbook #27)
     monkeypatch.delattr(unreal.Paths, "engine_dir")
@@ -723,6 +1226,29 @@ def test_game_scripts_label_suffix(fake, unreal, monkeypatch):
     assert "a_clear_noon_walk_01.csv" in body(res=(2560, 1440), label_suffix="")  # explicit: no suffix
     with pytest.raises(ValueError):
         body(label_suffix="bad name")
+
+
+def test_game_scripts_no_self_copy_and_index_isolation(fake, unreal, monkeypatch):
+    """No %LOCALAPPDATA%: the only candidate already holds the path JSON, so the script has no copy block;
+    discover_from_index=False puts the -ini: override into every run before -ExecCmds (runbook #39)."""
+    monkeypatch.delenv("LOCALAPPDATA", raising=False)
+    _write_walk(fake, "walk_01")
+    script = sr.game_scripts(paths=("walk_01",), tags=("a", "b"), discover_from_index=False)
+    body = Path(script).read_text("utf-8-sig").replace("\r\n", "\n")
+    lines = body.splitlines()
+    assert lines[2] == "$pathDirs = @()" and lines[3].startswith("$csvDirs = @('")
+    assert not any(line.startswith("foreach ") for line in lines) and "Copy-Item -Force" not in body
+    assert lines[4].startswith("New-Item -ItemType Directory -Force -Path ")
+    ini = "'-ini:Game:[/Script/Golmok.GolmokZoneSubsystem]:bDiscoverFromIndex=False'"
+    assert pure.ps_quote(pure.discover_from_index_arg(False)) == ini  # no spaces: no inner double quotes
+    exec_cmds = "'-ExecCmds=\"golmok.hud 0, golmok.tod clear_noon, golmok.path play walk_01 --csv\"'"
+    runs = [line for line in lines if line.startswith("Invoke-GolmokRun ")]
+    assert len(runs) == 2
+    for run in runs:
+        assert f"'-nosplash', {ini}, {exec_cmds}, '-abslog=" in run
+        assert run.count("-ini:") == 1 and run.count("-ExecCmds") == 1
+    assert fake.logs[-1] == ("log", f"spike_runner: -game script -> {script} (2 runs)")
+    assert "-ini:" not in Path(sr.game_scripts(paths=("walk_01",), tags=("a",))).read_text("utf-8-sig")
 
 
 # ---- contact sheet, report ---------------------------------------------------------------------------------
@@ -809,6 +1335,13 @@ def test_layer_level_log_block_matches_runbook(fake, unreal):
     fake.logs.clear()
     sr.save_layer_levels()
     assert _spike_lines(fake) == _runbook_block("spike_runner: layer level /Game/Golmok/Maps/L_Spike_b saved")
+
+
+def test_csv_wait_constants_match_runbook():
+    """Runbook §9 states the WAIT_CSV settle range: CSV_SETTLE_S 2 s, up to CSV_SETTLE_MAX_S 10 s."""
+    assert (sr.CSV_SETTLE_S, sr.CSV_SETTLE_MAX_S, sr.CSV_POLL_S) == (2.0, 10.0, 0.25)
+    lines = [line for line in RUNBOOK_WP06.read_text("utf-8").splitlines() if "`CSV_SETTLE_S` 2 s" in line]
+    assert len(lines) == 1 and "`CSV_SETTLE_MAX_S` 10 s" in lines[0]
 
 
 def test_pie_perf_log_block_matches_runbook(fake, unreal):

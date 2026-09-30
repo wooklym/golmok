@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import importlib
 import json
+import os
 import re
 import shutil
 import sys
@@ -146,12 +147,11 @@ def test_run_call_order_and_registry(fake, unreal, zone, zi):
         ("delete_directory", PROBE),
         ("import", "_probe.glb", PROBE, "SM_probe_glb", None),
         ("delete_directory", PROBE),
-        # V-03 (pc-findings #1): every import goes to a scratch _import folder and is moved to its path
-        ("import", "facade.1001.png", f"{FOLDER}/Textures/_import", "T_facade", None),
-        ("rename", f"{FOLDER}/Textures/_import/T_facade", f"{FOLDER}/Textures/T_facade"),
+        # zone textures are imported in place at their convention path (V-04b F3: replace_existing, no
+        # scratch, no rename); meshes and the master default go through a scratch _import folder (V-03)
+        ("import", "facade.1001.png", f"{FOLDER}/Textures", "T_facade", None),
         ("save", f"{FOLDER}/Textures/T_facade"),
-        ("import", "ground.png", f"{FOLDER}/Textures/_import", "T_ground", None),
-        ("rename", f"{FOLDER}/Textures/_import/T_ground", f"{FOLDER}/Textures/T_ground"),
+        ("import", "ground.png", f"{FOLDER}/Textures", "T_ground", None),
         ("save", f"{FOLDER}/Textures/T_ground"),
         # the master's own default texture (never a zone texture; runbook #10), created once
         ("import", "T_ZoneScanDefault.png", f"{MATERIALS}/_import", "T_ZoneScanDefault", None),
@@ -224,10 +224,10 @@ def test_run_call_order_and_registry(fake, unreal, zone, zi):
         f"zone_import: done {ZONE} v1: 8 assets, 0 warnings -> {result_path}",
         f"zone_import: moved {FOLDER}/_import/SM_c_e000_n000 -> {FOLDER}/SM_c_e000_n000 "
         "(importer placement; runbook #37)",
-        f"zone_import: moved {FOLDER}/Textures/_import/T_facade -> {FOLDER}/Textures/T_facade "
-        "(importer placement; runbook #37)",
     ):
         assert line in logs, line
+    moved = [t for t in logs if t.startswith("zone_import: moved ")]
+    assert len(moved) == 5 and not [t for t in moved if f"{FOLDER}/Textures/" in t]  # textures in place
     cache = Path(fake.saved_dir) / "Golmok" / "zone_import" / "importer_mapping.json"
     assert logs.index(f"zone_import: importer mapping cache miss -> {cache}") < logs.index(
         "zone_import: obj importer route=fbx (probe imported 1 static mesh)"
@@ -417,16 +417,22 @@ def test_udim_pack_fallback(monkeypatch, tmp_path, zone):
     zi = importlib.import_module("golmok.zone_import")
     result = _run(zi, zone)
     tile_imports = [c for c in fake.calls_of("import") if c[2] == TILES]
-    assert tile_imports == [
-        ("import", f"facade.{t}.png", TILES, f"T_facade_{t}", None) for t in (1001, 1002, 1011)
-    ]
+    # V-04b F1: every tile comes from a work-folder copy named outside the engine UDIM rule [._]####
+    names = ["T_facade_u0v0", "T_facade_u1v0", "T_facade_u0v1"]
+    assert tile_imports == [("import", f"{n}.png", TILES, n, None) for n in names]
+    work = Path(fake.saved_dir) / "Golmok" / "zone_import" / ZONE / "v1"
+    tile_files = [Path(t.filename) for t in fake.tasks if t.destination_path == TILES]
+    assert tile_files == [work / "textures" / f"{n}.png" for n in names]
+    for n, t in zip(names, (1001, 1002, 1011), strict=True):
+        assert (work / "textures" / f"{n}.png").read_bytes() == (zone.tex / f"facade.{t}.png").read_bytes()
+        assert not re.search(r"[._]\d{4}$", n)
     packed_at = fake.calls.index(("make_udim", f"{FOLDER}/Textures/T_facade", [(0, 0), (1, 0), (0, 1)]))
     assert fake.calls.index(tile_imports[-1]) < packed_at < fake.calls.index(("delete_directory", TILES))
     assert fake.calls.index(
-        ("import", "facade.1001.png", f"{FOLDER}/Textures/_import", "T_facade", None)
+        ("import", "facade.1001.png", f"{FOLDER}/Textures", "T_facade", None)
     ) < fake.calls.index(tile_imports[0])
     assert [c for c in fake.calls_of("import") if c[1] == "ground.png"] == [
-        ("import", "ground.png", f"{FOLDER}/Textures/_import", "T_ground", None)
+        ("import", "ground.png", f"{FOLDER}/Textures", "T_ground", None)
     ]  # a single texture never takes the fallback
     # the anchor is packed over in place: no force delete of T_facade (runbook #10)
     assert ("delete_asset", f"{FOLDER}/Textures/T_facade") not in fake.calls
@@ -603,10 +609,249 @@ def test_ensure_path_reports_undeletable_target(fake, unreal, zone, zi, monkeypa
     monkeypatch.setattr(unreal.EditorAssetLibrary, "delete_asset", staticmethod(lambda path: False))
     with pytest.raises(zi.ZoneImportError) as info:
         _run(zi, zone)
-    target = f"{FOLDER}/Textures/T_facade"
-    assert info.value.step == "texture T_facade"
+    target = f"{FOLDER}/SM_c_e000_n000"  # textures are replaced in place (no delete; V-04b F3)
+    assert info.value.step == "chunk c_e000_n000"
     assert f"{target} exists and could not be deleted (referenced?)" in info.value.message
     assert not [k for k in fake.registry if "/_import/" in k]  # the scratch folder is dropped even then
+
+
+def test_residue_after_delete_is_an_error(fake, unreal, zone, zi, monkeypatch):
+    # V-04b F3: in a fresh editor, delete_asset(target) returned True but the asset stayed, and the rename
+    # then failed with "An asset already exists at this location": no rename or duplicate over it, one ERROR
+    _run(zi, zone)
+    monkeypatch.setattr(unreal.EditorAssetLibrary, "delete_asset", staticmethod(lambda path: True))
+    fake.calls.clear()
+    fake.logs.clear()
+    with pytest.raises(zi.ZoneImportError) as info:
+        _run(zi, zone)
+    target = f"{FOLDER}/SM_c_e000_n000"
+    assert info.value.step == "replace"
+    assert not [c for c in fake.calls if c[0] in ("rename", "duplicate_asset") and c[-1] == target]
+    assert not fake.calls_of("duplicate_asset")
+    uasset = Path(fake.content_dir) / "Golmok" / "Zones" / ZONE / "v1" / "SM_c_e000_n000.uasset"
+    folder = Path(fake.content_dir) / "Golmok" / "Zones" / ZONE / "v1"  # that version only (R69-1)
+    message = (
+        f"{target} still exists after delete_asset returned True (does_asset_exist=True; on disk {uasset}: "
+        f"absent); {FOLDER}/_import/SM_c_e000_n000 was not renamed or duplicated over it. Work-around "
+        f"(runbook #8): close the editor, delete the folder {folder} on disk, reopen the editor and re-run"
+    )
+    assert info.value.message == message
+    assert fake.logged("error") == [f"zone_import: ERROR replace: {message}"]
+    assert not [k for k in fake.registry if "/_import/" in k]  # the scratch folder is dropped even then
+    uasset.parent.mkdir(parents=True, exist_ok=True)
+    uasset.write_bytes(b"")
+    with pytest.raises(zi.ZoneImportError, match=r"SM_c_e000_n000\.uasset: present\)"):
+        _run(zi, zone)
+
+
+def test_texture_reimport_in_place_keeps_references(fake, unreal, zone, zi):
+    # V-04b F3: textures are re-imported onto their convention path (replace_existing), never deleted or
+    # renamed: the same object stays, so MI_* keep it (runbook #8, #37)
+    _run(zi, zone)
+    before = {n: fake.registry[f"{FOLDER}/Textures/{n}"] for n in ("T_facade", "T_ground")}
+    fake.calls.clear()
+    fake.tasks.clear()
+    fake.logs.clear()
+    result = _run(zi, zone)  # default reimport_textures=True
+    moved = [t for t in fake.logged("log") if t.startswith("zone_import: moved ")]
+    assert len(moved) == 4  # chunks 2 + collision 2 (runbook §6 step 3); T_ZoneScanDefault exists already
+    png = [t for t in fake.tasks if t.filename.endswith(".png")]
+    assert [(Path(t.filename).name, t.destination_path, t.destination_name) for t in png] == [
+        ("facade.1001.png", f"{FOLDER}/Textures", "T_facade"),
+        ("ground.png", f"{FOLDER}/Textures", "T_ground"),
+    ]
+    assert all(t.replace_existing for t in png)
+    for name, tex in before.items():
+        assert fake.registry[f"{FOLDER}/Textures/{name}"] is tex
+        assert ("delete_asset", f"{FOLDER}/Textures/{name}") not in fake.calls
+        assert not [c for c in fake.calls_of("rename") if c[2] == f"{FOLDER}/Textures/{name}"]
+    assert fake.registry[f"{FOLDER}/Materials/MI_facade"].texture_params["BaseColor"] is before["T_facade"]
+    assert result["warnings"] == [] and not [k for k in fake.registry if "/Textures/_import" in k]
+
+
+def test_texture_named_otherwise_is_moved_with_warning(fake, unreal, zone, zi, monkeypatch):
+    # an importer that ignores destination_name for a texture: moved to the convention path (runbook #4)
+    real = zi._import_task
+
+    def renaming(filename, destination_path, destination_name=None, **kw):
+        if str(filename).endswith("ground.png"):
+            destination_name = "ground_imported"
+        return real(filename, destination_path, destination_name=destination_name, **kw)
+
+    monkeypatch.setattr(zi, "_import_task", renaming)
+    result = _run(zi, zone)
+    src, dst = f"{FOLDER}/Textures/ground_imported", f"{FOLDER}/Textures/T_ground"
+    assert ("rename", src, dst) in fake.calls and dst in fake.registry and src not in fake.registry
+    assert result["warnings"] == [f"{src} renamed to {dst} (importer naming; runbook #4)"]
+
+
+# ---- V-04b F1: UDIM fallback without RHI -----------------------------------------------------------------
+
+
+def test_nullrhi_skips_udim_pack_fallback(monkeypatch, tmp_path, zone):
+    # -nullrhi: the merged UDIM reports its first block (256 = the tile), so the size test would pack an
+    # already merged texture - an engine assert (GetNumBlocks() == 1) that ended the V-04b headless run
+    fake = fake_unreal.install(monkeypatch, tmp_path, nullrhi=True)
+    zi = importlib.import_module("golmok.zone_import")
+    result = _run(zi, zone)  # no fake engine assert
+    assert fake.calls_of("make_udim") == [] and not [c for c in fake.calls_of("import") if c[2] == TILES]
+    tex = fake.registry[f"{FOLDER}/Textures/T_facade"]
+    assert tex.size == (512, 512) and tex.blueprint_get_size_x() == 256  # merged; reported as a tile
+    message = (
+        "texture T_facade: UDIM merge not verifiable without RHI (-nullrhi); pack fallback skipped - check "
+        "the texture in a GUI editor (runbook #4)"
+    )
+    assert result["warnings"] == [message]
+    assert fake.logged("warning") == [f"zone_import: WARNING {message}"]
+    facade = next(a for a in result["assets"] if a["asset"].endswith("T_facade"))
+    assert facade["detail"]["how"] == "merged by importer (size unverifiable without RHI)"
+    assert (
+        f"zone_import: texture {FOLDER}/Textures/T_facade tiles=[1001, 1002, 1011] size=256x256 vt=on "
+        "(merged by importer (size unverifiable without RHI))"
+    ) in fake.logged("log")
+    # the old rule (pack whenever size == tile) would hand the merged texture to the library: an engine assert
+    with pytest.raises(RuntimeError, match="GetNumBlocks"):
+        fake.module.UDIMTextureFunctionLibrary.make_udim_virtual_texture_from_texture2_ds(
+            tex.path, [tex], [fake.module.IntPoint(0, 0)]
+        )
+
+
+def test_nullrhi_unmerged_tiles_are_not_packed_either(monkeypatch, tmp_path, zone):
+    # without RHI the size test cannot tell merged from unmerged: no pack at all, one WARNING
+    fake = fake_unreal.install(monkeypatch, tmp_path, nullrhi=True, udim_merge=False)
+    zi = importlib.import_module("golmok.zone_import")
+    result = _run(zi, zone)
+    assert fake.calls_of("make_udim") == []
+    assert [w for w in result["warnings"] if "without RHI (-nullrhi)" in w and "runbook #4" in w]
+    facade = next(a for a in result["assets"] if a["asset"].endswith("T_facade"))
+    assert facade["detail"]["how"] == "merged by importer (size unverifiable without RHI)"
+
+
+def test_zero_size_skips_udim_pack_fallback(monkeypatch, tmp_path, zone):
+    # a 0x0 size (no platform data yet) is not a size to pack on either (V-04b F1)
+    fake = fake_unreal.install(monkeypatch, tmp_path, udim_merge=False)
+    monkeypatch.setattr(fake_unreal.FakeTexture2D, "_reported_size", lambda self: (0, 0))
+    zi = importlib.import_module("golmok.zone_import")
+    result = _run(zi, zone)
+    assert fake.calls_of("make_udim") == []
+    message = (
+        "texture T_facade: UDIM merge not verifiable without RHI (size 0x0); pack fallback skipped - check "
+        "the texture in a GUI editor (runbook #4)"
+    )
+    assert result["warnings"] == [message]
+
+
+def test_gui_editor_packs_as_before_and_reads_the_command_line(monkeypatch, tmp_path, zone):
+    # GUI editor (no -nullrhi): unmerged tiles are packed exactly as before; without get_command_line the
+    # pack still runs on the size test alone, with a WARNING that -nullrhi could not be checked
+    fake = fake_unreal.install(monkeypatch, tmp_path, udim_merge=False)
+    assert "-nullrhi" not in fake.module.SystemLibrary.get_command_line()
+    zi = importlib.import_module("golmok.zone_import")
+    result = _run(zi, zone)
+    assert (
+        fake.calls_of("make_udim") == [("make_udim", f"{FOLDER}/Textures/T_facade", [(0, 0), (1, 0), (0, 1)])]
+        and result["warnings"] == []
+    )
+    monkeypatch.delattr(fake.module.SystemLibrary, "get_command_line")
+    real_plan = zi.make_plan
+
+    def two_udim_textures(zone_dir, version=None):  # a second UDIM texture: still one WARNING (R69-7)
+        plan, manifest = real_plan(zone_dir, version)
+        facade = next(t for t in plan["textures"] if t["name"] == "T_facade")
+        plan["textures"].append(dict(facade, name="T_facade2", asset=f"{FOLDER}/Textures/T_facade2"))
+        return plan, manifest
+
+    monkeypatch.setattr(zi, "make_plan", two_udim_textures)
+    fake.calls.clear()
+    fake.logs.clear()
+    result = _run(zi, zone)
+    assert [c[1] for c in fake.calls_of("make_udim")] == [
+        f"{FOLDER}/Textures/T_facade",
+        f"{FOLDER}/Textures/T_facade2",
+    ]
+    message = (
+        "SystemLibrary.get_command_line unavailable: -nullrhi not detectable; UDIM pack fallback for "
+        "T_facade runs on the size test alone (runbook #4)"
+    )
+    assert result["warnings"] == [message]
+    assert fake.logged("warning") == [f"zone_import: WARNING {message}"]
+    fake.logs.clear()
+    assert _run(zi, zone)["warnings"] == [message]  # once per call, not once per process
+
+
+@pytest.mark.parametrize(
+    ("command_line", "no_rhi"),
+    [
+        ('"C:/p/Golmok.uproject" -log', False),
+        ('"C:/p/Golmok.uproject" -NullRHI -unattended', True),
+        ('"C:/p/Golmok.uproject" "-nullrhi"', True),
+        ('"C:/p/Golmok.uproject" /nullrhi', True),
+        ('"C:/p/Golmok.uproject" -run=pythonscript -script="x.py"', True),  # commandlet: no rendering
+        ('"C:/p/Golmok.uproject" -run=pythonscript -AllowCommandletRendering', False),
+        ('"C:/p/Golmok.uproject" -nullrhiX', False),
+        ('"C:/p/Golmok.uproject" -nullrhi=1', False),  # FParse::Param does not take a value either
+        ("", False),
+    ],
+    ids=[
+        "gui",
+        "nullrhi-mixed-case",
+        "nullrhi-quoted",
+        "nullrhi-slash",
+        "commandlet",
+        "commandlet-rendering",
+        "nullrhi-suffix",
+        "nullrhi-value",
+        "empty",
+    ],
+)
+def test_without_rhi_reads_the_command_line(fake, unreal, zi, monkeypatch, command_line, no_rhi):
+    monkeypatch.setattr(unreal.SystemLibrary, "get_command_line", staticmethod(lambda: command_line))
+    assert zi._without_rhi() is no_rhi
+
+
+# ---- V-04b F2: absolute work paths -----------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("convert", [True, False], ids=["convert_relative_path_to_full", "abspath"])
+def test_relative_project_dirs_are_made_absolute(monkeypatch, tmp_path, zone, convert):
+    # the editor hands out '../../../../<project>/Saved/' relative to Engine/Binaries/Win64 (its CWD): joined
+    # as is, the collision GLB copy reached 269 characters > MAX_PATH 260 on a deep worktree (V-04b F2)
+    fake = fake_unreal.install(monkeypatch, tmp_path, relative_paths=True)
+    monkeypatch.chdir(fake.binaries_dir)
+    if not convert:
+        monkeypatch.delattr(fake.module.Paths, "convert_relative_path_to_full")
+    rel_saved = fake.module.Paths.project_saved_dir()
+    assert rel_saved.startswith("../") and not os.path.isabs(rel_saved)
+    zi = importlib.import_module("golmok.zone_import")
+    _run(zi, zone)
+    work = Path(fake.saved_dir) / "Golmok" / "zone_import" / ZONE / "v1"
+    plan, _manifest = zi.make_plan(str(zone.dir))
+    assert zi.work_dir(plan) == str(work)
+    cache = work.parent.parent / "importer_mapping.json"
+    assert cache.is_file() and f"zone_import: importer mapping cache miss -> {cache}" in fake.logged("log")
+    glb = next(t.filename for t in fake.tasks if t.filename.endswith("_collision_c_e000_n000.glb"))
+    assert glb == str(work / "collision" / f"SM_{ZONE}_collision_c_e000_n000.glb")
+    for task in fake.tasks:
+        assert os.path.isabs(task.filename) and ".." not in Path(task.filename).parts
+    naive = os.path.join(fake.binaries_dir, os.path.normpath(rel_saved), "Golmok", "zone_import", ZONE, "v1")
+    naive_glb = os.path.join(naive, "collision", f"SM_{ZONE}_collision_c_e000_n000.glb")
+    assert ".." in Path(naive_glb).parts and len(glb) < len(naive_glb)  # the '..' hops are gone
+    assert len(naive_glb) - len(glb) == len(fake.binaries_dir) - len(str(tmp_path)) + len("/..") * 4
+    content = Path(fake.content_dir) / "Golmok" / "Zones" / ZONE / "v1"
+    assert (content / "manifest.json").is_file() and (content / "blockers.json").is_file()
+    if convert:  # convert_relative_path_to_full resolves against the binaries folder whatever the CWD is
+        monkeypatch.chdir(tmp_path)
+    assert (zi._saved_dir(), zi._content_dir()) == (str(Path(fake.saved_dir)), str(Path(fake.content_dir)))
+    it = importlib.import_module("golmok.interior_setup")
+    assert it._parent_manifest(ZONE, 1)["zone_id"] == ZONE  # interior_setup reads the same absolute Content
+    sz = importlib.import_module("golmok.synthetic_zone")
+    assert sz._saved_dir() == str(Path(fake.saved_dir) / "Golmok" / "synthetic_zone")
+    assert sz._content_dir() == str(Path(fake.content_dir))
+    viewpoints = importlib.import_module("golmok.viewpoints")
+    capture = viewpoints.capture("a", names=["far_01"], presets=[None])
+    assert capture.out_root == str(Path(fake.saved_dir) / "Screenshots" / "Golmok" / "a")
+    unreal_module = fake.module
+    unreal_module.unregister_slate_post_tick_callback(capture.handle)
 
 
 # ---- materials and slots -------------------------------------------------------------------------------

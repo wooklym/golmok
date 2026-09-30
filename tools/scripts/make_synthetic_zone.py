@@ -1,7 +1,8 @@
 """Synthetic RealityScan-like zone for WP-06: raw OBJ/MTL/UDIM PNGs -> real golmok-mesh pipeline -> zone.
 
     python tools/scripts/make_synthetic_zone.py --out <dir> [--zone-id z_synthetic_scan_001] [--interior]
-                                                [--tile-px 256] [--offset-m E,N] [--force] [--check] [--quiet]
+                                                [--tile-px 256] [--offset-m E,N] [--display-name TEXT]
+                                                [--force] [--check] [--quiet]
 
 Writes (WP-06 design §3-7):
     <out>/recon/<zone_id>/     scan.obj, scan.mtl, tex/{ground.png, facade.1001.png, facade.1002.png,
@@ -13,6 +14,11 @@ Writes (WP-06 design §3-7):
     --offset-m E,N             WP-09: move the zone origin E m east and N m north of ZONE_ORIGIN on its
                                tangent plane (height kept, lat/lon rounded to 7 decimals); only the origin
                                moves, geometry and every other file stay the same. Default 0,0 = ZONE_ORIGIN.
+    --display-name TEXT        WP-15a: manifest display_name of the exterior (default "합성 스캔 골목"); the
+                               room gets "<TEXT> 실내". Only the two manifests change.
+
+Manifests are schema_version 2 (WP-15a) with `spawn`: exterior EXTERIOR_SPAWN (on the ground 2 m south of
+the window in facade B, facing it), room ROOM_SPAWN (just inside the door, facing into the room).
 
 The zone folder comes out of golmok_tools.mesh.cli (chunk -> collision --per-chunk --no-snap-ground ->
 blockers) and golmok_tools.zone.cli validate --check-files --strict, exactly like a real scan. expected.json
@@ -115,6 +121,16 @@ ROOM_LOOK = "yellow room (1001)"
 # door_out = door_1 in room-local coordinates: (4, -0.2, 0), yaw -90 (facing south, out of the room)
 DOOR_OUT = tuple(round(a - b, 6) for a, b in zip(DOOR_1, ROOM_ORIGIN_IN_PARENT_M, strict=True))
 PLAYER_START_ENU = (0.0, 2.0, 1.5)
+# WP-15a manifest v2 spawn (x, y, z feet, yaw_deg): open ground 2 m south of the glass window in
+# facade B (window centre x -8), z = GROUND_SLOPE * x, facing north at it; the room's just inside
+# door_out, facing north into the room. West of the origin on purpose: z_synthetic_002 (this zone
+# 200 m east of z_synthetic_001) then lands 192 m from 001, inside L_ZoneTest's 400 x 400 m
+# Zone_Ground plane (synthetic_zone._spawn_ground), which catches the player because 002 has no
+# collision assets in the project.
+EXTERIOR_SPAWN = (sum(WINDOW[0]) / 2.0, 3.0, round(GROUND_SLOPE * sum(WINDOW[0]) / 2.0, 6), 90.0)
+ROOM_SPAWN = (DOOR_OUT[0], 1.5, 0.0, 90.0)
+DEFAULT_DISPLAY_NAME = "합성 스캔 골목"
+ROOM_DISPLAY_SUFFIX = " 실내"
 INTERIOR_LIGHT_Z_MAX_CM = 250.0
 WALK = (
     "from PlayerStart (0,2) m: north-west to the green wall (x -11..-5, y 5) - the glass window at "
@@ -706,10 +722,14 @@ def _mesh_pipeline(scan: Path, vdir: Path, manifest: Path, blockers: bool, log: 
         _run(mesh_main, ["blockers", "build", str(path), "--manifest", str(manifest)], log)
 
 
-def _exterior_manifest(zone_id: str, interior: bool, origin=ZONE_ORIGIN) -> dict:
+def _exterior_manifest(
+    zone_id: str, interior: bool, origin=ZONE_ORIGIN, display_name: str = DEFAULT_DISPLAY_NAME
+) -> dict:
     lat, lon, h = origin
     fp = rect_footprint(lat, lon, *FOOTPRINT_M)
-    d = zm.new_manifest(zone_id, "exterior", lat, lon, h, fp, priority=10).to_dict()
+    d = zm.new_manifest(
+        zone_id, "exterior", lat, lon, h, fp, priority=10, display_name=display_name, spawn=EXTERIOR_SPAWN
+    ).to_dict()
     d["sources"] = [{"capture_id": "synthetic", "note": "make_synthetic_zone.py"}]
     d["attribution"] = ["합성 테스트 데이터 (WP-06)"]
     if interior:
@@ -721,13 +741,24 @@ def _exterior_manifest(zone_id: str, interior: bool, origin=ZONE_ORIGIN) -> dict
     return d
 
 
-def _interior_manifest(zone_id: str, origin=ZONE_ORIGIN) -> dict:
+def _interior_manifest(zone_id: str, origin=ZONE_ORIGIN, display_name: str = DEFAULT_DISPLAY_NAME) -> dict:
     lon, lat, _ = transform.enu_to_lonlat(np.array([ROOM_ORIGIN_IN_PARENT_M]), origin)
     lat, lon, h = float(lat[0]), float(lon[0]), origin[2]
     w, dep, _ = ROOM_SIZE_M
     fp = rect_footprint(lat, lon, w, dep, dx=w / 2, dy=dep / 2)
     room = f"{zone_id}_room"
-    d = zm.new_manifest(room, "interior", lat, lon, h, fp, parent_zone=zone_id, priority=20).to_dict()
+    d = zm.new_manifest(
+        room,
+        "interior",
+        lat,
+        lon,
+        h,
+        fp,
+        parent_zone=zone_id,
+        priority=20,
+        display_name=display_name + ROOM_DISPLAY_SUFFIX,
+        spawn=ROOM_SPAWN,
+    ).to_dict()
     pose = {"position": list(DOOR_OUT), "yaw_deg": -90.0}
     d["portals"] = [
         {"id": "door_out", "to_zone": zone_id, "pose_enu": pose, "radius_m": DOOR_RADIUS_M, "kind": "door"}
@@ -739,10 +770,16 @@ def _interior_manifest(zone_id: str, origin=ZONE_ORIGIN) -> dict:
 
 
 def generate(
-    out: Path, zone_id: str, interior: bool, tile_px: int, offset_m: tuple[float, float] = DEFAULT_OFFSET_M
+    out: Path,
+    zone_id: str,
+    interior: bool,
+    tile_px: int,
+    offset_m: tuple[float, float] = DEFAULT_OFFSET_M,
+    display_name: str = DEFAULT_DISPLAY_NAME,
 ) -> list[str]:
     """Write everything under <out>; returns output_files(). Raises GenerateError (message for stderr).
-    offset_m = (east, north) m moves the zone origin (--offset-m); geometry and files are unchanged."""
+    offset_m = (east, north) m moves the zone origin (--offset-m); geometry and files are unchanged.
+    display_name goes into the manifests only (--display-name)."""
     log: list[str] = []
     origin = offset_origin(ZONE_ORIGIN, *offset_m)
     room_id = f"{zone_id}_room"
@@ -751,7 +788,7 @@ def generate(
     _write_text(recon / "scan.mtl", SCAN_MTL)
     write_tiles(recon / "tex", "ground", tile_px)
     write_tiles(recon / "tex", "facade", tile_px)
-    manifest = zm.save(_exterior_manifest(zone_id, interior, origin), vdir / zm.MANIFEST_NAME)
+    manifest = zm.save(_exterior_manifest(zone_id, interior, origin, display_name), vdir / zm.MANIFEST_NAME)
     _mesh_pipeline(recon / "scan.obj", vdir, manifest, blockers=True, log=log)
     manifests = [manifest]
     if interior:
@@ -759,7 +796,9 @@ def generate(
         write_obj(room_mesh(), recon_room / "room.obj", mtllib="room.mtl", header=OBJ_HEADER)
         _write_text(recon_room / "room.mtl", ROOM_MTL)
         write_tiles(recon_room / "tex", "room", tile_px)
-        room_manifest = zm.save(_interior_manifest(zone_id, origin), vdir_room / zm.MANIFEST_NAME)
+        room_manifest = zm.save(
+            _interior_manifest(zone_id, origin, display_name), vdir_room / zm.MANIFEST_NAME
+        )
         _mesh_pipeline(recon_room / "room.obj", vdir_room, room_manifest, blockers=False, log=log)
         manifests.append(room_manifest)
     _run(zone_main, ["validate", "--check-files", "--strict", *map(str, manifests)], log)
@@ -796,12 +835,17 @@ def _normalized(path: Path, roots: list[Path]) -> bytes:
 
 
 def check(
-    out: Path, zone_id: str, interior: bool, tile_px: int, offset_m: tuple[float, float] = DEFAULT_OFFSET_M
+    out: Path,
+    zone_id: str,
+    interior: bool,
+    tile_px: int,
+    offset_m: tuple[float, float] = DEFAULT_OFFSET_M,
+    display_name: str = DEFAULT_DISPLAY_NAME,
 ) -> list[str]:
     """Regenerate into a temp folder and compare with <out>; returns the differences ([] = identical)."""
     tmp = Path(tempfile.mkdtemp(prefix="golmok_synth_check_")).resolve()
     try:
-        want = generate(tmp, zone_id, interior, tile_px, offset_m)
+        want = generate(tmp, zone_id, interior, tile_px, offset_m, display_name)
         diffs = []
         for rel in want:
             if not (out / rel).is_file():
@@ -831,6 +875,11 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="E,N",
         help="move the zone origin E m east, N m north of ZONE_ORIGIN (WP-09 fixture z_synthetic_002: 200,0)",
     )
+    ap.add_argument(
+        "--display-name",
+        default=DEFAULT_DISPLAY_NAME,
+        help="manifest display_name (WP-15a); the room gets '<name> + 실내'. Default: 합성 스캔 골목",
+    )
     ap.add_argument("--force", action="store_true", help="replace an existing <out>/zones/<zone_id>")
     ap.add_argument(
         "--check", action="store_true", help="compare with a fresh generation; exit 1 if different"
@@ -852,13 +901,16 @@ def main(argv: list[str] | None = None) -> int:
     except ValueError as e:
         _err(f"ERROR {e}")
         return 2
+    if not args.display_name.strip() or len(args.display_name) > 64:
+        _err("ERROR --display-name must be 1..64 characters and not blank")
+        return 2
     out = args.out.resolve()
     try:
         if args.check:
             if not (out / "zones" / args.zone_id).is_dir():
                 _err(f"ERROR nothing to check: {out / 'zones' / args.zone_id} does not exist")
                 return 1
-            diffs = check(out, args.zone_id, args.interior, args.tile_px, offset_m)
+            diffs = check(out, args.zone_id, args.interior, args.tile_px, offset_m, args.display_name)
             for d in diffs:
                 _say(d)
             _say(f"check: {'OK' if not diffs else f'FAIL ({len(diffs)} files)'}")
@@ -870,7 +922,7 @@ def main(argv: list[str] | None = None) -> int:
         for p in _zone_roots(out, args.zone_id):
             if p.exists():
                 shutil.rmtree(p)
-        files = generate(out, args.zone_id, args.interior, args.tile_px, offset_m)
+        files = generate(out, args.zone_id, args.interior, args.tile_px, offset_m, args.display_name)
     except ImportError as e:
         _err(f'ERROR install tools with pip install -e ".[zone,mesh]" ({e})')
         return 2

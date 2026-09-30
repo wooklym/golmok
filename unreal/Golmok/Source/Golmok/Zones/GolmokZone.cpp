@@ -5,12 +5,16 @@
 #include "Components/BoxComponent.h"
 #include "Components/SceneComponent.h"
 #include "Components/StaticMeshComponent.h"
+#include "CollisionQueryParams.h"
 #include "Engine/CollisionProfile.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/World.h"
+#include "GameFramework/Pawn.h"
+#include "GameFramework/PlayerController.h"
 #include "Geo/GolmokGeo.h"
 #include "Geo/GolmokGeoMath.h"
 #include "Geo/GolmokGeoSubsystem.h"
+#include "Map/GolmokTravelMath.h"
 #include "Materials/MaterialInterface.h"
 #include "Misc/PackageName.h"
 #include "Misc/Paths.h"
@@ -248,6 +252,72 @@ FTransform AGolmokZone::GetPortalWorldTransform(const FGolmokZonePortal& Portal)
 {
 	const FTransform Relative(FRotator(0.0, -Portal.YawDeg, 0.0), GolmokGeo::EnuToUE(Portal.PositionEnu), FVector::OneVector);
 	return Relative * GetActorTransform();
+}
+
+bool AGolmokZone::GetSpawnUE(FVector& OutFeetUE, float& OutYawUE, bool* bOutFromManifest)
+{
+	OutFeetUE = FVector::ZeroVector;
+	OutYawUE = 0.f;
+	if (bOutFromManifest)
+	{
+		*bOutFromManifest = false;
+	}
+	if (!EnsureManifest())
+	{
+		return false;
+	}
+	GetFootprintUE(); // re-applies the root transform when the geo origin changed since the manifest was read
+
+	// Root transform as a row-major column-vector matrix (FTransform::ToMatrixNoScale is row-vector: transpose).
+	const FMatrix RootM = GetActorTransform().ToMatrixNoScale();
+	GolmokTravelMath::Mat4 ActorUE{};
+	for (int32 Row = 0; Row < 3; ++Row)
+	{
+		for (int32 Col = 0; Col < 3; ++Col)
+		{
+			ActorUE[static_cast<std::size_t>(Row * 4 + Col)] = RootM.M[Col][Row];
+		}
+		ActorUE[static_cast<std::size_t>(Row * 4 + 3)] = RootM.M[3][Row];
+	}
+	ActorUE[15] = 1.0;
+
+	if (Manifest.bHasSpawn)
+	{
+		const GolmokTravelMath::Vec3 Feet = GolmokTravelMath::SpawnFeetUE(
+			ActorUE, GolmokTravelMath::Vec3{Manifest.SpawnPositionEnu.X, Manifest.SpawnPositionEnu.Y, Manifest.SpawnPositionEnu.Z});
+		OutFeetUE = FVector(Feet[0], Feet[1], Feet[2]);
+		OutYawUE = static_cast<float>(GolmokTravelMath::SpawnYawUE(ActorUE, Manifest.SpawnYawDeg));
+		if (bOutFromManifest)
+		{
+			*bOutFromManifest = true;
+		}
+		return true;
+	}
+
+	GolmokTravelMath::Vec3 Start{}, End{};
+	GolmokTravelMath::FallbackTrace(ActorUE, Start, End);
+	bool bHit = false;
+	GolmokTravelMath::Vec3 HitUE{};
+	if (UWorld* World = GetWorld())
+	{
+		FHitResult Hit;
+		FCollisionQueryParams Params(SCENE_QUERY_STAT(GolmokZoneSpawnFallback), /*bTraceComplex*/ false);
+		if (const APawn* Pawn = World->GetFirstPlayerController() ? World->GetFirstPlayerController()->GetPawn() : nullptr)
+		{
+			Params.AddIgnoredActor(Pawn);
+		}
+		if (World->LineTraceSingleByChannel(Hit, FVector(Start[0], Start[1], Start[2]), FVector(End[0], End[1], End[2]), ECC_WorldStatic, Params))
+		{
+			bHit = true;
+			HitUE = GolmokTravelMath::Vec3{Hit.ImpactPoint.X, Hit.ImpactPoint.Y, Hit.ImpactPoint.Z};
+		}
+	}
+	const GolmokTravelMath::Vec3 Feet = GolmokTravelMath::FallbackFeetUE(ActorUE, bHit, HitUE);
+	OutFeetUE = FVector(Feet[0], Feet[1], Feet[2]);
+	OutYawUE = static_cast<float>(GolmokTravelMath::SpawnYawUE(ActorUE, 0.0));
+	UE_LOG(LogGolmok, Log, TEXT("Zone %s v%d: no manifest spawn; fallback feet (%.1f, %.1f, %.1f) cm (%s), yaw %.2f"), *ZoneId, Version,
+		OutFeetUE.X, OutFeetUE.Y, OutFeetUE.Z, bHit ? TEXT("ground hit") : TEXT("no hit: zone origin"), OutYawUE);
+	return true;
 }
 
 bool AGolmokZone::FootprintContains(const FVector2D& LevelUEPointCm)

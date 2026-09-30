@@ -496,6 +496,17 @@ bool UGolmokZoneSubsystem::RequestLoad(const FString& ZoneId, bool bPin, FString
 {
 	CheckNotHoldingPointers(TEXT("RequestLoad"));
 	AGolmokZone* Zone = FindZone(ZoneId);
+	if (!Zone && Source == EGolmokZoneRequestSource::Travel)
+	{
+		// WP-15a: a travel target far from the player has no actor yet (discovery only covers the 3x3 cells around
+		// the player): spawn it from the index now, the same way DiscoverZones() would (BeginPlay registers it).
+		const FGolmokZoneIndexEntry* Entry = Index.FindZone(ZoneId);
+		const UWorld* World = GetWorld();
+		if (Entry && Index.IsAvailable() && World && World->IsGameWorld() && World->HasBegunPlay() && !World->bIsTearingDown)
+		{
+			Zone = SpawnDiscoveredZone(Entry->Id, Entry->Version);
+		}
+	}
 	FGolmokZoneRecord* R = Zone ? FindRecord(Zone) : nullptr;
 	if (!Zone || !R)
 	{
@@ -558,6 +569,31 @@ bool UGolmokZoneSubsystem::RequestUnload(const FString& ZoneId, FString& OutMess
 		OutMessage = FString::Printf(TEXT("zone %s unloaded (auto-load resumes after leaving the unload radius)"), *ZoneId);
 	}
 	return true;
+}
+
+bool UGolmokZoneSubsystem::ReleasePin(const FString& ZoneId)
+{
+	AGolmokZone* Zone = FindZone(ZoneId);
+	FGolmokZoneRecord* R = Zone ? FindRecord(Zone) : nullptr;
+	if (!R)
+	{
+		return false;
+	}
+	R->bPinned = false;
+	return true;
+}
+
+bool UGolmokZoneSubsystem::IsZonePinned(const FString& ZoneId) const
+{
+	const AGolmokZone* Zone = FindZone(ZoneId);
+	for (const FGolmokZoneRecord& R : Zones)
+	{
+		if (Zone && R.Zone.Get() == Zone)
+		{
+			return R.bPinned;
+		}
+	}
+	return false;
 }
 
 // ---- WP-09 discovery from the zone index ------------------------------------------------------------------------
@@ -824,6 +860,31 @@ bool UGolmokZoneSubsystem::ZoneWins(const AGolmokZone& A, const AGolmokZone& B)
 		return A.Version > B.Version;
 	}
 	return A.ZoneId < B.ZoneId;
+}
+
+AGolmokZone* UGolmokZoneSubsystem::FindLoadedZoneAt(const FVector2D& LevelUEPointCm) const
+{
+	// WP-12 photo mode: which loaded footprint the character stands in. Reads the records only (no RegisterZone /
+	// RequestLoad, so the Evaluate() pointer-hold rules do not apply). FootprintContains is non-const (it caches the
+	// footprint), hence the non-const actor pointer out of the weak pointer.
+	AGolmokZone* Best = nullptr;
+	for (const FGolmokZoneRecord& R : Zones)
+	{
+		AGolmokZone* Zone = R.Zone.Get();
+		if (!IsValid(Zone) || !Zone->IsLoaded())
+		{
+			continue;
+		}
+		if (!Zone->FootprintContains(LevelUEPointCm))
+		{
+			continue;
+		}
+		if (!Best || ZoneWins(*Zone, *Best))
+		{
+			Best = Zone;
+		}
+	}
+	return Best;
 }
 
 void UGolmokZoneSubsystem::ResolveOverlaps()

@@ -1,6 +1,6 @@
-# Zone manifest·Zone Index 스펙 (v1)
+# Zone manifest·Zone Index 스펙 (manifest v1·v2, Index v1)
 
-작성: 2026-09-24 (WP-02) · 상태: **확정(schema_version 1)** · 근거: [ARCHITECTURE.md](../ARCHITECTURE.md) §2~§4, [DECISIONS.md](../DECISIONS.md) D-010·D-012
+작성: 2026-09-24 (WP-02) · 개정: 2026-09-28 (WP-15a, manifest schema_version 2 — §3.3) · 상태: **확정(manifest schema_version 1·2, Zone Index schema_version 1)** · 근거: [ARCHITECTURE.md](../ARCHITECTURE.md) §2~§4, [DECISIONS.md](../DECISIONS.md) D-010·D-012
 
 이 문서는 Zone 데이터의 **계약**이다. `golmok-zone`(Python, WP-02), UE 로더(C++, WP-04), 에디터 임포트(Python, WP-06), 후처리(WP-03), 정합(WP-07)이 모두 이 문서를 따른다. 바꾸려면 `schema_version`을 올리고 이 문서·스키마·테스트를 같이 고친다.
 
@@ -9,7 +9,7 @@
 | [zone-manifest.schema.json](zone-manifest.schema.json) | manifest JSON Schema (draft 2020-12) |
 | [zone-blockers.schema.json](zone-blockers.schema.json) | `layers.blockers.uri`가 가리키는 평면 목록 |
 | [zone-index.schema.json](zone-index.schema.json) | `index/zones.json`, `index/cells/<z>_<x>_<y>.json` |
-| [../../tools/tests/fixtures/zones/z_synthetic_001/v1/manifest.json](../../tools/tests/fixtures/zones/z_synthetic_001/v1/manifest.json) | 합성 예제(청크 3·충돌 1·blocker 1·포털 1). WP-04 UE 픽스처와 같은 내용 |
+| [../../tools/tests/fixtures/zones/z_synthetic_001/v1/manifest.json](../../tools/tests/fixtures/zones/z_synthetic_001/v1/manifest.json) | 합성 예제(청크 3·충돌 1·blocker 1·포털 1, schema_version 2·`spawn`·`display_name`). WP-04 UE 픽스처와 같은 내용 |
 
 스키마 원본은 `docs/spec/`이고, `tools/golmok_tools/zone/schemas/`는 패키지 데이터용 사본이다(테스트가 두 사본이 같은지 검사한다).
 
@@ -53,7 +53,7 @@ index/cells/16_<x>_<y>.json
 
 | 필드 | 형식 | 필수 | 설명 |
 |---|---|---|---|
-| `schema_version` | `1` | ✔ | 이 문서 버전 |
+| `schema_version` | `1` \| `2` | ✔ | 이 문서 버전. 2는 `spawn`·`display_name`을 쓸 수 있다(§3.3). 그 밖의 값은 오류 |
 | `zone_id` | string | ✔ | §2 형식. 폴더 이름과 같아야 한다 |
 | `version` | int ≥ 1 | ✔ | 폴더 `v<version>`과 같아야 한다 |
 | `kind` | `exterior` \| `interior` | ✔ | |
@@ -76,8 +76,10 @@ index/cells/16_<x>_<y>.json
 | `consent` | `{type: public_street \| owner_consent, record_id}` | ✔ | owner_consent인데 record_id가 없으면 경고(게시 전 필수) |
 | `attribution` | string[] | ✔ | 크레딧 표기 |
 | `sources[]` | `{capture_id, note?}` | ✔ | [captures/INDEX.md](../captures/INDEX.md)의 촬영 ID |
+| `spawn` | `{position_enu:[x,y,z], yaw_deg}` | | **v2만**. 이동(travel) 도착 지점과 방향(§3.3) |
+| `display_name` | string 1~64자, 공백 아닌 글자 1개 이상 | | **v2만**. 지도·HUD 표시 이름. 없으면 `zone_id`(§3.3) |
 
-알 수 없는 최상위 키는 **스키마 오류**다(`quality`만 추가 키 허용).
+알 수 없는 최상위 키는 **스키마 오류**다(`quality`만 추가 키 허용). v1 manifest에 `spawn`·`display_name`이 있어도 **스키마 오류**다.
 
 ### 3.1 blockers 파일
 
@@ -98,7 +100,26 @@ index/cells/16_<x>_<y>.json
 - footprint: 유효(자기교차 없음), 링 닫힘, 면적 ≥ 1 m², origin과의 거리 ≤ 50 m(밖이면 경고).
 - 청크·포털 id 중복, bbox min ≤ max, 포털 `to_zone` ≠ 자기 자신.
 - 경로: `<zone_id>/v<version>/manifest.json`과 폴더 이름이 맞는가.
+- v2 `spawn`: `position_enu`를 transform으로 ECEF → origin의 ENU로 옮긴 수평 위치가 footprint 밖이면 **경고**(거리 m, `--strict`면 실패). 경계 위는 안으로 본다. `display_name`이 공백뿐이면 오류(스키마가 먼저 막는다).
 - `--check-files`: 참조 파일이 있는가, blockers 파일이 스키마를 통과하는가, normal 길이 > 0.
+
+### 3.3 schema_version 2 (WP-15a, 2026-09-28)
+
+v2는 v1에 **선택** 최상위 키 두 개만 더한다. 나머지 규칙은 v1과 한 글자도 같다.
+
+| 필드 | 형식 | 단위·규약 |
+|---|---|---|
+| `spawn.position_enu` | `[x, y, z]` number | zone-local m, Z-up. 플레이어가 **서는 곳(발 위치)**. 포털 `pose_enu.position`과 같은 좌표계 |
+| `spawn.yaw_deg` | number, −360~360 | 바라보는 방향. 위에서 볼 때 +x(동)에서 **반시계**(포털 `yaw_deg`와 같은 규약·범위). **UE Yaw = −yaw_deg** |
+| `display_name` | string, 1~64자, 공백 아닌 글자 1개 이상 | 지도·HUD 표시 이름. 없으면 `zone_id`를 보여 준다 |
+
+- `spawn`은 두 키가 모두 필수이고 다른 키는 오류다(`additionalProperties: false`).
+- **UE 좌표**: zone 루트 기준 위치 = `S · position_enu` = `(100x, −100y, 100z)` cm(§5 "포털"과 같다). 레벨 좌표는 zone 루트 actor 변환(`S · M · S⁻¹`, §5)을 곱한 값 — `golmok-zone transform <manifest> --enu x,y,z --area-origin …`의 `ue_area_cm`. 방향은 UE Yaw = zone 루트 yaw + (−yaw_deg).
+- **폴백**(v1이거나 `spawn`이 없을 때): zone-local `(0,0,0)`을 UE로 옮긴 점에서 **위 3 m**부터 아래로 라인 트레이스해 맞은 지면 + 캡슐 반높이, `yaw_deg` 0(zone +x 방향)으로 본다.
+- **호환**: 파서(UE C++·Python)는 **v1과 v2를 모두** 읽는다. `golmok-zone init`은 v2를 쓰고(`--display-name`·`--spawn`을 주지 않으면 그 키는 없다), `golmok-zone bump`는 원본의 `schema_version`·`spawn`·`display_name`을 **그대로** 둔다. 버전 폴더는 불변이므로 **모든 zone을 일괄로 v2로 올리지 않는다** — v2 필드가 필요한 zone만 새 version을 만들 때 손으로 올린다.
+- **v2 예약 없음**: WP-17 `sounds[]`는 v2에 넣지 않는다(채택되면 v3).
+- Zone Index는 **schema_version 1 그대로**다(§6). index 항목에는 `display_name`·`spawn`이 없고, 지도·이동은 index의 `id`·`bbox_wgs84`·`version`으로 목록을 만든 뒤 그 zone의 manifest를 읽어 얻는다.
+- 합성 픽스처(`Content/Golmok/Zones/`, `tools/tests/fixtures/zones/`)는 v2다: `z_synthetic_001` spawn `[5, 4, 0]` yaw 90 "합성 골목 1", `z_synthetic_001_interior` `[0, −1.5, 0]` yaw 90 "합성 골목 1 실내", `z_synthetic_002` `[−8, 3, −0.16]` yaw 90 "합성 골목 2"(파사드 B 유리창 남쪽 2 m: 002는 충돌 에셋이 없어 `L_ZoneTest`의 `Zone_Ground`(001 중심 ±200 m)가 받치는 곳이어야 해서 문 앞이 아니다). 모두 문·파사드를 바라본다.
 
 ## 4. 좌표 변환 수치 예제 (WP-04 C++ 단위테스트 기준값)
 
@@ -171,6 +192,7 @@ area 원점(= CesiumGeoreference 원점) (37.5600, 126.9230, h=40). `M = inv(T_a
 | 메시 정점 | 임포트 후 zone-local을 `S = diag(100,−100,100)`로 바꾼 값(cm, X=동, Y=남, Z=위). 임포터의 축 변환은 가정하지 말고 bbox로 측정한다(`basemap_import.py`와 같은 방식) |
 | zone 루트 actor 변환 | `S · M · S⁻¹` (M = zone-local → area ENU). 회전 = `D R D`(D = diag(1,−1,1), det +1), 위치 = `S t` cm. `golmok-zone transform --json`의 `ue_actor_matrix` |
 | 포털 | 위치 `S · position`, UE Yaw = `−yaw_deg`, 반경 cm = `100 · radius_m` |
+| 스폰(v2) | 위치 `S · spawn.position_enu`(발 위치, 캡슐 중심은 + 반높이), UE Yaw = `−spawn.yaw_deg`. 없으면 §3.3 폴백 |
 | blocker | 중심 `S · center`, 법선 `D · normal`, 크기 cm = `100 · size_m` |
 | bbox | `S`로 바꾼 뒤 min/max를 다시 정렬한다(Y 부호가 뒤집힘) |
 
@@ -179,6 +201,8 @@ C++(WP-04)는 §4의 A·B·C 표 값을 단위테스트 기준으로 쓴다(허�
 ## 6. Zone Index
 
 게임은 플레이어 주변 셀 파일을 읽고, 셀에 있는 zone의 manifest를 로드한다(ARCHITECTURE §4-1).
+
+Zone Index는 **schema_version 1**이고 manifest v2(§3.3)에서도 바뀌지 않는다. 항목에 `display_name`·`spawn`을 넣지 않는다(manifest에서 읽는다).
 
 - `index/zones.json`
   ```json
@@ -207,11 +231,11 @@ C++(WP-04)는 §4의 A·B·C 표 값을 단위테스트 기준으로 쓴다(허�
 ## 8. CLI 요약
 
 ```
-golmok-zone init --id z_… --kind exterior|interior --origin lat,lon[,h] --footprint fp.geojson [--yaw 0] [--parent z_…] [--capture ID] --out zones/z_…/v1
+golmok-zone init --id z_… --kind exterior|interior --origin lat,lon[,h] --footprint fp.geojson [--yaw 0] [--parent z_…] [--capture ID] [--display-name 이름] [--spawn=x,y,z,yaw] --out zones/z_…/v1   # schema_version 2
 golmok-zone validate <manifest.json>… [--check-files] [--strict]
 golmok-zone index build --zones-root zones --out index [--strict]
 golmok-zone exclude --zones-root zones --out exclude.geojson [--buffer-m 0.75]
 golmok-zone transform <manifest.json> --enu x,y,z [--area-origin lat,lon,h] [--json]
-golmok-zone bump <manifest.json>
+golmok-zone bump <manifest.json>                                   # schema_version·spawn·display_name 유지
 ```
 종료 코드: 0 성공, 1 검사 실패, 2 입력 오류.

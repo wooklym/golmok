@@ -10,6 +10,7 @@ from __future__ import annotations
 import importlib
 import json
 import os
+import shutil
 import sys
 import time
 import types
@@ -215,7 +216,7 @@ def test_nested_glb_engine_udim_and_force_delete_knobs(fake, unreal, zone, tmp_p
     assert mic.texture_params["BaseColor"] is None and mic.parent is None
 
 
-def test_png_import_udim_merge_and_single(fake, unreal, zone):
+def test_png_import_udim_merge_and_single(fake, unreal, zone, tmp_path):
     textures = f"{FOLDER}/Textures"
     paths = _import(unreal, zone.tex / "facade.1001.png", textures, "T_facade")
     tex = unreal.EditorAssetLibrary.load_asset(paths[0])
@@ -244,14 +245,30 @@ def test_png_import_udim_merge_and_single(fake, unreal, zone):
     plain.set_editor_property("virtual_texture_streaming", False)
     assert plain.get_editor_property("virtual_texture_streaming") is True  # the editor refused
     # UDIM fallback: tiles imported one by one, packed with block coordinates
-    tiles = [
+    coords = [unreal.IntPoint(*pure.udim_block_coords(t)) for t in (1001, 1002, 1011)]
+    udim_named = [
         unreal.EditorAssetLibrary.load_asset(
             _import(unreal, zone.tex / f"facade.{t}.png", f"{textures}/_tiles")[0]
         )
         for t in (1001, 1002, 1011)
     ]
-    assert [t.path for t in tiles] == [f"{textures}/_tiles/facade_{n}" for n in (1001, 1002, 1011)]
-    coords = [unreal.IntPoint(*pure.udim_block_coords(t)) for t in (1001, 1002, 1011)]
+    assert [t.path for t in udim_named] == [f"{textures}/_tiles/facade_{n}" for n in (1001, 1002, 1011)]
+    # the engine's check(GetNumBlocks() == 1): a tile named [._]#### (or a merged texture) is an appError
+    with pytest.raises(RuntimeError, match=r"GetNumBlocks\(\) == 1 .*facade\.1001\.png"):
+        unreal.UDIMTextureFunctionLibrary.make_udim_virtual_texture_from_texture2_ds(
+            f"{textures}/T_packed", udim_named, coords, keep_existing_settings=False, check_out_and_save=True
+        )
+    merged = unreal.EditorAssetLibrary.load_asset(f"{textures}/T_facade")
+    with pytest.raises(RuntimeError, match="GetNumBlocks"):
+        unreal.UDIMTextureFunctionLibrary.make_udim_virtual_texture_from_texture2_ds(
+            f"{textures}/T_packed", [merged], coords[:1]
+        )
+    assert f"{textures}/T_packed" not in fake.registry
+    tiles = []
+    for t, (u, v) in zip((1001, 1002, 1011), ((0, 0), (1, 0), (0, 1)), strict=True):
+        copy = tmp_path / f"T_facade_u{u}v{v}.png"  # zone_import._pack_udim_tiles copies (V-04b F1)
+        shutil.copyfile(zone.tex / f"facade.{t}.png", copy)
+        tiles.append(unreal.EditorAssetLibrary.load_asset(_import(unreal, copy, f"{textures}/_tiles")[0]))
     packed = unreal.UDIMTextureFunctionLibrary.make_udim_virtual_texture_from_texture2_ds(
         f"{textures}/T_packed", tiles, coords, keep_existing_settings=False, check_out_and_save=True
     )
@@ -402,10 +419,38 @@ def test_path_play_and_csv(fake, unreal):
     csv = Path(fake.saved_dir) / "Profiling" / "CSV" / "Profile(1).csv"
     fake_unreal.tick(fake, 4)  # 0.4 s < csv_delay_s
     assert not csv.exists()
-    fake_unreal.tick(fake, 1)
+
+    def csv_lines():
+        return [t for t in fake.logged() if t.startswith("GolmokDebugSubsystem: csv: ")]
+
+    # V-04 T5: the engine creates the file right at CsvProfile Start and writes it until the path ends
+    fake_unreal.tick(fake, 1)  # 0.5 s
+    assert csv.read_bytes() == b"FrameTime\n" and csv_lines() == []
+    fake_unreal.tick(fake, 10)  # 1.5 s: a row every csv_flush_s while the path plays
+    assert csv.read_bytes() == b"FrameTime\n16.7\n"
+    fake_unreal.tick(fake, 36)  # 5.1 s: the 5 s path is over, CsvProfile Stop writes csv_stop_s later
+    assert csv.read_bytes().count(b"16.7\n") == 4 and csv_lines() == []
+    fake_unreal.tick(fake, 1)  # 5.2 s: the last row, then the C++ LogLatestCsv line
     kind, msg = fake.logs[-1]
-    assert csv.exists() and kind == "log" and msg.startswith("GolmokDebugSubsystem: csv: ")
+    assert csv.read_bytes().count(b"16.7\n") == 5
+    assert kind == "log" and msg.startswith("GolmokDebugSubsystem: csv: ")
     assert os.path.normpath(msg.removeprefix("GolmokDebugSubsystem: csv: ")) == os.path.normpath(csv)
+    fake_unreal.tick(fake, 30)
+    assert csv.read_bytes().count(b"16.7\n") == 5 and len(csv_lines()) == 1  # finished: no more writes
+    # golmok.path stopplay and the end of PIE stop a capture early (csv_stop_s later)
+    for stop in (
+        lambda: system.execute_console_command(world, "golmok.path stopplay"),
+        unreal.get_editor_subsystem(unreal.LevelEditorSubsystem).editor_request_end_play,
+    ):
+        system.execute_console_command(world, "golmok.path play walk_01 --csv")
+        path = os.path.normpath(csv.with_name(f"Profile({fake.csv_count}).csv"))
+        fake_unreal.tick(fake, 10)
+        stop()
+        fake_unreal.tick(fake, 1)
+        assert csv_lines()[-1] != f"GolmokDebugSubsystem: csv: {path}"
+        fake_unreal.tick(fake, 1)
+        assert csv_lines()[-1] == f"GolmokDebugSubsystem: csv: {path}"
+        assert Path(path).read_bytes() == b"FrameTime\n16.7\n"  # created at 0.5 s, stopped at 1.2 s
     sample = {"t": 1, "p": [0, 0, 0], "r": [0, 0, 0]}
     back = json.dumps({"version": 1, "samples": [sample, {**sample, "t": 0}]})
     for name, text, problem in (
@@ -417,7 +462,7 @@ def test_path_play_and_csv(fake, unreal):
         (paths_dir / f"{name}.json").write_text(text, encoding="utf-8")
         system.execute_console_command(world, f"golmok.path play {name} --csv")
         assert fake.logged("error")[-1].startswith(f"golmok.path play: ERROR {problem}")
-    assert fake.csv_count == 1
+    assert fake.csv_count == 3
 
 
 def test_pie_begin_end_and_worlds(fake, unreal):
@@ -672,4 +717,41 @@ def test_lit_knob(monkeypatch, tmp_path):
     assert dark.actors == [] and dark.calls == []
     world = dark.editor_world
     assert dark.module.EditorLoadingAndSavingUtils.save_map(world, f"{DEFAULT_LEVEL}.L_ZoneTest") is True
-    assert dark.calls == [("save_map", DEFAULT_LEVEL)]
+    assert dark.calls == [("save_map", DEFAULT_LEVEL, DEFAULT_LEVEL)]
+
+
+@pytest.mark.parametrize("renames", [True, False])
+def test_save_map_save_as(monkeypatch, tmp_path, renames):
+    """save_map to another path (runbook §12 #18): the copy exists with clones of the world's actors; with
+    save_map_renames it becomes the open world, and the source keeps its own actors either way."""
+    fake = fake_unreal.install(monkeypatch, tmp_path, save_map_renames=renames)
+    unreal, dst = fake.module, "/Game/Golmok/Maps/L_Spike_b"
+    zone = fake.add_actor("GolmokZone", "Zone_x", zone_id="z_x")
+    fake.streaming_levels[(DEFAULT_LEVEL, "/Game/Sub")] = unreal.LevelStreamingDynamic(
+        world_asset="/Game/Sub"
+    )
+    fake.dirty_maps.update({DEFAULT_LEVEL, "/Game/Other"})
+    dirty = unreal.EditorLoadingAndSavingUtils.get_dirty_map_packages()
+    assert [(p.get_name(), p.get_path_name()) for p in dirty] == [
+        (DEFAULT_LEVEL, DEFAULT_LEVEL),
+        ("/Game/Other", "/Game/Other"),
+    ]
+    world = unreal.get_editor_subsystem(unreal.UnrealEditorSubsystem).get_editor_world()
+    assert unreal.EditorLoadingAndSavingUtils.save_map(world, f"{dst}.L_Spike_b") is True
+    assert fake.calls == [("save_map", DEFAULT_LEVEL, dst)] and fake.saved_levels == [dst]
+    assert isinstance(
+        fake.registry[dst], fake_unreal.FakeLevel
+    ) and unreal.EditorAssetLibrary.does_asset_exist(dst)
+    copy = next(a for a in fake.levels[dst] if a.label == "Zone_x")
+    assert copy is not zone and zone in fake.levels[DEFAULT_LEVEL]
+    assert (dst, "/Game/Sub") in fake.streaming_levels and (
+        DEFAULT_LEVEL,
+        "/Game/Sub",
+    ) in fake.streaming_levels
+    open_level = dst if renames else DEFAULT_LEVEL
+    assert fake.current_level == fake.persistent_level == open_level
+    assert world.get_path_name() == f"{open_level}.{open_level.rsplit('/', 1)[-1]}"
+    assert fake.dirty_maps == ({"/Game/Other"} if renames else {DEFAULT_LEVEL, "/Game/Other"})
+    if not renames:
+        assert unreal.get_editor_subsystem(unreal.LevelEditorSubsystem).load_level(dst)
+        assert fake.actors == fake.levels[dst] and copy in fake.actors

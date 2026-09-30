@@ -77,6 +77,10 @@ CONSOLE_COMMANDS = {
     "golmok.zone.refresh",
     "golmok.zone.radius",
     "golmok.zone.index",  # WP-09
+    "golmok.photo",  # [WP-12 hook]
+    "golmok.photo.shoot",  # [WP-12 hook]
+    "golmok.photo.reset",  # [WP-12 hook]
+    "golmok.photo.set",  # [WP-12 hook]
     "golmok.portal",
     "golmok.tod",
     "golmok.hud",
@@ -85,6 +89,13 @@ CONSOLE_COMMANDS = {
     "golmok.screenshot",
     "golmok.stats",
     "golmok.geo.selftest",
+    "golmok.character",  # [WP-18 hook] 캐릭터 콘솔
+    "golmok.audio",  # [WP-13 hook]
+    "golmok.audio.mute",  # [WP-13 hook]
+    "golmok.audio.state",  # [WP-13 hook]
+    "golmok.travel",  # [WP-15 hook]
+    "golmok.save",  # [WP-15 hook]
+    "golmok.load",  # [WP-15 hook]
 }
 
 # Golmok.Build.cs as WP-05 left it (PC fix e446504): no new module for WP-09 (StreamableManager is in Engine).

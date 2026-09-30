@@ -133,8 +133,8 @@ MVP 범위(DEVELOPMENT-PLAN §1.3)는 바꾸지 않는다. 이 문서의 "Phase 
 
 ---
 
-## 등록하지 않은 후보 (DEVELOPMENT-PLAN §1.3 "결정 대기" 중 나머지)
-- **캐릭터 커스터마이즈**: "Mutable in UE 5.8 release reaches production readiness with stability, performance, and pipeline improvements."[확인: 5.8 릴리스 노트], MetaHuman 캐릭터 교체 예제는 GASP에 있음([`research/09`](../research/09-animation-ue58.md) §2.4). 애니메이션 채택안(V-08) 뒤에 제안하는 편이 낫다 → D-018 후보.
+## 후속 등록과 남은 후보
+- **캐릭터 선택·교체/커스터마이즈**: D-018 ① 승인(2026-09-27, [WP-18](../plan/WP-18-characters.md)). c01 우선1종·PBR/135cm/4.5등신은 시험 가설이며18a는 템플릿 로스터·콘솔만 제공한다. 실제 에셋·리타깃은V-08/V-12·② 이후, 커스터마이즈 UI/선택 저장은Phase2 초반 WP-15와 함께. Mutable은 조합 수가 늘 때 검토하며 첫1종에 도입하지 않는다.
 - **수집 요소**: 실제 가게·장소를 "모으는" 요소는 상호·상표 노출 문제와 겹친다(05 문서) → 공개 전 자문 뒤.
 
 ## 사용자가 정할 것

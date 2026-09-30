@@ -237,3 +237,13 @@ void AGolmokCharacter::StopRun()
 {
 	GetCharacterMovement()->MaxWalkSpeed = WalkSpeed;
 }
+
+// [WP-18 hook] 로스터 교체 중 Shift 달리기 상태를 보존한다.
+void AGolmokCharacter::SetMovementSpeeds(float InWalkSpeed, float InRunSpeed)
+{
+	const bool bWasRunning = FMath::IsNearlyEqual(GetCharacterMovement()->MaxWalkSpeed, RunSpeed);
+	WalkSpeed = InWalkSpeed;
+	RunSpeed = InRunSpeed;
+	GetCharacterMovement()->MaxWalkSpeed = bWasRunning ? RunSpeed : WalkSpeed;
+}
+// [/WP-18 hook]
