@@ -427,7 +427,7 @@ R78-5·7·8·9·11을 처리했다. 설계(§1~§18, D-021)와 ① 동작은 바
 
 **판단**
 1. JSON의 `DDCvar.` 검사는 "키 + 값" 형식만 잡는다. `{"DDCvar.X": …}`처럼 DDCvar 이름을 JSON 키로 쓰면 값이 무엇이든 실패한다(값 설정과 구별할 수 없음). 이름 목록은 배열이나 `"name"` 값으로 쓴다. → R81-3: add-gasp 목록 객체는 `"default…"`·`"value"` 키와 문자열 속 중괄호까지 잡고, 쌍 목록 `["DDCvar.X", 1]`도 잡는다. 손으로 형식을 바꾼 우회(YAML 목록, BOM 없는 UTF-16, `Config` 밖 파일)는 리뷰 몫이다.
-2. ini가 아닌 파일(`.txt` 포함)은 JSON과 같은 규칙이다. 이름만 적은 메모 줄은 통과하지만, 이름 바로 뒤에 `:`나 `=`가 오면(`DDCvar.X: 설명`) 값 설정과 구별할 수 없어 실패한다. JSON `"note"` 안에 `DataDrivenConsoleVariableSettings` 같은 섹션 이름을 적어도 실패한다. 이름을 바꾼 GASP ini는 섹션 머리·`+CVarsArray`로 잡힌다. → R81-3: 줄 맨 앞의 콘솔 형식 `DDCvar.X 1`(이름 뒤 공백 + 숫자)도 실패한다. 그래서 줄 맨 앞 이름 바로 뒤가 숫자인 메모(`DDCvar.X 1 = on`, `DDCvar.X 19b에서 확인`)도 실패한다. 이름 뒤에 설명 단어가 오는 메모 줄과 줄 중간의 이름(`set DDCvar.X 1 in the console`)은 통과한다. JSON 목록 객체는 `"value"`가 문자열이어도(`"set by the ABP"`) 실패한다.
+2. ini가 아닌 파일(`.txt` 포함)은 JSON과 같은 규칙이다. 이름만 적은 메모 줄은 통과하지만, 이름 바로 뒤에 `:`나 `=`가 오면(`DDCvar.X: 설명`) 값 설정과 구별할 수 없어 실패한다. JSON `"note"` 안에 `DataDrivenConsoleVariableSettings` 같은 섹션 이름을 적어도 실패한다. 이름을 바꾼 GASP ini는 섹션 머리·`+CVarsArray`로 잡힌다. → R81-3: 줄 맨 앞의 콘솔 형식 `DDCvar.X 1`(이름 뒤 공백 + 숫자)도 실패한다. 그래서 줄 맨 앞 이름 바로 뒤가 숫자인 메모(`DDCvar.X 1 = on`, `DDCvar.X 19b에서 확인`)도 실패한다. 이름 뒤에 설명 단어가 오는 메모 줄과 줄 중간의 이름(`set DDCvar.X 1 in the console`)은 통과한다. JSON 목록 객체는 `"value"`가 문자열이어도(`"set by the ABP"`) 실패한다. → R87-6: 콘솔 형식 값이 `true`·`false`여도 실패한다(`DDCvar.X true`, 대소문자 무관). 그래서 줄 맨 앞 이름 바로 뒤가 단어 `true`·`false`인 메모(`DDCvar.X true면 켜짐`)도 실패한다. `truthy`처럼 그 단어로 시작하는 다른 단어는 통과한다.
 3. 매니페스트 대조는 relocate 뒤 로컬 파일과 **바이트가 같은** 사본만 잡는다. 편집기에서 이름을 바꾸거나 옮기거나 복제해 다시 저장한 패키지, GASP 프로젝트의 **원본** 파일을 탐색기로 복사한 것은 바이트가 달라 잡히지 않는다(매니페스트에는 원본 파일별 해시가 없고 집계 `source_digest`만 있다). 그 경우는 여전히 경로 규칙·리뷰 몫이다. 매니페스트의 `packages`가 없으면 빈 목록으로 본다(자리만 잡은 로컬 파일). 항목이 깨졌으면(키 없음·정수가 아닌 크기) 오류 한 줄이다.
 4. `unreal/Golmok` 밖의 ini(R78 원문의 한 줄)는 이번 범위 밖이다(세션 지시가 `Config/**`로 정함).
 
@@ -462,7 +462,7 @@ R81-1·2·3을 처리하고 R81-5는 기록만 한다. 설계(§1~§18, D-021)�
 1. 스펙의 `"help"\s*:\s*"…"` 대안 대신 **모든 문자열**을 건너뛰는 몸통 `(?:[^{}"\\]|"(?:[^"\\]|\\.)*")*`을 썼다. `"help"` 대안은 `[^{}]`와 겹쳐 help 키가 많은 객체에서 지수 역추적(help 20개 × 3객체 ≈ 7 s)이고, 두 대안이 서로소인 이 형태는 선형이다. 몸통은 문자열 밖의 역슬래시를 받지 않는다(유효한 JSON에는 없음) — 받으면 이스케이프된 문자열 속 `{`마다 파일 끝까지 다시 읽어 2차 시간이 된다(검증 F1).
 2. 쌍 목록은 값이 숫자·`true`·`false`일 때만 실패한다. `["DDCvar.X", "DDCvar.Y"]` 같은 이름 목록(D-021 허용)을 막지 않기 위해서다. 콘솔 형식은 줄 맨 앞(공백 허용)만 본다.
 3. 남는 우회(YAML 목록 `- name: DDCvar.X`/`value: 1`, BOM 없는 UTF-16, `Config` 밖 파일)는 손으로 형식을 바꾼 것이라 리뷰 몫이다(위 "19a-2 후속" 판단 1·2에 한 줄씩 더함).
-4. `ddcvar\.` 키+값 분기에 `(?<![\w.])`를 더했다(검증 F2, main에도 있던 2차 시간). 그래서 `Foo.DDCvar.X=1`처럼 앞에 이름 조각이 붙은 표기는 이 분기로 잡지 않는다(GASP ini 형식이 아님).
+4. `ddcvar\.` 키+값 분기에 `(?<![\w.])`를 더했다(검증 F2, main에도 있던 2차 시간). 그래서 `Foo.DDCvar.X=1`처럼 앞에 이름 조각이 붙은 표기는 이 분기로 잡지 않는다(GASP ini 형식이 아님). → R87-1: JSON 문자열 속 `\n`·`\r`·`\t` 이스케이프 바로 뒤(`"[ConsoleVariables]\nDDCvar.X=1"`)는 다시 잡는다(`(?<=\\[nrt])` 대안).
 
 **게이트**: `ruff check`·`ruff format --check` 통과, pytest **1432 passed / 3 skipped**(main `c934da5` 1406 + 26), `check_repo.py` OK, `git diff --check` 깨끗. **가드 오탐 0**: `git for-each-ref refs/remotes/origin` 59개 ref(main·astra/*·claude/*·pc/*)의 파일 22,446개 중 Config 파일 400개(고유 blob 22개)에서 오류 0, main 추적 파일에서도 `check_repo.py` OK. 성능: 1 MB 적대 입력(이스케이프 중괄호·문자열 속 JSON·`ddcvar.` 반복·미종결 따옴표·`[`/`{` 반복 등) 최악 0.24 s 이하.
 
@@ -484,3 +484,26 @@ R81-1·2·3을 처리하고 R81-5는 기록만 한다. 설계(§1~§18, D-021)�
 - STATUS WP-19 행 비고 끝에 `· R81 (C) 후속(R81-1·2·3) PR #<번호> 병합`.
 - "19a-2 후속"의 **병합** 줄 끝에 `→ R81-1·2·3은 PR #<번호>에서 해소, R81-5는 그 PR 본문에 기록`.
 - **병합**: [PR #87](https://github.com/wooklym/golmok/pull/87) → main(오케스트레이터 결정 D-019; 리뷰 [R87](https://github.com/wooklym/golmok/pull/87#issuecomment-5915909161) — (A) 0 · (B) 0 · (C) 7. 게이트(리눅스): ruff, format 112, pytest 1432 passed / 3 skipped, check_repo, `diff --check`, CI 10/10; main과 합친 트리 같음. 원격 ref 59개·파일 22,446개 가드 오탐 0(main 대비 새·사라진 오류 0), add-gasp 산출물 8가지 직렬화·R81-3 형식 실패, 시간 선형(1 MB 최악 0.32 s, 퍼저 3,000개 초선형 0; main 규칙은 2차), 뮤테이션 27개 중 23개 검출, 핫스팟 블록 밖 228줄 바이트 동일, 훅만 얹은 트리 1406 passed). 남은 (C)는 다음 Claude 레인 push: R87-1 lookbehind가 JSON 문자열 `\n`·`\t` 이스케이프 뒤의 `DDCvar.X=1`을 놓침(main은 잡던 형식; `(?:(?<![\w.])|(?<=\\[nrt]))`), R87-2 목록 분기 몸통 메모리 선형(1 MB당 약 120 MB; `ddcvar.`가 있을 때만 DDCvar 분기), R87-6 콘솔 bool 값·쌍 음수/소수 테스트·여러 줄 오류 문구, R87-7 R81-5 행 문구는 이 병합 커밋에서 정정. 훅 재적용 메모: 충돌로 훅 커밋만 다시 적용할 때는 ②(`e5705d5`)에 ①(`fe154dc`)이, ⑤(`0ed8709`)에 ④(`353a1c7`)가 따라간다(훅만 얹은 트리는 1406 passed / OK).
+
+### 19a-2 후속 3 — 병합 리뷰 R87 남은 (C) (2026-09-30, Opus 5.5 ultracode, 세션 `session_01LNapjfuvf1835C2KSwFpoV`, 브랜치 `claude/claude-lane-c-followups3`) — 🟡 코드 완료(클라우드 게이트 통과, PC 영향 없음)
+R87-1·2·6을 처리했다(R87-7은 #87 병합 커밋에서 반영). 설계(§1~§18, D-021)는 바꾸지 않았다. `check_repo.py`는 `[WP-19 hook]` 블록 안만 바뀌었다(블록 밖 바이트 동일).
+
+| 항목 | 변경 | 테스트 |
+|---|---|---|
+| R87-1 이스케이프 뒤 키 | 키+값 분기 lookbehind를 `(?:(?<![\w.])\|(?<=\\[nrt]))ddcvar\.`로 바꿨다. JSON 문자열 속 `\n`·`\r`·`\t` 이스케이프 바로 뒤의 `DDCvar.X=1`을 main처럼 다시 잡는다 | 음성 `test_pair_list_and_console_forms_fail`에 `{"ini": "[ConsoleVariables]\nDDCvar.X=1"}`·`{"ini": "\tDDCvar.X=1"}`, 성능 `…_on_escapes_and_long_name_runs`에 `"\\nddcvar."*n`(140 KB·1 MB)·`"ddcvar."*n`(1 MB) |
+| R87-2 메모리 | 새 `_gasp_text_form(text)`: `"ddcvar." in text.lower()`일 때만 전체 `GASP_TEXT_INI_FORMS`, 아니면 섹션 리터럴 세 개만 있는 `GASP_TEXT_SECTIONS`(그룹 없음 → 문구는 `m.re.groups`일 때만 그룹 1). DDCvar 분기는 모두 `ddcvar.`가 있어야 걸리므로 판정이 같다 | `test_text_form_matches_the_full_rule`(32: 기존 양·음성 입력 전부 + 섹션만·섹션 뒤 키·대문자 `DDCVAR.`·`ddcvar\n.`에서 첫 매치 위치·문자열·그룹 1 동일), `test_large_braceless_json_without_ddcvar_is_cheap`(4 MB `{"samples": [수…]}`: `tracemalloc` 최고 64 MB 미만, 2 s 미만; 고치기 전 약 556 MB·1.7 s) |
+| R87-6 콘솔 bool·쌍 값·문구 | 콘솔 형식 값에 `true\b\|false\b`. 오류 문구 `shown`은 `" ".join((이름 또는 매치).split())`로 한 줄 | 음성 `DDCvar.X true`·`\tDDCvar.Y False`, 쌍 목록 `[["DDCvar.Y", -0.5]]` 단독(뮤테이션 G7c), 양성 `DDCvar.X truthy …`, `test_pretty_pair_list_error_is_one_line`(여러 줄 쌍 목록 → `([ "DDCvar.X", 1)`, 2행) |
+
+**판단(오케스트레이터가 뒤집을 수 있음)**
+1. R87-2 분기 조건은 `text.lower()`의 부분 문자열 검사다. `d`·`c`·`v`·`a`·`r`·`.`에는 `re.IGNORECASE`와 `str.lower()`가 다르게 접는 문자(켈빈 기호 등)가 없어 두 경로의 판정이 같다. `ddcvar.`가 **있는** 큰 중괄호 없는 파일은 전처럼 전체 규칙을 쓴다(1 MB에 약 145 MB). 그런 Config 파일은 지금 어느 ref에도 없고, 그 경우까지 줄이려면 목록 분기를 다시 짜야 해 범위 밖으로 남긴다.
+2. `(?<=\\[nrt])`는 이스케이프된 역슬래시 뒤의 글자 `n`도 이스케이프로 본다(JSON 소스 `"a\\nDDCvar.X=1"`: 역슬래시 두 개 + `n`, 디코드하면 줄바꿈이 아님). 짝수·홀수 역슬래시를 구별하려면 가변 길이 lookbehind가 필요하다. 이 표기는 main에서도 실패했으므로(실패 쪽으로 닫힘) 그대로 둔다.
+3. 콘솔 bool 메모 규칙은 "19a-2 후속" 판단 2에, 이스케이프 뒤 키는 "19a-2 후속 2" 판단 4에 한 줄씩 더했다.
+
+**게이트**: `ruff check`·`ruff format --check`(112) 통과, pytest **1477 passed / 3 skipped**(main `a716c4b` 1432 + 45: GASP 43, zone_import 2), `check_repo.py` OK, `git diff --check` 깨끗. **가드 오탐 0**: `git for-each-ref refs/remotes/origin` 60개 ref(astra 23·claude 28·pc 8·main)의 파일 22,887개 중 Config 파일 408개(고유 blob 22개)에서 오류 0, main 규칙과 판정이 다른 파일 0. 성능(`_gasp_text_form`): 중괄호 없는 8 MB JSON 0.26 s·최고 8 MB(고치기 전 8 MB에 약 1 GB), `"ddcvar."*n` 8 MB 1.25 s·8 MB, `"\\nddcvar."*n` 1 MB 0.10 s.
+
+**적대 검증 1라운드(별도 에이전트, 읽기 전용)**: 진행 중 — 결과와 반영은 다음 커밋에 적는다.
+
+**병합 시 반영(문안)**
+- STATUS WP-19 행 비고 끝에 `· R87 (C) 후속(R87-1·2·6) PR #<번호> 병합`.
+- "19a-2 후속 2"의 **병합** 줄 끝에 `→ R87-1·2·6은 PR #<번호>에서 해소`.
+- 훅 재적용 메모: 충돌로 훅 커밋만 다시 적용할 때는 ②(`WP-19: hook tools/scripts/check_repo.py`)에 ①(레인 테스트)이 따라간다(① 단독 트리는 새 GASP 테스트가 실패하고, main + ② 트리는 기존 테스트가 모두 통과한다).
