@@ -34,11 +34,16 @@ def _level_name():
     return world.get_name() if world else "Untitled"
 
 
+def store_file(level_name):
+    """Config/Golmok/Viewpoints/<level>.json, absolute (synthetic_zone.abs_project_path; runbook §12 #31)."""
+    root = synthetic_zone.abs_project_path(unreal.Paths.project_config_dir())
+    return os.path.join(root, "Golmok", "Viewpoints", f"{level_name}.json")
+
+
 def _store_path():
-    root = unreal.Paths.project_config_dir()
-    folder = os.path.join(root, "Golmok", "Viewpoints")
-    os.makedirs(folder, exist_ok=True)
-    return os.path.join(folder, f"{_level_name()}.json")
+    path = store_file(_level_name())
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    return path
 
 
 def _load():

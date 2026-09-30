@@ -735,10 +735,37 @@ def test_zero_size_skips_udim_pack_fallback(monkeypatch, tmp_path, zone):
     result = _run(zi, zone)
     assert fake.calls_of("make_udim") == []
     message = (
-        "texture T_facade: UDIM merge not verifiable without RHI (size 0x0); pack fallback skipped - check "
-        "the texture in a GUI editor (runbook #4)"
+        "texture T_facade: UDIM merge not verifiable: the editor reports size 0x0 (no texture data yet); "
+        "pack fallback skipped - check the texture in a GUI editor (runbook #4)"
     )
     assert result["warnings"] == [message]
+
+
+@pytest.mark.parametrize(
+    ("command_line", "why"),
+    [
+        ('"C:/p/Golmok.uproject" -NullRHI -unattended', "-nullrhi"),
+        ('"C:/p/Golmok.uproject" /nullrhi', "/nullrhi"),
+        (
+            '"C:/p/Golmok.uproject" -run=pythonscript -script="x.py"',
+            "commandlet -run=pythonscript without -AllowCommandletRendering",
+        ),
+        ('"C:/p/Golmok.uproject" -nullrhi -run=pythonscript', "-nullrhi"),
+    ],
+    ids=["nullrhi", "slash", "commandlet", "both"],
+)
+def test_no_rhi_warning_names_its_cause(monkeypatch, tmp_path, zone, command_line, why):
+    """R69-6: -nullrhi, /nullrhi and a commandlet without rendering each name themselves in the WARNING."""
+    fake = fake_unreal.install(monkeypatch, tmp_path, nullrhi=True)
+    monkeypatch.setattr(fake.module.SystemLibrary, "get_command_line", staticmethod(lambda: command_line))
+    zi = importlib.import_module("golmok.zone_import")
+    result = _run(zi, zone)
+    assert fake.calls_of("make_udim") == []
+    assert result["warnings"] == [
+        f"texture T_facade: UDIM merge not verifiable without RHI ({why}); pack fallback skipped - check "
+        "the texture in a GUI editor (runbook #4)"
+    ]
+    assert zi._no_rhi_reason() == why
 
 
 def test_gui_editor_packs_as_before_and_reads_the_command_line(monkeypatch, tmp_path, zone):
@@ -807,6 +834,12 @@ def test_gui_editor_packs_as_before_and_reads_the_command_line(monkeypatch, tmp_
 def test_without_rhi_reads_the_command_line(fake, unreal, zi, monkeypatch, command_line, no_rhi):
     monkeypatch.setattr(unreal.SystemLibrary, "get_command_line", staticmethod(lambda: command_line))
     assert zi._without_rhi() is no_rhi
+    assert bool(zi._no_rhi_reason()) is no_rhi  # R69-6: the WARNING's cause agrees with the decision
+
+
+def test_no_rhi_reason_is_none_without_get_command_line(fake, unreal, zi, monkeypatch):
+    monkeypatch.delattr(unreal.SystemLibrary, "get_command_line")
+    assert zi._no_rhi_reason() is None and zi._without_rhi() is None
 
 
 # ---- V-04b F2: absolute work paths -----------------------------------------------------------------------
@@ -852,6 +885,161 @@ def test_relative_project_dirs_are_made_absolute(monkeypatch, tmp_path, zone, co
     assert capture.out_root == str(Path(fake.saved_dir) / "Screenshots" / "Golmok" / "a")
     unreal_module = fake.module
     unreal_module.unregister_slate_post_tick_callback(capture.handle)
+
+
+def test_every_project_dir_goes_through_abs_project_path(monkeypatch, tmp_path, zone):
+    """R69-8: zone_index, viewpoints and spike_runner resolve the editor's relative project dirs like
+    zone_import (synthetic_zone.abs_project_path), not against the CWD; import_assets makes work_dir
+    absolute."""
+    fake = fake_unreal.install(monkeypatch, tmp_path, relative_paths=True)
+    elsewhere = tmp_path / "cwd with space"
+    elsewhere.mkdir()
+    monkeypatch.chdir(elsewhere)  # not the binaries folder: a bare normpath would land under it
+    sz = importlib.import_module("golmok.synthetic_zone")
+    zx = importlib.import_module("golmok.zone_index")
+    assert zx._content_dir() == str(Path(fake.content_dir))
+    assert zx._dest() == str(Path(fake.content_dir) / "Golmok" / "Zones" / "index")
+    assert zx._content_dir("rel/Content") == str(elsewhere / "rel" / "Content")  # an explicit folder: CWD
+    assert zx._content_dir(str(tmp_path / "a" / ".." / "Content")) == str(tmp_path / "Content")
+    vp = importlib.import_module("golmok.viewpoints")
+    monkeypatch.setattr(vp, "_level_name", lambda: "L_Dev")
+    store = Path(fake.root) / "Config" / "Golmok" / "Viewpoints" / "L_Dev.json"
+    assert vp._store_path() == str(store) and store.parent.is_dir()
+    assert vp.store_file("L_Other") == str(store.parent / "L_Other.json")
+    store.write_text('{"far_01": {"location": [0, 0, 0], "rotation": [0, 0, 0]}}', encoding="utf-8")
+    sr = importlib.import_module("golmok.spike_runner")
+    assert sr._viewpoints("/Game/Golmok/Maps/L_Dev.L_Dev") == ("L_Dev", {"far_01": vp._load()["far_01"]})
+    assert sr._viewpoints("L_None") == ("L_None", {})
+    assert sr._abs is sz.abs_project_path and sr._saved_dir() == str(Path(fake.saved_dir))
+    zi = importlib.import_module("golmok.zone_import")
+    plan, _manifest = zi.make_plan(str(zone.dir))
+    zi.import_assets(plan, os.path.join("rel work", "..", "work"))
+    glb = next(t.filename for t in fake.tasks if t.filename.endswith("_collision_c_e000_n000.glb"))
+    assert glb == str(elsewhere / "work" / "collision" / f"SM_{ZONE}_collision_c_e000_n000.glb")
+
+
+# ---- R69-11: a failed in-place texture import leaves no stray texture ------------------------------------
+
+
+def _unrenamable_ground(zi, unreal, monkeypatch, broken):
+    """While broken["on"]: the importer names ground.png otherwise and neither rename nor duplicate works."""
+    real = zi._import_task
+    lib = unreal.EditorAssetLibrary
+    rename, duplicate = lib.rename_asset, lib.duplicate_asset
+
+    def renaming(filename, destination_path, destination_name=None, **kw):
+        if broken["on"] and str(filename).endswith("ground.png"):
+            destination_name = "ground_imported"
+        return real(filename, destination_path, destination_name=destination_name, **kw)
+
+    monkeypatch.setattr(zi, "_import_task", renaming)
+    monkeypatch.setattr(
+        lib, "rename_asset", staticmethod(lambda a, b: False if broken["on"] else rename(a, b))
+    )
+    monkeypatch.setattr(
+        lib, "duplicate_asset", staticmethod(lambda a, b: None if broken["on"] else duplicate(a, b))
+    )
+
+
+def test_failed_in_place_texture_import_removes_what_it_imported(fake, unreal, zone, zi, monkeypatch):
+    _unrenamable_ground(zi, unreal, monkeypatch, {"on": True})
+    with pytest.raises(zi.ZoneImportError, match="could not rename"):
+        _run(zi, zone)
+    stray = f"{FOLDER}/Textures/ground_imported"
+    assert stray not in fake.registry and ("delete_asset", stray) in fake.calls
+    assert f"zone_import: deleted importer-created asset {stray}" in fake.logged("log")
+    assert fake.logged("warning") == []  # removed in this run: nothing is left for the next one
+
+
+def test_undeletable_leftover_is_warned_and_swept_by_the_next_run(fake, unreal, zone, zi, monkeypatch):
+    broken = {"on": True}
+    _unrenamable_ground(zi, unreal, monkeypatch, broken)
+    delete = unreal.EditorAssetLibrary.delete_asset
+    stray = f"{FOLDER}/Textures/ground_imported"
+
+    def flaky_delete(path):
+        return False if broken["on"] and path == stray else delete(path)
+
+    monkeypatch.setattr(unreal.EditorAssetLibrary, "delete_asset", staticmethod(flaky_delete))
+    with pytest.raises(zi.ZoneImportError, match="could not rename"):
+        _run(zi, zone)
+    assert stray in fake.registry
+    assert f"zone_import: deleted importer-created asset {stray}" not in fake.logged("log")  # not deleted
+    assert fake.logged("warning") == [
+        f"zone_import: WARNING texture import failed; could not delete {stray} - the next run's cleanup step "
+        "removes it (runbook #8)"
+    ]
+    broken["on"] = False  # the next run: a well-behaved importer and a working delete
+    fake.logs.clear()
+    result = _run(zi, zone)
+    assert stray not in fake.registry and result["warnings"] == []  # _cleanup_folder: Texture2D by-product
+    assert f"zone_import: deleted importer-created asset {stray}" in fake.logged("log")
+
+
+def test_failed_texture_import_keeps_the_previous_target(fake, unreal, zone, zi, monkeypatch):
+    """A re-run whose import lands elsewhere and whose target cannot be replaced: the previous T_ground (what
+    MI_ground points at) stays, only the new stray copy goes."""
+    _run(zi, zone)
+    target = f"{FOLDER}/Textures/T_ground"
+    before = fake.registry[target]
+    _unrenamable_ground(zi, unreal, monkeypatch, {"on": True})
+    delete = unreal.EditorAssetLibrary.delete_asset
+    monkeypatch.setattr(
+        unreal.EditorAssetLibrary, "delete_asset", staticmethod(lambda p: False if p == target else delete(p))
+    )
+    with pytest.raises(zi.ZoneImportError, match="could not be deleted"):
+        _run(zi, zone)
+    assert fake.registry[target] is before and f"{FOLDER}/Textures/ground_imported" not in fake.registry
+
+
+@pytest.mark.parametrize("broken_call", ["_delete_assets", "does_asset_exist"])
+def test_cleanup_errors_never_hide_the_import_error(fake, unreal, zone, zi, monkeypatch, broken_call):
+    _unrenamable_ground(zi, unreal, monkeypatch, {"on": True})
+    real, ground = zi._delete_assets, f"{FOLDER}/Textures/T_ground"
+
+    def boom(*a, **kw):
+        raise OSError("cleanup broke")
+
+    if broken_call == "_delete_assets":
+        monkeypatch.setattr(
+            zi, "_delete_assets", lambda paths, keep: boom() if keep == {ground} else real(paths, keep)
+        )
+    else:  # the import works; the cleanup's existence check (after its _delete_assets) breaks
+        cleaning = {"on": False}
+        exists = unreal.EditorAssetLibrary.does_asset_exist
+
+        def marking(paths, keep):
+            out = real(paths, keep)
+            cleaning["on"] = keep == {ground}
+            return out
+
+        monkeypatch.setattr(zi, "_delete_assets", marking)
+        monkeypatch.setattr(
+            unreal.EditorAssetLibrary,
+            "does_asset_exist",
+            staticmethod(lambda p: boom() if cleaning["on"] else exists(p)),
+        )
+    with pytest.raises(zi.ZoneImportError, match="could not rename"):
+        _run(zi, zone)
+    assert any("texture import cleanup failed: cleanup broke" in w for w in fake.logged("warning"))
+
+
+def test_unpickable_import_warns_once_per_leftover(fake, unreal, zone, zi, monkeypatch):
+    """No Texture2D among the imported assets and a non-by-product left: one WARNING, not two."""
+    real = zi._import_task
+    monkeypatch.setattr(
+        zi,
+        "_import_task",
+        lambda f, d, destination_name=None, **kw: (
+            [f"{FOLDER}/Maps/L_odd"] if str(f).endswith("ground.png") else real(f, d, destination_name, **kw)
+        ),
+    )
+    fake.registry[f"{FOLDER}/Maps/L_odd"] = fake_unreal.FakeLevel(fake, f"{FOLDER}/Maps/L_odd")
+    with pytest.raises(zi.ZoneImportError, match="among the imported assets"):
+        _run(zi, zone)
+    assert [w for w in fake.logged("warning") if "L_odd" in w] == [
+        f"zone_import: WARNING unexpected asset {FOLDER}/Maps/L_odd left in place"
+    ]
 
 
 # ---- materials and slots -------------------------------------------------------------------------------

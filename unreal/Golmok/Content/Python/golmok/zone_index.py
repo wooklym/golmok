@@ -14,7 +14,8 @@ What it does (docs/plan/WP-09-ue-zone-index-async.md §3-7):
    manifest is not under Content yet (zone_import.run has not copied it). The game (FGolmokZoneIndex) reads
    exactly these files; they are staged into a .pak by the existing `Golmok/Zones` UFS line.
 
-Editor API used: unreal.Paths.project_content_dir(), unreal.log, unreal.log_warning — nothing else.
+Editor API used: unreal.Paths.project_content_dir() (+ convert_relative_path_to_full, through zone_import),
+unreal.log, unreal.log_warning — nothing else.
 """
 
 from __future__ import annotations
@@ -47,7 +48,10 @@ def warn(message: str) -> None:
 
 
 def _content_dir(content_dir=None) -> str:
-    return os.path.normpath(str(content_dir) if content_dir else unreal.Paths.project_content_dir())
+    """An explicit folder made absolute against the CWD; else the project Content folder resolved like
+    zone_import (synthetic_zone.abs_project_path: the editor's relative dir against its binaries folder,
+    runbook §12 #31; R69-8)."""
+    return os.path.normpath(os.path.abspath(str(content_dir))) if content_dir else zi._content_dir()
 
 
 def _dest(content_dir=None) -> str:

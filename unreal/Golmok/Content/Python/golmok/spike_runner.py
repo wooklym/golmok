@@ -36,7 +36,7 @@ import time
 
 import unreal
 
-from . import _pure, viewpoints
+from . import _pure, synthetic_zone, viewpoints
 
 _now = time.monotonic  # tests replace it with a fake clock (tools/tests fake unreal, tick())
 
@@ -72,12 +72,9 @@ def _warn(message):
     unreal.log_warning(_pure.fmt("sr.warn", message=message))
 
 
-def _abs(path):
-    """Absolute, normalized OS path (the editor may hand out paths relative to its binaries folder)."""
-    paths = unreal.Paths
-    if hasattr(paths, "convert_relative_path_to_full"):
-        path = paths.convert_relative_path_to_full(path)
-    return os.path.normpath(os.path.abspath(path))
+# Absolute, normalized OS path (the editor may hand out paths relative to its binaries folder): one helper for
+# every module (R69-8).
+_abs = synthetic_zone.abs_project_path
 
 
 def _saved_dir():
@@ -106,7 +103,7 @@ def _viewpoints(level=None):
     if level is None:
         return viewpoints._level_name(), viewpoints._load()
     name = str(level).replace("\\", "/").rstrip("/").rsplit("/", 1)[-1].split(".")[0]
-    path = os.path.join(unreal.Paths.project_config_dir(), "Golmok", "Viewpoints", f"{name}.json")
+    path = viewpoints.store_file(name)
     if not os.path.exists(path):
         return name, {}
     with open(path, encoding="utf-8") as f:
