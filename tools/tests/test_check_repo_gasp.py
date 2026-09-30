@@ -469,9 +469,15 @@ def test_add_gasp_list_line_is_the_object_line(repo):
 
 CVAR_OTHER_FORMS_FAIL = (
     ('{"cvars": [["DDCvar.X", 1], ["DDCvar.Y", 0.5]]}\n', "DDCvar.X"),  # pair list
+    ('{"cvars": [["DDCvar.Y", -0.5]]}\n', "DDCvar.Y"),  # R87-6: a negative decimal alone (the -?\.? of pairs)
     ('[ [ "ddcvar.x" , true ] ]\n', "ddcvar.x"),
     ("DDCvar.FootPlacementMode 1\n", "DDCvar.FootPlacementMode"),  # console form (.txt)
     ("; tuning\n  ddcvar.x -0.5\n", "ddcvar.x"),
+    ("DDCvar.X true\n", "DDCvar.X"),  # R87-6: console bool values
+    ("\tDDCvar.Y False\n", "DDCvar.Y"),
+    # R87-1: a key after a \n / \t escape inside a JSON string (main caught these)
+    ('{"ini": "[ConsoleVariables]\\nDDCvar.X=1"}\n', "DDCvar.X"),
+    ('{"ini": "\\tDDCvar.X=1"}\n', "DDCvar.X"),
 )
 
 
@@ -483,6 +489,14 @@ def test_pair_list_and_console_forms_fail(repo, text, name):
     assert error.startswith(f"{rel}:") and "GASP 가드" in error and name in error, error
 
 
+def test_pretty_pair_list_error_is_one_line(repo):
+    """R87-6: a pair list spread over lines is shown on one line in the error."""
+    rel = "unreal/Golmok/Config/Golmok/cvars.json"
+    write(repo, rel, '{"cvars": [\n  [\n    "DDCvar.X",\n    1\n  ]\n]}\n')
+    (error,) = check_repo.check_gasp_guard(repo)
+    assert error == f'{rel}:2: GASP 가드 — GASP ini 형식 텍스트([ "DDCvar.X", 1)는 커밋하지 않는다', error
+
+
 CVAR_NAME_TEXTS_PASS = (
     '{"cvars": ["DDCvar.X", "DDCvar.Y"], "note": "value: 1"}',  # a name list (D-021)
     '{"name": "DDCvar.X", "values": "see ABP"}',
@@ -492,6 +506,7 @@ CVAR_NAME_TEXTS_PASS = (
     "cvars: DDCvar.X, DDCvar.Y\nDDCvar.X is set in the ABP (1 = on)\n",
     "set DDCvar.X 1 in the console\n",  # console form only at the start of a line (verify F8)
     "DDCvar.X\n1\n",
+    "DDCvar.X truthy flag, see the ABP\n",  # R87-6: a word that starts with true is not a value
 )
 
 
@@ -522,8 +537,11 @@ def test_text_rule_is_linear_on_a_large_config(repo):
         '{\\"' * 20000,  # a "{" inside an escaped string: no string may start at the escaping backslash
         '{"help": "' + '{\\"name\\": \\"DDCvar.X\\", ' * 5000 + '"}',  # an escaped JSON blob in a string
         "ddcvar." * 20000,  # one long [\w.] run: each "ddcvar." inside it must not rescan the run
+        "\\nddcvar." * 20000,  # R87-1: the escape lookbehind must not reopen the run either
+        "ddcvar." * 150000,  # R87-1: about 1 MB
+        "\\nddcvar." * 120000,
     ],
-    ids=["escaped-braces", "escaped-json", "ddcvar-run"],
+    ids=["escaped-braces", "escaped-json", "ddcvar-run", "escaped-run", "ddcvar-run-1mb", "escaped-run-1mb"],
 )
 def test_text_rule_is_linear_on_escapes_and_long_name_runs(text):
     """Verify round 2 (F1, F2): 60-140 KB inputs that took 14 s or more with a quadratic scan."""
@@ -532,3 +550,59 @@ def test_text_rule_is_linear_on_escapes_and_long_name_runs(text):
     start = time.perf_counter()
     check_repo.GASP_TEXT_INI_FORMS.search(text)
     assert time.perf_counter() - start < 2.0
+
+
+# ---- R87-2: the DDCvar branches only when "ddcvar." is in the text ----------------------------------------
+
+SAME_VERDICT_TEXTS = (
+    CVAR_NAME_TEXTS_PASS
+    + tuple(t for t, _ in CVAR_LIST_FAILS + CVAR_OTHER_FORMS_FAIL)
+    + (
+        "",
+        "[/Script/Engine.DataDrivenConsoleVariableSettings]\n",
+        '{"x": 1}\n+CVarsArray=(Name="A")\n',
+        'a\n+GameplayTagList=(Tag="A.B")\nDDCvar.X=1\n',  # a section before a key: the first one is shown
+        '{"help": "DDCvar.X=1"}\n[ConsoleVariables]\n',
+        '{"samples": [1, 2, 3]}\n',
+        "DDCVAR.x=1\n",
+        "ddcvar\n.x=1\n",
+    )
+)
+
+
+@pytest.mark.parametrize("text", SAME_VERDICT_TEXTS)
+def test_text_form_matches_the_full_rule(text):
+    """_gasp_text_form gives the full rule's first match (same span and shown name) with or without DDCvar."""
+    full = check_repo.GASP_TEXT_INI_FORMS.search(text)
+    got = check_repo._gasp_text_form(text)
+    if full is None:
+        assert got is None
+    else:
+        assert got is not None
+        name = got.group(1) if got.re.groups else None
+        assert (got.span(), got.group(0), name) == (
+            full.span(),
+            full.group(0),
+            full.group(1),
+        )
+
+
+def test_large_braceless_json_without_ddcvar_is_cheap(repo):
+    """R87-2: 4 MB of numbers in one list took about 550 MB with the full rule (its list body is linear)."""
+    import time
+    import tracemalloc
+
+    rel = "unreal/Golmok/Config/Golmok/samples.json"
+    write(repo, rel, '{"samples": [' + "12345, " * 600000 + "0]}\n")
+    text = (repo / rel).read_text(encoding="utf-8")
+    tracemalloc.start()
+    try:
+        start = time.perf_counter()
+        assert check_repo._gasp_text_form(text) is None
+        elapsed = time.perf_counter() - start
+        peak = tracemalloc.get_traced_memory()[1]
+    finally:
+        tracemalloc.stop()
+    assert peak < 64 << 20, peak  # the text is 4 MB; lower() copies it once
+    assert elapsed < 2.0
+    assert check_repo.check_gasp_guard(repo) == []
