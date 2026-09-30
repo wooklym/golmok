@@ -334,3 +334,21 @@ astra-tasks T9 행/STATUS Astra 진행 기록 문안: “T9 13e: R55-5 C++ Boole
 - **(C) 다음 오디오 push 선택**: R65-1 세트 id 정의 쪽에서 C++/Python 같은 정규식 검사, R65-2 JSON 구문 오류에 `Reader->GetErrorMessage()` 줄·열 + 로드 실패 `UE_LOG` 1회, R65-3 참조 실패 3종의 보존 검사에 `Sets`/`Assets`/`Presets` 항목 단언, R65-4 변이 생성을 텍스트 치환 대신 DOM 수정으로, R65-5 오류 경로의 제어 문자 치환, R65-7 기존 `raises(ValueError)` 40 케이스에 `match=`. R65-6(포맷)은 조치 없음. R65-8은 이 커밋(13e 병합 기록 "(원문 유지)" 정정·빈 줄).
 - **검증 범위**: 리뷰 세션 게이트(ruff·format 106, pytest 1211 passed/3 skipped, g++ audio math 8/8 실행, `test_ue_config_audio` 64/64, check_repo·diff --check)·main 5c4464e 시험 병합 트리 동일·CI 10/10. UE 5.8.3 빌드·`Golmok.Audio` 2/2·전체 32·SoundWave 임포트 7+7은 Astra 보고 수치(Astra 정정, #65 코멘트: "최종 빌드 5.54 s"는 up-to-date 실행이 아니라 `GolmokAudioConfig.cpp`·`GolmokAudioTest.cpp` 실제 컴파일·lib/dll 링크·WriteMetadata 5 actions의 결과이며 문서 커밋 전 최종 C++ 검증, 근거 로컬 `tools/.venv/t10-build.log`). 실제 출력·청취·패키지 발소리는 미실행 — C-07 뒤 V-11 카드(선택 추가: gain을 `"0.5"`로 바꿔 HUD `error: audio.json assets.<id>.gain: expected finite number in [0, 1]` 확인 뒤 원복), C-08 소유자 청취.
 - **(C) 옮긴 것**: STATUS 마지막 갱신·WP-13 행 2개·세션 로그, astra-tasks T10 행 병합 표기·T9 행·우선순위, 이 절.
+
+
+## T13 — WP-19c 노티파이 발소리 결과 (2026-09-30)
+
+이슈 #30의 5907278376 배정. T12 PR #77 위 별도 `astra/wp-19c-footstep-notify` 스택에서 오디오 레인만 변경했다. `footsteps.driver`는 선택 키이며 auto 기본값으로 이전 일반 폰의 distance 동작을 유지한다. C++/Python은 잘못된 문자열·타입을 같은 필드 경로로 거절한다. 데이터 외 음원/라이선스·보폭·볼륨 값은 바꾸지 않았고 크레딧 파이프라인도 같다.
+
+- native GASP 계열 폰의 auto 및 명시 notify는 첫 이벤트 전부터 거리 스테퍼를 멈춘다. `OnFootEvent`를 구독해 Step/Land를 각각 발소리/착지 재생 경로로 전달하고, distance는 이벤트를 무시한다.
+- pause/photo·현재 플레이어 아님을 검사한다. 컴포넌트 등록/해제에 맞춰 구독하고 바뀐 공급 컴포넌트는 tick에서 다시 연결한다. 두 드라이버가 동시 재생하지 않는다.
+- BlueprintPure `UsesNotifyDriver()`는 19b가 읽을 수 있는 설정 훅이다. **GASP 원본 폴리 비활성화 자체는 미구현**이며 V-08b §5 결과 뒤 정확한 BP 경로에 연결한다. 임의 원본 함수/ini/에셋 변경은 없다. 실제 폴리 억제·발 시점·청취·패키지 출력은 19b/V-15 대기다.
+- 기존 `Golmok.Audio.Footstep` 등록 안에 native 폰/합성 이벤트 PIE 검사를 추가했다. 실제 PlayFootstep 진입점 계수는 WITH_DEV_AUTOMATION_TESTS 한정이다. Step/Land 각각 1요청, 거리 중복 0, pause·빙의·구독 해제·재등록 검사를 실행했다. GASP 패키지 없이 도는 계약 검사이며 -nosound 재생 요청을 청취 성공으로 세지 않는다.
+
+검증: UE 5.8.3 build 성공, 오디오 단독 2 state=Success(1 + warning1), Python ruff check/format 113·pytest 1104 passed / 215 skipped / 208 warnings·check_repo 통과. 전체 UE 36 state=Success(succeeded24 + warnings12, failed/notRun0), Locomotion 포함 통과. RenderEvidence는 NOT EXECUTED, GaspSmoke/실제 GASP 시각 통합은 Info skip. 등록 수 36 유지. 자세한 재현·인계는 pc-verify-wp13.md 끝 T13 절.
+
+### 병합 시 반영 — T13
+
+STATUS 병행 트랙 문안: `T13(WP-19c 오디오) 노티파이 발소리 코드·헤드리스 계약 검증 완료. footsteps.driver auto/distance/notify, Step/Land 단일 재생 요청·거리 중복 방지. 기존 일반 폰은 distance 유지, 등록 36. GASP 원본 폴리 비활성화는 설정 조회 훅만 제공; V-08b §5/19b 연결·V-15 청취 실검증 대기.`
+
+WP-19 결과/19b 인계 문안: `T13은 UGolmokFootstepComponent::UsesNotifyDriver() BlueprintPure 조회 훅과 OnFootEvent 구독을 제공한다. 실제 GASP 폴리 경로를 확인한 뒤 원본 재생 차단 + NotifyFootEvent 단일 전달을 19b BP에서 연결해야 한다. auto는 native GASP 계열 폰 기준이며 이벤트가 없으면 거리로 폴백하지 않는다. ABP 로스터를 GASP 폰에서 진단할 때 distance를 명시한다.`
