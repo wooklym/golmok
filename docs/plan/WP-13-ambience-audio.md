@@ -366,3 +366,19 @@ WP-19 결과/19b 인계 문안: `T13은 UGolmokFootstepComponent::UsesNotifyDriv
 - 설계 리뷰: 이 PR은 채택, "첫 이벤트 전 거리 정지"도 채택. GASP 폰 + ABP 로스터의 무음은 수용하지 않고 애님 클래스 기준(R79-1)으로 바꾼다. N초 무이벤트 폴백은 19b 연결 누락을 가리고 늦은 노티파이와 겹칠 수 있어 기각. 품질 가설(노티파이가 발 접지와 더 잘 맞음)은 바뀌지 않고 V-15에서 검증한다. 새 D 번호 없음.
 
 **병합**: 오케스트레이터 결정(D-019). #77 병합 뒤 base를 main으로 바꾸고, main(#77·#78 포함)을 이 브랜치에 병합한 뒤 이 커밋으로 반영했다. CI 초록이고 (A)가 없어 병합했다. 위 "병합 시 반영 — T13" 문안은 STATUS 병행 트랙 WP-13 행, WP-19 결과 23번, `astra-tasks.md` T13·T15에 옮겼다.
+
+
+## T15 결과 — WP-19c auto 발소리 후속 (2026-09-30 KST)
+
+배정: [이슈 #30 T15](https://github.com/wooklym/golmok/issues/30#issuecomment-5909415427). main `a92cad8` 기준 별도 `astra/wp-19c-footstep-followup`; T14와 독립이며 오디오 C++/시험/WP-13/런북만 변경했다.
+
+- **R79-1**: auto는 native GASP 폰 AND 실제 소스 GetMesh 애님 클래스의 RequiresGaspPawn 계약이다. 약한 클래스 키/bool 캐시로 매 틱 파일 파싱을 피한다. 클래스 변경·재등록으로 갱신한다. GASP 폰+일반 ABP/폴백은 distance이며 시간 기반 무이벤트 폴백은 추가하지 않았다.
+- **R79-2c**: 헤더/런북을 진단용 UsesNotifyDriver·19b 원본 발 폴리 무조건 억제 규칙으로 정정했다. 이 절이 위 T13 인계 문안의 폰 클래스 단독 auto 및 조건부 폴리 억제 가설을 대체한다. 실제 원본 억제는 아직 19b 미구현이다.
+- **C3/4/5/6/7**: driver 대소문자 엄격 파싱/Notify 거절, 직접 생성 일반 폰의 100cm 거리 요청, 합성 이벤트의 명시 notify, auto 음성/테스트 ABP 계약 양성·캐시 갱신, drv/ev HUD, TimeDilation Photo 억제, 게임 스레드 가드 및 헤더 전방 선언. ev는 필터 전 유효 이벤트 수이며 재생 수가 아니다. C6 텔레포트/재초기화 가짜 이벤트 필터는 실제 경로 확인 뒤, C8 스테퍼 해제 리셋은 미변경이다.
+
+검증: UE5.8.3 build 성공(7.83s, 엔진 C4996 경고), Audio 2 Success(경고1)/failed0/notRun0. 설치 테스트 ABP scoped 양성도 이번에 실행했다. pytest **1141 passed/217 skipped/208 warnings,50.79s**, ruff check/format114·check_repo 통과. T14의 교차 검사 8개는 별도 브랜치라 이 수치에 포함되지 않는다. 전체 UE는 **35 Success(23+경고12)/1 Fail/notRun0**: 기존 main #78 Animation.Config의 `Case.Text != FString(BaseConfig)`가 abp/ABP를 같다고 판단하는 변이 단언 실패다. Claude 레인으로 수정 요청했고 전체 게이트는 차단 상태다. 로컬 근거: tools/.venv/t15-{audio,full}-index.json 및 t15-build.txt/t15-pytest.txt. 등록 **36 유지**. 실제 GASP 에셋/원본 폴리/청취/GUI/패키지 출력은 NOT EXECUTED다.
+
+### 병합 시 반영 — T15
+
+- **astra-tasks T15/STATUS**: “T15 R79-1·2c 및 C3/4/5/6 일부/7 구현·Audio 헤드리스 검증 완료. auto는 native GASP AND 소스 애님 클래스 계약, 클래스 키 캐시. drv/ev 진단·엄격 driver 파싱. 등록36 유지, 실제 GASP 원본 폴리 억제·V-15 청취는 19b 대기.” 전체 UE 게이트 차단이 남으면 해소 전 완료 판정에 포함하지 않는다.
+- **WP-19 19b 인계**: “UsesNotifyDriver는 진단 전용, 원본 GASP 발 폴리 억제 조건으로 사용하지 않는다. 19b는 driver와 무관하게 원본 발 폴리를 끄고 Step/Land만 NotifyFootEvent로 단일 전달한다. auto는 native GASP 폰과 실제 GetMesh 소스 애님 클래스 RequiresGaspPawn 둘 다 충족할 때 notify, 그 밖은 distance. 무이벤트 시간 폴백 없음.”
