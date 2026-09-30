@@ -192,6 +192,11 @@ def check_conflict_markers(root: Path) -> list[str]:
 # The add-gasp outputs (Config/Golmok/local/, Config/Tags/GASP*.ini) and GASP content stay local regardless.
 # Path rules compare lower case; golmok.gasp_pure.is_local_only applies the same path rules to git status
 # (tools/tests/test_check_repo_gasp.py runs both over one table).
+# R78-9: the path constants mirror gasp_pure (TAGS_ALLOWED, LOCAL_ONLY_FILES, ...; a test pins them) and
+# is_local_only has no GASP_INI_COMMIT_ALLOWED switch: flipping it means editing TAGS_ALLOWED etc. there too.
+# R78-8: once plugin Content or __ExternalActors__ / __ExternalObjects__ are used, add their paths here.
+# R78-5: Config/**/*.json|txt are checked for ini forms only (GASP names and paths are committable, D-021);
+# with a local gasp_manifest.json (add-gasp, PC only) a Content/Golmok package equal to a GASP one fails.
 GASP_INI_COMMIT_ALLOWED = False
 GASP_CONTENT = "unreal/golmok/content/"
 GASP_TRACKED_CONTENT = ("unreal/golmok/content/golmok/", "unreal/golmok/content/python/")
@@ -206,6 +211,13 @@ GASP_CONFIG_INI = re.compile(r"^unreal/golmok/(plugins/.+/)?config/.+\.ini$")
 GASP_INI_TEXT = re.compile(
     r"DataDrivenConsoleVariableSettings|CVarsArray|ddcvar\.|GameplayTagList", re.IGNORECASE
 )
+GASP_CONFIG_TEXT = re.compile(r"^unreal/golmok/(plugins/.+/)?config/.+\.(json|txt)$")
+GASP_TEXT_INI_FORMS = re.compile(  # ini sections / keys, a DDCvar key with a value, add-gasp's DDCvar list
+    r"DataDrivenConsoleVariableSettings|CVarsArray|GameplayTagList|ddcvar\.[\w.]+\"?\s*[:=]"
+    r"|\"name\"\s*:\s*\"ddcvar\.[^\"]*\"\s*,\s*\"type\"\s*:\s*\"[^\"]*\"\s*,\s*\"default\"\s*:",
+    re.IGNORECASE,
+)
+GASP_MANIFEST = "unreal/Golmok/Config/Golmok/local/gasp_manifest.json"
 
 
 def _git_paths(root: Path, *args: str) -> list[str] | None:
@@ -249,7 +261,11 @@ def check_gasp_guard(root: Path) -> list[str]:
         return [
             "gasp: git 실행 실패(git rev-parse) — PATH·safe.directory를 확인한다(GASP 가드를 건너뛰지 않는다)"
         ]
-    if not top or Path(top[0].strip()).resolve() != root.resolve():
+    if not top or not _gasp_same_dir(top[0].strip(), root):
+        # R78-7: with a .git here, a subst / junction spelling passes samefile and anything else fails
+        if (root / ".git").exists():
+            shown = top[0].strip() if top else ""
+            return [f"gasp: git toplevel {shown!r}가 {str(root)!r}와 다르다(GASP 가드를 건너뛰지 않는다)"]
         return []  # not the top of a git work tree (e.g. the synthetic repos of test_check_repo.py): skipped
     tracked = _git_paths(root, "ls-files", "-z")
     addable = _git_paths(root, "ls-files", "--others", "--exclude-standard", "-z")
@@ -258,11 +274,24 @@ def check_gasp_guard(root: Path) -> list[str]:
             "gasp: git 실행 실패(git ls-files) — PATH·safe.directory를 확인한다(GASP 가드를 건너뛰지 않는다)"
         ]
     errors = []
+    packages = _gasp_manifest_packages(root)
+    if isinstance(packages, str):
+        errors.append(packages)
+        packages = {}
     for state, paths in (("추적 중", tracked), ("추가 가능", addable)):
         for path in paths:
-            rule = _gasp_path_rule(path)
+            rule = _gasp_path_rule(path) or _gasp_package_rule(root, path, packages)
             if rule:
                 errors.append(f"{path}: GASP 가드 — {rule} ({state})")
+            elif not GASP_INI_COMMIT_ALLOWED and GASP_CONFIG_TEXT.match(path.lower()):
+                file = root / path
+                text = file.read_text(encoding="utf-8-sig", errors="replace") if file.is_file() else ""
+                m = GASP_TEXT_INI_FORMS.search(text)
+                if m:
+                    no = text.count("\n", 0, m.start()) + 1
+                    errors.append(
+                        f"{path}:{no}: GASP 가드 — GASP ini 형식 텍스트({m.group(0)})는 커밋하지 않는다"
+                    )
             elif not GASP_INI_COMMIT_ALLOWED and GASP_CONFIG_INI.match(path.lower()):
                 file = root / path
                 text = file.read_text(encoding="utf-8-sig", errors="replace") if file.is_file() else ""
@@ -273,6 +302,42 @@ def check_gasp_guard(root: Path) -> list[str]:
                         f"{path}:{no}: GASP 가드 — GASP DDCvar·태그 텍스트({m.group(0)})는 커밋하지 않는다"
                     )
     return errors
+
+
+def _gasp_same_dir(top: str, root: Path) -> bool:
+    try:
+        return os.path.samefile(top, root)
+    except OSError:
+        return False
+
+
+def _gasp_manifest_packages(root: Path) -> dict[tuple[int, str], str] | str:
+    """{(size, sha256): GASP package} of the local add-gasp manifest ({} without one), or an error line."""
+    path = root / GASP_MANIFEST
+    if not path.is_file():
+        return {}
+    try:
+        entries = json.loads(path.read_text(encoding="utf-8-sig")).get("packages") or []
+        return {(int(e["size"]), str(e["sha256"]).lower()): str(e["path"]) for e in entries}
+    except (OSError, ValueError, TypeError, KeyError, AttributeError) as e:
+        return f"gasp: {GASP_MANIFEST}를 읽지 못함({type(e).__name__}) — add-gasp -Manifest로 다시 만든다"
+
+
+def _gasp_package_rule(root: Path, path: str, packages: dict[tuple[int, str], str]) -> str | None:
+    """A Content/Golmok package byte-identical to a GASP package of the local manifest (renamed copy)."""
+    low = path.lower()
+    file = root / path
+    if not packages or not low.endswith((".uasset", ".umap")) or not file.is_file():
+        return None
+    size = file.stat().st_size
+    if not any(key[0] == size for key in packages):
+        return None
+    import hashlib
+
+    key = (size, hashlib.sha256(file.read_bytes()).hexdigest())
+    return (
+        f"GASP 패키지 {packages[key]}와 바이트가 같다(로컬 gasp_manifest.json)" if key in packages else None
+    )
 
 
 # [/WP-19 hook]
