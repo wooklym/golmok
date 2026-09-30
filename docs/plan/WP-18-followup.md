@@ -371,3 +371,23 @@ D3D12 정상 6코스를 한 프로세스에서 한 번 돌렸다(단언 25 PASS,
 - R75-4: 세 실행의 순서·시각 기록이 없고, "0.25 s 이후 첫 틱" 표현을 고쳐야 한다.
 
 **병합**: 오케스트레이터 결정(D-019). CI 10/10 초록이고 (A)가 없어 병합했다. WP-18·V-11 상태는 바뀌지 않는다(🟡 유지).
+
+
+## T12 — WP-19c GASP 로스터 결과 (2026-09-30)
+
+배정: 이슈 #30의 5907278376, main `4acf20d`의 19a 계약. `astra/wp-19c-roster-gasp`에서 캐릭터 레인·스키마·설정·기존 자동화만 변경했다. 오디오에는 신규 두 id의 보폭 67/146 cm만 함께 추가해 R63-3 계약을 맞췄다. 19a 공개 API 세 이름은 그대로다. 핫스팟·공유 문서·GASP 원본/ini/바이너리는 수정하지 않았다.
+
+- optional visual과 모드별 기본값을 C++/JSON Schema에 추가. 필드 생략은 이전 동작, 잘못된 키·타입·scale·기본 id 참조는 전체 로스터 교체 전에 거절한다.
+- GASP 필요 애니는 `RequiresGaspPawn`/`PawnSupportsGasp` 계약을 검사한다. source/visual 에셋·스켈레톤·캡슐 확장 검사를 모두 마친 뒤 적용하며 실패하면 기존 항목을 유지한다. ABP 또는 direct source 선택은 `ClearVisualOverride`, retarget 선택은 `SetVisualOverride` + visual scale이다.
+- 두 GASP 준비 항목·gasp 기본값을 추가했다. 마지막 성공 선택 우선, 실제 GASP 폰이 아닌 폴백에서는 abp 기본값을 쓴다. 상세 조건·실검증 인계는 런북 §13.
+- 등록은 기존 36개 유지. GASP 원본 없는 Runtime에서 메모리 계약 대역으로 source/visual 적용·거절·복귀를 검사했다. 실제 GASP 시각 통합은 Info skip이며 19b/V-15 대기다. R75-1~4 선택 문서 개선은 이번 필수 계약 변경과 별도로 남긴다.
+
+최종 게이트: UE 5.8.3 빌드 성공, 전체 자동화 36 state=Success(`succeeded=24`, `succeededWithWarnings=12`, failed/notRun=0), Config/Runtime·PhotoIntegration 6조합 실행. RenderEvidence는 기존 NOT EXECUTED, GaspSmoke·GASP 실제 로스터 시각 통합은 Info skip. Python ruff check/format 113, pytest 1093 passed / 215 skipped / 208 warnings, check_repo·diff --check 통과. Windows에서 건너뛴 g++ 교차검증은 CI에 맡긴다.
+
+재현성 주의: 최초 전체 `-SetupDevLevel` 실행에서 기존 Locomotion의 Quinn 40cm 장애물 두 단언이 실패했다(새 Config/Runtime 성공). 직전 캐릭터 단독 실행과 코드 변경 없는 전체 재실행에서는 통과했다. 최초 실패 보고서를 보존했으며 원인을 확정하거나 해결했다고 주장하지 않는다. 품질/물리 비결정성 후속 검토 대상으로 리뷰에 알린다.
+
+### 병합 시 반영 — T12
+
+STATUS 병행 트랙 문안: `T12(WP-19c 캐릭터) 코드·헤드리스 계약 검증 완료: optional visual/모드별 기본값, manny_gasp·uefn_gasp 준비 항목, GASP 폰 호환성 거절·ABP visual 해제. 실제 GASP 경로·GenericRetarget·품질은 19b/V-15 대기. 등록 36 유지. T13 노티파이 발소리는 별도 PR.`
+
+WP-19 결과 절 22번 갱신 문안(Claude 소유 문서): `19c T12에서 로스터 적용이 visual override를 제거/교체하도록 연결했다. golmok.anim preview off도 기존 SelectCharacter API를 통해 복원한다. GASP 실제 리타깃 경로·Attached Parent는 19b 검증 대기.`

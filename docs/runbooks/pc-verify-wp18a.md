@@ -277,3 +277,16 @@ try {
 PIE 화면 크기: 에디터 내 PIE에서는 위 ResX/ResY가 캡처 크기로 적용되지 않았다(T7 실제 PNG 1014×550). 960×540을 검증 기대값으로 쓰지 않고 생성 파일의 실제 크기와 디코딩 성공을 기록한다.
 
 T11 실행(2026-09-30): 정상 6코스 1 Success·경고0·단언25 PASS·PNG37장, 정상 코스4 73.05 s. 강제 flush의 `seen=true`와 잘못 지정한 플래그 경고를 확인했다. 기준 walk_01은 백업으로 해시·mtime까지 복원했다. [전체 근거·한계](../plan/WP-18-followup.md#t11-r72-후속-결과-2026-09-30).
+
+
+## 13. T12 — GASP 로스터 계약 (19c, 2026-09-30)
+
+`characters.json`은 기존 4항목에 선택 항목 `manny_gasp`(UEFN 소스 + 매니 visual), `uefn_gasp`(UEFN 직접)를 더한다. `visual`이 있으면 `mesh`·`anim_class`·`mesh_scale` 3키가 모두 필요하고 추가 키는 거절한다. visual scale은 축별 0.25~2다. 루트 `default_by_anim_mode`는 선택 사항이며 있으면 `abp`·`gasp` 양쪽에 등록된 id를 지정한다. 생략하면 기존 `default`를 쓴다. 현재 값은 abp=manny, gasp=manny_gasp이며 `animation.json`의 mode는 이 PR에서 바꾸지 않는다.
+
+자동 적용은 마지막 성공 id → 실제 폰이 GASP 계약을 만족하는 gasp 모드의 기본값(그 외 abp) → 공통 default 순서로 중복 없이 시도한다. 새 세션에서는 모드 기본값부터 시작한다. 따라서 이전 수동 선택은 재빙의 때 우선 유지되며, GASP 요청이 GameMode에서 ABP 폰으로 폴백되면 abp 기본값을 쓴다. 모든 후보 실패 시 §10처럼 마지막 성공 id가 남을 수 있다. 이 값만으로 새 폰 적용 성공을 판단하지 않는다.
+
+재현: `tools/ue/build.ps1` 뒤 `tools/ue/test.ps1 -SetupDevLevel -Filter Golmok.Character`를 실행한다. Config는 선택 필드 생략 호환성과 잘못된 타입·범위·참조를 거절하는지, Runtime은 기존 캐릭터 상태 보존과 source/visual 적용·해제를 검사한다. Runtime의 계약 대역은 메모리 안 임시 인터페이스·기존 매니 에셋만 쓰며 파일/Blueprint를 저장하지 않는다. 스코프 종료 시 설정·로스터·인터페이스를 복원한다. GASP 원본이 없으면 실제 두 GASP 항목의 시각 통합은 Info skip이고, 자산 누락 거절은 실행한다. 등록 수는 36을 유지한다.
+
+19b 설치 이후 PC 인계(아직 미실행): `golmok.character manny_gasp` → `uefn_gasp` → `manny` 순으로, source 포즈 갱신·매니 리타깃·visual scale·ABP 복귀 시 visual 제거를 확인한다. 일반 ABP 폰에서는 GASP 선택을 거절하고 기존 상태를 유지해야 한다. 메시/AnimClass/visual 하나를 찾을 수 없거나 스켈레톤이 맞지 않아도 메시·캡슐·카메라·속도·id를 유지해야 한다. 이 작업은 폰 클래스를 바꾸지 않으므로 GASP 모드는 올바른 19b BP 폰으로 시작해야 한다.
+
+한계: GASP 두 항목의 경로는 19a `closure.json`의 estimated 경로에 맞춘 준비 데이터다. 19b의 실제 설치·relocate 결과가 다르면 `characters.json` 경로를 갱신한다. visual ABP에 target skeleton이 명시되어 있으면 일치를 요구하고, skeleton-agnostic retarget ABP의 null target은 허용한다. 실제 GenericRetarget의 이 조건·Attached Parent 포즈 복사·걷기 품질은 19b/V-15에서 확인해야 한다. 헤드리스 계약 검사를 실제 GASP 리타깃 성공으로 기록하지 않는다.
