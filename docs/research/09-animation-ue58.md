@@ -134,3 +134,4 @@ PC 평가 절차: [`runbooks/pc-verify-animation.md`](../runbooks/pc-verify-anim
 - GASP의 자연스러움 일부는 느린 가감속에서 나온다(최고 속도 90 % 도달 ① 0.08~0.23 s, ② 0.23~0.57 s). 채택하면 조작감과 맞바꾼다는 해석은 [추정]이다(V-08b에서 우리 이동 값으로 확인).
 - Migrate는 GASP의 데이터 기반 콘솔 변수(발 배치 IK 등 27개)와 게임플레이 태그를 옮기지 않는다. 이식할 때 ini도 옮겨야 한다.
 - 결론: ② 조건부 채택 제안 → **D-021(2026-09-30, 오케스트레이터 결정)로 방향 채택**. 이동 의미(180/500·돌아서기·점프 90 cm)는 유지하고 가감속만 V-08b A/B로 정한다. GASP 원본은 무수정으로 저장소 밖에 두고 ① 폴백을 유지한다. 통합은 WP-19, 최종 판정은 V-15. 소유자 항목: 라이선스 원문 재확인, 에셋 보관 방식.
+- 통합 설계·구현: [`plan/WP-19-gasp-locomotion.md`](../plan/WP-19-gasp-locomotion.md)(19a 클라우드 기반·19b PC 바인딩·19c Astra), PC 런북 [`runbooks/pc-verify-wp19.md`](../runbooks/pc-verify-wp19.md)(A절 19b, B절 V-15).
