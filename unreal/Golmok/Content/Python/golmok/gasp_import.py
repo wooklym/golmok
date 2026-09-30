@@ -43,10 +43,6 @@ def _wait_for_registry():
     return registry
 
 
-def _class_name(asset) -> str:
-    return asset.get_class().get_name() if hasattr(asset, "get_class") else type(asset).__name__
-
-
 def _dependency_options():
     options = unreal.AssetRegistryDependencyOptions()
     for name, value in (
@@ -60,8 +56,28 @@ def _dependency_options():
     return options
 
 
-def migrate(closure_path, dest_content_dir) -> dict:
-    """In the GASP project: migrate the closure of the roots into Golmok Content (conflicts skipped)."""
+def _project_content_dir() -> Path:
+    paths = unreal.Paths
+    return Path(paths.convert_relative_path_to_full(paths.project_content_dir()))
+
+
+def _same_file(a: Path | None, b: Path | None) -> bool:
+    return (
+        a is not None
+        and b is not None
+        and a.stat().st_size == b.stat().st_size
+        and pure.sha256_file(a) == pure.sha256_file(b)
+    )
+
+
+def migrate(closure_path, dest_content_dir, source_content_dir=None, history_path=None) -> dict:
+    """In the GASP project: migrate the closure of the roots into Golmok Content (conflicts skipped).
+
+    Nothing is copied unless the preconditions hold (review R76 T1, T4): no /Game/GASP install, no leftover of
+    an earlier run at the Migrate paths, no /Game dependency with a name UE cannot hold. The GASP files of the
+    closure are hashed before and after the copy (source_digest, R76 T2: the acquired GASP, pinned by
+    tools/ue/gasp/expected.json); every package copied is added to the migrate history of this checkout.
+    """
     roots = pure.parse_closure(pure.load_json(closure_path))
     registry = _wait_for_registry()
     library = unreal.EditorAssetLibrary
@@ -72,36 +88,75 @@ def migrate(closure_path, dest_content_dir) -> dict:
     def dependencies(package):
         return [str(d) for d in (registry.get_dependencies(unreal.Name(package), options) or [])]
 
-    packages = pure.closure(found, dependencies)
+    packages, rejected = pure.closure(found, dependencies)
     if not packages:
         raise RuntimeError(f"no closure root exists in this project: {roots}")
-    existing = pure.packages_on_disk(dest_content_dir)
+    dest = Path(dest_content_dir)
+    source = Path(source_content_dir) if source_content_dir else _project_content_dir()
+    existing = pure.packages_on_disk(dest)
+    conflicts = sorted(set(packages) & existing)
+    pre = pure.migrate_preconditions(
+        packages,
+        existing,
+        pure.load_history(history_path),
+        lambda p: _same_file(pure.package_file(dest, p), pure.package_file(source, p)),
+    )
+    report = {
+        "roots_missing": missing,
+        "packages": packages,
+        "existing_before": sorted(existing),
+        "conflicts": conflicts,
+        "rejected": rejected,
+        "leftovers": pre["leftovers"],
+        "delete": pre["delete"],
+        "engine_version": unreal.SystemLibrary.get_engine_version(),
+    }
+    notes = [f"closure root not in the GASP project (19b fixes the path): {r}" for r in missing]
+    problems = [
+        f"/Game dependency with a name no package can have (not copied; report it): {r}" for r in rejected
+    ] + pre["problems"]
+    if problems:
+        unreal.log_warning(f"WP-19 add-gasp migrate: stopped before copying ({len(problems)} problems)")
+        return {
+            **report,
+            "ok": False,
+            "exit": 1,
+            "migrated": [],
+            "not_copied": [],
+            "messages": notes + problems,
+        }
+
+    before = pure.source_entries(source, packages)
+    source_digest = pure.aggregate_digest(before)
     migration = unreal.MigrationOptions()
     migration.set_editor_property("prompt", False)
     migration.set_editor_property("ignore_dependencies", True)  # the closure above is the dependency set
     migration.set_editor_property("asset_conflict", unreal.AssetMigrationConflict.SKIP)
-    _tools().migrate_packages([unreal.Name(p) for p in packages], str(dest_content_dir), migration)
-    after = pure.packages_on_disk(dest_content_dir)
+    _tools().migrate_packages([unreal.Name(p) for p in packages], str(dest), migration)
+    after = pure.packages_on_disk(dest)
     migrated = sorted(set(packages) - existing)
     not_copied = [p for p in migrated if p not in after]
-    unreal.log(
-        f"WP-19 add-gasp migrate: {len(packages)} closure packages, {len(migrated) - len(not_copied)} copied"
-    )
+    copied = [p for p in migrated if p not in not_copied]
+    pure.record_history(history_path, copied)
+    unchanged = pure.aggregate_digest(pure.source_entries(source, packages)) == source_digest
+    unreal.log(f"WP-19 add-gasp migrate: {len(packages)} closure packages, {len(copied)} copied")
+    messages = notes + [f"kept the existing Golmok package (name conflict skipped): {p}" for p in conflicts]
+    messages += [f"not copied: {p}" for p in not_copied]
+    if not unchanged:
+        messages.append(
+            "GASP project changed during migrate (its closure files differ before / after): add-gasp only "
+            "reads it; do not open and save the GASP project, re-create it from Fab if in doubt"
+        )
     return {
+        **report,
         "ok": not not_copied,
         "exit": 0 if not not_copied else 1,
-        "roots_missing": missing,
-        "packages": packages,
-        "existing_before": sorted(existing),
-        "conflicts": sorted(set(packages) & existing),
-        "migrated": [p for p in migrated if p not in not_copied],
+        "migrated": copied,
         "not_copied": not_copied,
-        "engine_version": unreal.SystemLibrary.get_engine_version(),
-        "messages": [f"closure root not in the GASP project (19b fixes the path): {r}" for r in missing]
-        + [
-            f"kept the existing Golmok package (name conflict skipped): {p}"
-            for p in sorted(set(packages) & existing)
-        ],
+        "source_digest": source_digest,
+        "source_package_count": len(before),
+        "source_unchanged": unchanged,
+        "messages": messages,
     }
 
 
@@ -118,38 +173,91 @@ def _apply(plan) -> list[tuple[str, str, str]]:
     return done
 
 
+def _assets_at(registry, plan) -> list:
+    """AssetData still registered at the old paths of the plan (folders recursively, assets by name)."""
+    found = []
+    for kind, source, _ in plan:
+        if kind == "dir":
+            query = unreal.ARFilter(package_paths=[unreal.Name(source)], recursive_paths=True)
+        else:
+            query = unreal.ARFilter(package_names=[unreal.Name(source)])
+        found.extend(registry.get_assets(query) or [])
+    return found
+
+
+def _is_redirector(data) -> bool:
+    helpers = unreal.AssetRegistryHelpers
+    if hasattr(helpers, "is_redirector"):
+        return bool(helpers.is_redirector(data))
+    return str(data.get_editor_property("asset_class_path").asset_name) == "ObjectRedirector"
+
+
 def _fixup_redirectors(plan) -> list[str]:
-    """Fix up and delete the redirectors the moves left behind (folders and single assets); returns what is
-    still at an old path afterwards (must be nothing: no reference to the Migrate paths remains)."""
-    library = unreal.EditorAssetLibrary
-
-    def old_assets():
-        paths = []
-        for kind, source, _ in plan:
-            if kind == "dir":
-                if library.does_directory_exist(source):
-                    paths.extend(library.list_assets(source, recursive=True, include_folder=False))
-            elif library.does_asset_exist(source):
-                paths.append(source)
-        return paths
-
-    redirectors = []
-    for path in old_assets():
-        asset = library.load_asset(path)
-        if asset is not None and _class_name(asset) == "ObjectRedirector":
-            redirectors.append(asset)
+    """Fix up and delete the redirectors the moves left behind (folders and single assets), found through the
+    asset registry (review R76 T5: no load_asset guess); returns the packages still at an old path afterwards
+    (must be nothing: no reference to the Migrate paths remains)."""
+    registry = _wait_for_registry()
+    redirectors = [d.get_asset() for d in _assets_at(registry, plan) if _is_redirector(d)]
+    redirectors = [r for r in redirectors if r is not None]
     if redirectors and hasattr(_tools(), "fixup_referencers"):
         _tools().fixup_referencers(redirectors)
-    return old_assets()
+    return sorted({str(d.package_name) for d in _assets_at(registry, plan)})
+
+
+def _read_local_files(gasp: Path) -> dict:
+    """GASP DDCvar / tag ini text -> the two local files' data (parsed before anything moves, R76 T1)."""
+    engine_ini = gasp / "Config" / "DefaultEngine.ini"
+    tags_source = gasp / "Config" / "DefaultGameplayTags.ini"
+    cvars = pure.parse_cvars(engine_ini.read_text(encoding="utf-8-sig")) if engine_ini.is_file() else []
+    tags = pure.parse_tags(tags_source.read_text(encoding="utf-8-sig")) if tags_source.is_file() else []
+    return {"cvars": cvars, "engine_ini": engine_ini, "tags": tags, "tags_source": tags_source}
+
+
+def _write_local_files(local_dir, tags_path, data) -> None:
+    pure.write_json(
+        Path(local_dir) / "gasp_ddcvars.json", pure.ddcvars_json(data["cvars"], data["engine_ini"])
+    )
+    pure.write_text(tags_path, pure.tags_ini(data["tags"], data["tags_source"]))
+
+
+def local_files(local_dir, tags_path, gasp_project) -> dict:
+    """add-gasp.ps1 -LocalFiles: rewrite only gasp_ddcvars.json and Config/Tags/GASP.ini (nothing moves)."""
+    data = _read_local_files(Path(gasp_project))
+    _write_local_files(local_dir, tags_path, data)
+    unreal.log(f"WP-19 add-gasp local_files: {len(data['cvars'])} DDCvars, {len(data['tags'])} tags")
+    return {"ok": True, "exit": 0, "ddcvars": len(data["cvars"]), "tags": len(data["tags"]), "messages": []}
 
 
 def relocate(
     migrate_report, content_dir, local_dir, tags_path, gasp_project, content_root="/Game/GASP"
 ) -> dict:
-    """In Golmok: move the migrated packages under content_root, then write the three local files."""
+    """In Golmok: move the migrated packages under content_root, then write the three local files.
+
+    A migrate report that is not ok or copied nothing is refused and the previous manifest stays (R76 T1).
+    """
     report = pure.load_json(migrate_report)
+    migrated = report.get("migrated") or []
+    if not report.get("ok") or not migrated:
+        return {
+            "ok": False,
+            "exit": 1,
+            "package_count": 0,
+            "messages": [
+                "migrate report is not ok or has no migrated package: nothing relocated, the previous "
+                "manifest is kept (see the migrate messages; runbook A3 re-run)"
+            ],
+        }
+    gasp = Path(gasp_project)
+    try:
+        local = _read_local_files(gasp)
+    except ValueError as error:
+        return {
+            "ok": False,
+            "exit": 1,
+            "package_count": 0,
+            "messages": [f"GASP ini: {error}; nothing moved (fix it, then re-run add-gasp)"],
+        }
     _wait_for_registry()  # the files migrate just copied must be discovered before the moves
-    migrated = report["migrated"]
     plan = pure.relocation_plan(migrated, report["existing_before"], content_root)
     done = _apply(plan)
     messages = []
@@ -170,17 +278,15 @@ def relocate(
             "GASP stays at the Migrate paths: set animation.json gasp.content_root to /Game"
         )
     packages = [pure.map_to_root(p, root) for p in migrated]
-    gasp = Path(gasp_project)
-    manifest = pure.build_manifest(content_dir, packages, root, gasp, report.get("engine_version", ""))
+    source = {k: report.get(k) for k in ("source_digest", "source_package_count")}
+    manifest = pure.build_manifest(
+        content_dir, packages, root, gasp, report.get("engine_version", ""), source=source
+    )
     pure.write_json(Path(local_dir) / "gasp_manifest.json", manifest)
-    engine_ini = gasp / "Config" / "DefaultEngine.ini"
-    cvars = pure.parse_cvars(engine_ini.read_text(encoding="utf-8-sig")) if engine_ini.is_file() else []
-    pure.write_json(Path(local_dir) / "gasp_ddcvars.json", pure.ddcvars_json(cvars, engine_ini))
-    tags_source = gasp / "Config" / "DefaultGameplayTags.ini"
-    tags = pure.parse_tags(tags_source.read_text(encoding="utf-8-sig")) if tags_source.is_file() else []
-    pure.write_text(tags_path, pure.tags_ini(tags, tags_source))
+    _write_local_files(local_dir, tags_path, local)
     unreal.log(
-        f"WP-19 add-gasp relocate: {len(packages)} packages in {root}, {len(cvars)} DDCvars, {len(tags)} tags"
+        f"WP-19 add-gasp relocate: {len(packages)} packages in {root}, {len(local['cvars'])} DDCvars, "
+        f"{len(local['tags'])} tags"
     )
     return {
         "ok": True,
@@ -190,9 +296,43 @@ def relocate(
         "planned": len(plan),
         "package_count": manifest["package_count"],
         "digest": manifest["digest"],
-        "ddcvars": len(cvars),
-        "tags": len(tags),
+        "source_digest": manifest["source_digest"],
+        "ddcvars": len(local["cvars"]),
+        "tags": len(local["tags"]),
         "messages": messages,
+    }
+
+
+def manifest(migrate_report, content_dir, local_dir, gasp_project) -> dict:
+    """add-gasp.ps1 -Manifest: rewrite gasp_manifest.json for the packages of the last successful migrate
+    where they are now (/Game/GASP or the Migrate paths), e.g. after a GUI Move + Fix Up Redirectors (runbook
+    section C #16). Nothing moves."""
+    report = pure.load_json(migrate_report)
+    migrated = report.get("migrated") or []
+    root = pure.installed_root(content_dir, migrated)
+    if not report.get("ok") or root is None:
+        return {
+            "ok": False,
+            "exit": 1,
+            "messages": [
+                f"{len(migrated)} migrated packages are neither all under /Game/GASP nor all at their "
+                "Migrate paths: manifest not written"
+            ],
+        }
+    source = {k: report.get(k) for k in ("source_digest", "source_package_count")}
+    packages = [pure.map_to_root(p, root) for p in migrated]
+    data = pure.build_manifest(
+        content_dir, packages, root, Path(gasp_project), report.get("engine_version", ""), source=source
+    )
+    pure.write_json(Path(local_dir) / "gasp_manifest.json", data)
+    return {
+        "ok": True,
+        "exit": 0,
+        "content_root": root,
+        "package_count": data["package_count"],
+        "digest": data["digest"],
+        "source_digest": data["source_digest"],
+        "messages": [f"manifest rewritten: {data['package_count']} packages in {root}"],
     }
 
 
@@ -247,6 +387,8 @@ def verify(
         "exit": 0 if not problems else 1,
         "package_count": manifest.get("package_count"),
         "digest": manifest.get("digest"),
+        "source_digest": manifest.get("source_digest"),
+        "source_package_count": manifest.get("source_package_count"),
         "messages": problems + warnings,
     }
 
@@ -254,7 +396,11 @@ def verify(
 def run_job(job: dict) -> dict:
     step = job.get("step")
     if step == "migrate":
-        return migrate(job["closure"], job["dest_content"])
+        return migrate(job["closure"], job["dest_content"], job.get("source_content"), job.get("history"))
+    if step == "local_files":
+        return local_files(job["local_dir"], job["tags_ini"], job["gasp_project"])
+    if step == "manifest":
+        return manifest(job["migrate_report"], job["content_dir"], job["local_dir"], job["gasp_project"])
     if step == "relocate":
         return relocate(
             job["migrate_report"], job["content_dir"], job["local_dir"], job["tags_ini"], job["gasp_project"]

@@ -192,6 +192,9 @@ private:
 	double PreviousSpeed2D = 0.0;
 	bool bHasPrevious = false;
 	bool bReinitPending = false;
+	// HandleLanded (CMC callback) only records the landing; TickComponent is the single writer of State (R76 C8).
+	bool bLandingPending = false;
+	FVector PendingLandVelocity = FVector::ZeroVector;
 	double JustLandedSeconds = GolmokLocomotionMath::DefaultJustLandedSeconds;
 	double TeleportJumpCm = GolmokLocomotionMath::DefaultTeleportSlackCm;
 	bool bReinitAnimOnTeleport = true;

@@ -43,6 +43,18 @@ AUTOMATION_TESTS = (
     "Golmok.Animation.GaspSmoke",
 )
 FORBIDDEN_MODULES = ("PoseSearch", "Chooser", "Mover", "GameplayCameras")
+# R76 D8: their headers in any include form ("PoseSearch/PoseSearchSchema.h", "MoverComponent.h", "Chooser.h",
+# "GameplayCameras.h", "GameFramework/GameplayCameraComponent.h", ...): the file name decides.
+FORBIDDEN_HEADER = re.compile(r"PoseSearch|Chooser|Mover|GameplayCamera")  # searched in the file name
+INCLUDE = re.compile(r'^\s*#\s*include\s*[<"]([^>"]+)[>"]', re.M)
+UPROJECT_MODULES = [
+    {
+        "Name": "Golmok",
+        "Type": "Runtime",
+        "LoadingPhase": "Default",
+        "AdditionalDependencies": ["Engine", "EnhancedInput"],
+    }
+]
 # D-021 "Experimental 허용 범위": plugins the unmodified GASP locomotion assets need (+ what the project had).
 ALLOWED_PLUGINS = {
     "EnhancedInput", "PythonScriptPlugin", "EditorScriptingUtilities", "AndroidFileServer",
@@ -81,12 +93,44 @@ def test_animation_folder_files_and_conventions():
 def test_no_gasp_plugin_module_dependency_in_source_or_build_cs():
     for path in SOURCE.rglob("*.[ch]*"):
         text = _read(path)
-        for module in FORBIDDEN_MODULES:
-            assert not re.search(rf'#include\s+[<"]{module}/', text), (path, module)
+        for include in INCLUDE.findall(text):
+            parts = include.replace("\\", "/").split("/")
+            assert parts[0] not in FORBIDDEN_MODULES, (path, include)
+            assert not FORBIDDEN_HEADER.search(parts[-1]), (path, include)
     build = _strip_comments(_read(SOURCE / "Golmok.Build.cs"))
     modules = set(re.findall(r'"(\w+)"', build))
     assert modules == BUILD_CS_PUBLIC | BUILD_CS_PRIVATE | BUILD_CS_EDITOR
     assert not modules & set(FORBIDDEN_MODULES)
+    # The .uproject module entry (its AdditionalDependencies load modules too) is pinned as well (R76 D8).
+    assert json.loads(_read(UE / "Golmok.uproject"))["Modules"] == UPROJECT_MODULES
+
+
+def test_forbidden_header_rule_catches_every_include_form():
+    text = "\n".join(
+        f"#include {i}"
+        for i in (
+            '"PoseSearch/PoseSearchDatabase.h"',
+            '"MoverComponent.h"',
+            "<Chooser.h>",
+            '"GameplayCameras.h"',
+            '"GameFramework/GameplayCameraComponent.h"',
+            '"DefaultMovementSet/CharacterMoverComponent.h"',
+        )
+    )
+    caught = [
+        i
+        for i in INCLUDE.findall(text)
+        if i.split("/")[0] in FORBIDDEN_MODULES or FORBIDDEN_HEADER.search(i.split("/")[-1])
+    ]
+    assert len(caught) == 6
+    for fine in (
+        "Camera/CameraComponent.h",
+        "GameFramework/CharacterMovementComponent.h",
+        "Animation/AnimInstance.h",
+    ):
+        assert (
+            not FORBIDDEN_HEADER.search(fine.split("/")[-1]) and fine.split("/")[0] not in FORBIDDEN_MODULES
+        )
 
 
 def test_uproject_plugins_inside_the_d021_allowed_list():

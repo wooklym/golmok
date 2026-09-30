@@ -78,8 +78,12 @@ ON_GROUND, IN_AIR = 0, 1
 IDLE, MOVING = 0, 1
 
 
+def _finite(*values: float) -> bool:
+    return all(math.isfinite(v) for v in values)
+
+
 def ref_gait(max_walk: float, walk: float, run_speed: float) -> int:
-    if run_speed <= walk:
+    if not _finite(max_walk, walk, run_speed) or run_speed <= walk:
         return WALK
     return RUN if abs(max_walk - run_speed) <= 0.5 else WALK
 
@@ -89,11 +93,11 @@ def ref_mode(mode: int) -> int:
 
 
 def ref_intent(ax: float, ay: float, max_accel: float, deadzone: float) -> tuple[float, float]:
-    if max_accel <= 0:
+    if not _finite(ax, ay, max_accel) or max_accel <= 0:
         return 0.0, 0.0
     x, y = ax / max_accel, ay / max_accel
     length = math.hypot(x, y)
-    if length < deadzone:
+    if not math.isfinite(length) or length < deadzone:
         return 0.0, 0.0
     if length > 1:
         x, y = x / length, y / length
@@ -109,7 +113,14 @@ def ref_moving(prev: int, speed: float, intent_len: float) -> int:
 
 
 def ref_teleport(px, py, cx, cy, speed, dt, slack) -> bool:
-    return math.hypot(cx - px, cy - py) > max(speed, 0) * max(dt, 0) + max(slack, 0)
+    distance = math.hypot(cx - px, cy - py)
+    if not math.isfinite(distance):
+        return False
+
+    def positive(v):
+        return v if math.isfinite(v) and v > 0 else 0.0
+
+    return distance > positive(speed) * positive(dt) + positive(slack)
 
 
 PROFILE_RANGES = (
@@ -321,3 +332,92 @@ def test_planted_slip_matches_reference(driver):
         ]
         (line,) = run(driver, [_planted_command(samples)])
         assert float(line[0]) == pytest.approx(ref_planted(samples), rel=1e-12, abs=1e-12)
+
+
+# ---- non-finite inputs (review R76 D10: the driver parses nan / inf tokens) --------------------------------
+
+NAN, INF = math.nan, math.inf
+SPECIAL = (NAN, INF, -INF)
+
+
+def test_non_finite_tokens_reach_the_header(driver):
+    assert ints(
+        driver, ["gait nan 180 500", "gait 500 180 inf", "gait inf 180 inf", "gait 500 -inf 500"]
+    ) == [
+        WALK,
+        WALK,
+        WALK,
+        WALK,
+    ]
+    for line in run(driver, ["intent nan 0 2048 0.05", "intent 2048 0 inf 0.05", "intent inf inf 2048 0.05"]):
+        assert [float(v) for v in line] == [0.0, 0.0, 0.0]
+    assert ints(driver, ["moving 0 nan 0", "moving 1 nan 0", "moving 0 inf 0", "moving 1 -inf 0"]) == [
+        IDLE,
+        MOVING,
+        MOVING,
+        IDLE,
+    ]
+    assert ints(driver, ["teleport 0 0 inf 0 500 0.1 100", "teleport 0 0 nan 0 0 0 100",
+                         "teleport 0 0 150 0 nan 0.1 100", "teleport 0 0 150 0 500 inf 100",
+                         "teleport 0 0 150 0 inf 0.1 100"]) == [0, 0, 1, 1, 1]  # fmt: skip
+    assert ints(
+        driver, ["profile nan 2000 8 2 0 0", "profile 2048 inf 8 2 0 0", "state nan 100", "state 0.3 inf"]
+    ) == [
+        0,
+        0,
+        0,
+        0,
+    ]
+    (landing,) = run(driver, ["landing nan 10 0.3 0 3 10.1 nan inf"])
+    assert landing == ["0", "1", "0.099999999999999645", "0", "-1", "0", "inf"]
+    assert run(driver, ["slip nan 200", "slip 30 inf", "slip inf 200"]) == [["0"], ["0"], ["0"]]
+    planted = [(0, 0, NAN, True), (1, 0, 10, True), (2, 0, 10, True), (NAN, 0, 10, True), (4, 0, 10, True)]
+    (travel,) = run(driver, [_planted_command(planted)])
+    assert float(travel[0]) == ref_planted_finite(planted) == 1.0
+
+
+def ref_planted_finite(samples) -> float:
+    """ref_planted with the header's non-finite rules (a nan height is never the floor nor planted)."""
+    grounded = [z for _x, _y, z, g in samples if g and math.isfinite(z)]
+    if len(samples) < 2 or not grounded:
+        return 0.0
+    floor = min(grounded)
+
+    def planted(s):
+        return s[3] and math.isfinite(s[2]) and s[2] <= floor + 2.5
+
+    total = 0.0
+    for a, b in zip(samples, samples[1:], strict=False):
+        if planted(a) and planted(b):
+            step = math.hypot(b[0] - a[0], b[1] - a[1])
+            total += step if math.isfinite(step) else 0.0
+    return total
+
+
+def test_non_finite_random_cases_match_the_reference(driver):
+    rng = random.Random(1910)
+
+    def value(low, high):
+        return rng.choice(SPECIAL) if rng.random() < 0.3 else rng.uniform(low, high)
+
+    gaits = [(value(0, 800), value(50, 300), value(50, 800)) for _ in range(200)]
+    assert ints(driver, [f"gait {m!r} {w!r} {r!r}" for m, w, r in gaits]) == [ref_gait(*c) for c in gaits]
+    intents = [(value(-5000, 5000), value(-5000, 5000), value(1, 4000), 0.05) for _ in range(200)]
+    for case, line in zip(intents, run(driver, [f"intent {a!r} {b!r} {m!r} {d!r}" for a, b, m, d in intents]),
+                          strict=True):  # fmt: skip
+        x, y = ref_intent(*case)
+        assert float(line[0]) == pytest.approx(x, rel=1e-12, abs=1e-15)
+        assert float(line[1]) == pytest.approx(y, rel=1e-12, abs=1e-15)
+    moves = [(rng.choice((IDLE, MOVING)), value(0, 20), rng.choice((0.0, 0.5))) for _ in range(200)]
+    assert ints(driver, [f"moving {p} {s!r} {i!r}" for p, s, i in moves]) == [ref_moving(*c) for c in moves]
+    jumps = [tuple(value(-1e4, 1e4) for _ in range(4)) + (value(0, 800), value(0, 0.2), value(20, 1000))
+             for _ in range(200)]  # fmt: skip
+    got = ints(driver, ["teleport " + " ".join(repr(v) for v in c) for c in jumps])
+    assert got == [int(ref_teleport(*c)) for c in jumps]
+    for _ in range(20):
+        samples = [
+            (value(-50, 50), value(-50, 50), value(0, 8), rng.random() > 0.1)
+            for _ in range(rng.randint(0, 30))
+        ]
+        (line,) = run(driver, [_planted_command(samples)])
+        assert float(line[0]) == pytest.approx(ref_planted_finite(samples), rel=1e-12, abs=1e-12)
