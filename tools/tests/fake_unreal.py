@@ -83,6 +83,11 @@ KNOBS (install(**cfg) keywords = Fake attributes): obj_mapping=(100.0, M_OBJ) gl
     rename_directory / rename_asset move the registry keys and, when present, the files under
     fake.content_dir (a UE rename moves the package files).
     unreal.load_class(None, "/Game/A/B.B_C") returns the registered asset /Game/A/B or None.
+    WP-19a-2: leave_redirectors=False (True: rename_directory / rename_asset leave a FakeObjectRedirector
+    at every old path, like an editor rename that still has referencers) fixup_deletes_redirectors=True
+    (False: AssetTools.fixup_referencers leaves them). AssetRegistry.get_assets(ARFilter(package_names /
+    package_paths, recursive_paths)) lists registered assets as FakeAssetData (asset_class_path.asset_name
+    = the class name, get_asset()); AssetRegistryHelpers.is_redirector(data) checks that class name.
 
 Console (SystemLibrary.execute_console_command): "golmok.tod <preset>" picks the screenshot folder
 (fake.tod_commands records every golmok.tod argument list; the WP-14a subcommands time / mode / rate / status
@@ -155,6 +160,7 @@ KNOBS = {
     "zone_transform": ZONE_ROOT_CM, "begin_play_starts_pie": True, "level": DEFAULT_LEVEL, "lit": True,
     "save_map_renames": True, "nullrhi": False, "relative_paths": False,
     "dependencies": {}, "rename_directory_ok": True,  # WP-19 gasp_import
+    "leave_redirectors": False, "fixup_deletes_redirectors": True,  # WP-19a-2 gasp_import
 }  # fmt: skip
 # (class, label, tags) of setup_dev_level._build_lighting(), seeded into the initial level when lit=True.
 L_DEV_LIGHTING = (
@@ -444,6 +450,10 @@ AssetRegistryDependencyOptions = _options("AssetRegistryDependencyOptions", {
     "include_searchable_names": False, "include_soft_management_references": False,
     "include_hard_management_references": False,
 })  # fmt: skip
+ARFilter = _options("ARFilter", {
+    "package_names": list, "package_paths": list, "recursive_paths": False, "class_paths": list,
+    "recursive_classes": False, "soft_object_paths": list, "include_only_on_disk_assets": False,
+})  # fmt: skip
 MigrationOptions = _options("MigrationOptions", {
     "prompt": True, "ignore_dependencies": False, "asset_conflict": "SKIP", "orphan_folder": "",
 })  # fmt: skip
@@ -502,6 +512,12 @@ class FakeAsset:
 
     def __repr__(self):
         return f"<{type(self).__name__} {self.path}>"
+
+
+class FakeObjectRedirector(FakeAsset):
+    """WP-19a-2: what an editor rename leaves at the old path while something still references it."""
+
+    unreal_name = "ObjectRedirector"
 
 
 class FakeStaticMesh(FakeAsset):
@@ -1005,6 +1021,8 @@ class FakeEditorAssetLibrary(_Bound):
             return False
         asset.path = new
         self._fake.registry[new] = asset
+        if self._fake.leave_redirectors:
+            self._fake.registry[old] = FakeObjectRedirector(self._fake, old)
         if isinstance(asset, FakeLevel) and old in self._fake.levels:
             self._fake.levels[new] = self._fake.levels.pop(old)
         _move_package_files(self._fake, old, new)
@@ -1020,6 +1038,8 @@ class FakeEditorAssetLibrary(_Bound):
             asset = self._fake.registry.pop(key)
             asset.path = new + key[len(old) :]
             self._fake.registry[asset.path] = asset
+            if self._fake.leave_redirectors:
+                self._fake.registry[key] = FakeObjectRedirector(self._fake, key)
         _move_package_files(self._fake, old, new)
         return True
 
@@ -1072,7 +1092,43 @@ def _move_package_files(fake, old: str, new: str) -> None:
             os.replace(file, target.with_name(target.name + ext))
 
 
+class _ClassPath:
+    def __init__(self, name):
+        self.package_name = Name("/Script/CoreUObject" if name == "ObjectRedirector" else "/Script/Engine")
+        self.asset_name = Name(name)
+
+
+class FakeAssetData:
+    """WP-19a-2: AssetData of a registered asset (package_name, package_path, asset_class_path, get_asset)."""
+
+    def __init__(self, fake, asset):
+        self._fake, self._asset = fake, asset
+        self.package_name = Name(asset.path)
+        self.package_path = Name(asset.path.rsplit("/", 1)[0])
+        self.asset_name = Name(asset.get_name())
+        self.asset_class_path = _ClassPath(asset.unreal_name)
+
+    def get_editor_property(self, name):
+        return getattr(self, name)
+
+    def get_asset(self):
+        return self._fake.registry.get(self._asset.path)
+
+
 class FakeAssetRegistry(_Bound):
+    def get_assets(self, filter_):
+        names = {str(n) for n in filter_.package_names}
+        paths = {str(p).rstrip("/") for p in filter_.package_paths}
+        out = []
+        for key in sorted(self._fake.registry):
+            folder = key.rsplit("/", 1)[0]
+            in_path = folder in paths or (
+                filter_.recursive_paths and any(folder.startswith(p + "/") for p in paths)
+            )
+            if key in names or in_path:
+                out.append(FakeAssetData(self._fake, self._fake.registry[key]))
+        return out
+
     def get_dependencies(self, package_name, dependency_options):
         name = str(package_name)
         self._fake.calls.append(("get_dependencies", name))
@@ -1082,6 +1138,9 @@ class FakeAssetRegistry(_Bound):
 
 
 class FakeAssetRegistryHelpers(_Bound):
+    def is_redirector(self, asset_data):
+        return str(asset_data.asset_class_path.asset_name) == "ObjectRedirector"
+
     def get_asset_registry(self):
         return FakeAssetRegistry(self._fake)
 
@@ -1162,7 +1221,12 @@ class FakeAssetTools(_Bound):
                 target.write_bytes(name.encode("utf-8"))
 
     def fixup_referencers(self, referencers, *args, **kwargs):
-        self._fake.calls.append(("fixup_referencers", len(list(referencers))))
+        referencers = list(referencers)
+        self._fake.calls.append(("fixup_referencers", len(referencers)))
+        if self._fake.fixup_deletes_redirectors:
+            for redirector in referencers:
+                if isinstance(redirector, FakeObjectRedirector):
+                    self._fake.registry.pop(redirector.path, None)
 
     def import_asset_tasks(self, tasks):
         for task in tasks:
@@ -1823,6 +1887,7 @@ def _names(fake: Fake) -> dict:
         "LevelStreamingDynamic": LevelStreamingDynamic,
         "AssetRegistryDependencyOptions": AssetRegistryDependencyOptions,
         "MigrationOptions": MigrationOptions, "AssetMigrationConflict": AssetMigrationConflict,
+        "ARFilter": ARFilter, "ObjectRedirector": FakeObjectRedirector,
         "load_class": lambda outer, path: fake.registry.get(_key(path)),
         "EditorActorSubsystem": EditorActorSubsystem, "LevelEditorSubsystem": LevelEditorSubsystem,
         "UnrealEditorSubsystem": UnrealEditorSubsystem,

@@ -62,8 +62,9 @@ def test_closure_keeps_game_packages_and_handles_cycles():
         BPI: [ABP],  # cycle
         "/Game/Blueprints/Data/DB": ["/Game/Characters/UEFN_Mannequin/Anims/A1"],
     }
-    got = pure.closure([ABP, "/Script/Nope"], lambda p: deps.get(p))
+    got, rejected = pure.closure([ABP, "/Script/Nope"], lambda p: deps.get(p))
     assert got == sorted([ABP, BPI, "/Game/Blueprints/Data/DB", "/Game/Characters/UEFN_Mannequin/Anims/A1"])
+    assert rejected == []
 
 
 def test_map_to_root():
@@ -153,23 +154,40 @@ def test_manifest_digest_is_stable_and_detects_changes(tmp_path):
 
 
 def test_compare_expected():
-    manifest = {"digest": "abc", "package_count": 3}
-    assert "not filled" in pure.compare_expected(manifest, {"digest": None, "package_count": None})
-    assert pure.compare_expected(manifest, {"digest": "abc", "package_count": 3}) is None
-    assert pure.compare_expected(manifest, {"digest": "abd", "package_count": 3}).startswith(
-        "GASP 갱신 — V-08b/V-15 재확인"
-    )
+    # The acquired GASP (source_digest / source_package_count) and the engine; never the local digest.
+    manifest = {
+        "digest": "local",
+        "source_digest": "abc",
+        "source_package_count": 3,
+        "engine_version": "5.8.3",
+    }
+    filled = {"source_digest": "abc", "package_count": 3, "engine_version": "5.8.3"}
+    assert "not filled" in pure.compare_expected(manifest, dict(filled, source_digest=None))
+    assert "not filled" in pure.compare_expected(manifest, dict(filled, engine_version=None))
+    assert pure.compare_expected(manifest, filled) is None
+    assert pure.compare_expected(dict(manifest, digest="other"), filled) is None
+    for key, value in (("source_digest", "abd"), ("package_count", 4), ("engine_version", "5.8.4")):
+        assert pure.compare_expected(manifest, dict(filled, **{key: value})).startswith(
+            "GASP 갱신 — V-08b/V-15 재확인"
+        )
+    old = {
+        "digest": "local",
+        "package_count": 3,
+        "engine_version": "5.8.3",
+    }  # a 19a manifest: no source_digest
+    assert pure.compare_expected(old, filled).startswith("GASP 갱신")
 
 
 def test_committed_expected_is_null_or_a_verified_install():
     # null until 19b records the first verified install (runbook A7); then all three are set together.
     data = json.loads(EXPECTED.read_text(encoding="utf-8"))
-    assert data["schema_version"] == 1
-    values = (data["digest"], data["package_count"], data["engine_version"])
-    if data["digest"] is None:
+    assert data["schema_version"] == 2
+    assert set(data) == {"schema_version", "comment", *pure.EXPECTED_KEYS}
+    values = (data["source_digest"], data["package_count"], data["engine_version"])
+    if data["source_digest"] is None:
         assert values == (None, None, None)
     else:
-        assert re.fullmatch(r"[0-9a-f]{64}", data["digest"]) and type(data["package_count"]) is int
+        assert re.fullmatch(r"[0-9a-f]{64}", data["source_digest"]) and type(data["package_count"]) is int
         assert isinstance(data["engine_version"], str) and data["engine_version"]
 
 
@@ -180,7 +198,7 @@ def test_parse_cvars_three_types_and_both_spellings():
     cvars = pure.parse_cvars(synthetic_engine_ini())
     assert len(cvars) == pure.EXPECTED_DDCVARS == 27
     assert {c["type"] for c in cvars} == {"int", "float", "bool"}
-    assert all(pure.is_ddcvar(c["name"]) for c in cvars)
+    assert all(c["name"].lower().startswith("ddcvar.") for c in cvars)
     assert {c["name"].split(".")[0] for c in cvars} == {"DDCvar", "DDCVar"}
     by_name = {c["name"]: c for c in cvars}
     assert by_name["DDCVar.Test0"] == {
@@ -288,11 +306,12 @@ def gasp(monkeypatch, tmp_path):
     (gasp_project / "Config").mkdir(parents=True)
     (gasp_project / "Config/DefaultEngine.ini").write_text(synthetic_engine_ini(), encoding="utf-8")
     (gasp_project / "Config/DefaultGameplayTags.ini").write_text(synthetic_tags_ini(), encoding="utf-8")
+    _content(gasp_project / "Content", list(deps) + [BPI, UEFN, "/Game/Characters/UEFN_Mannequin/Anims/A1"])
     return fake, module, content, gasp_project
 
 
 def _migrate(module, content, tmp_path):
-    report = module.migrate(CLOSURE, content)
+    report = module.migrate(CLOSURE, content, tmp_path / "GASP_58/Content")
     path = tmp_path / "migrate.json"
     path.write_text(json.dumps(report), encoding="utf-8")
     return report, path
@@ -347,7 +366,7 @@ def test_relocate_moves_under_gasp_and_writes_local_files(gasp, tmp_path):
     status.write_text("", encoding="utf-8")
     ok = module.verify(content, local, tags, EXPECTED, status, ANIMATION)
     assert ok["ok"] and ok["exit"] == 0, ok
-    assert ok["messages"] == ["expected.json not filled yet (19b records the first verified digest)"]
+    assert ok["messages"] == ["expected.json not filled yet (19b records the first verified source_digest)"]
     status.write_text("?? unreal/Golmok/Content/GASP/Blueprints/X.uasset\n", encoding="utf-8")
     (content / "GASP/Blueprints/Data/DB.uasset").write_bytes(b"edited")
     bad = module.verify(content, local, tags, EXPECTED, status, ANIMATION)
@@ -379,6 +398,7 @@ def test_main_runs_a_job_and_writes_the_result(gasp, tmp_path, monkeypatch):
     job = tmp_path / "job.json"
     result = tmp_path / "out/migrate.json"
     job.write_text(json.dumps({"step": "migrate", "closure": str(CLOSURE), "dest_content": str(content),
+                               "source_content": str(tmp_path / "GASP_58/Content"),
                                "result": str(result)}), encoding="utf-8")  # fmt: skip
     monkeypatch.setenv(module.JOB_ENV, str(job))
     assert module.main() == 0
@@ -396,5 +416,17 @@ def test_add_gasp_script_drives_gasp_import():
     assert "golmok\\gasp_import.py" in text and "GOLMOK_GASP_JOB" in text
     for step in ('step = "migrate"', 'step = "relocate"', 'step = "verify"'):
         assert step in text
-    assert 'param([string]$GaspProject = "C:\\UE\\GASP_58", [switch]$Verify, [switch]$Force)' in text
-    assert "--untracked-files=all" in text and "exit $ExitCode" in text
+    assert (
+        'param([string]$GaspProject = "C:\\UE\\GASP_58", [switch]$Verify, [switch]$Force, '
+        "[switch]$LocalFiles, [switch]$Manifest)"
+    ) in text
+    assert "--untracked-files=all" in text and "$ExitCode" not in text
+    for step in ('step = "local_files"', 'step = "manifest"', "source_content = ", "history = ",
+                 "migrate-last-ok.json", "$LASTEXITCODE -ne 0", "[WildcardPattern]::Escape"):  # fmt: skip
+        assert step in text, step
+    # R76 T1 / T7: -Force stops before migrate over Content\GASP; the manifest alone means "installed";
+    # a path with a space, a running editor and a missing mannequin pack stop before any editor session.
+    force = text.index("add-gasp -Force never overwrites an install")
+    assert force < text.index('step = "migrate"') and "Test-Path $ManifestFile" in text
+    assert "$Script -match '\\s'" in text and "Get-CimInstance Win32_Process" in text
+    assert text.index("add-mannequin.ps1 first") < text.index('step = "migrate"')

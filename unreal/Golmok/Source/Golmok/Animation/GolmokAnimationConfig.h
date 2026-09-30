@@ -57,7 +57,10 @@ namespace GolmokAnimation
 	};
 
 	GOLMOK_API const TCHAR* ModeName(EMode Mode);
+	/** animation.json "mode": exactly "abp" / "gasp" (case-sensitive, the pytest schema rule). */
 	GOLMOK_API bool ParseModeName(const FString& Text, EMode& OutMode);
+	/** -GolmokAnim=<mode> / golmok.anim mode <mode>: "abp" / "gasp" in any case, trimmed (R76 C4). */
+	GOLMOK_API bool ParseModeArgument(const FString& Text, EMode& OutMode);
 
 	/** All-or-nothing: OutConfig is unchanged on failure and OutError names the first rule that failed. */
 	GOLMOK_API bool ParseConfig(const FString& Text, FConfig& OutConfig, FString& OutError);
@@ -93,13 +96,20 @@ namespace GolmokAnimation
 		FString Source;       // "command line" | "console" | "animation.json" | "animation.json invalid"
 		bool bConfigValid = false;
 		FString ConfigError;  // parser error when !bConfigValid
+		FString InvalidCommandLineValue; // -GolmokAnim=<value> that is not abp / gasp (ignored; Warning once)
 	};
 
 	/** Pure precedence rule (Golmok.Animation.Config): command line > console override > file mode. */
 	GOLMOK_API FModeResolution ComputeEffectiveMode(const TCHAR* CommandLine, const TOptional<EMode>& ConsoleOverride,
 		bool bConfigValid, EMode FileMode);
-	/** ComputeEffectiveMode(FCommandLine::Get(), console override, LoadConfig()) (isolated under an override). */
+	/**
+	 * ComputeEffectiveMode(FCommandLine::Get(), console override, LoadConfig()) (isolated under an override). An
+	 * invalid -GolmokAnim value logs "anim: -GolmokAnim=<value> is not abp or gasp; ignored" once per process.
+	 */
 	GOLMOK_API FModeResolution GetEffectiveMode();
+
+	/** Changes whenever the console mode or a test config override changes (pawn resolution cache key). */
+	GOLMOK_API uint32 GetModeSourceGeneration();
 
 	/** golmok.anim mode: process-wide (kept for the editor session; a new PIE picks it up). Unset = animation.json. */
 	GOLMOK_API void SetConsoleModeOverride(const TOptional<EMode>& Mode);

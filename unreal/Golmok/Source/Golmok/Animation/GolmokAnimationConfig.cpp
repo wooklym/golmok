@@ -162,6 +162,29 @@ namespace GolmokAnimation
 		static TOptional<EMode> Mode;
 		return Mode;
 	}
+
+	uint32& ModeSourceGeneration()
+	{
+		static uint32 Generation = 0;
+		return Generation;
+	}
+
+	/** GetEffectiveMode / ResolvePawn: the process-wide sources unless a test override isolates them. */
+	FModeResolution ResolveEffectiveMode(bool bConfigValid, EMode FileMode, const FString& ConfigError)
+	{
+		const bool bIsolate = ConfigOverrideState().bActive && ConfigOverrideState().bIsolate;
+		FModeResolution Result = ComputeEffectiveMode(bIsolate ? nullptr : FCommandLine::Get(),
+			bIsolate ? TOptional<EMode>() : ConsoleModeStorage(), bConfigValid, FileMode);
+		Result.ConfigError = ConfigError;
+		static bool bInvalidCommandLineWarned = false;
+		if (!Result.InvalidCommandLineValue.IsEmpty() && !bInvalidCommandLineWarned)
+		{
+			bInvalidCommandLineWarned = true;
+			UE_LOG(LogGolmok, Warning, TEXT("anim: -GolmokAnim=%s is not abp or gasp; ignored (%s)"), *Result.InvalidCommandLineValue,
+				*Result.Source);
+		}
+		return Result;
+	}
 }
 
 const GolmokAnimation::FMovementProfile* GolmokAnimation::FConfig::FindProfile(const FString& Id) const
@@ -186,17 +209,22 @@ const TCHAR* GolmokAnimation::ModeName(EMode Mode)
 
 bool GolmokAnimation::ParseModeName(const FString& Text, EMode& OutMode)
 {
-	if (Text == TEXT("abp"))
+	if (Text.Equals(TEXT("abp"), ESearchCase::CaseSensitive))
 	{
 		OutMode = EMode::Abp;
 		return true;
 	}
-	if (Text == TEXT("gasp"))
+	if (Text.Equals(TEXT("gasp"), ESearchCase::CaseSensitive))
 	{
 		OutMode = EMode::Gasp;
 		return true;
 	}
 	return false;
+}
+
+bool GolmokAnimation::ParseModeArgument(const FString& Text, EMode& OutMode)
+{
+	return ParseModeName(Text.TrimStartAndEnd().ToLower(), OutMode);
 }
 
 bool GolmokAnimation::ParseConfig(const FString& Text, FConfig& OutConfig, FString& OutError)
@@ -352,6 +380,7 @@ GolmokAnimation::FScopedConfigOverride::FScopedConfigOverride(const FString& Tex
 	State.bActive = true;
 	State.Text = Text;
 	State.bIsolate = bIsolateModeSources;
+	++ModeSourceGeneration();
 }
 
 GolmokAnimation::FScopedConfigOverride::~FScopedConfigOverride()
@@ -360,6 +389,7 @@ GolmokAnimation::FScopedConfigOverride::~FScopedConfigOverride()
 	State.bActive = bHadPrevious;
 	State.Text = PreviousText;
 	State.bIsolate = bPreviousIsolate;
+	++ModeSourceGeneration();
 }
 
 GolmokAnimation::FModeResolution GolmokAnimation::ComputeEffectiveMode(const TCHAR* CommandLine,
@@ -369,12 +399,18 @@ GolmokAnimation::FModeResolution GolmokAnimation::ComputeEffectiveMode(const TCH
 	Result.bConfigValid = bConfigValid;
 	FString Value;
 	EMode Parsed = EMode::Abp;
-	if (CommandLine && FParse::Value(CommandLine, TEXT("GolmokAnim="), Value) && ParseModeName(Value, Parsed))
+	const bool bCommandLineValue = CommandLine && FParse::Value(CommandLine, TEXT("GolmokAnim="), Value);
+	if (bCommandLineValue && ParseModeArgument(Value, Parsed))
 	{
 		Result.Mode = Parsed;
 		Result.Source = TEXT("command line");
+		return Result;
 	}
-	else if (ConsoleOverride.IsSet())
+	if (bCommandLineValue)
+	{
+		Result.InvalidCommandLineValue = Value.IsEmpty() ? FString(TEXT("(empty)")) : Value;
+	}
+	if (ConsoleOverride.IsSet())
 	{
 		Result.Mode = ConsoleOverride.GetValue();
 		Result.Source = TEXT("console");
@@ -397,16 +433,18 @@ GolmokAnimation::FModeResolution GolmokAnimation::GetEffectiveMode()
 	FConfig Config;
 	FString Error;
 	const bool bValid = LoadConfig(Config, Error);
-	const bool bIsolate = ConfigOverrideState().bActive && ConfigOverrideState().bIsolate;
-	FModeResolution Result = ComputeEffectiveMode(bIsolate ? nullptr : FCommandLine::Get(),
-		bIsolate ? TOptional<EMode>() : ConsoleModeStorage(), bValid, Config.Mode);
-	Result.ConfigError = Error;
-	return Result;
+	return ResolveEffectiveMode(bValid, Config.Mode, Error);
+}
+
+uint32 GolmokAnimation::GetModeSourceGeneration()
+{
+	return ModeSourceGeneration();
 }
 
 void GolmokAnimation::SetConsoleModeOverride(const TOptional<EMode>& Mode)
 {
 	ConsoleModeStorage() = Mode;
+	++ModeSourceGeneration();
 }
 
 TOptional<GolmokAnimation::EMode> GolmokAnimation::GetConsoleModeOverride()
@@ -493,10 +531,7 @@ GolmokAnimation::FPawnResolution GolmokAnimation::ResolvePawn(bool bIsPlayer, UC
 	FConfig Config;
 	FString Error;
 	const bool bValid = LoadConfig(Config, Error);
-	const bool bIsolate = ConfigOverrideState().bActive && ConfigOverrideState().bIsolate;
-	Result.Mode = ComputeEffectiveMode(bIsolate ? nullptr : FCommandLine::Get(),
-		bIsolate ? TOptional<EMode>() : ConsoleModeStorage(), bValid, Config.Mode);
-	Result.Mode.ConfigError = Error;
+	Result.Mode = ResolveEffectiveMode(bValid, Config.Mode, Error);
 
 	// Rule 1. An explicit abp (command line / console / valid file) never reads further.
 	if (!bIsPlayer || (Result.Mode.Mode == EMode::Abp && (bValid || Result.Mode.Source != TEXT("animation.json invalid"))))
@@ -530,16 +565,22 @@ GolmokAnimation::FPawnResolution GolmokAnimation::ResolvePawn(bool bIsPlayer, UC
 
 UClass* GolmokAnimation::ResolvePlayerPawnClass(AController* InController, UClass* SuperClass)
 {
-	const FPawnResolution Resolution = ResolvePawn(Cast<APlayerController>(InController) != nullptr, SuperClass);
-	UWorld* World = InController ? InController->GetWorld() : nullptr;
-	UGolmokAnimationSubsystem* Subsystem = World ? World->GetSubsystem<UGolmokAnimationSubsystem>() : nullptr;
 	if (!Cast<APlayerController>(InController))
 	{
-		return Resolution.PawnClass; // rule 1 (Super); AI pawns do not touch the player status / fallback record
+		return SuperClass; // rule 1 (Super); AI pawns do not touch the player status / fallback record
 	}
+	UWorld* World = InController->GetWorld();
+	UGolmokAnimationSubsystem* Subsystem = World ? World->GetSubsystem<UGolmokAnimationSubsystem>() : nullptr;
+	// One spawn asks 2-3 times in the same frame (RestartPlayer, SpawnDefaultPawnFor...): resolve once (R76 C3).
+	FPawnResolution Resolution;
+	if (Subsystem && Subsystem->FindCachedResolution(SuperClass, Resolution))
+	{
+		return Resolution.PawnClass;
+	}
+	Resolution = ResolvePawn(true, SuperClass);
 	if (Subsystem)
 	{
-		Subsystem->RecordResolution(Resolution);
+		Subsystem->RecordResolution(Resolution, SuperClass);
 	}
 	else if (Resolution.bFallback)
 	{
