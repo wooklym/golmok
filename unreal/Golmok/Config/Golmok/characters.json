@@ -157,6 +157,97 @@
         "run_cm_s": 310
       },
       "footstep_set": null
+    },
+    {
+      "id": "manny_gasp",
+      "display_name": {
+        "ko": "매니 GASP",
+        "en": "Manny GASP"
+      },
+      "mesh": "/Game/GASP/Characters/UEFN_Mannequin/Meshes/SKM_UEFN_Mannequin.SKM_UEFN_Mannequin",
+      "anim_class": "/Game/GASP/Blueprints/SandboxCharacter_CMC_ABP.SandboxCharacter_CMC_ABP_C",
+      "height_cm": 180,
+      "capsule": {
+        "radius_cm": 42,
+        "half_height_cm": 92
+      },
+      "mesh_offset_cm": [
+        0,
+        0,
+        -92
+      ],
+      "mesh_scale": [
+        1,
+        1,
+        1
+      ],
+      "mesh_yaw_deg": -90,
+      "camera": {
+        "boom_cm": 320,
+        "socket_cm": [
+          0,
+          45,
+          55
+        ],
+        "fov_deg": 80
+      },
+      "movement": {
+        "walk_cm_s": 180,
+        "run_cm_s": 500
+      },
+      "footstep_set": null,
+      "visual": {
+        "mesh": "/Game/GASP/Characters/UE5_Mannequins/Meshes/SKM_Manny_Simple.SKM_Manny_Simple",
+        "anim_class": "/Game/GASP/Blueprints/RetargetedCharacters/ABP_GenericRetarget.ABP_GenericRetarget_C",
+        "mesh_scale": [
+          1,
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "uefn_gasp",
+      "display_name": {
+        "ko": "UEFN GASP",
+        "en": "UEFN GASP"
+      },
+      "mesh": "/Game/GASP/Characters/UEFN_Mannequin/Meshes/SKM_UEFN_Mannequin.SKM_UEFN_Mannequin",
+      "anim_class": "/Game/GASP/Blueprints/SandboxCharacter_CMC_ABP.SandboxCharacter_CMC_ABP_C",
+      "height_cm": 180,
+      "capsule": {
+        "radius_cm": 42,
+        "half_height_cm": 92
+      },
+      "mesh_offset_cm": [
+        0,
+        0,
+        -92
+      ],
+      "mesh_scale": [
+        1,
+        1,
+        1
+      ],
+      "mesh_yaw_deg": -90,
+      "camera": {
+        "boom_cm": 320,
+        "socket_cm": [
+          0,
+          45,
+          55
+        ],
+        "fov_deg": 80
+      },
+      "movement": {
+        "walk_cm_s": 180,
+        "run_cm_s": 500
+      },
+      "footstep_set": null
     }
-  ]
+  ],
+  "default_by_anim_mode": {
+    "abp": "manny",
+    "gasp": "manny_gasp"
+  }
 }

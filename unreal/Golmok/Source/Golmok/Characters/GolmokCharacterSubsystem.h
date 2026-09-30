@@ -17,6 +17,10 @@ struct FGolmokCharacterEntry
 	FString NameEn;
 	FString MeshPath;
 	FString AnimPath;
+	bool bHasVisual = false;
+	FString VisualMeshPath;
+	FString VisualAnimPath;
+	std::array<double, 3> VisualScale = {1.0, 1.0, 1.0};
 	FString FootstepSet; // Empty means audio.json default; reserved, not consumed by WP-18a.
 	GolmokCharacterMath::Dimensions Values;
 };
@@ -24,6 +28,8 @@ struct FGolmokCharacterEntry
 struct FGolmokCharacterRoster
 {
 	FString DefaultId;
+	TMap<FString, FString> DefaultByAnimMode;
+	const FString& DefaultForMode(const FString& Mode) const;
 	TArray<FGolmokCharacterEntry> Entries;
 	const FGolmokCharacterEntry* Find(const FString& InId) const;
 };

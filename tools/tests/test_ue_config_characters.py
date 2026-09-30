@@ -19,6 +19,7 @@ def validate(data):
     ids = [e["id"] for e in data["characters"]]
     assert len(ids) == len(set(ids)), "duplicate id"
     assert data["default"] in ids, "missing default"
+    assert all(id in ids for id in data.get("default_by_anim_mode", {}).values()), "missing mode default"
     for entry in data["characters"]:
         cap, movement = entry["capsule"], entry["movement"]
         assert cap["half_height_cm"] >= cap["radius_cm"], "capsule radius exceeds half height"
@@ -38,7 +39,14 @@ def test_shipped_roster_and_schema():
     jsonschema.Draft202012Validator.check_schema(SCHEMA)
     validate(ROSTER)
     assert ROSTER["default"] == "manny"
-    assert {e["id"] for e in ROSTER["characters"]} == {"manny", "quinn", "proxy135", "proxy110"}
+    assert {e["id"] for e in ROSTER["characters"]} == {
+        "manny",
+        "quinn",
+        "proxy135",
+        "proxy110",
+        "manny_gasp",
+        "uefn_gasp",
+    }
     assert all(e["footstep_set"] is None for e in ROSTER["characters"])
 
 
@@ -70,4 +78,58 @@ def test_invalid_roster_is_rejected(path, value):
         target = target[key]
     target[path[-1]] = value
     with pytest.raises((jsonschema.ValidationError, AssertionError)):
+        validate(data)
+
+
+def test_optional_gasp_fields_and_legacy_roster():
+    validate(ROSTER)
+    legacy = copy.deepcopy(ROSTER)
+    del legacy["default_by_anim_mode"]
+    for entry in legacy["characters"]:
+        entry.pop("visual", None)
+    validate(legacy)
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        None,
+        {},
+        {"abp": "manny"},
+        {"abp": "manny", "gasp": "missing"},
+        {"abp": 1, "gasp": "manny"},
+        {"abp": "manny", "gasp": "manny", "typo": "manny"},
+    ],
+)
+def test_mode_defaults_are_strict(value):
+    data = copy.deepcopy(ROSTER)
+    data["default_by_anim_mode"] = value
+    with pytest.raises((jsonschema.ValidationError, AssertionError)):
+        validate(data)
+
+
+@pytest.mark.parametrize(
+    "key,value",
+    [
+        ("mesh", "../bad"),
+        ("anim_class", "/Game/A/A.A"),
+        ("mesh_scale", [1, 0, 1]),
+        ("mesh_scale", [1, True, 1]),
+        ("mesh_scale", [1, float("nan"), 1]),
+        ("mesh_scale", [1, 1]),
+        ("typo", 1),
+    ],
+)
+def test_visual_is_strict(key, value):
+    data = copy.deepcopy(ROSTER)
+    data["characters"][4]["visual"][key] = value
+    with pytest.raises((jsonschema.ValidationError, AssertionError)):
+        validate(data)
+
+
+@pytest.mark.parametrize("value", [None, {}, [], {"mesh": "/Game/A/A.A"}])
+def test_visual_requires_complete_object(value):
+    data = copy.deepcopy(ROSTER)
+    data["characters"][4]["visual"] = value
+    with pytest.raises(jsonschema.ValidationError):
         validate(data)

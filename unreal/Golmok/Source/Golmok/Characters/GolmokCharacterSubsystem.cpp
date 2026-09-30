@@ -3,6 +3,8 @@
 #include "Golmok.h"
 #include "Animation/AnimBlueprintGeneratedClass.h"
 #include "Animation/AnimInstance.h"
+#include "Animation/GolmokAnimationConfig.h"
+#include "Animation/GolmokGaspCharacter.h"
 #include "Camera/CameraComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/SkeletalMeshComponent.h"
@@ -52,9 +54,10 @@ namespace GolmokCharacters
 		return Value.IsValid() && Value->Type == EJson::Object ? Value->AsObject() : nullptr;
 	}
 
-	bool Keys(const FObject& Object, std::initializer_list<const TCHAR*> Names)
+	bool Keys(const FObject& Object, std::initializer_list<const TCHAR*> Names,
+		std::initializer_list<const TCHAR*> Optional = {})
 	{
-		if (!Object.IsValid() || Object->Values.Num() != static_cast<int32>(Names.size()))
+		if (!Object.IsValid())
 		{
 			return false;
 		}
@@ -64,6 +67,13 @@ namespace GolmokCharacters
 			{
 				return false;
 			}
+		}
+		for (const auto& Pair : Object->Values)
+		{
+			bool bKnown = false;
+			for (const TCHAR* Name : Names) bKnown |= Pair.Key == Name;
+			for (const TCHAR* Name : Optional) bKnown |= Pair.Key == Name;
+			if (!bKnown) return false;
 		}
 		return true;
 	}
@@ -114,7 +124,7 @@ namespace GolmokCharacters
 	{
 		if (!Keys(Object, {TEXT("id"), TEXT("display_name"), TEXT("mesh"), TEXT("anim_class"), TEXT("height_cm"),
 			TEXT("capsule"), TEXT("mesh_offset_cm"), TEXT("mesh_scale"), TEXT("mesh_yaw_deg"), TEXT("camera"),
-			TEXT("movement"), TEXT("footstep_set")}))
+			TEXT("movement"), TEXT("footstep_set")}, {TEXT("visual")}))
 		{
 			return false;
 		}
@@ -144,6 +154,17 @@ namespace GolmokCharacters
 		{
 			return false;
 		}
+		if (Field(Object, TEXT("visual")).IsValid())
+		{
+			const FObject Visual = ObjectField(Object, TEXT("visual"));
+			if (!Keys(Visual, {TEXT("mesh"), TEXT("anim_class"), TEXT("mesh_scale")})
+				|| !String(Visual, TEXT("mesh"), Out.VisualMeshPath) || !String(Visual, TEXT("anim_class"), Out.VisualAnimPath)
+				|| !Matches(Out.VisualMeshPath, TEXT("/Game/([A-Za-z0-9_]+/)+[A-Za-z0-9_]+\\.[A-Za-z0-9_]+"))
+				|| !Matches(Out.VisualAnimPath, TEXT("/Game/([A-Za-z0-9_]+/)+[A-Za-z0-9_]+\\.[A-Za-z0-9_]+_C"))
+				|| !Vector(Visual, TEXT("mesh_scale"), Out.VisualScale)) return false;
+			for (double Scale : Out.VisualScale) if (Scale < .25 || Scale > 2.0) return false;
+			Out.bHasVisual = true;
+		}
 		const FValue Footstep = Field(Object, TEXT("footstep_set"));
 		if (Footstep->Type != EJson::Null && (!String(Object, TEXT("footstep_set"), Out.FootstepSet, 48)
 			|| !ValidId(Out.FootstepSet)))
@@ -160,7 +181,7 @@ namespace GolmokCharacters
 		const TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(Text);
 		double Version = 0.0;
 		FGolmokCharacterRoster Candidate;
-		if (!FJsonSerializer::Deserialize(Reader, Root) || !Keys(Root, {TEXT("schema_version"), TEXT("default"), TEXT("characters")})
+		if (!FJsonSerializer::Deserialize(Reader, Root) || !Keys(Root, {TEXT("schema_version"), TEXT("default"), TEXT("characters")}, {TEXT("default_by_anim_mode")})
 			|| !Number(Root, TEXT("schema_version"), Version) || Version != 1.0
 			|| !String(Root, TEXT("default"), Candidate.DefaultId, 48) || !ValidId(Candidate.DefaultId))
 		{
@@ -187,6 +208,18 @@ namespace GolmokCharacters
 		{
 			OutError = TEXT("characters.json: default id is absent");
 			return false;
+		}
+		if (Field(Root, TEXT("default_by_anim_mode")).IsValid())
+		{
+			OutError = TEXT("characters.json: default_by_anim_mode requires existing abp/gasp ids");
+			const FObject Defaults = ObjectField(Root, TEXT("default_by_anim_mode"));
+			if (!Keys(Defaults, {TEXT("abp"), TEXT("gasp")})) return false;
+			for (const TCHAR* Mode : {TEXT("abp"), TEXT("gasp")})
+			{
+				FString Id;
+				if (!String(Defaults, Mode, Id, 48) || !ValidId(Id) || !Candidate.Find(Id)) return false;
+				Candidate.DefaultByAnimMode.Add(Mode, Id);
+			}
 		}
 		OutRoster = MoveTemp(Candidate);
 		OutError.Reset();
@@ -240,6 +273,12 @@ namespace GolmokCharacters
 const FGolmokCharacterEntry* FGolmokCharacterRoster::Find(const FString& InId) const
 {
 	return Entries.FindByPredicate([&InId](const FGolmokCharacterEntry& Entry) { return Entry.Id == InId; });
+}
+
+const FString& FGolmokCharacterRoster::DefaultForMode(const FString& Mode) const
+{
+	const FString* Id = DefaultByAnimMode.Find(Mode);
+	return Id ? *Id : DefaultId;
 }
 
 bool UGolmokCharacterSubsystem::DoesSupportWorldType(const EWorldType::Type WorldType) const
@@ -304,13 +343,21 @@ void UGolmokCharacterSubsystem::Deinitialize()
 void UGolmokCharacterSubsystem::OnPlayerPawnChanged(APawn* OldPawn, APawn* NewPawn)
 {
 	AGolmokCharacter* Character = Cast<AGolmokCharacter>(NewPawn);
-	const FGolmokCharacterEntry* Entry = Roster.Find(CurrentId.IsEmpty() ? Roster.DefaultId : CurrentId);
-	if (Character && Entry)
+	if (!Character) return; // Photo/path pawns retain the selection until the character returns.
+	const bool bGasp = GolmokAnimation::GetEffectiveMode().Mode == GolmokAnimation::EMode::Gasp
+		&& GolmokAnimation::PawnSupportsGasp(Character);
+	const FString& ModeDefault = Roster.DefaultForMode(bGasp ? TEXT("gasp") : TEXT("abp"));
+	TArray<FString> Candidates;
+	if (!CurrentId.IsEmpty()) Candidates.AddUnique(CurrentId);
+	Candidates.AddUnique(ModeDefault);
+	Candidates.AddUnique(Roster.DefaultId); // Optional local assets may be absent even on a capable pawn.
+	for (const FString& Id : Candidates)
 	{
-		FString Message;
-		if (!ApplyEntry(Character, *Entry, Message))
+		if (const FGolmokCharacterEntry* Entry = Roster.Find(Id))
 		{
-			UE_LOG(LogGolmok, Log, TEXT("golmok.character: %s"), *Message);
+			FString Message;
+			if (ApplyEntry(Character, *Entry, Message)) return;
+			UE_LOG(LogGolmok, Log, TEXT("golmok.character: auto %s: %s"), *Id, *Message);
 		}
 	}
 }
@@ -349,13 +396,35 @@ bool UGolmokCharacterSubsystem::ApplyEntry(AGolmokCharacter* InCharacter, const 
 		return false;
 	}
 	TGuardValue<bool> Guard(bApplying, true);
-	USkeletalMesh* NewMesh = Cast<USkeletalMesh>(FSoftObjectPath(InEntry.MeshPath).TryLoad());
-	UClass* NewAnimClass = FSoftClassPath(InEntry.AnimPath).TryLoadClass<UAnimInstance>();
+	USkeletalMesh* NewMesh = Cast<USkeletalMesh>(GolmokAnimation::LoadObjectIfPresent(InEntry.MeshPath, USkeletalMesh::StaticClass()));
+	UClass* NewAnimClass = GolmokAnimation::LoadClassIfPresent(InEntry.AnimPath, UAnimInstance::StaticClass());
 	const UAnimBlueprintGeneratedClass* AnimBP = Cast<UAnimBlueprintGeneratedClass>(NewAnimClass);
 	if (!NewMesh || !AnimBP || !NewMesh->GetSkeleton() || AnimBP->GetTargetSkeleton() != NewMesh->GetSkeleton())
 	{
 		OutMessage = TEXT("mesh/animation missing or skeleton mismatch; keeping current character");
 		return false;
+	}
+	const bool bRequiresGasp = GolmokAnimation::RequiresGaspPawn(NewAnimClass);
+	AGolmokGaspCharacter* Gasp = Cast<AGolmokGaspCharacter>(InCharacter);
+	if ((bRequiresGasp && !GolmokAnimation::PawnSupportsGasp(InCharacter)) || (InEntry.bHasVisual && !bRequiresGasp))
+	{
+		OutMessage = TEXT("GASP animation/visual requires a compatible GASP pawn; keeping current character");
+		return false;
+	}
+	USkeletalMesh* VisualMesh = nullptr;
+	UClass* VisualAnim = nullptr;
+	if (InEntry.bHasVisual)
+	{
+		VisualMesh = Cast<USkeletalMesh>(GolmokAnimation::LoadObjectIfPresent(InEntry.VisualMeshPath, USkeletalMesh::StaticClass()));
+		VisualAnim = GolmokAnimation::LoadClassIfPresent(InEntry.VisualAnimPath, UAnimInstance::StaticClass());
+		const UAnimBlueprintGeneratedClass* VisualBP = Cast<UAnimBlueprintGeneratedClass>(VisualAnim);
+		// Generic retarget ABPs can be skeleton-agnostic; a declared target must match the visual mesh.
+		if (!VisualMesh || !VisualMesh->GetSkeleton() || !VisualBP
+			|| (VisualBP->GetTargetSkeleton() && VisualBP->GetTargetSkeleton() != VisualMesh->GetSkeleton()))
+		{
+			OutMessage = TEXT("visual mesh/animation missing or skeleton mismatch; keeping current character");
+			return false;
+		}
 	}
 	const GolmokCharacterMath::Dimensions& D = InEntry.Values;
 	UCapsuleComponent* Capsule = InCharacter->GetCapsuleComponent();
@@ -373,6 +442,16 @@ bool UGolmokCharacterSubsystem::ApplyEntry(AGolmokCharacter* InCharacter, const 
 			OutMessage = TEXT("new capsule is blocked; move away from the wall/ceiling first");
 			return false;
 		}
+	}
+	// Every fallible load, compatibility check and resize check is complete before touching either mesh.
+	if (Gasp)
+	{
+		if (InEntry.bHasVisual)
+		{
+			if (!Gasp->SetVisualOverride(VisualMesh, VisualAnim, OutMessage)) return false;
+			Gasp->GetVisualMesh()->SetRelativeScale3D(GolmokCharacters::ToVector(InEntry.VisualScale));
+		}
+		else Gasp->ClearVisualOverride();
 	}
 	{
 		FScopedMovementUpdate Scoped(Capsule, EScopedUpdate::DeferredUpdates);
@@ -408,7 +487,8 @@ FString UGolmokCharacterSubsystem::DescribeRoster() const
 	{
 		return LoadError;
 	}
-	FString Result = FString::Printf(TEXT("default=%s current=%s"), *Roster.DefaultId, *CurrentId);
+	FString Result = FString::Printf(TEXT("default=%s abp=%s gasp=%s current=%s"), *Roster.DefaultId,
+		*Roster.DefaultForMode(TEXT("abp")), *Roster.DefaultForMode(TEXT("gasp")), *CurrentId);
 	for (const FGolmokCharacterEntry& Entry : Roster.Entries)
 	{
 		Result += FString::Printf(TEXT("\n  %s | %s | %s"), *Entry.Id, *Entry.NameKo, *Entry.NameEn);

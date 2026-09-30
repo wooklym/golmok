@@ -181,7 +181,54 @@
                 "$ref": "#/$defs/id"
               }
             ]
+          },
+          "visual": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "mesh",
+              "anim_class",
+              "mesh_scale"
+            ],
+            "properties": {
+              "mesh": {
+                "type": "string",
+                "maxLength": 256,
+                "pattern": "^/Game/([A-Za-z0-9_]+/)+[A-Za-z0-9_]+\\.[A-Za-z0-9_]+$"
+              },
+              "anim_class": {
+                "type": "string",
+                "maxLength": 256,
+                "pattern": "^/Game/([A-Za-z0-9_]+/)+[A-Za-z0-9_]+\\.[A-Za-z0-9_]+_C$"
+              },
+              "mesh_scale": {
+                "type": "array",
+                "minItems": 3,
+                "maxItems": 3,
+                "items": {
+                  "type": "number",
+                  "minimum": 0.25,
+                  "maximum": 2
+                }
+              }
+            }
           }
+        }
+      }
+    },
+    "default_by_anim_mode": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "abp",
+        "gasp"
+      ],
+      "properties": {
+        "abp": {
+          "$ref": "#/$defs/id"
+        },
+        "gasp": {
+          "$ref": "#/$defs/id"
         }
       }
     }
@@ -200,5 +247,5 @@
       }
     }
   },
-  "$comment": "Runtime and CI also require unique ids, an existing default, finite numbers, half_height_cm >= radius_cm and run_cm_s > walk_cm_s. Asset existence and same skeleton are checked by UE before applying."
+  "$comment": "Runtime and CI also require unique ids, an existing default, finite numbers, half_height_cm >= radius_cm and run_cm_s > walk_cm_s. Asset existence and same skeleton are checked by UE before applying. Optional default_by_anim_mode ids must exist. visual scales are relative to the source mesh; source and visual assets are validated before mutation."
 }

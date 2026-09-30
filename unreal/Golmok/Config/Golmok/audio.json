@@ -176,6 +176,14 @@
       "proxy110": {
         "walk": 45,
         "run": 115
+      },
+      "manny_gasp": {
+        "walk": 67,
+        "run": 146
+      },
+      "uefn_gasp": {
+        "walk": 67,
+        "run": 146
       }
     }
   },
