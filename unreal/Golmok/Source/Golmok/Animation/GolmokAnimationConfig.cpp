@@ -511,7 +511,7 @@ GolmokAnimation::FPawnResolution GolmokAnimation::ResolvePawn(bool bIsPlayer, UC
 		return Result;
 	}
 	// Rule 3.
-	UClass* Pawn = LoadClassIfPresent(Config.PawnClass, APawn::StaticClass());
+	UClass* Pawn = LoadClassIfPresent(Config.PawnClass, nullptr); // any class: a non-pawn is rule 4, not "missing"
 	if (!Pawn)
 	{
 		Result.Reason = FString::Printf(TEXT("GASP pawn class missing — add-gasp / 19b (%s)"), *Config.PawnClass);
@@ -532,7 +532,12 @@ UClass* GolmokAnimation::ResolvePlayerPawnClass(AController* InController, UClas
 {
 	const FPawnResolution Resolution = ResolvePawn(Cast<APlayerController>(InController) != nullptr, SuperClass);
 	UWorld* World = InController ? InController->GetWorld() : nullptr;
-	if (UGolmokAnimationSubsystem* Subsystem = World ? World->GetSubsystem<UGolmokAnimationSubsystem>() : nullptr)
+	UGolmokAnimationSubsystem* Subsystem = World ? World->GetSubsystem<UGolmokAnimationSubsystem>() : nullptr;
+	if (!Cast<APlayerController>(InController))
+	{
+		return Resolution.PawnClass; // rule 1 (Super); AI pawns do not touch the player status / fallback record
+	}
+	if (Subsystem)
 	{
 		Subsystem->RecordResolution(Resolution);
 	}

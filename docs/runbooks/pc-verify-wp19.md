@@ -140,6 +140,7 @@ python tools\scripts\check_repo.py
 
 ### B7. 패키지
 - [ ] Development·Shipping cook·실행(gasp/abp 각각), 크기 증가 기록, 태그·DDCvar 경고 0(`Config/Tags/GASP.ini`·`Config/Golmok/local/` 스테이징 — §D #5), S4 성능, 플러그인을 켠 ① 패키지 정상, `/Game/GASP`·`/Game/GolmokLocal`이 없는 클론의 ① 패키지 정상(§D #9).
+- [ ] 기존 `+DirectoriesToAlwaysStageAsUFS=(Path="../Config/Golmok")`가 `Config/Golmok/local/`(매니페스트의 GASP 프로젝트 절대 경로·해시, DDCvar JSON)도 패키지에 넣는다. DDCvar 등록에 필요하므로 의도된 동작이다. 다만 add-gasp를 돌린 PC의 패키지는 외부로 배포하지 않는다(GASP 콘텐츠 포함 — D-021 소유자 항목).
 
 ### B8. 결정 게이트
 - [ ] 통과: `animation.json` `mode: gasp`와 로스터 모드별 기본(T12)을 별도 커밋으로 바꾼다(D-021 진행 기록).

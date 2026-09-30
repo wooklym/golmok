@@ -106,23 +106,29 @@ def _apply(plan) -> list[tuple[str, str, str]]:
     return done
 
 
-def _fixup_redirectors(folders) -> list[str]:
-    """Fix up and delete the redirectors left in the old folders; returns what is still there."""
+def _fixup_redirectors(plan) -> list[str]:
+    """Fix up and delete the redirectors the moves left behind (folders and single assets); returns what is
+    still at an old path afterwards (must be nothing: no reference to the Migrate paths remains)."""
     library = unreal.EditorAssetLibrary
+
+    def old_assets():
+        paths = []
+        for kind, source, _ in plan:
+            if kind == "dir":
+                if library.does_directory_exist(source):
+                    paths.extend(library.list_assets(source, recursive=True, include_folder=False))
+            elif library.does_asset_exist(source):
+                paths.append(source)
+        return paths
+
     redirectors = []
-    for folder in folders:
-        if library.does_directory_exist(folder):
-            for path in library.list_assets(folder, recursive=True, include_folder=False):
-                asset = library.load_asset(path)
-                if asset is not None and type(asset).__name__ == "ObjectRedirector":
-                    redirectors.append(asset)
+    for path in old_assets():
+        asset = library.load_asset(path)
+        if asset is not None and type(asset).__name__ == "ObjectRedirector":
+            redirectors.append(asset)
     if redirectors and hasattr(_tools(), "fixup_referencers"):
         _tools().fixup_referencers(redirectors)
-    left = []
-    for folder in folders:
-        if library.does_directory_exist(folder):
-            left.extend(library.list_assets(folder, recursive=True, include_folder=False))
-    return left
+    return old_assets()
 
 
 def relocate(
@@ -134,7 +140,7 @@ def relocate(
     plan = pure.relocation_plan(migrated, report["existing_before"], content_root)
     done = _apply(plan)
     messages = []
-    left = [] if len(done) != len(plan) else _fixup_redirectors([s for k, s, _ in plan if k == "dir"])
+    left = [] if len(done) != len(plan) else _fixup_redirectors(plan)
     root = content_root
     if len(done) != len(plan) or left:
         # Roll back to the Migrate paths: content_root "/Game" (animation.json must say so; exit 2).

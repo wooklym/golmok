@@ -358,7 +358,7 @@ FString UGolmokAnimationSubsystem::DescribeStatus() const
 			GolmokAnimation::YesNo(GolmokAnimation::LoadClassIfPresent(InterfacePath, UInterface::StaticClass()) != nullptr), *InterfacePath,
 			GolmokAnimation::YesNo(GolmokAnimation::LoadClassIfPresent(Config.PawnClass, AGolmokGaspCharacter::StaticClass()) != nullptr), *Config.PawnClass);
 	}
-	Out += FString::Printf(TEXT("\n  ddcvars %d/%d present (%d registered by Golmok)%s | tags file %s"), DDCvarPresent, DDCvarCount, DDCvarAdded,
+	Out += FString::Printf(TEXT("\n  ddcvars %d/%d present (expected 27; %d registered by Golmok)%s | tags file %s"), DDCvarPresent, DDCvarCount, DDCvarAdded,
 		DDCvarError.IsEmpty() ? TEXT("") : *FString::Printf(TEXT(" error: %s"), *DDCvarError),
 		GolmokAnimation::YesNo(FPaths::FileExists(GolmokAnimation::TagFilePath())));
 

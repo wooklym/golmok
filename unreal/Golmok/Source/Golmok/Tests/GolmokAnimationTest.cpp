@@ -1022,7 +1022,7 @@ bool FGolmokAnimationGaspSmokeTest::RunTest(const FString& Parameters)
 	const FString GaspText = CommittedConfigInGaspMode();
 	const bool bConfig = !GaspText.IsEmpty() && GolmokAnimation::ParseConfig(GaspText, Config, Error);
 	const bool bManifest = FPaths::FileExists(GolmokAnimation::ManifestFilePath());
-	UClass* Pawn = bConfig ? GolmokAnimation::LoadClassIfPresent(Config.PawnClass, AGolmokGaspCharacter::StaticClass()) : nullptr;
+	UClass* Pawn = bConfig ? GolmokAnimation::LoadClassIfPresent(Config.PawnClass, nullptr) : nullptr; // wrong parent = error below
 	FString Reason;
 	if (!bConfig || !bManifest || !Pawn)
 	{
