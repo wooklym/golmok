@@ -69,7 +69,7 @@ git status --porcelain --untracked-files=all
 python tools\scripts\check_repo.py
 ```
 - [ ] 시작 전 확인(스크립트가 편집기 세션 전에 멈춘다): 저장소 경로에 공백이 없다(`-ExecutePythonScript=`가 공백에서 끊긴다), Golmok·GASP 편집기가 모두 닫혀 있다, `add-mannequin.ps1`을 먼저 돌렸다(`Content\Characters\Mannequins`).
-- [ ] 세 헤드리스 세션(migrate → relocate → verify)이 끝나고 `add-gasp migrate: <n> closure packages, <m> copied, source_digest <sha256>`와 `add-gasp verify: <n> packages, digest <sha256>, source <n> packages, source_digest <sha256>`가 찍힌다. `Saved/Golmok/add-gasp/*.json`에 단계별 결과가, `migrated-history.json`에 이 체크아웃에 복사한 패키지 목록이 있다.
+- [ ] 세 헤드리스 세션(migrate → relocate → verify)이 끝나고 `add-gasp migrate: <n> closure packages, <m> copied, source_digest <sha256>`와 `add-gasp verify: <n> packages, digest <sha256>, source <n> packages, source_digest <sha256>`가 찍힌다. `Saved/Golmok/add-gasp/*.json`에 단계별 결과가, `migrated-history.json`에 이 체크아웃에서 복사를 시작할 때 계획한 패키지 목록(복사 실패분 포함)이 있다.
 - [ ] **폐포 수 대조**: migrate의 `<n> closure packages`(= `source_package_count`)를 V-08 폐포 **1,187**과 비교해 §A9에 적는다. 1,187은 ABP 한 루트의 폐포다. `closure.json`에는 리타깃 루트(`ABP_GenericRetarget`·GASP 매니 사본 등)도 있어 정상 설치도 그보다 **조금 크다**(수십 개 예상, 리뷰 R78-4). 1,187보다 작거나 수백 개 이상 크면 `closure.json` 루트 또는 의존 옵션이 다르다. `/Game dependency with a name no package can have`가 보이면 그 이름을 §A9에 기록하고 멈춘다(복사 전에 멈췄으므로 지울 것 없음).
 - [ ] migrate 메시지 `closure root not in the GASP project (19b fixes the path): …`가 있으면 그 루트([추정] 경로)의 실제 경로를 GASP 콘텐츠 브라우저에서 찾아 `tools/ue/gasp/closure.json`을 고친다. 그다음 **아래 "다시 설치"** 절차로 다시 돈다.
 - [ ] 종료 코드 2(`GASP stays at the Migrate paths`)면 헤드리스 `rename_directory` 또는 리디렉터 정리가 실패한 것이다(§D #4, §C #16). `animation.json` `gasp.content_root`를 `/Game`으로 바꾸고 `-Verify`를 다시 돈다(스크립트는 이때 검증 전에 멈춘다). 이 경우 `DefaultGame.ini`의 `/Game/GASP` 쿡 줄이 GASP를 덮지 못하므로 패키지(§B7) 전에 PC fix로 쿡 경로를 정한다. 원인(로그의 `rename_directory` 실패 줄)을 §A9에 기록한다. GUI로 옮기려면 §C #16 대안(Move + Fix Up Redirectors 뒤 `-Manifest`).
@@ -174,7 +174,7 @@ python tools\scripts\check_repo.py
 - [ ] 기존 `+DirectoriesToAlwaysStageAsUFS=(Path="../Config/Golmok")`가 `Config/Golmok/local/`(매니페스트의 GASP 프로젝트 절대 경로·해시, DDCvar JSON)도 패키지에 넣는다. DDCvar 등록에 필요하므로 의도된 동작이다. 다만 add-gasp를 돌린 PC의 패키지는 외부로 배포하지 않는다(GASP 콘텐츠 포함 — D-021 소유자 항목).
 
 ### B8. 결정 게이트
-- [ ] 통과: `animation.json` `mode: gasp`와 로스터 모드별 기본(T12)을 별도 커밋으로 바꾼다(D-021 진행 기록). 같은 커밋에서 `Golmok.Animation.Config`의 "committed mode is abp"와 `test_ue_config_animation.py`의 mode 단언을 gasp로 바꾼다.
+- [ ] 통과: `animation.json` `mode: gasp`를 별도 커밋으로 바꾼다(D-021 진행 기록). 로스터 모드별 기본(`default_by_anim_mode.gasp`, T12)은 이미 있으므로 확인만 한다. 같은 커밋에서 `Golmok.Animation.Config`의 "committed mode is abp"와 `test_ue_config_animation.py`의 mode 단언을 gasp로 바꾼다.
 - [ ] 미통과: ① 기본 유지, ②는 옵션으로 두고 B안(GASP 데이터 + 우리 ABP)을 검토한다.
 
 ### B9. 결과 (V-15 PC 세션이 작성)

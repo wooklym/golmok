@@ -223,7 +223,7 @@ def migrate_preconditions(packages, existing, history=(), same_as_source=lambda 
 
 
 def load_history(path) -> set[str]:
-    """Saved/Golmok/add-gasp/migrated-history.json: every package add-gasp ever copied into this checkout."""
+    """Saved/Golmok/add-gasp/migrated-history.json: every package an add-gasp copy ever planned in this checkout."""
     if not path or not Path(path).is_file():
         return set()
     data = load_json(path)

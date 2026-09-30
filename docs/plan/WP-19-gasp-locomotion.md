@@ -70,7 +70,7 @@
   - `void ClearVisualOverride()`: 원상 복구.
   - [추정] `ABP_GenericRetarget`는 "Use Attached Parent"로 소스를 찾는다고 보고 자식으로 붙인다. 아니면 19b가 실제 방식(컴포넌트 태그 등)으로 PC fix한다. 타깃 스켈레톤이 GASP의 `UE5_Mannequins` 사본이면 시각 메시도 그 사본을 쓴다(같은 매니 아트).
 - 로스터가 쓸 질의(T12): `GolmokAnimation::RequiresGaspPawn(const UClass* AnimClass)`(설정 `gasp.anim_class`와 같거나 파생)와 `GolmokAnimation::PawnSupportsGasp(const APawn*)`(§4 규칙 4·5).
-- 19c 전의 동작: GASP 폰에도 로스터가 `default`(`manny`, `ABP_Unarmed`)를 적용하므로 ①처럼 보인다. 고장은 아니다. 19b 확인용으로 `golmok.anim preview`가 `gasp.preview`(소스 메시 + GASP ABP, 선택적 시각 메시)를 현재 GASP 폰에 직접 적용한다. 다음 로스터 적용(빙의 변경·`golmok.character`)이 이를 덮어쓴다(디버그 전용, 저장 안 함). 19c T12([#77](https://github.com/wooklym/golmok/pull/77), 2026-09-30) 뒤에는 로스터가 GASP 폰에서 모드별 기본(`default_by_anim_mode`)을 고르고, ABP 항목은 시각 메시를 해제하고 GASP 항목은 설정한다.
+- 19c 전의 동작: GASP 폰에도 로스터가 `default`(`manny`, `ABP_Unarmed`)를 적용하므로 ①처럼 보인다. 고장은 아니다. 19b 확인용으로 `golmok.anim preview`가 `gasp.preview`(소스 메시 + GASP ABP, 선택적 시각 메시)를 현재 GASP 폰에 직접 적용한다. 다음 로스터 적용(빙의 변경·`golmok.character`)이 이를 덮어쓴다(디버그 전용, 저장 안 함). 19c T12([#77](https://github.com/wooklym/golmok/pull/77), 2026-09-30) 뒤에는 로스터가 GASP 폰에서 모드별 기본(`default_by_anim_mode`)을 고르고, `visual`이 있는 GASP 항목은 시각 메시를 설정하고, 그 밖의 항목(ABP 항목, `visual` 없는 `uefn_gasp`)은 해제한다.
 
 ### 6. 가감속 프로파일
 - `animation.json` `movement_profiles`에 `p0`(현행)·`p1`(중간)·`p2`(GASP)를 둔다. 필드와 허용 범위: `max_acceleration`(100~10000 cm/s²), `braking_deceleration_walking`(0~10000), `ground_friction`(0~20), `braking_friction_factor`(0~10), `use_separate_braking_friction`(bool), `braking_friction`(0~20).
@@ -164,7 +164,7 @@
   - 모드별 기본 항목(예: 루트 `default_by_anim_mode`)을 둔다.
   - 새 id의 `stride_cm_by_character`는 R63-3 계약대로 T13과 같은 PR에 넣거나 순서를 맞춘다.
   - 기존 `Golmok.Character.*`는 GASP 없이 통과해야 한다(GASP 항목은 Info로 건너뜀). 4.5등신 리타깃(D-018)은 V-08b/c 결과를 따른다.
-- **T13 오디오 레인**: `footsteps.driver: distance|notify|auto`를 둔다. GASP 폰의 `OnFootEvent`를 구독해 노티파이 구동으로 바꾸고, 이벤트가 오면 거리 스테퍼를 멈추며, 착지는 `Land` 이벤트로 낸다. GASP 폴리를 끈다(방법은 V-08b §5 결과 [추정]). `Golmok.Audio.Footstep`은 GASP 없이 종전과 같아야 하고, 합성 이벤트 1개가 발소리 1개를 내며 거리 발소리와 겹치지 않아야 한다.
+- **T13 오디오 레인**: `footsteps.driver: distance|notify|auto`를 둔다. GASP 폰의 `OnFootEvent`를 구독해 노티파이 구동으로 바꾸고, 이벤트가 오면 거리 스테퍼를 멈추며, 착지는 `Land` 이벤트로 낸다. GASP 폴리를 끈다(방법은 V-08b §5 결과 [추정]) → 원본 폴리 차단은 19b BP 몫으로 옮겼다(§13-3, 리뷰 R79-2). T13은 구독과 드라이버 선택만 한다. `Golmok.Audio.Footstep`은 GASP 없이 종전과 같아야 하고, 합성 이벤트 1개가 발소리 1개를 내며 거리 발소리와 겹치지 않아야 한다.
 
 ### 15. PC 런북 `docs/runbooks/pc-verify-wp19.md`(A절 19b, B절 V-15) — 기준은 D-021 원문, 사후 변경 금지
 0. 전제: 19a·19b·19c 병합, D-021 발효, V-08b 드라이버·지표 스크립트 `tools/` 커밋, `add-gasp -Verify` 통과.
@@ -175,7 +175,7 @@
 5. 에디터를 다시 열지 않고 BP 컴파일 직후 PIE를 띄워 폰 클래스가 BP인지 본다(V-08 함정).
 6. 폴백: `-GolmokAnim=abp`로 한 번, `Content/GASP`·`GolmokLocal`을 저장소 밖으로 옮긴 상태에서 mode gasp로 한 번 띄운다. 둘 다 ①, Warning 1, Movement 통과여야 한다.
 7. 패키지: Development·Shipping cook·실행(gasp/abp), 크기 증가, 태그·DDCvar 경고 0, S4 성능, 플러그인을 켠 ① 패키지 정상.
-8. 결정 게이트: 통과면 `animation.json` `mode: gasp`와 로스터 모드별 기본을 별도 커밋으로 바꾼다(D-021 진행 기록). T12가 `default_by_anim_mode.gasp`를 이미 두었으므로 로스터 쪽은 확인만 한다(리뷰 R77-13). 미통과면 ① 기본을 유지하고 ②는 옵션으로 두며 B안을 검토한다.
+8. 결정 게이트: 통과면 `animation.json` `mode: gasp`를 별도 커밋으로 바꾸고(D-021 진행 기록), 로스터 모드별 기본은 T12의 `default_by_anim_mode.gasp`를 확인만 한다(리뷰 R77-13; 처음 문안은 "로스터 모드별 기본도 바꾼다"). 미통과면 ① 기본을 유지하고 ②는 옵션으로 두며 B안을 검토한다.
 
 ### 16. 다른 WP 계약과의 충돌·위험
 - WP-18: ① 로스터가 빙의마다 `GetMesh()`를 덮어써 19c 전에는 GASP 폰도 ①로 보인다(§5 preview로 우회). ② 18a "같은 스켈레톤만"은 소스 메시에는 그대로 성립하지만 시각 메시에는 T12 스키마 확장이 필요하다(엄격 키). ③ 로스터 `mesh_scale`은 소스에 걸리고 시각 메시가 물려받는다. 축소 프록시에서 GASP 발 IK·보폭이 달라질 수 있다[추정, D-018 V-08b/c]. ④ 캡슐 크기 변경 텔레포트는 §3 감지 대상이다. ⑤ 새 로스터 id와 `stride_cm_by_character`(R63-3).
@@ -267,7 +267,7 @@
 19. `test_ue_wp05_fixture.py` 개수 줄의 주석은 WP-13 표기를 남기고 WP-19 표기를 더했다.
 20. 해결 규칙 6(BP 폰 채택)은 GASP·19b BP가 있어야 하므로 `Golmok.Animation.Config`가 아니라 `GaspSmoke`(설치된 PC에서 EXECUTED)가 확인한다.
 21. 커밋 파일에 의존하는 단언은 19b 확정 값(p1/p2, 선택 프로파일, 경로, `expected.json`, 플러그인, T3D 텍스트)에도 유지되게 썼다(R76-D1·D2). StateProvider는 커밋 파일에 mode abp·p0를 강제해 돌린다. mode 전환(§B8)만 단언 수정이 필요하다.
-22. 시각 메시 preview는 로스터 적용이 지우지 못한다(로스터는 `GetMesh()`만 바꿈). 19c T12가 `ClearVisualOverride`를 부르기 전까지는 `golmok.anim preview off`를 먼저 하라고 메시지·런북에 적었다(R76-C1, 스펙 §5 "다음 로스터 적용이 덮어쓴다"와 다름). → **19c T12([#77](https://github.com/wooklym/golmok/pull/77), 2026-09-30 병합)에서 해소**: 로스터 적용이 visual override를 제거/교체하도록 연결했다. `golmok.anim preview off`도 기존 `SelectCharacter` API를 통해 복원한다. GASP 실제 리타깃 경로·Attached Parent는 19b 검증 대기. 19a `ApplyPreview` 메시지·헤더 주석, 런북 §A8의 "T12 전까지" 문구, preview와 로스터의 visual 스켈레톤 규칙(null 타깃) 통일은 Claude 레인 후속(리뷰 R77-13).
+22. 시각 메시 preview는 로스터 적용이 지우지 못한다(로스터는 `GetMesh()`만 바꿈). 19c T12가 `ClearVisualOverride`를 부르기 전까지는 `golmok.anim preview off`를 먼저 하라고 메시지·런북에 적었다(R76-C1, 스펙 §5 "다음 로스터 적용이 덮어쓴다"와 다름). → **19c T12([#77](https://github.com/wooklym/golmok/pull/77), 2026-09-30 병합)에서 해소**: 로스터 적용이 visual override를 제거/교체하도록 연결했다. `golmok.anim preview off`도 기존 `SelectCharacter` API를 통해 복원한다. GASP 실제 리타깃 경로·Attached Parent는 19b 검증 대기. 19a `ApplyPreview` 메시지·헤더 주석, 런북 §A8의 "T12 전까지" 문구, preview와 로스터의 visual 스켈레톤 규칙(null 타깃) 통일은 Claude 레인 후속(리뷰 R77-13) → 19a-2 병합 리뷰 R78 반영([PR #78](https://github.com/wooklym/golmok/pull/78))에서 해소.
 
 **T12 계약(19a가 쓰는 Astra API, 이름을 바꾸면 알려 달라)**: `UGolmokCharacterSubsystem::GetCurrentId()`, `GetRoster().DefaultId`, `SelectCharacter(const FString&, FString&)`(`golmok.anim preview off`의 원상 복구). 19a가 T12에 주는 API: `GolmokAnimation::RequiresGaspPawn(const UClass*)`, `PawnSupportsGasp(const APawn*)`, `AGolmokGaspCharacter::SetVisualOverride`/`ClearVisualOverride`/`HasVisualOverride`/`GetVisualMesh`, `UGolmokLocomotionStateComponent::OnFootEvent`(T13).
 
@@ -396,7 +396,7 @@ T2 digest 의존성, T4 이름 규칙(UE `INVALID_LONGPACKAGE_CHARACTERS`와 동
 - 19a의 [추정](위 19a 절)은 그대로 남는다.
 
 **병합 시 반영(문안)**
-- STATUS WP-19 행: 상태 칸 끝에 `· 19a-2 셋업·가드 보강 병합(PR #<번호>; R76 T1~T4·(C))`를 더한다. 비고 끝에 `19a-2: add-gasp 재실행 복구(복사 전 정지·잔재 목록·빈 migrate 거부·-LocalFiles/-Manifest), expected.json source_digest(schema 2), 가드 내용·대소문자·위치 규칙, golmok.anim status 무로드, pytest 1287 → 1324`를 더한다.
+- STATUS WP-19 행: 상태 칸 끝에 `· 19a-2 셋업·가드 보강 병합(PR #<번호>; R76 T1~T4·(C))`를 더한다. 비고 끝에 `19a-2: add-gasp 재실행 복구(복사 전 정지·잔재 목록·빈 migrate 거부·-LocalFiles/-Manifest), expected.json source_digest(schema 2), 가드 내용·대소문자·위치 규칙, golmok.anim status 무로드, pytest 1287 → 1326(브랜치)·1344(#77 병합 main과 합친 트리)`를 더한다.
 - ROADMAP 애니메이션 행: `WP-19a-2(2026-09-30): add-gasp 재실행·복구와 원본 digest, GASP 저장소 가드 보강(리뷰 R76 후속), PC 19b 대기`.
 
 #### 19a-2 병합 리뷰 R78 (2026-09-30, 오케스트레이터 세션, Opus 5.5 읽기 전용 적대 검증) — (A) 0 · (B) 2 · (C) 10

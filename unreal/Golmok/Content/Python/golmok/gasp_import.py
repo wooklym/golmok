@@ -76,7 +76,8 @@ def migrate(closure_path, dest_content_dir, source_content_dir=None, history_pat
     Nothing is copied unless the preconditions hold (review R76 T1, T4): no /Game/GASP install, no leftover of
     an earlier run at the Migrate paths, no /Game dependency with a name UE cannot hold. The GASP files of the
     closure are hashed before and after the copy (source_digest, R76 T2: the acquired GASP, pinned by
-    tools/ue/gasp/expected.json); every package copied is added to the migrate history of this checkout.
+    tools/ue/gasp/expected.json); every package the copy plans (written before copying,
+    failed copies included) is added to the migrate history of this checkout.
     """
     roots = pure.parse_closure(pure.load_json(closure_path))
     registry = _wait_for_registry()
