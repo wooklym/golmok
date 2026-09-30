@@ -6,6 +6,7 @@
 #include "Audio/GolmokFootstepComponent.h"
 #include "Animation/GolmokGaspCharacter.h"
 #include "Animation/GolmokAnimationConfig.h"
+#include "Animation/AnimInstance.h"
 #include "Animation/GolmokLocomotionStateComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Misc/ScopeExit.h"
@@ -68,6 +69,7 @@ namespace GolmokAudioTest
 			if (!Test->TestNotNull(TEXT("GASP footstep component"), Steps) || !Test->TestNotNull(TEXT("GASP foot provider"), Provider))
 			{ PC->Possess(Original); Pawn->Destroy(); return true; }
 			Test->TestFalse(TEXT("GASP pawn with nonGASP source uses distance"), Steps->UsesNotifyDriver());
+			bool bAutoPositiveExecuted = false;
 			UClass* TestAnim = Pawn->GetMesh()->GetAnimClass();
 			if (TestAnim && TestAnim->GetPathName().StartsWith(TEXT("/Game/")))
 			{
@@ -81,19 +83,23 @@ namespace GolmokAudioTest
 					Gasp->SetStringField(TEXT("anim_class"), TestAnim->GetPathName().RightChop(6));
 					Text.Reset(); FJsonSerializer::Serialize(Root.ToSharedRef(), TJsonWriterFactory<>::Create(&Text));
 					GolmokAnimation::FScopedConfigOverride Override(Text);
-					Steps->ReregisterComponent(); // Configuration is normally immutable; registration invalidates the class cache.
+					bAutoPositiveExecuted = true;
+					const uint32 Evaluations = Steps->GetAnimContractEvaluationsForTest();
+					Plain->GetMesh()->SetAnimInstanceClass(TestAnim);
+					Test->TestFalse(TEXT("GASP contract alone cannot make ordinary pawn notify"), OriginalSteps->UsesNotifyDriver());
 					Test->TestTrue(TEXT("auto class contract positive"), Steps->UsesNotifyDriver());
 					Test->TestTrue(TEXT("auto cached class contract positive"), Steps->UsesNotifyDriver());
 					const int32 Before = Audio->GetFootstepRequests();
 					Provider->NotifyFootEvent(EGolmokFootEvent::Step, true);
 					Test->TestEqual(TEXT("auto positive delivers one event"), Audio->GetFootstepRequests(), Before + 1);
 					Test->TestTrue(TEXT("HUD positive driver and event count"), Audio->Describe().Contains(TEXT("drv=notify(auto) ev=1")));
-					Pawn->GetMesh()->SetAnimInstanceClass(nullptr);
-					Test->TestFalse(TEXT("class change invalidates positive cache"), Steps->UsesNotifyDriver());
+					Steps->TickComponent(.1f, LEVELTICK_All, nullptr);
+					Test->TestEqual(TEXT("repeat query event Tick and HUD evaluate contract only once"), Steps->GetAnimContractEvaluationsForTest(), Evaluations + 1);
+					Pawn->GetMesh()->SetAnimInstanceClass(UAnimInstance::StaticClass());
+					Test->TestFalse(TEXT("nonnull class change invalidates positive cache"), Steps->UsesNotifyDriver());
 					Pawn->GetMesh()->SetAnimInstanceClass(TestAnim);
 					Test->TestTrue(TEXT("class restored recomputes contract"), Steps->UsesNotifyDriver());
 				}
-				Steps->ReregisterComponent();
 				Test->TestFalse(TEXT("restored real config uses distance"), Steps->UsesNotifyDriver());
 			}
 			else Test->AddInfo(TEXT("NOT EXECUTED auto-positive fixture: installed test ABP unavailable"));
@@ -114,10 +120,12 @@ namespace GolmokAudioTest
 			Tick();
 			Test->TestEqual(TEXT("one land reaches landing playback exactly once"), Audio->GetLandingRequests(), Landings + 1);
 			Test->TestEqual(TEXT("land is not also a step"), Audio->GetFootstepRequests(), Count);
+			const uint64 EventsBeforePause = Steps->GetFootEventCount();
 			UGameplayStatics::SetGamePaused(World, true);
 			Provider->NotifyFootEvent(EGolmokFootEvent::Step, false);
 			UGameplayStatics::SetGamePaused(World, false);
 			Test->TestEqual(TEXT("paused foot event ignored"), Audio->GetFootstepRequests(), Count);
+			Test->TestEqual(TEXT("filtered event still increments diagnostic count"), Steps->GetFootEventCount(), EventsBeforePause + 1);
 			if (auto* Photo = World->GetSubsystem<UGolmokPhotoModeSubsystem>())
 			{
 				TGuardValue<EGolmokPhotoPauseMode> PauseGuard(Photo->PauseMode, EGolmokPhotoPauseMode::TimeDilation);
@@ -148,7 +156,8 @@ namespace GolmokAudioTest
 			PC->Possess(Original); PC->SetViewTarget(Original);
 			Provider->NotifyFootEvent(EGolmokFootEvent::Step, false);
 			Test->TestEqual(TEXT("old pawn events ignored after possession"), Audio->GetFootstepRequests(), Count);
-			Test->AddInfo(TEXT("EXECUTED ordinary distance + auto animation classification/cache invalidation/HUD; synthetic Step/Land -> one playback request each; no distance duplicate; pause/unregister/possession guards. Audible output and original GASP foley not tested."));
+			Test->AddInfo(bAutoPositiveExecuted ? TEXT("EXECUTED auto positive cache/class/generation/HUD and ordinary-pawn conjunction") : TEXT("NOT EXECUTED auto-positive cache/class/generation/HUD fixture"));
+			Test->AddInfo(TEXT("EXECUTED ordinary distance + auto negative; synthetic Step/Land -> one playback request each; no distance duplicate; pause/unregister/possession guards. Audible output and original GASP foley not tested."));
 			return true;
 		}
 	private:
@@ -403,6 +412,17 @@ bool FGolmokAudioFootstepTest::RunTest(const FString& Parameters)
 		InvalidJson.ReplaceInline(TEXT("\"walk_stride_cm\":"), *FString::Printf(TEXT("\"stride_cm_by_character\":%s, \"walk_stride_cm\":"), Invalid));
 		TestFalse(TEXT("invalid character stride rejected"), GolmokAudio::ParseConfig(InvalidJson, Config, Error));
 		TestEqual(TEXT("invalid parse preserves roster stride"), Config.StrideFor(TEXT("proxy110"), false), 45.0);
+	}
+	for (const TCHAR* Key : {TEXT("master_volume"), TEXT("photo_mute_fade_seconds"), TEXT("crossfade_seconds_by_state"), TEXT("assets"), TEXT("gain"), TEXT("outdoor_day"), TEXT("walk_stride_cm"), TEXT("walk")})
+	{
+		FString Mutated = Manifest;
+		const FString Needle = FString::Printf(TEXT("\"%s\":"), Key);
+		const FString Replacement = FString::Printf(TEXT("\"%s\":"), *FString(Key).ToUpper());
+		TestTrue(TEXT("key mutation applied"), Mutated.ReplaceInline(*Needle, *Replacement, ESearchCase::CaseSensitive) > 0);
+		FGolmokAudioConfig Parsed = Config;
+		TestFalse(FString::Printf(TEXT("case alias key %s rejected"), Key), GolmokAudio::ParseConfig(Mutated, Parsed, Error));
+		TestTrue(TEXT("key case failure names field"), Error.Contains(FString(Key).ToUpper(), ESearchCase::CaseSensitive));
+		TestEqual(TEXT("key failure preserves assets"), Parsed.Assets.Num(), Config.Assets.Num());
 	}
 	for (const TCHAR* Value : {TEXT("\"auto\""), TEXT("\"distance\""), TEXT("\"notify\""), TEXT("\"Notify\""), TEXT("null"), TEXT("true"), TEXT("1"), TEXT("[]"), TEXT("{}"), TEXT("\"bad\"")})
 	{
