@@ -100,12 +100,84 @@
 | 플러그인 성숙도 표시(Pose Search 등) | 엔진 5.8.3 설치본의 `.uplugin` 플래그(에디터 Plugins 창의 Beta/Experimental 배지가 읽는 값) [확인: `Engine/Plugins/…/*.uplugin`, 2026-09-26]: **Pose Search** — `Animation/PoseSearch`, 플래그 없음(정식) · **Chooser** — `Engine/Plugins/Chooser`, 플래그 없음(정식; 5.8 문서 배너는 Experimental → research/09 §2.3, 문서와 플러그인 표기가 다름) · **Motion Warping** — `IsBetaVersion: true` · **Animation Warping** — 플래그 없음 · **Motion Trajectory**(Character Trajectory 컴포넌트가 든 플러그인) — `Experimental/Animation/MotionTrajectory`, **`IsExperimentalVersion: true`** · **Animation Locomotion Library** — `IsBetaVersion: true`. |
 | 스켈레톤 동일 여부 | **다름.** GASP 로코모션 데이터(1,879 시퀀스·PoseSearch DB)는 `Characters/UEFN_Mannequin/Meshes/SK_UEFN_Mannequin`, Golmok 마네킹 `SKM_Manny_Simple`은 템플릿 `SK_Mannequin`(UE5 Manny). GASP는 같은 UE5 `SKM_Manny_Simple`(`Characters/UE5_Mannequins/…`, `SK_Mannequin`)을 **런타임 리타깃**(`Blueprints/RetargetedCharacters/BP_Manny` + `ABP_GenericRetarget` + IK Retargeter, UEFN→Manny)으로 구동한다 → ②에서 우리 마네킹을 쓰려면 이 경로(리타깃), 시험은 GASP 메시(UEFN) 그대로. |
 
-표 2 — 시험 기록
+표 2 — 시험 기록 (2026-09-30 PC 세션 Opus 5.5, D-020. 브랜치 `pc/v08-animation`에 main `5a4ca7f`를 병합한 빌드 — WP-18 캐릭터 로스터 포함)
 
 | 안 | 바인딩 방법 | 문제·수정 | 1080p 평균 / 1% low | 스크린샷 |
 |---|---|---|---|---|
-| ① | 현행(ini `CharacterMeshPath`/`AnimClassPath` = `SKM_Manny_Simple`/`ABP_Unarmed`, C++ 걷기 180·달리기 500) | 문제 없음. S1~S7은 PC 세션이 에디터 PIE에서 무인 실행(SendInput 키·마우스, 순간이동으로 장면 배치, 장면별 ffmpeg 녹화 → `C:\UE\v08_recordings\v08_1_S1~S7.mkv`, 저장소 밖); **S8 게임패드는 미수행**(패드 에뮬레이션 없음 — 사용자가 직접). 이동 수치는 확인됨(걷기 180.0·달리기 500.0 cm/s, 계단 10단 z 94→264, 12° 경사 z 94→194, 60 cm 벽 점프 통과). `test.ps1 -Filter Golmok.Player.Movement` 통과(기준값: walk/strafe 180, run 500, jump apex 90 cm·0.87 s) | **141.8 / 94.0**(`-game` 창 1920×1080 실측(CSV `systemresolution` 1920×1080), `-csvCaptureFrames=6000`, 로딩·대기 14 s 제외 5,311프레임, p50 6.89 ms·p99 10.64 ms, Game 3.37·Render 7.05·GPU 5.77 ms; 콘솔이 SendInput으로 열리지 않아 `csvprofile start/stop` 대신 V-01 방식. 참고: 빈 L_Dev 정지 기준선 158.5 fps(research/08)) | `pc-verify-animation-1-stop.jpg` · `pc-verify-animation-1-stairs_mid.jpg` · `pc-verify-animation-1-slope_stand.jpg` |
-| ② | | | | |
-| ③ | | | | |
+| ① | 현행: 로스터 `manny` = `SKM_Manny_Simple` + `ABP_Unarmed`, C++ 걷기 180·달리기 500 cm/s | 문제 없음. `test.ps1 -Filter Golmok.Player.Movement` 통과(걷기·옆·뒤 180, 달리기 500, 점프 최고 90 cm·체공 0.87 s) — GASP 플러그인·설정을 켠 상태에서도 같은 값. S8 게임패드는 미수행(패드 없음) | **181.0 / 155.1**(Game 1.98·GPU 4.98 ms). 2026-09-26 첫 측정 141.8 / 94.0은 main 병합 전 빌드라 비교에서 뺀다 | `pc-verify-animation-1-stop.jpg` · `-1-stairs_mid.jpg` · `-1-slope_stand.jpg` |
+| ②a | (a) 설정만: 로스터 시험 항목 `gasp_uefn`(UEFN 메시 + `/Game/Blueprints/SandboxCharacter_CMC_ABP`, 캡슐 42/92·카메라·속도 180/500은 매니와 같음; `characters.json`에 로컬로만 추가, 커밋 안 함) → PIE에서 `golmok.character gasp_uefn` | **작동하지 않는다.** GASP 애님 BP는 폰에서 `BPI_SandboxCharacter_Pawn`(보행 모드·자세·회전 모드·입력 의도 구조체)을 받아 Chooser로 DB를 고르는데 우리 C++ 폰은 이를 구현하지 않아 기본값만 받는다. 결과: 캡슐이 움직여도 다리가 따라가지 않고(디딘 발 미끄러짐 81~99 cm/m), 점프 자세가 없고, Offset Root Bone 회전이 캡슐과 따로 놀아 순간이동 뒤 카메라를 향한 채 계단을 오른다. GASP DDCvar(발 배치 IK 등)를 켜도 같다 → 설정만으로는 불가 | 179.0 / 154.0(Game 2.00·GPU 5.05) | `pc-verify-animation-2a-stairs_mid.jpg`(캡슐은 계단을 오르는데 메시는 카메라를 봄) |
+| ②b | (b) 대체 — GASP 자체 CMC 폰 `SandboxCharacter_CMC`(UEFN 메시·GASP 카메라·입력·이동 값)를 우리 코스에: `Golmok_AnimEval/Maps/L_Dev_AnimEvalB`(L_Dev Save-As)의 World Settings 게임 모드 = `BP_GolmokGameMode_AnimEvalB`(부모 `AGolmokGameMode`, 기본 폰만 교체). 런북 (b)의 "`AGolmokCharacter` 부모 + Trajectory 컴포넌트" BP는 인터페이스 함수 그래프를 파이썬으로 만들 수 없어, §6 "GASP 메시를 그대로 쓴 시험으로 품질만 먼저 판단"을 따랐다(5.8 GASP는 궤적을 ABP의 GenerateTrajectory 함수로 만들어 Trajectory 컴포넌트를 참조하지 않는다) | 품질은 가장 좋다. 우리와 다른 점: 걷기 200·뒷걸음 150·달리기 500 cm/s(우리 180/180/500), S키는 몸을 돌리지 않고 **뒷걸음**(GASP 기본 회전 모드), 점프 상승 약 128 cm(우리 90), Space는 넘기(traversal) 겸용 — S7 시나리오 타이밍(0.9 s)에서는 벽 1 m 앞에서 뛰어 막혔고, 벽 앞에서 누르면 넘기 동작으로 통과(별도 확인). 가감속이 커서 달리다 멈추면 54 cm 더 간다. 뒷걸음으로 경사를 내려올 때 GASP 카메라가 크게 돈다. **PC 발견**: 같은 에디터 세션에서 GASP BP를 컴파일한 뒤 PIE를 띄우면 BP 게임 모드의 기본 폰이 C++ 기본값(`AGolmokCharacter`)으로 바뀌어 스폰된다(에디터 CDO는 그대로) → 에디터를 다시 열면 정상 | **183.1 / 155.6**(Game 2.82·GPU 4.89) | `pc-verify-animation-2-stop.jpg` · `-2-stairs_mid.jpg` · `-2-slope_stand.jpg` |
+| ③ | 미실행 | §4 조건(②가 라이선스·용량·성능·스켈레톤 중 하나로 막힘)에 해당하지 않는다: 라이선스는 가능(§0, 사용자 재확인 필요), 성능 차이 없음, 스켈레톤 차이는 GASP 메시로 우회, 용량은 보관 방식 결정 사항. ②a가 막힌 원인은 통합 방식(폰 인터페이스)이라 ③도 같은 C++ 공급 작업이 필요하고 품질 기대치는 ②b보다 낮다(research/09 §3) | — | — |
 
-채점(§5 표 복사) · 결론(채택 제안 안과 이유) · 사용자 결정:
+**시험 방법·환경**(재현용)
+- 무인 실행: GUI 에디터(원격 Python) + Slate 틱 드라이버가 PIE를 띄우고 Win32 SendInput으로 키(W·Shift·S·Space·Left Ctrl)와 마우스(S4 원 그리기 60°/s)를 넣는다. 장면마다 순간이동으로 배치(S1~S4 골목 입구, S5 계단 앞, S6 경사 앞, S7 60 cm 벽 앞), 장면별 화면 녹화(ffmpeg gdigrab 30 fps), 틱마다 캡슐·발목(`foot_*`)·앞꿈치(`ball_*`) 뼈 월드 좌표 기록. 스크립트·원자료는 세션 스크래치에만 있다.
+- 녹화(저장소 밖): `C:\UE\v08_recordings\cmp_S1~S7_1-2b-2a.mp4`(왼쪽부터 ①·②b·②a 나란히), 장면별 원본은 스크래치 `clips_main\`. 성능 CSV 3개도 같은 폴더.
+- 성능: 창 모드 `-game` 1920×1080(CSV `systemresolution` 확인), `-csvCaptureFrames=6000 -ExitAfterCsvProfiling`, 달리며 원 그리기 약 30 s, 로딩·대기 구간을 뺀 `golmok-perf`. 다른 UE 프로세스 없음. 게임 내 콘솔이 SendInput으로 열리지 않아 `csvprofile start/stop` 대신 V-01 방식.
+- ② 시험 설정(커밋 `V-08: 시험용 설정` 뒤 §7에서 되돌림): `Golmok.uproject` 플러그인 21개(GASP 목록 + BlendStack), `DefaultEngine.ini`에 GASP `DataDrivenConsoleVariableSettings` 27개, GASP `DefaultGameplayTags.ini`(태그 39개). **Migrate는 이 설정을 옮기지 않는다** — DDCvar가 없으면 GASP ABP는 발 배치 IK(`DDCvar.FootPlacementMode=1`)·스레드 안전 업데이트 등이 꺼진 상태로 돈다.
+- Migrate: GASP 프로젝트 헤드리스에서 `SandboxCharacter_CMC_ABP` + `SandboxCharacter_CMC` 의존 폐포 2,861 패키지를 `AssetTools.migrate_packages`(충돌 Skip)로 옮겼다. `Golmok_AnimEval/`로 모으는 일괄 이름 변경은 `rename_assets`가 False를 돌려 실패 → GASP 원래 경로로 들어왔다: `Content/Audio`(278)·`Blueprints`(126)·`Input`(19)·`Levels`(21)·`MetaHumans`(365)·`Misc`(1)·`Characters/UEFN_Mannequin`(1,592)·`Echo`(134)·`Paragon`(198)·`UE5_Mannequins`(107)·`UE4_Mannequin`(20). 기존 `Characters/Mannequins`(현행 ①)와 겹치지 않아 덮어쓰기는 없었다. Golmok에서 두 BP 컴파일 오류 0건.
+
+측정 표 A — 발 지표(틱 샘플, 캡슐 1 m 이동당 디딘 발의 수평 이동. 디딘 발 = 뼈 높이가 평지 최저값 + 2.5 cm 이내이고 캡슐이 땅 위)
+
+| 장면 | ① | ②b | ②a |
+|---|---|---|---|
+| S1 걷기 출발·정지 (cm/m) | 16.4 | **4.4** | 80.9 |
+| S2 달리기 출발·정지 (cm/m) | 12.6 | **3.3** | 99.5 |
+| S3 180° 전환 (cm/m) | 20.8 | **6.3** | 93.2 |
+| S4 원 그리며 달리기 (cm/m) | 8.2 | **6.9** | 99.4 |
+| 캡슐 정지 뒤 발 이동 S1 / S2 (cm) | 43.6 / 77.7 — 서 있는 채 발이 미끄러짐 | 175.2 / 98.0 — 멈추는 발걸음(Offset Root Bone이 메시를 캡슐로 되돌리며 실제로 걸음, 녹화로 확인) | 22.6 / 0.6 |
+| S5 계단 디딤 발 높이 − 평지 높이, 중앙값 (p10/p90) · 3 cm 넘게 어긋난 틱 | 1.0 (−3.8/2.3) · 21.7 % | 1.7 (−14.1/3.7) · 27.9 % | 0.1 (0.0/17.1) · 32.6 % |
+| S6 12° 경사, 같은 지표 | 0.6 (−1.7/1.3) · 4.0 % | 1.8 (1.1/3.1) · 11.0 % | −0.1 (−0.1/0.1) · 1.8 % |
+
+계단·경사 지표는 앞꿈치 뼈 하나로 디딤면을 판정하는 단순 계산이라 ①과 ②b를 가르지 못했다(②b는 디딤판 모서리를 넘는 발이 많아 p10이 크게 음수). 녹화에서는 ②b가 디딤판마다 발을 올리고 무릎을 굽히는 계단 동작을, ①은 평지 걷기 주기를 그대로 쓴다. ②b는 경사에서 발이 약 2 cm 떠 있다.
+
+측정 표 B — 입력 반응(캡슐 수평 속도, 틱 샘플)
+
+| | ① | ②b |
+|---|---|---|
+| 걷기 최고 속도 90 % 도달 | 0.08~0.09 s | 0.23 s |
+| 달리기 최고 속도 90 % 도달 | 0.23 s | 0.57 s |
+| 걷다가 키를 뗀 뒤 정지 | 0.04~0.05 s, 2~3 cm | 0.10 s, 9 cm |
+| 달리다 키를 뗀 뒤 정지 | 0.09~0.10 s, 14~15 cm | 0.24~0.25 s, 54 cm |
+
+②b의 자연스러운 출발·정지는 애니메이션뿐 아니라 GASP의 느린 가감속에서도 나온다. ②를 들이면 우리 이동 값도 이쪽으로 옮겨야 같은 품질이 나온다(조작감과 맞바꿈).
+
+측정 표 C — `stat anim`(달리며 원 그리기 중, 평균/최대 ms, 에디터 PIE 2560×1392)
+
+| 항목 | ① | ②b |
+|---|---|---|
+| PerformAnimEvaluation_WorkerThread | 0.42 / 0.59 | 0.82 / 1.08 |
+| ProxyUpdateAnimation_WorkerThread(모션 매칭 검색 포함으로 추정 [미확인]) | 0.07 / 0.12 | 0.55 / 0.73 |
+| AnimGameThreadTime | 0.13 / 0.39 | 0.20 / 0.36 |
+| OffsetRootBone Eval · Foot Placement Eval | — | 0.13 · 0.04 |
+
+Pose Search 전용 줄은 표시 한도(`stats.MaxPerGroup`, 상위 25개) 밖이었다. 게임 스레드 합계는 ②b가 +0.84 ms(표 2)지만 프레임은 GPU·렌더가 정해 fps는 떨어지지 않았다.
+
+**채점**(§5, 1~5점) — D-019에 따라 PC 세션(Opus 5.5, D-020)이 녹화·틱 수치로 채점했다. **소유자 채점이 있으면 그것이 우선한다**. ②는 품질 상한인 ②b로 채점하고, 설정만 붙인 ②a는 참고로 적는다.
+
+| # | 항목 | 보는 장면 | ① | ②(②b) | ②a | ③ | 근거 |
+|---|---|---|---|---|---|---|---|
+| 1 | 자연스러움(전체 인상) | S1~S4 | 3 | 5 | 1 | — | ①은 블렌드스페이스라 출발·정지가 즉시 끊기고 달리기 자세가 곧다. ②b는 무게 이동·앞기울기·멈추는 발걸음이 있다. ②a는 서 있는 자세로 미끄러진다 |
+| 2 | 발 미끄러짐 | S1 S2 S3 | 3 | 5 | 1 | — | 표 A: 8~21 / 3~7 / 81~99 cm/m, ①은 정지 뒤 44~78 cm 제자리 미끄러짐 |
+| 3 | 전환 | S2 S7 | 3 | 4 | 1 | — | ①: 달리기→정지가 0.1 s 안에 아이들로 튐, 점프·착지는 무난. ②b: 달리기→정지 발걸음이 자연스럽고 점프·넘기 동작이 좋으나 S7 시나리오에서 벽 앞 타이밍이 맞지 않았다(−1). ②a: 점프 자세 없음 |
+| 4 | 계단·경사 | S5 S6 | 3 | 4 | 1 | — | ①은 평지 걷기 주기로 계단을 오른다. ②b는 계단 전용 발걸음·무릎 굽힘이 보이나 수치상 접지가 ①보다 낫지 않고 경사에서 약 2 cm 뜬다(−1). ②a는 뒤돌아 웅크린 자세 |
+| 5 | 조작감 | S8(미수행) → 키보드 S1~S3 | 4 | 3 | 1 | — | 게임패드 아날로그 속도 표현은 **미채점**(패드 없음). 키보드 반응은 ①이 빠르고(표 B), ②b는 무겁고 S키가 뒷걸음이 된다. ②a는 속도가 동작에 드러나지 않는다 |
+| | **1~5 합계** | | **16** | **21** | 5 | — | |
+| 6 | 비용: 1080p 평균 fps / 1% low | 표 2 | 181.0 / 155.1 | 183.1 / 155.6 | 179.0 / 154.0 | — | 오차 범위 |
+| 7 | 비용: 에셋 용량, 플러그인, 작업 시간 | §1·§3 | 템플릿 마네킹 126 MB(엔진 동봉, 스크립트 복사), 추가 플러그인 0 | ABP 폐포 1,187 패키지 1,079 MB, 폰까지 2,861 패키지 4,703 MB(MetaHumans·Echo·Paragon·폴리 오디오 포함 — 줄일 수 있는지 [미확인]); 플러그인 21개 추가 + 설정 2개 | 같음 | — | PC 세션 자동화 약 3 h(2026-09-26 1 h + 09-30 2 h), 사람 작업 0 |
+
+**판정**(§5 기준): ②(②b) − ① = **+5점**(기준 4점 이상 ✓), 성능 조건 ✓(fps 하락 없음), 용량 조건 **결정 필요** — 공개 저장소(`wooklym/golmok`)에는 GASP 원본 에셋을 넣을 수 없다(Fab EULA §5(a), 표 1). 따라서 **② 조건부 채택 제안**.
+
+**결론(채택 제안)**
+- **② GASP Motion Matching 로코모션을 채택 방향으로 제안한다(조건부).** 근거: 발 미끄러짐이 ①의 1/2~1/4(표 A), 출발·정지·계단 동작이 녹화에서 분명히 좋고, 1080p 성능 차이가 없다.
+- 단 이번 ②의 점수는 **GASP 폰을 그대로 쓴 품질 상한(②b)**이다. 우리 C++ 캐릭터에 설정만 붙인 ②a는 작동하지 않았으므로 채택하면 **통합 WP**가 필요하다: ① `AGolmokCharacter`가 GASP 애님이 요구하는 캐릭터 상태(보행 모드·자세·회전 모드·입력 의도·착지 속도 등, `BPI_SandboxCharacter_Pawn`)를 공급 — 인터페이스를 구현하는 얇은 BP 서브클래스(D-003 "불가피한 BP") 또는 GASP ABP의 `SetReferences`/`UpdateEssentialValues`를 C++ 공급으로 바꾸기, ② 이동 값(가감속·걷기 200·뒷걸음/회전 모드·점프 높이)을 GASP 데이터에 맞출지 결정(표 B의 조작감 맞바꿈), ③ 에셋 정리(ABP 폐포 약 1.1 GB 기준, MetaHuman·Echo·Paragon 제외 가능성), ④ DDCvar·게임플레이 태그 설정 이식, ⑤ 매니 메시로 쓰려면 GASP의 런타임 리타깃(`BP_Manny` + `ABP_GenericRetarget`) 경로 시험.
+- **Chooser Experimental 의존 여부**: 5.8.3 플러그인 서술자에는 Chooser·Pose Search 모두 플래그가 없다(문서 배너만 Experimental, 표 1). 더 큰 문제는 GASP CMC ABP가 **Experimental 모듈 4개(Mover·CurveExpression·DrawDebugLibrary·MovieSceneAnimMixer)와 Beta 2개(Motion Warping·Animation Locomotion Library)를 직접 참조**한다는 점이다(GASP 폰은 GameplayCameras(Experimental)도 씀 — 우리 카메라를 쓰면 불필요). 통합 WP에서 ABP의 디버그 그리기·Mover 참조를 걷어내 줄일 수 있는지 먼저 확인하고, 남는 Experimental 의존의 허용 여부를 정한다.
+- 결정 전까지 main은 ① 그대로다(이 브랜치의 시험 설정은 §7에서 되돌렸다).
+- 범위 밖: WP-18(D-018)의 "V-08 추가 시험"(4.5등신 프록시에 GASP 리타깃·145/380 cm/s·25 cm 계단·귀여움 채점)은 이 카드에서 하지 않았다 — ② 통합 뒤 별도 PC 카드가 맞다.
+
+**결정 목록**
+1. (소유자, 사실 확인) §0 라이선스 인용을 같은 URL에서 재확인 — D-019상 승인이 아니라 사실 확인 항목.
+2. (소유자) ② 채택 시 GASP 에셋 보관 방식: 공개 저장소 불가 → 비공개 LFS 저장소(D-018 ② "비공개 에셋 저장소"와 같은 결정) 또는 Fab에서 각자 받아 스크립트로 복사(`add-mannequin.ps1`처럼).
+3. (오케스트레이터 설계 결정, D-019) ② 채택 여부와 통합 WP 발행, Experimental 의존 허용 범위, 이동 감각 변경(가감속·뒷걸음·점프) 허용.
+4. (소유자 선택) 채점 재확인: `C:\UE\v08_recordings\cmp_S1~S7_1-2b-2a.mp4`를 보고 점수를 바꾸면 그것이 우선. S8 게임패드는 패드가 있을 때.
+
+§7 정리(2026-09-30): 채택 대기. 시험 설정(`.uproject` 플러그인·`DefaultEngine.ini` DDCvar·`DefaultGameplayTags.ini`)은 브랜치에 한 커밋으로 남기고 다음 커밋에서 되돌렸다(재현: 그 커밋을 다시 적용). Migrate된 GASP 폴더와 `Content/Golmok_AnimEval/`(시험 BP·맵)은 저장소 밖 `C:\UE\golmok_animeval_backup\Content\`로 옮겼다(되돌릴 때 같은 경로로 복사). GASP 원본 프로젝트는 `C:\UE\GASP_58`.
