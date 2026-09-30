@@ -136,6 +136,12 @@ namespace GolmokAudio
 				|| !Presets.Check(State == TEXT("outdoor_day") || State == TEXT("outdoor_night"), FString(*Pair.Key), TEXT("outdoor state id"))) return false;
 			Next.Presets.Add(FString(*Pair.Key), State);
 		}
+		if (Steps.Data->HasField(TEXT("driver")))
+		{
+			if (!Steps.String(TEXT("driver"), Next.FootstepDriver)
+				|| !Steps.Check(Next.FootstepDriver == TEXT("auto") || Next.FootstepDriver == TEXT("distance") || Next.FootstepDriver == TEXT("notify"),
+					TEXT("driver"), TEXT("auto, distance or notify"))) return false;
+		}
 		if (!Steps.Number(TEXT("walk_stride_cm"), Next.WalkStride, 1, 10000) || !Steps.Number(TEXT("run_stride_cm"), Next.RunStride, 1, 10000)
 			|| !Steps.Number(TEXT("run_threshold_cm_s"), Next.RunThreshold, 1, 10000) || !Steps.Number(TEXT("teleport_threshold_cm"), Next.TeleportLimit, 1, 10000)
 			|| !Steps.Range(TEXT("pitch_range"), Next.PitchMin, Next.PitchMax, .5, 2) || !Steps.Range(TEXT("volume_range"), Next.VolumeMin, Next.VolumeMax, 0, 1)

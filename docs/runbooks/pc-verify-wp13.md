@@ -227,3 +227,18 @@ C-10: Packaging 설정을 에디터에서 저장한 뒤 DefaultGame.ini의 중�
 - PC: T6 수명/HUD/누락에셋 스모크와 T8 보폭·2D 자체 발소리·Photo 원샷 FadeOut·빠른 포털·새 gain을 재녹음/청취한다. `steps=`로 default/asphalt를 구별하고 `error: missing SoundWave`가 없는지 확인한다. C-07 해소·GUI 잠금 확인 뒤 실행한다.
 - §7-5의 `V10Asphalt` 등은 이전 시험에서만 사용한 이름이다. T8 시험에는 §3의 정확한 세트 이름을 쓴다. 생성 `Audio/*/SW_*.uasset`은 PR #54부터 ignore되며 소스/JSON/임포터로 재생성한다.
 - R50-3: T6 전체 자동화의 경고 테스트 수 7→8은 `Audio.StateMachine`이 ToD 파괴/재생성을 검사할 때 기록된 `No AGolmokGeoOrigin in L_Dev: zones are placed with their own origin at the level origin (dev level mode). Place one AGolmokGeoOrigin at (0,0,0) with the basemap area origin for geo-referenced placement.`다. L_Dev 배치 경고이며 오디오 누락 경고가 아니다. ExpectedMessage로 감추지 않고 보고서에 남긴다.
+
+
+## T13 — WP-19c 노티파이 발소리 계약 (2026-09-30)
+
+`audio.json`의 선택 키 `footsteps.driver`는 `distance`·`notify`·`auto` 문자열만 받는다. 생략/현재 기본값은 `auto`: 실제 `AGolmokGaspCharacter` 계열 폰이면 notify, 기존 ABP 폰이면 distance다. GASP 요청이 일반 폰으로 폴백하면 기존 거리 스테퍼를 유지한다. 폰 클래스 기준이므로 GASP 폰에서 ABP 로스터로 교체해도 auto는 notify다. 노티파이를 제공하지 않는 ABP를 그 폰에서 진단할 때는 driver=distance로 재시작한다.
+
+notify 모드는 첫 이벤트 전부터 거리 스테퍼를 멈춘다. 이벤트가 없다고 거리 방식으로 자동 전환하지 않는다(늦게 온 노티파이와 중복 방지). `UGolmokLocomotionStateComponent::NotifyFootEvent(Step/Land, bLeft)` → `OnFootEvent` → 기존 표면 세트/착지 재생 경로에 1회 전달한다. 좌우 발 구분은 현재 샘플 선택에 사용하지 않는다. distance는 이벤트를 무시하고 종전 거리·보폭·공중·착지·텔레포트 규칙을 쓴다. pause/photo 또는 현재 플레이어가 아닌 폰의 이벤트는 무시한다. OnUnregister에서 구독을 해제하며 재등록은 1회만 연결한다.
+
+재현은 build 후 `tools/ue/test.ps1 -Filter Golmok.Audio`. 기존 등록 2개 안에서 Footstep의 합성 PIE 이벤트 시험을 실행한다. native GASP 폰만 생성하며 GASP 원본·BPI·ABP는 필요 없다. PlayFootstep 진입점의 테스트 전용 계수로 Step 1 → 발소리 요청 1, Land 1 → 착지 요청 1, 거리 이동 중복 0, pause·이전 폰·구독 해제 시 요청 0, 재등록 시 중복 구독 0을 확인한다. **-nosound/nullrhi이므로 실제 소리 출력·샘플 청취 성공은 아니다.**
+
+### 19b/V-15 인계 — 원본 GASP 폴리 차단은 아직 미구현
+
+`UGolmokFootstepComponent::UsesNotifyDriver()`를 BlueprintPure 설정 조회 훅으로 노출했다. V-08b §5에서 실제 폴리 노티파이 경로를 확인한 뒤 19b BP가 이 값을 읽어 원본 재생을 우회하고 같은 지점에서 Golmok `NotifyFootEvent`를 한 번 보내도록 연결하는 것이 **가설**이다. 현재는 원본 GASP 폴리를 실제로 끄지 않는다. 함수/노드 이름·ini를 추측해 추가하거나 GASP 원본/참조 바이너리를 커밋하지 않았다.
+
+19b에서는 발소리와 Land 이벤트가 각각 한 번 오는지, 원본 GASP 오디오가 남아 이중 재생하지 않는지, 실제 착지와 노티파이 시점/좌우 발·표면 샘플이 맞는지 확인한다. notify를 켜고 이벤트가 누락되면 무음이므로 이벤트 연결부터 확인한다. 원본 폴리가 음소거된 것을 확인하기 전에는 distance 진단에서도 소리 중복 여부를 별도로 검사한다. 이 작업은 19b/V-15 및 청취 검증 담당에게 넘긴다.
