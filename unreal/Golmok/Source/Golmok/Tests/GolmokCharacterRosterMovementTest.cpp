@@ -55,6 +55,7 @@ namespace GolmokCharacterRosterMovementTest
 			if (World->GetTimeSeconds() < 0.6f) return false;
 			const double Now = World->GetTimeSeconds();
 			const double Elapsed = Now - PhaseAt;
+			MaxFrameDt = FMath::Max(MaxFrameDt, static_cast<double>(World->GetDeltaSeconds()));
 			if (Phase != EPhase::Prepare && Elapsed > 12.0) return Fail(TEXT("phase timeout"));
 			FString Message;
 
@@ -143,6 +144,9 @@ namespace GolmokCharacterRosterMovementTest
 
 			case EPhase::Block:
 				if (Elapsed < 2.5) return false;
+				Info(FString::Printf(TEXT("Block diagnostic X=%.3f Y=%.3f Feet=%.3f Speed2D=%.3f MovementMode=%d MaxFrameDt=%.6f"),
+					Character->GetActorLocation().X, Character->GetActorLocation().Y, Feet(), Character->GetVelocity().Size2D(),
+					static_cast<int32>(Movement()->MovementMode), MaxFrameDt));
 				Check(TEXT("40 cm block face was reached"), Character->GetActorLocation().X > -5075);
 				Check(TEXT("40 cm block is not climbed"), Character->GetActorLocation().X < -5000 && FMath::Abs(Feet()) < 3.0);
 				Check(TEXT("40 cm block actually stops forward movement"), Character->GetVelocity().Size2D() < 1.0);
@@ -249,7 +253,7 @@ namespace GolmokCharacterRosterMovementTest
 		}
 		bool Next(EPhase NextPhase, double Now)
 		{
-			Phase = NextPhase; PhaseAt = Now; PhasePosition = Character->GetActorLocation(); return false;
+			Phase = NextPhase; PhaseAt = Now; MaxFrameDt = 0.0; PhasePosition = Character->GetActorLocation(); return false;
 		}
 		void Check(const TCHAR* What, bool bPassed) const { Test->TestTrue(FString::Printf(TEXT("%s: %s"), Ids[Case], What), bPassed); }
 		void Info(const FString& What) const { Test->AddInfo(FString::Printf(TEXT("%s: %s"), Ids[Case], *What)); }
@@ -268,6 +272,7 @@ namespace GolmokCharacterRosterMovementTest
 		FAutomationTestBase* Test;
 		double Started;
 		double PhaseAt = 0.0;
+		double MaxFrameDt = 0.0;
 		int32 Case = 0;
 		EPhase Phase = EPhase::Prepare;
 		TWeakObjectPtr<APlayerController> PC;

@@ -59,6 +59,11 @@ public:
 	const FString& GetCurrentId() const { return CurrentId; }
 	const FString& GetLoadError() const { return LoadError; }
 
+#if WITH_DEV_AUTOMATION_TESTS
+	FGolmokCharacterRoster& MutableRosterForTest() { return Roster; }
+	void ApplyDefaultForTest(APawn* Pawn) { CurrentId.Reset(); OnPlayerPawnChanged(nullptr, Pawn); }
+#endif
+
 private:
 	void RefreshController();
 	UFUNCTION()
@@ -68,6 +73,8 @@ private:
 	FGolmokCharacterRoster Roster;
 	FString CurrentId;
 	FString LoadError;
+	FString LastAutomaticFailure;
+	bool bWarnedGaspDefault = false;
 	TWeakObjectPtr<APlayerController> BoundController;
 	FTimerHandle BindingTimer;
 	bool bApplying = false;

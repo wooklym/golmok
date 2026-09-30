@@ -405,3 +405,39 @@ WP-19 결과 절 22번 갱신 문안(Claude 소유 문서): `19c T12에서 로�
 - **경로 소유 규칙(R77-1, 오케스트레이터 결정 D-019)**: 19b PC 세션이 GASP 경로를 확정하면 `characters.json`의 GASP 경로 갱신은 오케스트레이터가 Astra 후속 과제로 배정한다. 19b PC 세션은 이 파일을 고치지 않는다.
 
 **병합**: 오케스트레이터 결정(D-019). CI 10/10 초록이고 (A)가 없어 병합했다. 위 "병합 시 반영 — T12" 문안은 STATUS 병행 트랙 WP-18 행, WP-19 결과 절 22번, `astra-tasks.md` T12·T14에 옮겼다. T13([#79](https://github.com/wooklym/golmok/pull/79))은 이 브랜치 위의 스택이라 병합 뒤 base를 main으로 바꾼다.
+
+
+## T14 — WP-19c 캐릭터 리뷰 후속 (2026-09-30)
+
+배정 5909021799, 기준 main `a92cad8`(#77/#78/#79 병합), 브랜치 `astra/wp-19c-roster-followup`. 캐릭터 레인만 수정, animation.json·characters.json·오디오·핫스팟·공유 문서 무수정, 등록 36 유지.
+
+- R77-1(B): 배포 설정 교차 검사와 7가지 드리프트 음성 시험. visual 또는 content_root 하위 source 항목의 GASP ABP 경로를 animation.json과 일치시킨다. 모드 기본값의 집합/① 보존·source scale 1도 검사(R77-9). 런타임에서 animation.json 자체가 파싱 실패할 때의 추가 fail-closed는 이번 선택 범위에 넣지 않았다.
+- R77-2(B): 지원 폰+gasp 모드 기본값 실패 시 월드당 Warning 1회, DescribeRoster의 last_auto_error. 성공한 fallback 뒤에도 마지막 실패 기록을 유지하며 Runtime 대역으로 반복 실패의 Warning 1회와 fallback 성공을 단언한다.
+- R77-3(B): 설치 여부와 무관하게 실제 GASP 로스터 통합은 NOT EXECUTED Info. 자산 부재/일반 폰 거절과 실제 BP·리타깃 검증을 구분했다.
+- R77-4(B): Block Info에 X/Y/Feet/Speed2D/MovementMode/해당 단계 MaxFrameDt. 판정·물리·입력 로직은 바꾸지 않았다.
+- 선택 C: R77-5 누락 visual의 후보를 proxy135 치수로 바꾸고 기존 캡슐·붐·속도·visual scale 보존 및 override 밖 visual 거절 단언. R77-9 위 배포 불변식. R77-10 보폭 추정·V-15 재측정 문구. R77-14 Keys의 이름 비교를 CaseSensitive로 하고 Height_cm 거절 시험. R77-11은 const_cast 로스터 대신 테스트 전용 접근 시임을 제공하고 스코프 안 틱·GC 없음/RAII를 명시; 임시 native Interfaces 변경은 기존 계약 대역으로 남겼다. R77-6/7/8과 R75 선택 문서 개선은 미반영.
+
+### 최초 T12 실패 근거 보존
+
+`tools/.venv/t12-first-full-index.json`(로컬 보존 보고서): 처음 전체 실행은 35 Success·1 Fail. 실패 라벨은 `Expected 'quinn: 40 cm block is not climbed' to be true.`와 `Expected 'quinn: 40 cm block actually stops forward movement' to be true.`다. 보고서 순서는 Animation.Config → Fallback → GaspSmoke → StateProvider → Audio.Footstep → StateMachine → Character.Config → **Character.Locomotion(8번째, Fail)** → PathRoundTrip → PhotoIntegration → PortalRoundTrip → RenderEvidence → **Character.Runtime(13번째, Success)**다. 따라서 이 실행의 새 Runtime 대역은 Locomotion 실패 이후에 실행됐다. 직전 Character 단독과 동일 코드 전체 재실행은 성공했다. 히치/CMC 모서리 비결정성 등 원인은 미확정이고 콜드 반복 비교는 미실행(선택 실험)이다.
+
+검증: UE 5.8.3 build 성공, Character 7 state=Success(실제 GASP/RenderEvidence 미실행 표시는 유지), Block 4종 모두 속도0·Feet2·MaxFrameDt 0.016504~0.016663 s. Python ruff check/format(로컬114), pytest1149 passed/217 skipped/208 warnings, check_repo·diff --check 통과.
+
+**전체 UE 게이트는 실패**: succeeded23 + warnings12 + failed1, notRun0. main #78의 `Golmok.Animation.Config`에서 `mode ABP … variant differs from the base` 단언 실패. `GolmokAnimationTest.cpp:863`의 `Case.Text != FString(BaseConfig)`는 대소문자 무시 비교라 abp→ABP 변이를 같다고 판정한다. 해당 Claude 레인 파일은 수정하지 않았고 [이슈 #30 보고](https://github.com/wooklym/golmok/issues/30#issuecomment-5909583089)로 CaseSensitive 비교 수정을 요청했다. 전체 게이트를 초록으로 기록하지 않는다. 로컬 최초 결과는 tools/.venv/t14-final-index.json에 보존.
+
+### 병합 시 반영 — T14
+
+STATUS 병행 트랙 문안: `T14(R77 B1~4) 헤드리스 후속 완료: animation/로스터 경로 교차 검사, 지원 GASP 폰의 모드 기본값 실패 Warning 1회·마지막 사유, 실제 GASP 통합 NOT EXECUTED 명시, Block 물리 진단. 등록 36 유지. 실제 경로 확정·리타깃·Quinn 간헐 장애물 실패 원인은 19b/V-15·추가 실험 대기.`
+
+## 병합 기록 — T14 PR [#80](https://github.com/wooklym/golmok/pull/80) (2026-09-30, 오케스트레이터 세션)
+
+**내용**: 위 "T14" 절과 같다. R77 (B) 1~4(animation.json ↔ 로스터 경로 교차 검사, GASP 가능 폰의 모드 기본값 실패 Warning 월드당 1회와 마지막 사유, 실제 GASP 통합 NOT EXECUTED 명시, Block 물리 진단)와 (C) 5·10·11·12·14, 9 일부를 반영했다. 등록 수는 36으로 같다.
+
+**병합 전 리뷰(Opus 5.5 ultracode 적대 검증 + 짧은 설계 리뷰, [R80](https://github.com/wooklym/golmok/pull/80#issuecomment-5910622233))**: (A) 0 · (B) 1 · (C) 5.
+- 게이트(리눅스): ruff·format, pytest 1363 passed / 3 skipped(main 1355 + 8), check_repo, `diff --check`, 등록 36, CI 10/10. main(#83)·#81·#82와 합친 트리 충돌 0·초록. UE 빌드·Character 7 Success는 Astra 보고이며, 전체 35/1의 1건은 main `Animation.Config` 단언이었고 [#83](https://github.com/wooklym/golmok/pull/83)으로 고쳤다.
+- 확인(결함 없음): 교차 검사가 한 글자 변이·기본값 뒤바꿈을 모두 잡음, Warning 조건·1회·① 무경고, Block 진단이 판정·타이밍을 바꾸지 않음, `Keys()` 키 집합이 characters.json·스키마·C++에서 대소문자까지 동일, 트랜잭션 테스트 강화, 컴파일 위험 낮음, 레인 준수.
+- (B) **R80-1 → Astra T16**: 교차 검사의 GASP 판정이 경로 접두사라서 `content_root: "/Game"`(C++ 허용, relocate 실패 대안)이면 ① 항목까지 GASP로 분류되어 올바른 로스터도 통과할 수 없고, 루트 밖 stale 직접 항목은 빠진다. 원인은 R77-1 스펙 문구(리뷰 오류)다. 분류를 "`visual`이 있거나 `anim_class`가 ① 공통 ABP가 아닌 항목"으로 정정한다.
+- (C → T16): R80-2 음성 사례 `match=`, R80-3 visual `mesh_scale` 1, R80-4 폴백 성공 로그, R80-5 `Keys()` 임시 문자열 제거. R80-6(문서)은 이 커밋에서 반영(런북 `pc-verify-wp19.md` §A8 GaspSmoke 관찰 한 줄). 이월 R77-6·7·8도 T16.
+- 설계 리뷰: 품질 가설 변화 없음, 새 D 번호 없음. 레인 간 결합(`animation.json` 경로를 바꾸면 `characters.json`도 함께)은 D-021 진행 기록에 절차로 적었다(19b 경로 갱신은 Astra 브랜치를 19b 위 스택으로 연달아 병합).
+
+**병합**: 오케스트레이터 결정(D-019). main(#83 포함)을 병합한 뒤 이 커밋으로 반영했다. 위 "병합 시 반영 — T14" 문안은 STATUS 병행 트랙 WP-18 행과 `astra-tasks.md` T14·T16에 옮겼다. 병합 뒤 PC가 main에서 UE 전체 36을 다시 확인한다.
