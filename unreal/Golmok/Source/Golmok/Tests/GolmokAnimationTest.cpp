@@ -842,6 +842,7 @@ bool FGolmokAnimationConfigTest::RunTest(const FString& Parameters)
 			{TEXT("extra gasp key"), Variant(TEXT("\"content_root\": \"/Game/GASP\","), TEXT("\"content_root\": \"/Game/GASP\", \"x\": 1,"))},
 			{TEXT("missing state key"), Variant(TEXT("\"reinit_anim_on_teleport\": true"), TEXT("\"reinit\": true"))},
 			{TEXT("mode motion"), Variant(TEXT("\"mode\": \"abp\""), TEXT("\"mode\": \"motion\""))},
+			{TEXT("mode ABP (the file is exact, like the pytest schema)"), Variant(TEXT("\"mode\": \"abp\""), TEXT("\"mode\": \"ABP\""))},
 			{TEXT("pawn_class without _C"), Variant(TEXT("BP_GolmokCharacter_GASP.BP_GolmokCharacter_GASP_C\""), TEXT("BP_GolmokCharacter_GASP.BP_GolmokCharacter_GASP\""))},
 			{TEXT("pawn_class outside /Game"), Variant(TEXT("\"/Game/GolmokLocal/GASP/"), TEXT("\"/Engine/GolmokLocal/GASP/"))},
 			{TEXT("anim_class absolute"), Variant(TEXT("\"anim_class\": \"Blueprints/"), TEXT("\"anim_class\": \"/Blueprints/"))},
@@ -898,6 +899,12 @@ bool FGolmokAnimationConfigTest::RunTest(const FString& Parameters)
 		TestTrue(TEXT("file mode without overrides"), F.Mode == EMode::Gasp && F.Source == TEXT("animation.json"));
 		const auto B = ComputeEffectiveMode(TEXT("-GolmokAnim=bogus"), TOptional<EMode>(EMode::Abp), true, EMode::Gasp);
 		TestTrue(TEXT("invalid command line value is ignored"), B.Mode == EMode::Abp && B.Source == TEXT("console"));
+		TestEqual(TEXT("invalid command line value is reported (Warning once)"), B.InvalidCommandLineValue, FString(TEXT("bogus")));
+		const auto U = ComputeEffectiveMode(TEXT("-GolmokAnim=GASP"), TOptional<EMode>(), true, EMode::Abp);
+		TestTrue(TEXT("command line mode ignores case"), U.Mode == EMode::Gasp && U.Source == TEXT("command line") && U.InvalidCommandLineValue.IsEmpty());
+		EMode Argument = EMode::Abp;
+		TestTrue(TEXT("console mode argument ignores case and spaces"), GolmokAnimation::ParseModeArgument(TEXT(" Gasp "), Argument) && Argument == EMode::Gasp);
+		TestFalse(TEXT("console mode argument rejects other words"), GolmokAnimation::ParseModeArgument(TEXT("motion"), Argument));
 		const auto I = ComputeEffectiveMode(nullptr, TOptional<EMode>(), false, EMode::Gasp);
 		TestTrue(TEXT("invalid config reads as abp"), I.Mode == EMode::Abp && I.Source == TEXT("animation.json invalid"));
 

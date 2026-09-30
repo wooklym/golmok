@@ -1,11 +1,13 @@
 #include "Animation/GolmokAnimationSubsystem.h"
 
 #include "Golmok.h"
+#include "Animation/AnimBlueprintGeneratedClass.h"
 #include "Animation/AnimInstance.h"
 #include "Animation/GolmokGaspCharacter.h"
 #include "Animation/GolmokLocomotionStateComponent.h"
 #include "Characters/GolmokCharacterSubsystem.h"
 #include "Components/SkeletalMeshComponent.h"
+#include "CoreGlobals.h"
 #include "Debug/GolmokDebugSubsystem.h"
 #include "Engine/SkeletalMesh.h"
 #include "Engine/World.h"
@@ -19,6 +21,7 @@
 #include "Photo/GolmokPhotoModeSubsystem.h"
 #include "Player/GolmokCharacter.h"
 #include "UObject/Interface.h"
+#include "UObject/SoftObjectPath.h"
 
 namespace GolmokAnimation
 {
@@ -49,10 +52,46 @@ namespace GolmokAnimation
 		return bValue ? TEXT("yes") : TEXT("no");
 	}
 
+	/** golmok.anim status: "yes" (loaded or, with bLoad, loads as BaseClass), "on disk" (package exists, not loaded), "no". */
+	const TCHAR* ClassPresence(const FString& Path, const UClass* BaseClass, bool bLoad)
+	{
+		if (bLoad)
+		{
+			return YesNo(LoadClassIfPresent(Path, BaseClass) != nullptr);
+		}
+		const FSoftClassPath SoftPath(Path);
+		if (!SoftPath.IsValid())
+		{
+			return TEXT("no");
+		}
+		if (const UClass* Loaded = SoftPath.ResolveClass())
+		{
+			return YesNo(!BaseClass || Loaded->IsChildOf(BaseClass));
+		}
+		const FString Package = SoftPath.GetLongPackageName();
+		return !Package.IsEmpty() && !Package.StartsWith(TEXT("/Script/")) && FPackageName::DoesPackageExist(Package) ? TEXT("on disk")
+			: TEXT("no");
+	}
+
+	/**
+	 * The roster rule (UGolmokCharacterSubsystem::ApplyEntry): an anim Blueprint whose target skeleton is the mesh's.
+	 * bAllowTemplate is the roster's visual rule: a retarget ABP may declare no target skeleton (review R78-2).
+	 */
+	bool SkeletonMatches(const USkeletalMesh* Mesh, const UClass* AnimClass, bool bAllowTemplate = false)
+	{
+		const UAnimBlueprintGeneratedClass* AnimBP = Cast<UAnimBlueprintGeneratedClass>(AnimClass);
+		if (!Mesh || !AnimBP || !Mesh->GetSkeleton())
+		{
+			return false;
+		}
+		const USkeleton* Target = AnimBP->GetTargetSkeleton();
+		return Target == Mesh->GetSkeleton() || (bAllowTemplate && !Target);
+	}
+
 	void CmdAnim(const TArray<FString>& Args, UWorld* World)
 	{
 		UGolmokAnimationSubsystem* Subsystem = World ? World->GetSubsystem<UGolmokAnimationSubsystem>() : nullptr;
-		FString Message = TEXT("usage: golmok.anim status | mode <abp|gasp|config> | profile <id> | preview [off]");
+		FString Message = TEXT("usage: golmok.anim status [load] | mode <abp|gasp|config> | profile <id> | preview [off]");
 		if (Args.Num() == 2 && Args[0] == TEXT("mode"))
 		{
 			// Process-wide; works without a game world too (the next PIE uses it).
@@ -68,7 +107,7 @@ namespace GolmokAnimation
 					SetConsoleModeOverride(TOptional<EMode>());
 					Message = TEXT("mode follows animation.json (applies to the next PIE / pawn spawn)");
 				}
-				else if (ParseModeName(Args[1], Mode))
+				else if (ParseModeArgument(Args[1], Mode))
 				{
 					SetConsoleModeOverride(Mode);
 					Message = FString::Printf(TEXT("mode %s (applies to the next PIE / pawn spawn)"), ModeName(Mode));
@@ -81,7 +120,11 @@ namespace GolmokAnimation
 		}
 		else if (Args.Num() == 0 || (Args.Num() == 1 && Args[0] == TEXT("status")))
 		{
-			Message = Subsystem->DescribeStatus();
+			Message = Subsystem->DescribeStatus(false);
+		}
+		else if (Args.Num() == 2 && Args[0] == TEXT("status") && Args[1] == TEXT("load"))
+		{
+			Message = Subsystem->DescribeStatus(true); // loads the GASP ABP / BPI / pawn Blueprint (about 1 GB)
 		}
 		else if (Args.Num() == 2 && Args[0] == TEXT("profile"))
 		{
@@ -95,7 +138,7 @@ namespace GolmokAnimation
 	}
 
 	FAutoConsoleCommandWithWorldAndArgs GCmdAnim(TEXT("golmok.anim"),
-		TEXT("golmok.anim status | mode <abp|gasp|config> | profile <id> | preview [off]: animation mode (WP-19, D-021)."),
+		TEXT("golmok.anim status [load] | mode <abp|gasp|config> | profile <id> | preview [off]: animation mode (WP-19, D-021)."),
 		FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&CmdAnim));
 }
 
@@ -177,10 +220,24 @@ void UGolmokAnimationSubsystem::StartPreload()
 		/*bManageActiveHandle*/ false, /*bStartStalled*/ false, TEXT("GolmokAnimation pawn preload"));
 }
 
-void UGolmokAnimationSubsystem::RecordResolution(const GolmokAnimation::FPawnResolution& Resolution)
+bool UGolmokAnimationSubsystem::FindCachedResolution(const UClass* SuperClass, GolmokAnimation::FPawnResolution& OutResolution) const
 {
-	++Resolutions;
+	if (CachedFrame != GFrameCounter || CachedSuperClass != SuperClass || CachedGeneration != GolmokAnimation::GetModeSourceGeneration())
+	{
+		return false;
+	}
+	OutResolution = CachedResolution;
+	return true;
+}
+
+void UGolmokAnimationSubsystem::RecordResolution(const GolmokAnimation::FPawnResolution& Resolution, const UClass* SuperClass)
+{
+	CachedResolution = Resolution;
+	CachedSuperClass = SuperClass;
+	CachedFrame = GFrameCounter;
+	CachedGeneration = GolmokAnimation::GetModeSourceGeneration();
 	LastResolvedClass = Resolution.PawnClass ? Resolution.PawnClass->GetPathName() : FString(TEXT("(none)"));
+	bLastResolvedGasp = !Resolution.bFallback && Resolution.Mode.Mode == GolmokAnimation::EMode::Gasp;
 	if (!Resolution.bFallback)
 	{
 		return;
@@ -219,7 +276,7 @@ bool UGolmokAnimationSubsystem::SetMode(const FString& Argument, FString& OutMes
 	{
 		GolmokAnimation::SetConsoleModeOverride(TOptional<GolmokAnimation::EMode>());
 	}
-	else if (GolmokAnimation::ParseModeName(Argument, Mode))
+	else if (GolmokAnimation::ParseModeArgument(Argument, Mode))
 	{
 		GolmokAnimation::SetConsoleModeOverride(Mode);
 	}
@@ -293,6 +350,12 @@ bool UGolmokAnimationSubsystem::ApplyPreview(bool bOn, FString& OutMessage)
 			*SourcePath, GolmokAnimation::YesNo(Source != nullptr), *AnimPath, GolmokAnimation::YesNo(AnimClass != nullptr));
 		return false;
 	}
+	if (!GolmokAnimation::SkeletonMatches(Source, AnimClass))
+	{
+		OutMessage = FString::Printf(TEXT("preview: %s is not an anim Blueprint for the skeleton of %s (roster rule); nothing changed"),
+			*AnimPath, *SourcePath);
+		return false;
+	}
 	Character->GetMesh()->SetSkeletalMesh(Source);
 	Character->GetMesh()->SetAnimInstanceClass(AnimClass);
 	FString Visual = TEXT("no visual mesh");
@@ -303,7 +366,12 @@ bool UGolmokAnimationSubsystem::ApplyPreview(bool bOn, FString& OutMessage)
 		USkeletalMesh* VisualMesh = Cast<USkeletalMesh>(GolmokAnimation::LoadObjectIfPresent(VisualMeshPath, USkeletalMesh::StaticClass()));
 		UClass* VisualAnim = GolmokAnimation::LoadClassIfPresent(VisualAnimPath, UAnimInstance::StaticClass());
 		FString VisualError;
-		if (Character->SetVisualOverride(VisualMesh, VisualAnim, VisualError))
+		if (VisualMesh && VisualAnim && !GolmokAnimation::SkeletonMatches(VisualMesh, VisualAnim, /*bAllowTemplate*/ true))
+		{
+			Character->ClearVisualOverride();
+			Visual = FString::Printf(TEXT("visual mesh not applied (%s: %s is not for its skeleton)"), *VisualMeshPath, *VisualAnimPath);
+		}
+		else if (Character->SetVisualOverride(VisualMesh, VisualAnim, VisualError))
 		{
 			Visual = FString::Printf(TEXT("visual %s + %s"), *VisualMeshPath, *VisualAnimPath);
 		}
@@ -316,7 +384,7 @@ bool UGolmokAnimationSubsystem::ApplyPreview(bool bOn, FString& OutMessage)
 	{
 		Character->ClearVisualOverride();
 	}
-	OutMessage = FString::Printf(TEXT("preview on: %s + %s, %s (debug only, not saved; use golmok.anim preview off before a roster change: a roster apply replaces only the source mesh)"), *SourcePath, *AnimPath, *Visual);
+	OutMessage = FString::Printf(TEXT("preview on: %s + %s, %s (debug only, not saved; a roster apply replaces it, golmok.anim preview off restores the roster entry)"), *SourcePath, *AnimPath, *Visual);
 	return true;
 }
 
@@ -330,10 +398,20 @@ FString UGolmokAnimationSubsystem::BuildHudLine() const
 		const FString Profile = Character->GetAppliedProfileId().IsEmpty() ? FString(TEXT("-")) : Character->GetAppliedProfileId();
 		return FString::Printf(TEXT("anim: gasp %s | %s"), *Profile, *GolmokAnimation::DescribeState(*Character->GetLocomotionStateComponent()));
 	}
-	return LastFallbackReason.IsEmpty() ? FString(TEXT("anim: abp")) : FString::Printf(TEXT("anim: abp (fallback: %s)"), *LastFallbackReason);
+	if (!LastFallbackReason.IsEmpty())
+	{
+		return FString::Printf(TEXT("anim: abp (fallback: %s)"), *LastFallbackReason);
+	}
+	if (bLastResolvedGasp)
+	{
+		// The GASP pawn was spawned but another pawn is possessed (path playback, photo camera...): say so (R76 C5).
+		const APawn* Pawn = PC ? PC->GetPawn() : nullptr;
+		return FString::Printf(TEXT("anim: abp (possessed %s is not the GASP pawn)"), Pawn ? *Pawn->GetClass()->GetName() : TEXT("nothing"));
+	}
+	return FString(TEXT("anim: abp"));
 }
 
-FString UGolmokAnimationSubsystem::DescribeStatus() const
+FString UGolmokAnimationSubsystem::DescribeStatus(bool bLoadAssets) const
 {
 	const GolmokAnimation::FModeResolution Mode = GolmokAnimation::GetEffectiveMode();
 	GolmokAnimation::FConfig Config;
@@ -352,11 +430,13 @@ FString UGolmokAnimationSubsystem::DescribeStatus() const
 	{
 		const FString AnimPath = Config.AssetPath(Config.AnimClass);
 		const FString InterfacePath = Config.AssetPath(Config.PawnInterface);
-		Out += FString::Printf(TEXT("\n  gasp install: manifest %s | content_root %s | abp %s (%s) | bpi %s (%s) | pawn bp %s (%s)"),
+		// No synchronous load of the GASP classes unless asked (R76 C2: about 1 GB in mode abp).
+		Out += FString::Printf(TEXT("\n  gasp install: manifest %s | content_root %s | abp %s (%s) | bpi %s (%s) | pawn bp %s (%s)%s"),
 			GolmokAnimation::YesNo(FPaths::FileExists(GolmokAnimation::ManifestFilePath())), *Config.ContentRoot,
-			GolmokAnimation::YesNo(GolmokAnimation::LoadClassIfPresent(AnimPath, UAnimInstance::StaticClass()) != nullptr), *AnimPath,
-			GolmokAnimation::YesNo(GolmokAnimation::LoadClassIfPresent(InterfacePath, UInterface::StaticClass()) != nullptr), *InterfacePath,
-			GolmokAnimation::YesNo(GolmokAnimation::LoadClassIfPresent(Config.PawnClass, AGolmokGaspCharacter::StaticClass()) != nullptr), *Config.PawnClass);
+			GolmokAnimation::ClassPresence(AnimPath, UAnimInstance::StaticClass(), bLoadAssets), *AnimPath,
+			GolmokAnimation::ClassPresence(InterfacePath, UInterface::StaticClass(), bLoadAssets), *InterfacePath,
+			GolmokAnimation::ClassPresence(Config.PawnClass, AGolmokGaspCharacter::StaticClass(), bLoadAssets), *Config.PawnClass,
+			bLoadAssets ? TEXT("") : TEXT(" (not loaded; golmok.anim status load)"));
 	}
 	Out += FString::Printf(TEXT("\n  ddcvars %d/%d present (expected 27; %d registered by Golmok)%s | tags file %s"), DDCvarPresent, DDCvarCount, DDCvarAdded,
 		DDCvarError.IsEmpty() ? TEXT("") : *FString::Printf(TEXT(" error: %s"), *DDCvarError),

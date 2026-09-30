@@ -59,6 +59,7 @@ void UGolmokLocomotionStateComponent::OnRegister()
 	}
 	bHasPrevious = false;
 	bReinitPending = false;
+	bLandingPending = false;
 }
 
 void UGolmokLocomotionStateComponent::OnUnregister()
@@ -147,7 +148,8 @@ void UGolmokLocomotionStateComponent::TickComponent(float DeltaTime, ELevelTick 
 	Next.MovingState = GolmokAnimation::ToMovingStateEnum(GolmokLocomotionMath::UpdateMoving(
 		GolmokAnimation::FromMovingStateEnum(State.MovingState), Speed2D, GolmokLocomotionMath::Length2(IntentXY)));
 	Next.bJustLanded = Landing.IsJustLanded(Now, JustLandedSeconds);
-	Next.LandVelocity = State.LandVelocity;
+	Next.LandVelocity = bLandingPending ? PendingLandVelocity : State.LandVelocity;
+	bLandingPending = false;
 	Next.bTeleportedThisFrame = bHasPrevious && GolmokLocomotionMath::IsTeleportJump(PreviousLocation.X, PreviousLocation.Y,
 		Location.X, Location.Y, FMath::Max(PreviousSpeed2D, Speed2D), DeltaTime, TeleportJumpCm);
 	if (Next.bTeleportedThisFrame)
@@ -173,7 +175,8 @@ void UGolmokLocomotionStateComponent::HandleLanded(const FHitResult& Hit)
 		return;
 	}
 	Landing.OnLanded(Movement->Velocity.Z, World->GetTimeSeconds());
-	State.LandVelocity = Movement->Velocity;
+	PendingLandVelocity = Movement->Velocity; // applied by the next TickComponent (same frame: it ticks after the CMC)
+	bLandingPending = true;
 }
 
 void UGolmokLocomotionStateComponent::HandleMovementModeChanged(ACharacter* InCharacter, EMovementMode PrevMovementMode, uint8 PreviousCustomMode)

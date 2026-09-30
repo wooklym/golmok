@@ -186,14 +186,26 @@ def check_conflict_markers(root: Path) -> list[str]:
     return errors
 
 
-# [WP-19 hook] GASP repository guard (D-021, Fab EULA section 5(a); WP-19 design section 9).
-GASP_INI_COMMIT_ALLOWED = False  # owner fact check R21-11-3: GASP DDCvar / tag ini text stays local till then
-GASP_CONTENT = "unreal/Golmok/Content/"
-GASP_TRACKED_CONTENT = ("unreal/Golmok/Content/Golmok/", "unreal/Golmok/Content/Python/")
-GASP_LOCAL_ONLY = re.compile(
-    r"^unreal/Golmok/Config/(Golmok/local/.+|Tags/GASP[^/]*\.ini|DefaultGameplayTags\.ini)$"
+# [WP-19 hook] GASP repository guard (D-021, Fab EULA section 5(a); WP-19 design section 9; WP-19a-2 R76 T3).
+# GASP_INI_COMMIT_ALLOWED (owner fact check R21-11-3) controls every GASP ini rule: DDCvar / gameplay-tag text
+# in any committable Config/**/*.ini, Config/Tags/*.ini outside GASP_TAGS_ALLOWED, DefaultGameplayTags.ini.
+# The add-gasp outputs (Config/Golmok/local/, Config/Tags/GASP*.ini) and GASP content stay local regardless.
+# Path rules compare lower case; golmok.gasp_pure.is_local_only applies the same path rules to git status
+# (tools/tests/test_check_repo_gasp.py runs both over one table).
+GASP_INI_COMMIT_ALLOWED = False
+GASP_CONTENT = "unreal/golmok/content/"
+GASP_TRACKED_CONTENT = ("unreal/golmok/content/golmok/", "unreal/golmok/content/python/")
+GASP_PACKAGE_CONTENT = "unreal/golmok/content/golmok/"  # the only place for a committed .uasset / .umap
+GASP_LOCAL_FOLDERS = ("gasp", "golmoklocal")  # never committed, wherever they sit under Content
+GASP_LOCAL_ONLY = ("unreal/golmok/config/golmok/local/",)
+GASP_ADD_GASP_TAGS = re.compile(r"^unreal/golmok/config/tags/gasp[^/]*\.ini$")
+GASP_TAGS_DIR = "unreal/golmok/config/tags/"
+GASP_TAGS_ALLOWED: tuple[str, ...] = ()
+GASP_TAGS_FILE = "unreal/golmok/config/defaultgameplaytags.ini"
+GASP_CONFIG_INI = re.compile(r"^unreal/golmok/(plugins/.+/)?config/.+\.ini$")
+GASP_INI_TEXT = re.compile(
+    r"DataDrivenConsoleVariableSettings|CVarsArray|ddcvar\.|GameplayTagList", re.IGNORECASE
 )
-GASP_DDCVAR = re.compile(r"ddcvar\.", re.IGNORECASE)
 
 
 def _git_paths(root: Path, *args: str) -> list[str] | None:
@@ -210,27 +222,56 @@ def _git_paths(root: Path, *args: str) -> list[str] | None:
     return [p for p in (text.split("\0") if "\0" in text else text.splitlines()) if p]
 
 
+def _gasp_path_rule(path: str) -> str | None:
+    """Why a repository path must never be committed (lower-case path rules), else None."""
+    low = path.lower()
+    parts = low.split("/")
+    if low.endswith((".uasset", ".umap")) and not low.startswith(GASP_PACKAGE_CONTENT):
+        return ".uasset / .umap는 Content/Golmok/ 안에만 커밋한다"
+    if low.startswith(GASP_CONTENT):
+        if not low.startswith(GASP_TRACKED_CONTENT):
+            return "Content/ 루트에는 Golmok/·Python/만 커밋한다"
+        if any(part in GASP_LOCAL_FOLDERS for part in parts[3:-1]):
+            return "GASP·GolmokLocal 폴더는 로컬 전용이다"
+    if low.startswith(GASP_LOCAL_ONLY) or GASP_ADD_GASP_TAGS.match(low):
+        return "로컬 전용 파일(add-gasp)이다"
+    if not GASP_INI_COMMIT_ALLOWED:
+        if low.startswith(GASP_TAGS_DIR) and low.endswith(".ini") and low not in GASP_TAGS_ALLOWED:
+            return "Config/Tags/*.ini는 허용 목록 밖이면 커밋하지 않는다(R21-11-3)"
+        if low == GASP_TAGS_FILE:
+            return "DefaultGameplayTags.ini는 로컬 전용이다(R21-11-3)"
+    return None
+
+
 def check_gasp_guard(root: Path) -> list[str]:
     top = _git_paths(root, "rev-parse", "--show-toplevel")
+    if top is None and (root / ".git").exists():
+        return [
+            "gasp: git 실행 실패(git rev-parse) — PATH·safe.directory를 확인한다(GASP 가드를 건너뛰지 않는다)"
+        ]
     if not top or Path(top[0].strip()).resolve() != root.resolve():
         return []  # not the top of a git work tree (e.g. the synthetic repos of test_check_repo.py): skipped
-    tracked = _git_paths(root, "ls-files", "-z") or []
-    addable = _git_paths(root, "ls-files", "--others", "--exclude-standard", "-z") or []
+    tracked = _git_paths(root, "ls-files", "-z")
+    addable = _git_paths(root, "ls-files", "--others", "--exclude-standard", "-z")
+    if tracked is None or addable is None:
+        return [
+            "gasp: git 실행 실패(git ls-files) — PATH·safe.directory를 확인한다(GASP 가드를 건너뛰지 않는다)"
+        ]
     errors = []
     for state, paths in (("추적 중", tracked), ("추가 가능", addable)):
         for path in paths:
-            if path.startswith(GASP_CONTENT) and not path.startswith(GASP_TRACKED_CONTENT):
-                errors.append(f"{path}: GASP 가드 — Content/ 루트에는 Golmok/·Python/만 커밋한다 ({state})")
-            elif GASP_LOCAL_ONLY.match(path):
-                errors.append(f"{path}: GASP 가드 — 로컬 전용 파일(add-gasp)이다 ({state})")
-    if not GASP_INI_COMMIT_ALLOWED:
-        for ini in sorted((root / CONFIG_DIR).glob("Default*.ini")):
-            text = ini.read_text(encoding="utf-8-sig", errors="replace")
-            for m in GASP_DDCVAR.finditer(text):
-                no = text.count("\n", 0, m.start()) + 1
-                rel = ini.relative_to(root).as_posix()
-                errors.append(f"{rel}:{no}: GASP 가드 — DDCvar 텍스트는 커밋하지 않는다")
-                break
+            rule = _gasp_path_rule(path)
+            if rule:
+                errors.append(f"{path}: GASP 가드 — {rule} ({state})")
+            elif not GASP_INI_COMMIT_ALLOWED and GASP_CONFIG_INI.match(path.lower()):
+                file = root / path
+                text = file.read_text(encoding="utf-8-sig", errors="replace") if file.is_file() else ""
+                m = GASP_INI_TEXT.search(text)
+                if m:
+                    no = text.count("\n", 0, m.start()) + 1
+                    errors.append(
+                        f"{path}:{no}: GASP 가드 — GASP DDCvar·태그 텍스트({m.group(0)})는 커밋하지 않는다"
+                    )
     return errors
 
 

@@ -34,11 +34,24 @@ DDCVAR_SECTION = "/Script/Engine.DataDrivenConsoleVariableSettings"
 TAGS_SECTION = "/Script/GameplayTags.GameplayTagsSettings"
 TAGS_LIST_SECTION = "/Script/GameplayTags.GameplayTagsList"
 CVAR_TYPES = {"CVarInt": "int", "CVarFloat": "float", "CVarBool": "bool"}
-PACKAGE_RE = re.compile(r"/Game(/[A-Za-z0-9_]+)+")
-# Only these stay committable at the Content root (.gitignore [WP-19 hook]).
-TRACKED_CONTENT = ("unreal/Golmok/Content/Golmok/", "unreal/Golmok/Content/Python/")
-LOCAL_ONLY_PREFIXES = ("unreal/Golmok/Config/Golmok/local/",)
-LOCAL_ONLY_RE = re.compile(r"^unreal/Golmok/Config/(Tags/GASP[^/]*\.ini|DefaultGameplayTags\.ini)$")
+# UE long package names: any character but "/" and INVALID_LONGPACKAGE_CHARACTERS (backslash : * ? " < > | '
+# space , . & ! ~ newline CR tab @ #), so "/Game/Audio/Foley-Step_01" or non-ASCII names are packages too
+# (review R76 T4).
+INVALID_PACKAGE_CHARS = "\\:*?\"<>|' ,.&!~\n\r\t@#"
+PACKAGE_RE = re.compile(r"/Game(/[^/" + re.escape(INVALID_PACKAGE_CHARS) + r"]+)+")
+MIGRATE_ROOT = "/Game/GASP"
+MANNEQUIN_PACK = "/Game/Characters/Mannequins/"  # tools/ue/add-mannequin.ps1
+# Repository guard: the path rules of tools/scripts/check_repo.py check_gasp_guard, in lower case
+# (tools/tests/test_check_repo_gasp.py runs both over one table). Only Content/Golmok and Content/Python are
+# committable under Content; .uasset / .umap only inside Content/Golmok, never in a GASP / GolmokLocal folder.
+GUARD_CONTENT = "unreal/golmok/content/"
+TRACKED_CONTENT = ("unreal/golmok/content/golmok/", "unreal/golmok/content/python/")
+PACKAGE_CONTENT = "unreal/golmok/content/golmok/"
+LOCAL_FOLDER_NAMES = ("gasp", "golmoklocal")
+LOCAL_ONLY_PREFIXES = ("unreal/golmok/config/golmok/local/",)
+TAGS_DIR = "unreal/golmok/config/tags/"
+TAGS_ALLOWED: tuple[str, ...] = ()  # committable Config/Tags/*.ini (none: GASP tags stay local, R21-11-3)
+LOCAL_ONLY_FILES = ("unreal/golmok/config/defaultgameplaytags.ini",)
 
 
 # ---- closure.json -----------------------------------------------------------------------------------------
@@ -77,10 +90,20 @@ def parse_closure(data) -> list[str]:
     return paths
 
 
-def closure(roots, dependencies) -> list[str]:
-    """Breadth-first package closure over dependencies(package) -> package names, kept to /Game."""
+def is_package_name(name: str) -> bool:
+    """A /Game long package name UE can hold (INVALID_PACKAGE_CHARS)."""
+    return PACKAGE_RE.fullmatch(name) is not None
+
+
+def closure(roots, dependencies) -> tuple[list[str], list[str]]:
+    """Breadth-first package closure over dependencies(package) -> package names, kept to /Game.
+
+    Returns (packages, rejected): a "/Game/..." dependency that is not a valid package name is never dropped
+    silently; migrate reports it and stops before copying (review R76 T4).
+    """
     seen: set[str] = set()
-    queue = [r for r in roots if PACKAGE_RE.fullmatch(r)]
+    rejected: set[str] = set()
+    queue = [r for r in roots if is_package_name(r)]
     while queue:
         package = queue.pop(0)
         if package in seen:
@@ -88,9 +111,12 @@ def closure(roots, dependencies) -> list[str]:
         seen.add(package)
         for dependency in dependencies(package) or ():
             name = str(dependency)
-            if PACKAGE_RE.fullmatch(name) and name not in seen:
-                queue.append(name)
-    return sorted(seen)
+            if is_package_name(name):
+                if name not in seen:
+                    queue.append(name)
+            elif name.startswith("/Game/"):
+                rejected.add(name)
+    return sorted(seen), sorted(rejected)
 
 
 # ---- relocation -------------------------------------------------------------------------------------------
@@ -115,9 +141,9 @@ def relocation_plan(migrated, existing, content_root: str = "/Game/GASP") -> lis
     content_root "/Game" (the fallback keeps the Migrate paths).
     """
     migrated = sorted(set(migrated))
-    existing = set(existing)
-    for package in [*migrated, *existing]:
-        if not PACKAGE_RE.fullmatch(package):
+    existing = set(existing)  # only compared by prefix: whatever else is in Content is not validated (R76 T4)
+    for package in migrated:
+        if not is_package_name(package):
             raise ValueError(f"not a /Game package: {package!r}")
     if content_root == "/Game" or not migrated:
         return []
@@ -129,23 +155,95 @@ def relocation_plan(migrated, existing, content_root: str = "/Game/GASP") -> lis
             f"{content_root} already holds {len(taken)} of the packages (e.g. {taken[0]}): "
             f"delete Content/{content_root[len('/Game/') :]} before add-gasp -Force"
         )
-    plan: list[tuple[str, str, str]] = []
+    return [(kind, path, map_to_root(path, content_root)) for kind, path in split_folders(migrated, existing)]
 
-    def visit(folder: str, packages: list[str]):
-        inside = [p for p in existing if p.startswith(folder + "/")]
-        if not inside and folder != "/Game":
-            plan.append(("dir", folder, map_to_root(folder, content_root)))
+
+def split_folders(packages, others) -> list[tuple[str, str]]:
+    """The fewest ("dir", folder) / ("asset", package) units that cover packages without covering others.
+
+    A folder that holds only packages is one unit; a folder that also holds one of others (e.g.
+    /Game/Characters with the mannequin pack) is split into its subfolders and its own packages.
+    """
+    packages = sorted(set(packages))
+    others = set(others)
+    out: list[tuple[str, str]] = []
+
+    def visit(folder: str, inside_packages: list[str]):
+        if folder != "/Game" and not any(p.startswith(folder + "/") for p in others):
+            out.append(("dir", folder))
             return
-        direct = [p for p in packages if p.rpartition("/")[0] == folder]
-        plan.extend(("asset", p, map_to_root(p, content_root)) for p in direct)
+        direct = [p for p in inside_packages if p.rpartition("/")[0] == folder]
+        out.extend(("asset", p) for p in direct)
         children = sorted(
-            {folder + "/" + p[len(folder) + 1 :].split("/", 1)[0] for p in packages if p not in direct}
+            {folder + "/" + p[len(folder) + 1 :].split("/", 1)[0] for p in inside_packages if p not in direct}
         )
         for child in children:
-            visit(child, [p for p in packages if p.startswith(child + "/")])
+            visit(child, [p for p in inside_packages if p.startswith(child + "/")])
 
-    visit("/Game", migrated)
-    return plan
+    visit("/Game", packages)
+    return out
+
+
+def migrate_preconditions(packages, existing, history=(), same_as_source=lambda package: False) -> dict:
+    """What must be true before migrate copies anything into Golmok Content (review R76 T1).
+
+    Stops when /Game/GASP already holds packages (an install: -Force never overwrites one) or when closure
+    packages already sit at their Migrate paths as leftovers of an earlier add-gasp run: listed in the migrate
+    history of this checkout, or byte-identical to the GASP file. Returns {problems, leftovers, delete} where
+    delete are Content-relative folders / files that hold nothing but leftovers (never the mannequin pack).
+    """
+    existing = set(existing)
+    installed = sorted(p for p in existing if p.startswith(MIGRATE_ROOT + "/"))
+    history = set(history)
+    conflicts = sorted(set(packages) & existing)
+    # The byte rule never applies to the mannequin pack (add-mannequin copies Epic template files that could
+    # be byte-identical to a GASP copy): only the history can call a package there a leftover.
+    leftovers = sorted(
+        {p for p in existing if p in history and not p.startswith(MIGRATE_ROOT + "/")}
+        | {p for p in conflicts if not p.startswith(MANNEQUIN_PACK) and same_as_source(p)}
+    )
+    problems = []
+    if installed:
+        problems.append(
+            f"{MIGRATE_ROOT} is already installed ({len(installed)} packages, e.g. {installed[0]}): add-gasp "
+            f"never overwrites it; delete Content/{MIGRATE_ROOT[len('/Game/') :]} and Config/Golmok/local "
+            "first (runbook A3 re-install)"
+        )
+    delete = []
+    if leftovers:
+        for kind, path in split_folders(leftovers, existing - set(leftovers)):
+            rel = "Content/" + path[len("/Game/") :]
+            delete.append(rel if kind == "dir" else rel + ".uasset")
+        problems.append(
+            f"{len(leftovers)} GASP packages of an earlier add-gasp run are still at their Migrate paths "
+            f"(e.g. {leftovers[0]}): delete {', '.join(delete)} (unreal/Golmok/...; .umap for a level), then "
+            "run add-gasp -Force (runbook A3 re-install)"
+        )
+    return {"problems": problems, "leftovers": leftovers, "delete": delete, "installed": len(installed)}
+
+
+def load_history(path) -> set[str]:
+    """Saved/Golmok/add-gasp/migrated-history.json: every package an add-gasp copy ever planned in this checkout."""
+    if not path or not Path(path).is_file():
+        return set()
+    data = load_json(path)
+    return {p for p in data.get("migrated", []) if isinstance(p, str)}
+
+
+def record_history(path, packages) -> None:
+    """Adds packages to the migrate history (kept across runs; a failed run never loses what it copied)."""
+    if not path or not packages:
+        return
+    merged = sorted(load_history(path) | set(packages))
+    write_json(path, {"schema_version": 1, "migrated": merged})
+
+
+def installed_root(content_dir, migrated) -> str | None:
+    """Where the migrated packages are now: "/Game/GASP", "/Game" (the Migrate paths) or None (neither)."""
+    for root in CONTENT_ROOTS:
+        if migrated and all(package_file(content_dir, map_to_root(p, root)) for p in migrated):
+            return root
+    return None
 
 
 def packages_on_disk(content_dir) -> set[str]:
@@ -195,8 +293,38 @@ def relative_to_root(package: str, content_root: str) -> str:
     return package[len(prefix) :]
 
 
-def build_manifest(content_dir, packages, content_root, gasp_project, engine_version, now=None) -> dict:
-    """gasp_manifest.json: every package with size and sha256 (paths relative to content_root) + digest."""
+def source_entries(content_dir, packages) -> list[dict]:
+    """The acquired GASP files (in the GASP project): (original /Game relative path, file, size, sha256)."""
+    entries, missing = [], []
+    for package in sorted(set(packages)):
+        path = package_file(content_dir, package)
+        if path is None:
+            missing.append(package)
+            continue
+        entries.append(
+            {
+                "path": relative_to_root(package, "/Game"),
+                "file": path.suffix,
+                "size": path.stat().st_size,
+                "sha256": sha256_file(path),
+            }
+        )
+    if missing:
+        raise FileNotFoundError(
+            f"{len(missing)} closure packages have no file in the GASP project: {missing[:3]}"
+        )
+    return entries
+
+
+def build_manifest(
+    content_dir, packages, content_root, gasp_project, engine_version, now=None, source=None
+) -> dict:
+    """gasp_manifest.json: every package with size and sha256 (paths relative to content_root) + digest.
+
+    digest covers the relocated local files (integrity of this checkout; a rename resaves packages, so it
+    differs between runs and PCs). source = {"source_digest", "source_package_count"} from the migrate report:
+    the acquired GASP (original files in the GASP project), what tools/ue/gasp/expected.json pins (R76 T2).
+    """
     if content_root not in CONTENT_ROOTS:
         raise ValueError(f"content_root must be one of {CONTENT_ROOTS}")
     entries, missing = [], []
@@ -223,6 +351,8 @@ def build_manifest(content_dir, packages, content_root, gasp_project, engine_ver
         "content_root": content_root,
         "package_count": len(entries),
         "digest": aggregate_digest(entries),
+        "source_digest": (source or {}).get("source_digest"),
+        "source_package_count": (source or {}).get("source_package_count"),
         "generated_utc": stamp,
         "packages": entries,
     }
@@ -247,17 +377,27 @@ def check_manifest(content_dir, manifest) -> list[str]:
     return problems
 
 
+EXPECTED_KEYS = ("engine_version", "package_count", "source_digest")
+
+
 def compare_expected(manifest, expected) -> str | None:
-    """tools/ue/gasp/expected.json (19b fills it from the first verified install): None when it matches."""
-    if expected.get("digest") is None or expected.get("package_count") is None:
-        return "expected.json not filled yet (19b records the first verified digest)"
-    if expected["digest"] != manifest.get("digest") or expected["package_count"] != manifest.get(
-        "package_count"
-    ):
+    """tools/ue/gasp/expected.json (19b fills it from the first verified install): None when it matches.
+
+    Compares the acquired GASP (source_digest / source_package_count of the migrate step, Fab section 7(a))
+    and the engine version; the relocated local digest is not compared (it changes with every rename).
+    """
+    if any(expected.get(key) is None for key in EXPECTED_KEYS):
+        return "expected.json not filled yet (19b records the first verified source_digest)"
+    got = (
+        manifest.get("engine_version"),
+        manifest.get("source_package_count"),
+        manifest.get("source_digest"),
+    )
+    want = tuple(expected[key] for key in EXPECTED_KEYS)
+    if got != want:
         return (
-            f"GASP 갱신 — V-08b/V-15 재확인: digest {manifest.get('digest')} / "
-            f"{manifest.get('package_count')} packages, "
-            f"expected {expected['digest']} / {expected['package_count']}"
+            f"GASP 갱신 — V-08b/V-15 재확인: engine {got[0]} / {got[1]} packages / source_digest {got[2]}, "
+            f"expected {want[0]} / {want[1]} / {want[2]}"
         )
     return None
 
@@ -325,11 +465,6 @@ def parse_cvars(text: str) -> list[dict]:
     return out
 
 
-def is_ddcvar(name: str) -> bool:
-    """DDCvar. / DDCVar. (GASP uses both spellings)."""
-    return name.lower().startswith("ddcvar.")
-
-
 def ddcvars_json(cvars, source) -> dict:
     """Config/Golmok/local/gasp_ddcvars.json as GolmokAnimation::ParseDDCvars reads it."""
     return {"schema_version": 1, "source": str(source), "cvars": list(cvars)}
@@ -369,11 +504,21 @@ def tags_ini(tags, source) -> str:
 
 
 def is_local_only(path: str) -> bool:
-    """A repo-relative path that must never be committed (the check_repo.py GASP guard, same rules)."""
-    path = path.replace("\\", "/").strip().strip('"')
-    if path.startswith("unreal/Golmok/Content/") and not path.startswith(TRACKED_CONTENT):
+    """A repo-relative path that must never be committed (check_repo.py GASP guard path rules, lower case)."""
+    path = path.replace("\\", "/").strip().strip('"').lower()
+    parts = path.split("/")
+    if ".." in parts:
+        return True  # never a clean repository path (git status prints none)
+    if path.endswith((".uasset", ".umap")) and not path.startswith(PACKAGE_CONTENT):
         return True
-    return path.startswith(LOCAL_ONLY_PREFIXES) or LOCAL_ONLY_RE.match(path) is not None
+    if path.startswith(GUARD_CONTENT):
+        if not path.startswith(TRACKED_CONTENT):
+            return True
+        if any(part in LOCAL_FOLDER_NAMES for part in parts[3:-1]):
+            return True
+    if path.startswith(TAGS_DIR) and path.endswith(".ini") and path not in TAGS_ALLOWED:
+        return True
+    return path.startswith(LOCAL_ONLY_PREFIXES) or path in LOCAL_ONLY_FILES
 
 
 def committable_local_paths(porcelain: str) -> list[str]:
