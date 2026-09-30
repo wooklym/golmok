@@ -71,8 +71,8 @@ namespace GolmokCharacters
 		for (const auto& Pair : Object->Values)
 		{
 			bool bKnown = false;
-			for (const TCHAR* Name : Names) bKnown |= FString(*Pair.Key).Equals(Name, ESearchCase::CaseSensitive);
-			for (const TCHAR* Name : Optional) bKnown |= FString(*Pair.Key).Equals(Name, ESearchCase::CaseSensitive);
+			for (const TCHAR* Name : Names) bKnown |= Pair.Key.ToView().Equals(Name, ESearchCase::CaseSensitive);
+			for (const TCHAR* Name : Optional) bKnown |= Pair.Key.ToView().Equals(Name, ESearchCase::CaseSensitive);
 			if (!bKnown) return false;
 		}
 		return true;
@@ -351,12 +351,19 @@ void UGolmokCharacterSubsystem::OnPlayerPawnChanged(APawn* OldPawn, APawn* NewPa
 	if (!CurrentId.IsEmpty()) Candidates.AddUnique(CurrentId);
 	Candidates.AddUnique(ModeDefault);
 	Candidates.AddUnique(Roster.DefaultId); // Optional local assets may be absent even on a capable pawn.
+	bool bGaspDefaultFailed = false;
 	for (const FString& Id : Candidates)
 	{
 		if (const FGolmokCharacterEntry* Entry = Roster.Find(Id))
 		{
 			FString Message;
-			if (ApplyEntry(Character, *Entry, Message)) return;
+			if (ApplyEntry(Character, *Entry, Message))
+			{
+				if (bGaspDefaultFailed)
+					UE_LOG(LogGolmok, Log, TEXT("golmok.character: auto fallback applied %s after GASP default failure"), *Id);
+				return;
+			}
+			if (bGasp && Id == ModeDefault) bGaspDefaultFailed = true;
 			LastAutomaticFailure = FString::Printf(TEXT("%s: %s"), *Id, *Message);
 			if (bGasp && Id == ModeDefault && !bWarnedGaspDefault)
 			{
