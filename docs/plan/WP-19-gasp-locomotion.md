@@ -426,8 +426,8 @@ R78-5·7·8·9·11을 처리했다. 설계(§1~§18, D-021)와 ① 동작은 바
 | R78-11 D8 헤더 규칙 | `FORBIDDEN_HEADER = ^(?!Golmok)\w*(PoseSearch\|Chooser\|Mover\|GameplayCamera)`(포함 파일 이름). 우리 헤더는 모두 `Golmok*`이라 Astra 레인이 `GolmokChooserRow.h` 같은 이름을 써도 막히지 않는다. 엔진 헤더(`IObjectChooser.h`, `CharacterMoverComponent.h`, `PoseSearch/…`, `GameplayCameraComponent.h`)와 모듈 폴더 접두 규칙은 그대로 잡는다 | `test_forbidden_header_rule_spares_our_golmok_headers` |
 
 **판단**
-1. JSON의 `DDCvar.` 검사는 "키 + 값" 형식만 잡는다. `{"DDCvar.X": …}`처럼 DDCvar 이름을 JSON 키로 쓰면 값이 무엇이든 실패한다(값 설정과 구별할 수 없음). 이름 목록은 배열이나 `"name"` 값으로 쓴다.
-2. ini가 아닌 파일(`.txt` 포함)은 JSON과 같은 규칙이다. 이름만 적은 메모 줄은 통과하지만, 이름 바로 뒤에 `:`나 `=`가 오면(`DDCvar.X: 설명`) 값 설정과 구별할 수 없어 실패한다. JSON `"note"` 안에 `DataDrivenConsoleVariableSettings` 같은 섹션 이름을 적어도 실패한다. 이름을 바꾼 GASP ini는 섹션 머리·`+CVarsArray`로 잡힌다.
+1. JSON의 `DDCvar.` 검사는 "키 + 값" 형식만 잡는다. `{"DDCvar.X": …}`처럼 DDCvar 이름을 JSON 키로 쓰면 값이 무엇이든 실패한다(값 설정과 구별할 수 없음). 이름 목록은 배열이나 `"name"` 값으로 쓴다. → R81-3: add-gasp 목록 객체는 `"default…"`·`"value"` 키와 문자열 속 중괄호까지 잡고, 쌍 목록 `["DDCvar.X", 1]`도 잡는다. 손으로 형식을 바꾼 우회(YAML 목록, BOM 없는 UTF-16, `Config` 밖 파일)는 리뷰 몫이다.
+2. ini가 아닌 파일(`.txt` 포함)은 JSON과 같은 규칙이다. 이름만 적은 메모 줄은 통과하지만, 이름 바로 뒤에 `:`나 `=`가 오면(`DDCvar.X: 설명`) 값 설정과 구별할 수 없어 실패한다. JSON `"note"` 안에 `DataDrivenConsoleVariableSettings` 같은 섹션 이름을 적어도 실패한다. 이름을 바꾼 GASP ini는 섹션 머리·`+CVarsArray`로 잡힌다. → R81-3: 줄 맨 앞의 콘솔 형식 `DDCvar.X 1`(이름 뒤 공백 + 숫자)도 실패한다. 이름 뒤에 설명 단어가 오는 메모 줄은 통과한다.
 3. 매니페스트 대조는 relocate 뒤 로컬 파일과 **바이트가 같은** 사본만 잡는다. 편집기에서 이름을 바꾸거나 옮기거나 복제해 다시 저장한 패키지, GASP 프로젝트의 **원본** 파일을 탐색기로 복사한 것은 바이트가 달라 잡히지 않는다(매니페스트에는 원본 파일별 해시가 없고 집계 `source_digest`만 있다). 그 경우는 여전히 경로 규칙·리뷰 몫이다. 매니페스트의 `packages`가 없으면 빈 목록으로 본다(자리만 잡은 로컬 파일). 항목이 깨졌으면(키 없음·정수가 아닌 크기) 오류 한 줄이다.
 4. `unreal/Golmok` 밖의 ini(R78 원문의 한 줄)는 이번 범위 밖이다(세션 지시가 `Config/**`로 정함).
 

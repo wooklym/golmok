@@ -1185,7 +1185,7 @@ V-04/V-05 메모(코드 미변경): (B3) `ResolveOverlaps`는 로드/언로드 �
 2. `zone_index`·`viewpoints`·`spike_runner._viewpoints`의 기본 경로는 이제 바이너리 폴더 기준이다(R67·F2와 같은 규칙). 편집기에서는 CWD가 바이너리 폴더라 전과 같은 파일이고, CWD가 다를 때만 달라진다(의도한 수정).
 3. `_abs` 이름은 호출 지점 4곳을 바꾸지 않으려고 별칭으로 남겼다.
 4. 정리는 `target` 자체는 지우지 않는다(이전 실행의 에셋이거나 `_ensure_path`가 이미 지운 것). 정리 중 예외(삭제·존재 확인 모두)는 경고 한 줄로 남기고 원래 오류를 가리지 않는다. by-product가 아닌 잔재는 `_delete_assets`의 `unexpected asset … left in place` 한 줄만 남긴다(중복 경고 없음).
-5. `_delete_assets`가 지우지 못한 것을 `deleted` 줄로 적던 것(메시 스크래치 정리에도 쓰임)을 고쳤다. 지우지 못한 by-product는 줄이 없고, 호출한 쪽이 보고한다(텍스처 실패 정리는 위 WARNING, 메시는 뒤이은 `_import` 폴더 삭제).
+5. `_delete_assets`가 지우지 못한 것을 `deleted` 줄로 적던 것(메시 스크래치 정리에도 쓰임)을 고쳤다. 지우지 못한 by-product는 줄이 없고, 호출한 쪽이 보고한다(텍스처 실패 정리는 위 WARNING, 메시는 뒤이은 `_import` 폴더 삭제). → R81-6: 경고하는 호출자는 `_discard_failed_import` 하나다. 메시(`_import_moved`)와 UDIM 타일(`_pack_udim_tiles`)은 뒤이은 폴더 삭제(`_import`·`Textures/_tiles`)가, 텍스처 제자리 임포트의 **성공 경로**(`_import_in_place`)는 같은 실행의 cleanup 단계(`_cleanup_folder`, 마지막 임포트 뒤)가 지운다(그 단계의 `zi.cleanup` 줄). 실패 경로는 그 실행이 cleanup 단계 전에 끝나므로 다음 실행의 cleanup 단계다. `_delete_assets` docstring을 이대로 고쳤다.
 
 **게이트**: `ruff check`·`ruff format --check` 통과, pytest **1384 passed / 3 skipped**(main 1344 + 40), `check_repo.py` OK, `git diff --check` 깨끗. 새 가드는 main과 원격 브랜치 53개(worktree) 모두 OK. 뮤테이션: 1차 14/14, 검증 반영 뒤 9/9 잡힘(검증 에이전트가 찾은 생존 2개 M7 `keep=set()`·M16 예외 삼킴 제거 포함).
 
