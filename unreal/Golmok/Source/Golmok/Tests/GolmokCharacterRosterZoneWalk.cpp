@@ -186,13 +186,18 @@ public:
   }
   if(bMoving)
   {
-   // Opt-in fault injection exercises the same failure path as a viewport focus-loss flush.
-   if(Course==4 && Step==1 && bKeyExpected && Now-StepAt>=.25 &&
-      FParse::Param(FCommandLine::Get(),TEXT("GolmokZoneWalkForceInputFlush")))
-    PC->FlushPressedKeys();
    // InputKey is processed by PlayerInput on the next tick; do not inspect the press frame.
-   if(bKeyExpected && Now>StepAt && !PC->IsInputKeyDown(EKeys::W))
-    return Fail(TEXT("input flushed (viewport focus lost)"));
+   if(bKeyExpected && Now>StepAt)
+   {
+    bKeySeenDownSincePress |= PC->IsInputKeyDown(EKeys::W);
+    // Opt-in fault injection exercises the same failure path as a viewport focus-loss flush.
+    if(Course==4 && Step==1 && Now-StepAt>=.25 &&
+       FParse::Param(FCommandLine::Get(),TEXT("GolmokZoneWalkForceInputFlush")))
+     PC->FlushPressedKeys();
+    if(!PC->IsInputKeyDown(EKeys::W))
+     return Fail(*FString::Printf(TEXT("input flushed (viewport focus lost); W seen down since press=%s; Now-StepAt=%.3f s"),
+      bKeySeenDownSincePress?TEXT("true"):TEXT("false"),Now-StepAt));
+   }
    if(S.bPush)
    {
     // The facade contact occurs around 2s; do not start measuring while still approaching it.
@@ -248,7 +253,7 @@ public:
   return false;
  }
 private:
- void Key(bool Down){bKeyExpected=Down;if(PC.IsValid())PC->InputKey(FInputKeyEventArgs::CreateSimulated(EKeys::W,Down?IE_Pressed:IE_Released,Down?1.f:0.f));}
+ void Key(bool Down){bKeyExpected=Down;if(Down)bKeySeenDownSincePress=false;if(PC.IsValid())PC->InputKey(FInputKeyEventArgs::CreateSimulated(EKeys::W,Down?IE_Pressed:IE_Released,Down?1.f:0.f));}
  void Release(){Key(false);}
  void Save(){if(!Folder.IsEmpty())FFileHelper::SaveStringToFile(Log,*(Folder/TEXT("walk.txt")),FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);}
  void Check(const TCHAR* Label,bool OK,double Value){Test->TestTrue(Label,OK);Log+=FString::Printf(TEXT("assert %s value=%.5f %s\n"),Label,Value,OK?TEXT("PASS"):TEXT("FAIL"));}
@@ -272,7 +277,7 @@ private:
   Log+=FString(TEXT("FAILED: "))+Why+TEXT("\n");Save();return true;
  }
  FAutomationTestBase* Test;int32 Course,Step=0;double InsideAt=0,BaseExposure=0,FinalizedAt=0,PlacedAt=0,Started=0,Now=0,StepAt=0,SampleAt=0,WaitAt=0,PushAt=0,RecordAt=0,TargetDistance=0,MinGroundClearance=1e9;
- bool bKeyExpected=false,bOverlayChecked=false,bFinalized=false,bPlaced=false,bReady=false,bMoving=false,bWaiting=false,bPushMeasured=false,bEntered=false,bExited=false,bUnloaded=false,bExtraWest=true;
+ bool bKeySeenDownSincePress=false,bKeyExpected=false,bOverlayChecked=false,bFinalized=false,bPlaced=false,bReady=false,bMoving=false,bWaiting=false,bPushMeasured=false,bEntered=false,bExited=false,bUnloaded=false,bExtraWest=true;
  TWeakObjectPtr<APlayerController> PC;TWeakObjectPtr<AGolmokCharacter> Character;
  FVector Pos,MoveStart,PushStart;FVector2D Direction;TArray<FStep> Steps;TArray<FString> Files;FString Folder,Log;
 };
@@ -283,6 +288,8 @@ void Enqueue(FAutomationTestBase* Test)
  {Test->AddError(TEXT("ZoneWalk requires an existing -GolmokZoneWalkMap=/Game/... package"));return;}
  int32 Only=-1;FParse::Value(FCommandLine::Get(),TEXT("GolmokZoneWalkCourse="),Only);
  if(Only < -1 || Only > 5){Test->AddError(TEXT("ZoneWalkCourse must be 0..5 or omitted"));return;}
+ if(Only>=0 && Only!=4 && FParse::Param(FCommandLine::Get(),TEXT("GolmokZoneWalkForceInputFlush")))
+  Test->AddWarning(TEXT("GolmokZoneWalkForceInputFlush applies only to course 4; ignored for the selected course."));
  for(int32 Course=0;Course<6;++Course)
  {
   if(Only>=0 && Only!=Course)continue;
