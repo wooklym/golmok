@@ -212,9 +212,17 @@ GASP_INI_TEXT = re.compile(
     r"DataDrivenConsoleVariableSettings|CVarsArray|ddcvar\.|GameplayTagList", re.IGNORECASE
 )
 GASP_CONFIG_TEXT = re.compile(r"^unreal/golmok/(plugins/.+/)?config/.+$")  # every other Config file
+# R81-2/3: an add-gasp list object is {"name": "DDCvar.…", "default*"|"value": …} in any key order; strings
+# are skipped whole (a "{" / "}" in a help text), and group 1 names the cvar for the error line. Pair lists
+# [["DDCvar.X", 1]] and console lines "DDCvar.X 1" fail too; YAML lists, BOM-less UTF-16 and files outside
+# Config are left to review (WP-19 judgement 1-2).
+_GASP_JSON_BODY = r"(?:[^{}\"]|\"(?:[^\"\\]|\\.)*\")*"  # no brace outside a string; disjoint: linear
 GASP_TEXT_INI_FORMS = re.compile(  # ini sections / keys, a DDCvar key with a value, add-gasp's DDCvar list
     r"DataDrivenConsoleVariableSettings|CVarsArray|GameplayTagList|ddcvar\.[\w.]+\"?\s*[:=]"
-    r"|\{(?=[^{}]*\"name\"\s*:\s*\"ddcvar\.)(?=[^{}]*\"default\"\s*:)",  # any key order
+    rf"|\{{(?={_GASP_JSON_BODY}(\"name\"\s*:\s*\"ddcvar\.[^\"]*\"))"
+    rf"(?={_GASP_JSON_BODY}\"(?:default\w*|value)\"\s*:)"
+    r"|\[\s*\"ddcvar\.[^\"]*\"\s*,\s*(?:-?\.?\d|true\b|false\b)"
+    r"|(?<![^\n])[ \t]*ddcvar\.[\w.]+[ \t]+-?\.?\d",
     re.IGNORECASE,
 )
 GASP_MANIFEST = "unreal/Golmok/Config/Golmok/local/gasp_manifest.json"
@@ -296,9 +304,8 @@ def check_gasp_guard(root: Path) -> list[str]:
                 m = GASP_TEXT_INI_FORMS.search(text)
                 if m:
                     no = text.count("\n", 0, m.start()) + 1
-                    errors.append(
-                        f"{path}:{no}: GASP 가드 — GASP ini 형식 텍스트({m.group(0)})는 커밋하지 않는다"
-                    )
+                    shown = m.group(1) or m.group(0)  # R81-2: the "name": "DDCvar.…" of a list, not "{"
+                    errors.append(f"{path}:{no}: GASP 가드 — GASP ini 형식 텍스트({shown})는 커밋하지 않는다")
     return errors
 
 
