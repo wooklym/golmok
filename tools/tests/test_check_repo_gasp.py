@@ -170,11 +170,13 @@ def test_one_path_table_for_check_repo_and_gasp_pure(repo):
         if ".." not in path:
             write(repo, path)
     errors = check_repo.check_gasp_guard(repo)
-    flagged = {e.split(": GASP 가드")[0] for e in errors}
+    # Lower case: on a case-insensitive file system (Windows CI) "content/…" lands in "Content/…" and git
+    # lists the on-disk spelling.
+    flagged = {e.split(": GASP 가드")[0].lower() for e in errors}
     for path, forbidden in PATH_TABLE:
         assert gasp_pure.is_local_only(path) is forbidden, path
         if ".." not in path:
-            assert (path in flagged) is forbidden, (path, errors)
+            assert (path.lower() in flagged) is forbidden, (path, errors)
     assert all("추가 가능" in e for e in errors)
 
 
