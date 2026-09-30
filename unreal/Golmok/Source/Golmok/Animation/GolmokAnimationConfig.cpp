@@ -274,7 +274,7 @@ bool GolmokAnimation::ParseConfig(const FString& Text, FConfig& OutConfig, FStri
 	{
 		return ConfigFail(OutError, FString::Printf(TEXT("movement_profiles must be an object with 1-%d entries"), MaxProfiles));
 	}
-	for (const TPair<FString, FJsonValuePtr>& Pair : Profiles->Values)
+	for (const auto& Pair : Profiles->Values)
 	{
 		FNamedProfile Named;
 		Named.Id = Pair.Key;
@@ -614,7 +614,8 @@ bool GolmokAnimation::ParseDDCvars(const FString& Text, TArray<FDDCvar>& OutVars
 			Var.Type = Type == TEXT("int") ? EDDCvarType::Int : EDDCvarType::Float;
 			bOk = Default->Type == EJson::Number && FMath::IsFinite(Default->AsNumber());
 			Var.Default = bOk ? Default->AsNumber() : 0.0;
-			bOk = bOk && (Var.Type == EDDCvarType::Float || FMath::Abs(Var.Default) <= static_cast<double>(MAX_int32));
+			bOk = bOk && (Var.Type == EDDCvarType::Float
+				|| (FMath::Abs(Var.Default) <= static_cast<double>(MAX_int32) && FMath::Frac(Var.Default) == 0.0));
 		}
 		else
 		{
