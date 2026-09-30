@@ -262,8 +262,13 @@ void UGolmokAmbienceSubsystem::SetSurfaceDiagnostic(int32 Surface, const FString
 
 FString UGolmokAmbienceSubsystem::Describe() const
 {
-	return FString::Printf(TEXT("audio: %s [%s / %s] vol %.2f steps=%s photo_gain=%.2f%s%s%s"), *State, *SlotIds[0], *SlotIds[1],
-		Config.MasterVolume, *LastFootstepSet, PhotoGain.Value, IsMuted() ? TEXT(" muted") : TEXT(""), LoadError.IsEmpty() ? TEXT("") : *FString(TEXT(" error: ") + LoadError), SurfaceError.IsEmpty() ? TEXT("") : *FString(TEXT(" error: ") + SurfaceError));
+	const auto* PC = GetWorld() ? GetWorld()->GetFirstPlayerController() : nullptr;
+	const APawn* Pawn = PC ? PC->GetPawn() : nullptr;
+	const auto* Steps = Pawn ? Pawn->FindComponentByClass<UGolmokFootstepComponent>() : nullptr;
+	const TCHAR* Driver = Steps ? (Steps->UsesNotifyDriver() ? TEXT("notify") : TEXT("distance")) : TEXT("none");
+	const uint64 Events = Steps ? Steps->GetFootEventCount() : 0;
+	return FString::Printf(TEXT("audio: %s [%s / %s] vol %.2f steps=%s drv=%s(%s) ev=%llu photo_gain=%.2f%s%s%s"), *State, *SlotIds[0], *SlotIds[1],
+		Config.MasterVolume, *LastFootstepSet, Driver, *Config.FootstepDriver, static_cast<unsigned long long>(Events), PhotoGain.Value, IsMuted() ? TEXT(" muted") : TEXT(""), LoadError.IsEmpty() ? TEXT("") : *FString(TEXT(" error: ") + LoadError), SurfaceError.IsEmpty() ? TEXT("") : *FString(TEXT(" error: ") + SurfaceError));
 }
 
 namespace GolmokAudioConsole
