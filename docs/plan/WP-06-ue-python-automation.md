@@ -1206,7 +1206,7 @@ GASP 가드 쪽 지적(V2·V3·V4·V8·V9·V10)은 WP-19 "19a-2 후속" 절에 �
 - ROADMAP zone_import 줄: 바꿀 것 없음(동작 범위 불변).
 - "병합 기록 — 후속 V-04b F1~F3 #69"의 PC 카드 ⑤ `문구 (-nullrhi) R69-6` → `문구 (commandlet -run=pythonscript without -AllowCommandletRendering)`.
 
-**병합**: [PR #81](https://github.com/wooklym/golmok/pull/81) → main(오케스트레이터 결정 D-019; 리뷰 [R81](https://github.com/wooklym/golmok/pull/81#issuecomment-5910698240) (A)·(B) 0). 위 "병합 시 반영(문안)"은 STATUS WP-06 행과 V-04c 카드 ⑤에 옮겼다. 남은 (C)는 다음 Claude 레인 push: R81-4 새 WARNING이 가리키는 런북 #8 행·§2 로그 목록에 설명 추가(지금은 #37에만), R81-6 `_delete_assets` 주석(호출자 3곳 중 2곳과 맞지 않음), R81-7 RHI가 있는데 크기 0인 경우 텍스처 줄 문구와 테스트 전용이 된 `_without_rhi()` 정리.
+**병합**: [PR #81](https://github.com/wooklym/golmok/pull/81) → main(오케스트레이터 결정 D-019; 리뷰 [R81](https://github.com/wooklym/golmok/pull/81#issuecomment-5910698240) (A)·(B) 0). 위 "병합 시 반영(문안)"은 STATUS WP-06 행과 V-04c 카드 ⑤에 옮겼다. 남은 (C)는 다음 Claude 레인 push: R81-4 새 WARNING이 가리키는 런북 #8 행·§2 로그 목록에 설명 추가(지금은 #37에만), R81-6 `_delete_assets` 주석(호출자 3곳 중 2곳과 맞지 않음), R81-7 RHI가 있는데 크기 0인 경우 텍스처 줄 문구와 테스트 전용이 된 `_without_rhi()` 정리. → R81-4·6·7은 [PR #87](https://github.com/wooklym/golmok/pull/87)에서 해소.
 
 ## 결과 — Claude 레인 (C) 후속 2: R81-4·6·7 (2026-09-30, Opus 5.5 ultracode, 세션 `session_01Mt8twTiFwhqobsBxS1ddFN`, 브랜치 `claude/claude-lane-c-followups2`) — 🟡 코드 완료·PC 확인은 V-04c 카드에 합침
 PR #81 병합 리뷰 R81의 WP-06 쪽 (C) 3건과 적대 검증 F3을 처리했다. 설계 변경은 없다.
@@ -1228,3 +1228,5 @@ PR #81 병합 리뷰 R81의 WP-06 쪽 (C) 3건과 적대 검증 F3을 처리했�
 - STATUS WP-06 행 비고 끝에 `· R81 (C) 후속(R81-4·6·7, cleanup 삭제 실패 WARNING) PR #<번호> 병합`.
 - ROADMAP zone_import 줄: 바꿀 것 없음.
 - 위 "Claude 레인 (C) 후속 R69-6·8·11" 절의 **병합** 줄 끝에 `→ R81-4·6·7은 PR #<번호>에서 해소`.
+
+**병합**: [PR #87](https://github.com/wooklym/golmok/pull/87) → main(오케스트레이터 결정 D-019; 리뷰 [R87](https://github.com/wooklym/golmok/pull/87#issuecomment-5915909161)). 위 "병합 시 반영(문안)"은 STATUS WP-06 행에 옮겼다. ROADMAP은 바꿀 것이 없다. PC 확인은 V-04c 카드에 합친다(크기 0 줄 `merged by importer (size WxH)`, cleanup 삭제 실패 `WARNING cleanup: could not delete <path> (runbook #8)`). 남은 (C)는 다음 Claude 레인 push: R87-3 `WxH`를 `(512, 0)`로도 시험(뮤테이션 `0x0` 고정·w/h 뒤바꿈 생존), R87-4 `get_command_line`이 없을 때(#40) 크기 0 경로의 주석·런북 149행 "RHI 있음" 단정, R87-5 새 cleanup WARNING을 런북 §12 #8 행에도 설명.
