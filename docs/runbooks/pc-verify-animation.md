@@ -111,7 +111,7 @@
 
 **시험 방법·환경**(재현용)
 - 무인 실행: GUI 에디터(원격 Python) + Slate 틱 드라이버가 PIE를 띄우고 Win32 SendInput으로 키(W·Shift·S·Space·Left Ctrl)와 마우스(S4 원 그리기 60°/s)를 넣는다. 장면마다 순간이동으로 배치(S1~S4 골목 입구, S5 계단 앞, S6 경사 앞, S7 60 cm 벽 앞), 장면별 화면 녹화(ffmpeg gdigrab 30 fps), 틱마다 캡슐·발목(`foot_*`)·앞꿈치(`ball_*`) 뼈 월드 좌표 기록. 스크립트·원자료는 세션 스크래치에만 있다.
-- 녹화(저장소 밖): `C:\UE\v08_recordings\cmp_S1~S7_1-2b-2a.mp4`(왼쪽부터 ①·②b·②a 나란히), 장면별 원본은 스크래치 `clips_main\`. 성능 CSV 3개도 같은 폴더.
+- 녹화(저장소 밖): `C:\UE\v08_recordings\cmp_S1~S7_1-2b-2a.mp4`(왼쪽부터 ①·②b·②a 나란히), 장면별 원본 녹화와 드라이버 보고·틱 샘플(JSON)은 `scenes\`, 성능 CSV 3개는 폴더 바로 아래.
 - 성능: 창 모드 `-game` 1920×1080(CSV `systemresolution` 확인), `-csvCaptureFrames=6000 -ExitAfterCsvProfiling`, 달리며 원 그리기 약 30 s, 로딩·대기 구간을 뺀 `golmok-perf`. 다른 UE 프로세스 없음. 게임 내 콘솔이 SendInput으로 열리지 않아 `csvprofile start/stop` 대신 V-01 방식.
 - ② 시험 설정(커밋 `V-08: 시험용 설정` 뒤 §7에서 되돌림): `Golmok.uproject` 플러그인 21개(GASP 목록 + BlendStack), `DefaultEngine.ini`에 GASP `DataDrivenConsoleVariableSettings` 27개, GASP `DefaultGameplayTags.ini`(태그 39개). **Migrate는 이 설정을 옮기지 않는다** — DDCvar가 없으면 GASP ABP는 발 배치 IK(`DDCvar.FootPlacementMode=1`)·스레드 안전 업데이트 등이 꺼진 상태로 돈다.
 - Migrate: GASP 프로젝트 헤드리스에서 `SandboxCharacter_CMC_ABP` + `SandboxCharacter_CMC` 의존 폐포 2,861 패키지를 `AssetTools.migrate_packages`(충돌 Skip)로 옮겼다. `Golmok_AnimEval/`로 모으는 일괄 이름 변경은 `rename_assets`가 False를 돌려 실패 → GASP 원래 경로로 들어왔다: `Content/Audio`(278)·`Blueprints`(126)·`Input`(19)·`Levels`(21)·`MetaHumans`(365)·`Misc`(1)·`Characters/UEFN_Mannequin`(1,592)·`Echo`(134)·`Paragon`(198)·`UE5_Mannequins`(107)·`UE4_Mannequin`(20). 기존 `Characters/Mannequins`(현행 ①)와 겹치지 않아 덮어쓰기는 없었다. Golmok에서 두 BP 컴파일 오류 0건.
