@@ -45,7 +45,8 @@ LOCAL_ONLY_RE = re.compile(r"^unreal/Golmok/Config/(Tags/GASP[^/]*\.ini|DefaultG
 
 
 def load_json(path):
-    return json.loads(Path(path).read_text(encoding="utf-8"))
+    # utf-8-sig: Windows PowerShell 5.1 Set-Content -Encoding UTF8 writes a BOM.
+    return json.loads(Path(path).read_text(encoding="utf-8-sig"))
 
 
 def parse_closure(data) -> list[str]:
@@ -122,6 +123,12 @@ def relocation_plan(migrated, existing, content_root: str = "/Game/GASP") -> lis
         return []
     if any(p == content_root or p.startswith(content_root + "/") for p in migrated):
         raise ValueError(f"migrated packages already under {content_root}")
+    taken = sorted(map_to_root(p, content_root) for p in migrated if map_to_root(p, content_root) in existing)
+    if taken:
+        raise ValueError(
+            f"{content_root} already holds {len(taken)} of the packages (e.g. {taken[0]}): "
+            f"delete Content/{content_root[len('/Game/') :]} before add-gasp -Force"
+        )
     plan: list[tuple[str, str, str]] = []
 
     def visit(folder: str, packages: list[str]):

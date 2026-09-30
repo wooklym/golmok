@@ -27,7 +27,8 @@ function Invoke-GaspStep([string]$UProject, [hashtable]$Job) {
     $JobFile = Join-Path $Work "$($Job.step)-job.json"
     $Job.result = $Result
     if (Test-Path $Result) { Remove-Item $Result -Force }
-    $Job | ConvertTo-Json -Depth 4 | Set-Content -Path $JobFile -Encoding UTF8
+    # BOM-less UTF-8 (Windows PowerShell 5.1 Set-Content -Encoding UTF8 adds a BOM).
+    [IO.File]::WriteAllText($JobFile, ($Job | ConvertTo-Json -Depth 4), [Text.UTF8Encoding]::new($false))
     $env:GOLMOK_GASP_JOB = $JobFile
     Write-Host "add-gasp: $($Job.step) ($UProject)"
     & $Editor "$UProject" "-ExecutePythonScript=$Script" -unattended -nullrhi -nosplash -nopause -nosound | Out-Null
@@ -58,8 +59,10 @@ if (-not $Verify) {
         }
         if (-not $Relocate.ok) { throw "add-gasp: relocate failed (see the messages above)." }
         if ($Relocate.exit -eq 2) {
-            Write-Warning "GASP stays at the Migrate paths: set Config/Golmok/animation.json gasp.content_root to /Game."
-            $ExitCode = 2
+            # verify would fail on the content_root mismatch: stop here with the instruction (exit 2).
+            Write-Warning ("GASP stays at the Migrate paths: set Config/Golmok/animation.json gasp.content_root to " +
+                "/Game, then run .\tools\ue\add-gasp.ps1 -Verify. /Game/GASP cook lines no longer cover it (runbook A3).")
+            exit 2
         }
     }
 }

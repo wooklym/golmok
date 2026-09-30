@@ -69,7 +69,7 @@ python tools\scripts\check_repo.py
 ```
 - [ ] 세 헤드리스 세션(migrate → relocate → verify)이 끝나고 `add-gasp verify: <n> packages, digest <sha256>`가 찍힌다. `Saved/Golmok/add-gasp/*.json`에 단계별 결과가 있다.
 - [ ] migrate 메시지 `closure root not in the GASP project (19b fixes the path): …`가 있으면 그 루트([추정] 경로)의 실제 경로를 GASP 콘텐츠 브라우저에서 찾아 `tools/ue/gasp/closure.json`을 고치고 다시 돌린다(`-Force`).
-- [ ] 종료 코드 2(`GASP stays at the Migrate paths`)면 헤드리스 `rename_directory`가 실패한 것이다(§D #4). `animation.json` `gasp.content_root`를 `/Game`으로 바꾸고 `-Verify`를 다시 돈다. 원인(로그의 `rename_directory` 실패 줄)을 §A9에 기록한다.
+- [ ] 종료 코드 2(`GASP stays at the Migrate paths`)면 헤드리스 `rename_directory`가 실패한 것이다(§D #4). `animation.json` `gasp.content_root`를 `/Game`으로 바꾸고 `-Verify`를 다시 돈다(스크립트는 이때 검증 전에 멈춘다). 이 경우 `DefaultGame.ini`의 `/Game/GASP` 쿡 줄이 GASP를 덮지 못하므로 패키지(§B7) 전에 PC fix로 쿡 경로를 정한다. `-Force` 재실행은 `Content/GASP`가 있으면 relocate가 "delete Content/GASP before add-gasp -Force"로 멈춘다 — 로컬 `Content/GASP`를 지우고 다시 돈다. 원인(로그의 `rename_directory` 실패 줄)을 §A9에 기록한다.
 - [ ] 검증: 패키지 전부 크기·해시 일치, ABP·BPI 클래스 로드, DDCvar **27**, 태그 **39**, `expected.json`은 첫 설치라 `expected.json not filled yet` 경고.
 - [ ] `git status`에 GASP·로컬 경로가 **하나도 없다**(무시됨). `check_repo.py` → `OK (…, gasp)`.
 - [ ] 에디터를 열고 PIE 전에 Output Log `anim: DDCvars 27/27 present (… registered now)`(§D #5). `Config/Tags/GASP.ini` 태그가 Project Settings > GameplayTags에 보이는지(§D #5).

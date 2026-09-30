@@ -35,6 +35,18 @@ def _tools():
     return unreal.AssetToolsHelpers.get_asset_tools()
 
 
+def _wait_for_registry():
+    """-ExecutePythonScript can run while the asset registry still scans: finish the scan first."""
+    registry = unreal.AssetRegistryHelpers.get_asset_registry()
+    if hasattr(registry, "wait_for_completion"):
+        registry.wait_for_completion()
+    return registry
+
+
+def _class_name(asset) -> str:
+    return asset.get_class().get_name() if hasattr(asset, "get_class") else type(asset).__name__
+
+
 def _dependency_options():
     options = unreal.AssetRegistryDependencyOptions()
     for name, value in (
@@ -51,10 +63,10 @@ def _dependency_options():
 def migrate(closure_path, dest_content_dir) -> dict:
     """In the GASP project: migrate the closure of the roots into Golmok Content (conflicts skipped)."""
     roots = pure.parse_closure(pure.load_json(closure_path))
+    registry = _wait_for_registry()
     library = unreal.EditorAssetLibrary
     found = [r for r in roots if library.does_asset_exist(r)]
     missing = [r for r in roots if r not in found]
-    registry = unreal.AssetRegistryHelpers.get_asset_registry()
     options = _dependency_options()
 
     def dependencies(package):
@@ -124,7 +136,7 @@ def _fixup_redirectors(plan) -> list[str]:
     redirectors = []
     for path in old_assets():
         asset = library.load_asset(path)
-        if asset is not None and type(asset).__name__ == "ObjectRedirector":
+        if asset is not None and _class_name(asset) == "ObjectRedirector":
             redirectors.append(asset)
     if redirectors and hasattr(_tools(), "fixup_referencers"):
         _tools().fixup_referencers(redirectors)
@@ -136,6 +148,7 @@ def relocate(
 ) -> dict:
     """In Golmok: move the migrated packages under content_root, then write the three local files."""
     report = pure.load_json(migrate_report)
+    _wait_for_registry()  # the files migrate just copied must be discovered before the moves
     migrated = report["migrated"]
     plan = pure.relocation_plan(migrated, report["existing_before"], content_root)
     done = _apply(plan)
@@ -258,17 +271,22 @@ def main() -> int:
     if not job_path:
         unreal.log_error(f"WP-19 add-gasp: {JOB_ENV} is not set (run tools/ue/add-gasp.ps1)")
         return 1
-    job = pure.load_json(job_path)
+    result_path = None
     try:
+        job = pure.load_json(job_path)
+        result_path = job["result"]
         result = run_job(job)
     except Exception as error:  # noqa: BLE001 - reported to add-gasp.ps1 through the result file
         result = {"ok": False, "exit": 1, "messages": [f"{type(error).__name__}: {error}"]}
-    pure.write_json(job["result"], result)
+    if result_path:
+        pure.write_json(result_path, result)
     for message in result.get("messages", []):
         unreal.log_warning(f"WP-19 add-gasp: {message}")
     return int(result["exit"])
 
 
 if __name__ == "__main__":
-    main()  # add-gasp.ps1 reads the exit code from the result file
-    unreal.SystemLibrary.quit_editor()
+    try:
+        main()  # add-gasp.ps1 reads the exit code from the result file
+    finally:
+        unreal.SystemLibrary.quit_editor()  # never leave the headless editor running

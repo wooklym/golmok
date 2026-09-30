@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import re
+import subprocess
 from pathlib import Path
 
 from test_ue_wp09_fixture import BUILD_CS_EDITOR, BUILD_CS_PRIVATE, BUILD_CS_PUBLIC, _strip_comments
@@ -185,10 +186,21 @@ def test_add_gasp_calls_gasp_import_and_nothing_gasp_is_committed():
     assert "git add -A" in ps1  # the warning line ("Never `git add -A` ...")
     for path in (REPO / "tools" / "ue" / "gasp").iterdir():
         assert path.suffix == ".json", path  # names and paths only; T3D text arrives with 19b
-    assert not list((UE / "Config").glob("Tags/*"))
-    assert not (UE / "Config" / "Golmok" / "local").exists() or not any(
-        (UE / "Config" / "Golmok" / "local").iterdir()
-    )
+    # Tracked files only: add-gasp writes these ignored local files on a PC by design.
+    tracked = subprocess.run(
+        [
+            "git",
+            "-C",
+            str(REPO),
+            "ls-files",
+            "unreal/Golmok/Config/Tags",
+            "unreal/Golmok/Config/Golmok/local",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    ).stdout
+    assert tracked.strip() == ""
 
 
 def test_runbook_quotes_the_d021_criteria():

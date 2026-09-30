@@ -102,6 +102,9 @@ def test_relocation_plan_moves_exclusive_folders_and_splits_shared_ones():
     assert pure.relocation_plan(migrated, existing, "/Game") == []
     with pytest.raises(ValueError):
         pure.relocation_plan(["/Game/GASP/Blueprints/X"], [])
+    # add-gasp -Force with /Game/GASP already there: stop instead of a failing rename and a /Game rollback.
+    with pytest.raises(ValueError, match="delete Content/GASP"):
+        pure.relocation_plan([ABP], ["/Game/GASP/Blueprints/SandboxCharacter_CMC_ABP"])
 
 
 def test_packages_on_disk(tmp_path):
