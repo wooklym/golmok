@@ -390,9 +390,9 @@ def _delete_assets(paths: list[str], keep: set[str]) -> list[str]:
         if asset is None:
             continue
         if isinstance(asset, classes):
-            lib.delete_asset(key)
-            _log("zi.cleanup", asset=key)
-            deleted.append(key)
+            if lib.delete_asset(key):  # a failed delete is the caller's to report, never a "deleted" line
+                _log("zi.cleanup", asset=key)
+                deleted.append(key)
         else:
             _warn(f"unexpected asset {key} left in place")
     return deleted
@@ -478,14 +478,15 @@ def _discard_failed_import(paths: list[str], target: str) -> None:
     lib = unreal.EditorAssetLibrary
     try:
         _delete_assets(paths, keep={target})
+        classes = _byproduct_classes()  # anything else already has its "unexpected asset" WARNING
+        for key in sorted({_asset_key(p) for p in paths} - {target}):
+            if lib.does_asset_exist(key) and isinstance(lib.load_asset(key), classes):
+                _warn(
+                    f"texture import failed; could not delete {key} - the next run's cleanup step removes "
+                    "it (runbook #8)"
+                )
     except Exception as e:  # never hide the import error behind a cleanup error
         unreal.log_warning(_pure.fmt("zi.warn", message=f"texture import cleanup failed: {e}"))
-    for key in sorted({_asset_key(p) for p in paths} - {target}):
-        if lib.does_asset_exist(key):
-            _warn(
-                f"texture import failed; could not delete {key} - the next run's cleanup step removes it "
-                "(runbook #8)"
-            )
 
 
 def _import_moved(filename, folder: str, name: str, target: str, cls, row: int, options=None, factory=None):

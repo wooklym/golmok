@@ -964,14 +964,82 @@ def test_undeletable_leftover_is_warned_and_swept_by_the_next_run(fake, unreal, 
     with pytest.raises(zi.ZoneImportError, match="could not rename"):
         _run(zi, zone)
     assert stray in fake.registry
+    assert f"zone_import: deleted importer-created asset {stray}" not in fake.logged("log")  # not deleted
     assert fake.logged("warning") == [
         f"zone_import: WARNING texture import failed; could not delete {stray} - the next run's cleanup step "
         "removes it (runbook #8)"
     ]
     broken["on"] = False  # the next run: a well-behaved importer and a working delete
+    fake.logs.clear()
     result = _run(zi, zone)
     assert stray not in fake.registry and result["warnings"] == []  # _cleanup_folder: Texture2D by-product
     assert f"zone_import: deleted importer-created asset {stray}" in fake.logged("log")
+
+
+def test_failed_texture_import_keeps_the_previous_target(fake, unreal, zone, zi, monkeypatch):
+    """A re-run whose import lands elsewhere and whose target cannot be replaced: the previous T_ground (what
+    MI_ground points at) stays, only the new stray copy goes."""
+    _run(zi, zone)
+    target = f"{FOLDER}/Textures/T_ground"
+    before = fake.registry[target]
+    _unrenamable_ground(zi, unreal, monkeypatch, {"on": True})
+    delete = unreal.EditorAssetLibrary.delete_asset
+    monkeypatch.setattr(
+        unreal.EditorAssetLibrary, "delete_asset", staticmethod(lambda p: False if p == target else delete(p))
+    )
+    with pytest.raises(zi.ZoneImportError, match="could not be deleted"):
+        _run(zi, zone)
+    assert fake.registry[target] is before and f"{FOLDER}/Textures/ground_imported" not in fake.registry
+
+
+@pytest.mark.parametrize("broken_call", ["_delete_assets", "does_asset_exist"])
+def test_cleanup_errors_never_hide_the_import_error(fake, unreal, zone, zi, monkeypatch, broken_call):
+    _unrenamable_ground(zi, unreal, monkeypatch, {"on": True})
+    real, ground = zi._delete_assets, f"{FOLDER}/Textures/T_ground"
+
+    def boom(*a, **kw):
+        raise OSError("cleanup broke")
+
+    if broken_call == "_delete_assets":
+        monkeypatch.setattr(
+            zi, "_delete_assets", lambda paths, keep: boom() if keep == {ground} else real(paths, keep)
+        )
+    else:  # the import works; the cleanup's existence check (after its _delete_assets) breaks
+        cleaning = {"on": False}
+        exists = unreal.EditorAssetLibrary.does_asset_exist
+
+        def marking(paths, keep):
+            out = real(paths, keep)
+            cleaning["on"] = keep == {ground}
+            return out
+
+        monkeypatch.setattr(zi, "_delete_assets", marking)
+        monkeypatch.setattr(
+            unreal.EditorAssetLibrary,
+            "does_asset_exist",
+            staticmethod(lambda p: boom() if cleaning["on"] else exists(p)),
+        )
+    with pytest.raises(zi.ZoneImportError, match="could not rename"):
+        _run(zi, zone)
+    assert any("texture import cleanup failed: cleanup broke" in w for w in fake.logged("warning"))
+
+
+def test_unpickable_import_warns_once_per_leftover(fake, unreal, zone, zi, monkeypatch):
+    """No Texture2D among the imported assets and a non-by-product left: one WARNING, not two."""
+    real = zi._import_task
+    monkeypatch.setattr(
+        zi,
+        "_import_task",
+        lambda f, d, destination_name=None, **kw: (
+            [f"{FOLDER}/Maps/L_odd"] if str(f).endswith("ground.png") else real(f, d, destination_name, **kw)
+        ),
+    )
+    fake.registry[f"{FOLDER}/Maps/L_odd"] = fake_unreal.FakeLevel(fake, f"{FOLDER}/Maps/L_odd")
+    with pytest.raises(zi.ZoneImportError, match="among the imported assets"):
+        _run(zi, zone)
+    assert [w for w in fake.logged("warning") if "L_odd" in w] == [
+        f"zone_import: WARNING unexpected asset {FOLDER}/Maps/L_odd left in place"
+    ]
 
 
 # ---- materials and slots -------------------------------------------------------------------------------

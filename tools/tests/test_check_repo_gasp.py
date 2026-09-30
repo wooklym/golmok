@@ -255,6 +255,19 @@ CONFIG_TEXT_FAILS = (
 )
 
 
+CONFIG_TEXT_FAILS += (
+    # verify round: key-sorted copy of add-gasp's list (json.dumps(sort_keys=True))
+    (
+        "unreal/Golmok/Config/Golmok/sorted.json",
+        '{"cvars": [{"default": 1, "help": "tip", "name": "DDCvar.X", "type": "int"}]}\n',
+        1,
+    ),
+    ("unreal/Golmok/Config/Golmok/cvars.yaml", "cvars:\n  DDCvar.X: 1\n", 2),  # any Config text file
+    ("unreal/Golmok/Config/DefaultEngine.ini.orig", "a\nDDCvar.FootPlacementMode\n", 2),  # .ini rule
+    ("unreal/Golmok/Config/DefaultEngine.ini.bak", "[/Script/Engine.DataDrivenConsoleVariableSettings]\n", 1),
+)
+
+
 @pytest.mark.parametrize(("rel", "text", "line"), CONFIG_TEXT_FAILS)
 def test_gasp_ini_text_fails_in_config_json_and_txt(repo, monkeypatch, rel, text, line):
     write(repo, rel, text)
@@ -278,6 +291,17 @@ def test_gasp_names_and_paths_in_our_config_json_pass(repo, text):
     write(repo, "unreal/Golmok/Config/Golmok/animation.json", text)
     write(repo, "unreal/Golmok/Config/Golmok/readme.txt", "CBP_SandboxCharacter, DDCvar.FootPlacementMode\n")
     assert check_repo.check_gasp_guard(repo) == []
+
+
+@pytest.mark.parametrize("rel", ["unreal/Golmok/Config/u16.txt", "unreal/Golmok/Config/u16.ini"])
+@pytest.mark.parametrize("encoding", ["utf-16", "utf-16-be"])
+def test_utf16_config_text_is_read_too(repo, rel, encoding):
+    """UE writes a config file as UTF-16 when it holds non-ASCII text (verify round)."""
+    path = repo / rel
+    bom = "\ufeff" if encoding == "utf-16-be" else ""
+    path.write_bytes((bom + "; 한글\n[/Script/Engine.DataDrivenConsoleVariableSettings]\n").encode(encoding))
+    (error,) = check_repo.check_gasp_guard(repo)
+    assert error.startswith(f"{rel}:2: GASP 가드"), error
 
 
 def _manifest(repo, data: bytes, path="Blueprints/ABP_SandboxCharacter"):
@@ -309,8 +333,11 @@ def test_without_a_local_manifest_the_package_check_is_skipped(repo):
     assert check_repo.check_gasp_guard(repo) == []  # CI and every PC without add-gasp
 
 
-def test_an_unreadable_local_manifest_is_reported_not_skipped(repo):
-    write(repo, "unreal/Golmok/Config/Golmok/local/gasp_manifest.json", "{not json")
+@pytest.mark.parametrize(
+    "text", ["{not json", "[]", '{"packages": [{"path": "A", "size": 1.5, "sha256": "x"}]}']
+)
+def test_an_unreadable_local_manifest_is_reported_not_skipped(repo, text):
+    write(repo, "unreal/Golmok/Config/Golmok/local/gasp_manifest.json", text)
     (error,) = check_repo.check_gasp_guard(repo)
     assert error.startswith("gasp:") and "gasp_manifest.json" in error
 
@@ -371,5 +398,6 @@ def test_guard_constants_match_gasp_pure():
     assert check_repo.GASP_PACKAGE_CONTENT == gasp_pure.PACKAGE_CONTENT
     assert check_repo.GASP_LOCAL_FOLDERS == gasp_pure.LOCAL_FOLDER_NAMES
     # gasp_pure.is_local_only has no GASP_INI_COMMIT_ALLOWED switch: flipping it means editing both files
+    # (and this test: with it False, DefaultGameplayTags.ini must stay local in both)
     assert check_repo.GASP_INI_COMMIT_ALLOWED is False
-    assert "GASP_INI_COMMIT_ALLOWED" in Path(gasp_pure.__file__).read_text(encoding="utf-8")
+    assert gasp_pure.is_local_only("unreal/Golmok/Config/DefaultGameplayTags.ini")
