@@ -285,8 +285,19 @@ T11 실행(2026-09-30): 정상 6코스 1 Success·경고0·단언25 PASS·PNG37�
 
 자동 적용은 마지막 성공 id → 실제 폰이 GASP 계약을 만족하는 gasp 모드의 기본값(그 외 abp) → 공통 default 순서로 중복 없이 시도한다. 새 세션에서는 모드 기본값부터 시작한다. 따라서 이전 수동 선택은 재빙의 때 우선 유지되며, GASP 요청이 GameMode에서 ABP 폰으로 폴백되면 abp 기본값을 쓴다. 모든 후보 실패 시 §10처럼 마지막 성공 id가 남을 수 있다. 이 값만으로 새 폰 적용 성공을 판단하지 않는다.
 
-재현: `tools/ue/build.ps1` 뒤 `tools/ue/test.ps1 -SetupDevLevel -Filter Golmok.Character`를 실행한다. Config는 선택 필드 생략 호환성과 잘못된 타입·범위·참조를 거절하는지, Runtime은 기존 캐릭터 상태 보존과 source/visual 적용·해제를 검사한다. Runtime의 계약 대역은 메모리 안 임시 인터페이스·기존 매니 에셋만 쓰며 파일/Blueprint를 저장하지 않는다. 스코프 종료 시 설정·로스터·인터페이스를 복원한다. GASP 원본이 없으면 실제 두 GASP 항목의 시각 통합은 Info skip이고, 자산 누락 거절은 실행한다. 등록 수는 36을 유지한다.
+재현: `tools/ue/build.ps1` 뒤 `tools/ue/test.ps1 -SetupDevLevel -Filter Golmok.Character`를 실행한다. Config는 선택 필드 생략 호환성과 잘못된 타입·범위·참조를 거절하는지, Runtime은 기존 캐릭터 상태 보존과 source/visual 적용·해제를 검사한다. Runtime의 계약 대역은 메모리 안 임시 인터페이스·기존 매니 에셋만 쓰며 파일/Blueprint를 저장하지 않는다. 스코프 종료 시 설정·로스터·인터페이스를 복원한다. 설치 여부와 무관하게 실제 두 GASP 항목의 시각 통합은 `real GASP roster integration NOT EXECUTED here (manual section 13 / 19b; GaspSmoke)` Info로 표시한다. 이 Runtime은 실제 GASP BP 폰에 항목을 적용하지 않는다. 일반 폰 거절은 실행하며, 에셋이 없는 PC는 자산 누락 거절 경로다. 등록 수는 36을 유지한다.
 
 19b 설치 이후 PC 인계(아직 미실행): `golmok.character manny_gasp` → `uefn_gasp` → `manny` 순으로, source 포즈 갱신·매니 리타깃·visual scale·ABP 복귀 시 visual 제거를 확인한다. 일반 ABP 폰에서는 GASP 선택을 거절하고 기존 상태를 유지해야 한다. 메시/AnimClass/visual 하나를 찾을 수 없거나 스켈레톤이 맞지 않아도 메시·캡슐·카메라·속도·id를 유지해야 한다. 이 작업은 폰 클래스를 바꾸지 않으므로 GASP 모드는 올바른 19b BP 폰으로 시작해야 한다.
 
 한계: GASP 두 항목의 경로는 19a `closure.json`의 estimated 경로에 맞춘 준비 데이터다. 19b의 실제 설치·relocate 결과가 다르면 `characters.json` 경로를 갱신한다. visual ABP에 target skeleton이 명시되어 있으면 일치를 요구하고, skeleton-agnostic retarget ABP의 null target은 허용한다. 실제 GenericRetarget의 이 조건·Attached Parent 포즈 복사·걷기 품질은 19b/V-15에서 확인해야 한다. 헤드리스 계약 검사를 실제 GASP 리타깃 성공으로 기록하지 않는다.
+
+
+### T14 — R77 후속 진단 (2026-09-30)
+
+커밋 전 `test_ue_config_characters.py`는 animation.json의 content_root/anim_class와 로스터 GASP source 경로를 교차 검사한다. visual이 있거나 mesh/anim_class가 content_root 하위인 항목은 같은 GASP anim_class를 참조해야 한다. gasp 기본은 이 집합, abp/default는 집합 밖이며 abp=default다. GASP source scale은 1을 유지한다. 19b가 경로를 확정하면 오케스트레이터가 Astra 경로 갱신을 별도 배정하며 PC 세션은 characters.json을 직접 고치지 않는다.
+
+유효 mode=gasp이고 PawnSupportsGasp 폰에서 모드 기본값이 실패하면 월드당 한 번 `GASP mode default failed` 경고가 난다. `golmok.character list`의 `last_auto_error`는 마지막 자동 적용 실패의 id·사유이며, fallback이나 이후 수동 선택이 성공해도 기록을 유지한다. 현재 적용 성공은 `current`·실제 메시와 함께 판정한다. 경고가 한 번뿐이어도 실패가 사라졌다는 뜻은 아니다. 기본값 실패를 반복시키는 계약 대역 시험은 경고 1회와 fallback/사유 보존을 검사한다.
+
+Locomotion의 Block 판정 직전에 X·Y·Feet·Speed2D·MovementMode·해당 Block 단계 최대 월드 프레임 dt를 Info로 출력한다. 최초 T12 실패의 정확한 라벨·실행 순서는 WP-18-followup T14 절을 참조한다. 콜드 반복 실험은 이번에 하지 않았고 간헐 실패 원인/해결을 주장하지 않는다.
+
+GASP 보폭 67/146 cm는 **[추정] 기존 ① 값 복사**다. notify가 실제 발 타이밍을 공급하며 distance 진단 값은 V-15에서 재측정한다. 패키지 스모크에서는 `golmok.character proxy135`로 LoadObjectIfPresent의 패키지 조회·전환도 확인한다(이번 헤드리스 실행과 별개).

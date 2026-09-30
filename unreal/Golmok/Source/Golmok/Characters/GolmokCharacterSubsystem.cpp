@@ -71,8 +71,8 @@ namespace GolmokCharacters
 		for (const auto& Pair : Object->Values)
 		{
 			bool bKnown = false;
-			for (const TCHAR* Name : Names) bKnown |= Pair.Key == Name;
-			for (const TCHAR* Name : Optional) bKnown |= Pair.Key == Name;
+			for (const TCHAR* Name : Names) bKnown |= FString(*Pair.Key).Equals(Name, ESearchCase::CaseSensitive);
+			for (const TCHAR* Name : Optional) bKnown |= FString(*Pair.Key).Equals(Name, ESearchCase::CaseSensitive);
 			if (!bKnown) return false;
 		}
 		return true;
@@ -357,6 +357,12 @@ void UGolmokCharacterSubsystem::OnPlayerPawnChanged(APawn* OldPawn, APawn* NewPa
 		{
 			FString Message;
 			if (ApplyEntry(Character, *Entry, Message)) return;
+			LastAutomaticFailure = FString::Printf(TEXT("%s: %s"), *Id, *Message);
+			if (bGasp && Id == ModeDefault && !bWarnedGaspDefault)
+			{
+				bWarnedGaspDefault = true;
+				UE_LOG(LogGolmok, Warning, TEXT("golmok.character: GASP mode default failed: %s; trying fallback"), *LastAutomaticFailure);
+			}
 			UE_LOG(LogGolmok, Log, TEXT("golmok.character: auto %s: %s"), *Id, *Message);
 		}
 	}
@@ -489,6 +495,7 @@ FString UGolmokCharacterSubsystem::DescribeRoster() const
 	}
 	FString Result = FString::Printf(TEXT("default=%s abp=%s gasp=%s current=%s"), *Roster.DefaultId,
 		*Roster.DefaultForMode(TEXT("abp")), *Roster.DefaultForMode(TEXT("gasp")), *CurrentId);
+	if (!LastAutomaticFailure.IsEmpty()) Result += TEXT(" last_auto_error=") + LastAutomaticFailure;
 	for (const FGolmokCharacterEntry& Entry : Roster.Entries)
 	{
 		Result += FString::Printf(TEXT("\n  %s | %s | %s"), *Entry.Id, *Entry.NameKo, *Entry.NameEn);
