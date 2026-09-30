@@ -394,3 +394,18 @@ WP-19 결과/19b 인계 문안: `T13은 UGolmokFootstepComponent::UsesNotifyDriv
 - 설계 리뷰: 품질 가설 변화 없음, 새 D 번호 없음. GASP 폰에 ABP 로스터를 적용하면 무음이 아니라 거리 발소리가 나서 R79의 품질 결함이 해소된다.
 
 **병합**: 오케스트레이터 결정(D-019). main(#83·#80 포함)을 병합한 뒤 이 커밋으로 반영했다. 위 "병합 시 반영 — T15"의 "전체 UE 게이트 차단"은 #83으로 원인이 해소되어 PC 전체 36 재실행 대기로 옮겼다. STATUS 병행 트랙 WP-13 행, WP-19 결과 23번, `astra-tasks.md` T15·T17, DECISIONS D-021 진행 기록에 반영했다.
+
+
+## T17 결과 — 오디오 캐시·키 검사 후속 (2026-09-30 KST)
+
+배정: [현재 큐 T17](https://github.com/wooklym/golmok/issues/30#issuecomment-5911002600), 리뷰 [R82](https://github.com/wooklym/golmok/pull/82#issuecomment-5910685446). main `d414034`에서 독립 `astra/wp-19c-footstep-followup2`. T16 리뷰 (A)/(B) 0·병합 진행을 확인하고 해당 브랜치 push 정지를 유지했다.
+
+- **R82-1·2**: 캐시 키에 GetModeSourceGeneration을 추가했다. 테스트 전용 평가 누적 계수로 반복 query/event/Tick/HUD에서 1회 평가를 확인하고, null이 아닌 UAnimInstance↔설치 ABP 교체를 검사한다. scoped 설정 진입·복귀에 Reregister 우회를 없앴다. 디스크 파일 감시나 시간 기반 무이벤트 폴백은 추가하지 않았다.
+- **R82-3·4**: 양성 fixture 실행 여부를 Info에 구분한다. 일반 폰+GASP 계약 애님은 notify가 아니며, pause에 필터된 이벤트도 ev 증가·재생 요청 불변임을 단언한다.
+- **R82-6**: UE JSON 조회 전에 객체별 알려진 필드의 case alias를 ToView().Equals로 거절한다. 루트/에셋/상태/발소리/개별 보폭 변이 8개와 실패 후 설정 보존을 검사했다. 무관한 확장 키의 기존 허용·동적 id는 유지한다. Python의 모든 키/참조/값 검증과 완전 일치를 주장하지 않는다. R82-5 문서는 이미 병합 세션이 처리했다.
+
+검증: UE5.8.3 빌드 성공(20.85s), Audio2 Success(경고1)/failed0/notRun0, 양성 cache/class/generation/HUD fixture EXECUTED. 전체 UE **36 Success(24+경고12)/failed0/notRun0**, Python **1188 passed/218 skipped/208 warnings,72.18s**, ruff check/format114·check_repo·diff 통과. T16과 독립 main 기준이므로 T16 신규 검사3개는 이 수치에 포함하지 않는다. GaspSmoke 설치 미충족·RenderEvidence NOT EXECUTED를 실제 성공으로 세지 않는다. 로컬 근거: tools/.venv/t17-{audio,full}-index.json 및 t17-build.txt/t17-pytest.txt. 오디오 레인만 변경, 등록36 유지. 공유 문서·animation.json·characters.json·훅·핫스팟·음원·라이선스 변경 없음. 실제 GASP/GUI/청취는 NOT EXECUTED.
+
+### 병합 시 반영 — T17
+
+STATUS/astra-tasks 문안: “선택 T17 R82-1/2/3/4/6 완료: 클래스+설정 세대 캐시, 평가 계수·nonnull 교체·폰 조건·필터 이벤트 회귀, 조건부 NOT EXECUTED, 알려진 오디오 JSON 키 case alias 거부. 등록36 유지. 19b/V-15 실제 원본 폴리·청취 검증은 별도.”

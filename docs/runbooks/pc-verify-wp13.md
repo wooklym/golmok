@@ -231,7 +231,7 @@ C-10: Packaging 설정을 에디터에서 저장한 뒤 DefaultGame.ini의 중�
 
 ## T13 — WP-19c 노티파이 발소리 계약 (2026-09-30)
 
-`audio.json`의 선택 키 `footsteps.driver`는 대소문자를 구분하는 `distance`·`notify`·`auto`만 받는다(`Notify`는 오류). 생략/현재 기본값은 `auto`: native `AGolmokGaspCharacter` 계열이고 실제 소스 `GetMesh()->GetAnimClass()`가 `RequiresGaspPawn` 계약에 해당할 때만 notify다. 일반 폰, GASP 폰의 비GASP ABP 로스터·폴백은 distance다. T15에서 T13의 폰 클래스 단독 판정을 대체했다. 애니메이션 클래스 약한 참조 키와 판정 bool을 캐시하므로 매 틱 설정 파일을 읽지 않는다. 실제 클래스 변경/컴포넌트 재등록 때 갱신하며 같은 클래스의 설정 파일을 편집했다면 재시작한다.
+`audio.json`의 선택 키 `footsteps.driver`는 대소문자를 구분하는 `distance`·`notify`·`auto`만 받는다(`Notify`는 오류). 생략/현재 기본값은 `auto`: native `AGolmokGaspCharacter` 계열이고 실제 소스 `GetMesh()->GetAnimClass()`가 `RequiresGaspPawn` 계약에 해당할 때만 notify다. 일반 폰, GASP 폰의 비GASP ABP 로스터·폴백은 distance다. T15에서 T13의 폰 클래스 단독 판정을 대체했다. 애니메이션 클래스 약한 참조 키와 판정 bool을 캐시하므로 매 틱 설정 파일을 읽지 않는다. 실제 클래스·모드 소스 세대 변경/컴포넌트 재등록 때 갱신한다(T17). 디스크 파일을 감시하는 캐시는 아니므로 설정 파일을 직접 편집했다면 재시작한다.
 
 notify 모드는 첫 이벤트 전부터 거리 스테퍼를 멈춘다. 이벤트가 없다고 거리 방식으로 자동 전환하지 않는다(늦게 온 노티파이와 중복 방지). `UGolmokLocomotionStateComponent::NotifyFootEvent(Step/Land, bLeft)` → `OnFootEvent` → 기존 표면 세트/착지 재생 경로에 1회 전달한다. 좌우 발 구분은 현재 샘플 선택에 사용하지 않는다. distance는 이벤트를 무시하고 종전 거리·보폭·공중·착지·텔레포트 규칙을 쓴다. pause/photo 또는 현재 플레이어가 아닌 폰의 이벤트는 무시한다. OnUnregister에서 구독을 해제하며 재등록은 1회만 연결한다.
 
@@ -250,3 +250,11 @@ notify 모드는 첫 이벤트 전부터 거리 스테퍼를 멈춘다. 이벤�
 - 헤드리스 Audio.Footstep은 L_Dev 기본 폰 대신 일반 폰을 직접 생성해 100cm 거리 스텝을 검사한다. GASP native+비GASP ABP의 auto distance, 설치된 테스트 ABP를 scoped animation 계약에 넣은 auto notify 양성·클래스 교체 캐시 갱신·HUD를 검사한다. 테스트 ABP가 없으면 양성만 Info NOT EXECUTED다. 이는 실제 GASP ABP/노티파이 검증이 아니다. 기존 합성 Step/Land는 명시 notify를 사용하며 TimeDilation Photo에서 GamePause 없이도 요청이 억제됨을 검사한다.
 - 텔레포트·애니메이션 재초기화 직후 원본이 가짜 Step/Land를 보내면 아직 정상 이벤트와 구별하지 못한다. 게임 스레드 가드는 추가했지만 이 시점 필터는 19b 실제 경로 확인 뒤 판단한다. OnUnregister 거리 스테퍼 초기화(R79-8)는 이번 변경 범위가 아니다.
 - 실제 원본 폴리 차단·발 접지 시점·청취·패키지 출력은 NOT EXECUTED, 19b/V-15 대기다. 전체 UE 게이트 결과는 WP-13 T15 결과 및 PR 코멘트에 기록한다.
+
+
+## T17 — 캐시·키 대소문자 회귀 (2026-09-30)
+
+- 테스트 전용 RequiresGaspPawn 평가 계수로 같은 클래스/설정 세대에서 반복 조회·이벤트·Tick·HUD 후 평가가 1회인지 확인한다. 비어 있지 않은 UAnimInstance 클래스와 테스트 ABP 간 교체도 판정이 갱신돼야 한다. scoped 설정의 진입·복귀는 재등록 없이 세대 변경으로 반영된다.
+- 일반 폰에 같은 GASP 계약 애님을 넣어도 auto는 distance다. pause에서 버려진 Step도 ev는 증가하지만 재생 요청은 증가하지 않는다. 양성 ABP 시험을 건너뛰면 해당 cache/class/generation/HUD Info는 NOT EXECUTED다.
+- C++는 루트·에셋 메타데이터·고정 ambience 상태·footsteps·개별 보폭 객체의 알려진 필드 이름을 읽기 전에 대소문자를 검사한다. 예: MASTER_VOLUME, gain의 GAIN, walk의 WALK는 필드 경로 오류다. 알려지지 않은 확장 키를 새로 금지하지 않으며 동적 에셋 id/세트 id/프리셋 이름을 소문자로 강제하지 않는다. 이 보완이 C++/Python의 모든 검증을 같게 만들었다는 뜻은 아니다.
+- 실제 GASP 원본 발 폴리 차단·발 접지·청취/패키지 출력은 계속 19b/V-15 검증이다.
