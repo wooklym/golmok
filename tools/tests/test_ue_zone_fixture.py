@@ -145,6 +145,7 @@ CONVENTION_FOLDERS = ("Geo", "Zones", "Lighting", "Portals", "Debug", "Player") 
 CONVENTION_FOLDERS += ("Photo",)  # [WP-12 hook] Photo/ header conventions
 CONVENTION_FOLDERS += ("Audio",)  # [WP-13 hook]
 CONVENTION_FOLDERS += ("Map", "Save")  # [WP-15 hook]
+CONVENTION_FOLDERS += ("Animation",)  # [WP-19 hook]
 
 
 @pytest.mark.parametrize("header", _headers(*CONVENTION_FOLDERS), ids=lambda p: p.name)
