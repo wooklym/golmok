@@ -759,7 +759,7 @@ def _import_texture(tex: dict, asset_folder: str, reimport: bool, work: str) -> 
                 if no_rhi:  # R69-6: the cause, as the command line says it
                     how = HOW_NO_RHI
                     why = f" without RHI ({reason})"
-                else:  # R81-7: RHI is there; the size is not yet
+                else:  # R81-7: RHI present (or not detectable, #40); the size is not yet (R87-4)
                     how = HOW_SIZE_ZERO.format(w=size[0], h=size[1])
                     why = f": the editor reports size {size[0]}x{size[1]} (no texture data yet)"
                 _warn(

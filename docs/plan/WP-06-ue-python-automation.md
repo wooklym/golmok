@@ -1229,4 +1229,25 @@ PR #81 병합 리뷰 R81의 WP-06 쪽 (C) 3건과 적대 검증 F3을 처리했�
 - ROADMAP zone_import 줄: 바꿀 것 없음.
 - 위 "Claude 레인 (C) 후속 R69-6·8·11" 절의 **병합** 줄 끝에 `→ R81-4·6·7은 PR #<번호>에서 해소`.
 
-**병합**: [PR #87](https://github.com/wooklym/golmok/pull/87) → main(오케스트레이터 결정 D-019; 리뷰 [R87](https://github.com/wooklym/golmok/pull/87#issuecomment-5915909161)). 위 "병합 시 반영(문안)"은 STATUS WP-06 행에 옮겼다. ROADMAP은 바꿀 것이 없다. PC 확인은 V-04c 카드에 합친다(크기 0 줄 `merged by importer (size WxH)`, cleanup 삭제 실패 `WARNING cleanup: could not delete <path> (runbook #8)`). 남은 (C)는 다음 Claude 레인 push: R87-3 `WxH`를 `(512, 0)`로도 시험(뮤테이션 `0x0` 고정·w/h 뒤바꿈 생존), R87-4 `get_command_line`이 없을 때(#40) 크기 0 경로의 주석·런북 149행 "RHI 있음" 단정, R87-5 새 cleanup WARNING을 런북 §12 #8 행에도 설명.
+**병합**: [PR #87](https://github.com/wooklym/golmok/pull/87) → main(오케스트레이터 결정 D-019; 리뷰 [R87](https://github.com/wooklym/golmok/pull/87#issuecomment-5915909161)). 위 "병합 시 반영(문안)"은 STATUS WP-06 행에 옮겼다. ROADMAP은 바꿀 것이 없다. PC 확인은 V-04c 카드에 합친다(크기 0 줄 `merged by importer (size WxH)`, cleanup 삭제 실패 `WARNING cleanup: could not delete <path> (runbook #8)`). 남은 (C)는 다음 Claude 레인 push: R87-3 `WxH`를 `(512, 0)`로도 시험(뮤테이션 `0x0` 고정·w/h 뒤바꿈 생존), R87-4 `get_command_line`이 없을 때(#40) 크기 0 경로의 주석·런북 149행 "RHI 있음" 단정, R87-5 새 cleanup WARNING을 런북 §12 #8 행에도 설명. → R87-3·4·5는 [PR #89](https://github.com/wooklym/golmok/pull/89)에서 해소.
+
+## 결과 — Claude 레인 (C) 후속 3: R87-3·4·5 (2026-09-30, Opus 5.5 ultracode, 세션 `session_01LNapjfuvf1835C2KSwFpoV`, 브랜치 `claude/claude-lane-c-followups3`) — 🟡 코드 완료·PC 확인은 V-04c 카드에 합침
+PR #87 병합 리뷰 R87의 WP-06 쪽 (C) 3건을 처리했다. 설계·동작 변경은 없다(주석·테스트·런북만).
+
+| 항목 | 변경 | 테스트 |
+|---|---|---|
+| R87-3 `WxH` | 코드 변경 없음 | `test_zero_size_skips_udim_pack_fallback`을 크기 `(0, 0)`·`(512, 0)`로 parametrize, `how`·텍스처 줄·WARNING을 `f"{w}x{h}"`로 단언. 뮤테이션 4개(`how`·WARNING 각각 `0x0` 고정·w/h 뒤바꿈) 모두 잡힘 |
+| R87-4 #40에서 크기 0 | `zone_import.py` 주석 `# R81-7: RHI present (or not detectable, #40); the size is not yet (R87-4)`. 런북 §2 "RHI가 있는데(또는 #40으로 판정 불가) 크기가 아직 0이라 건너뛴 것(R81-7·R87-4)". 동작은 그대로다: `get_command_line`이 없고 크기에 0이 있으면 크기 WARNING 한 줄만 나오고(#40 WARNING 없음), 팩도 하지 않는다 | `test_zero_size_without_get_command_line_names_the_size`(크기 `0x512`: WARNING 한 줄, `how` `(size 0x512)`, `make_udim` 호출 없음) |
+| R87-5 런북 #8 | §12 #8 행 끝에 한 문장: cleanup 단계(`_cleanup_folder`)가 계획 밖 by-product(Texture2D·Material)를 지우지 못하면 텍스처 실패가 없어도 `zone_import: WARNING cleanup: could not delete <path> (runbook #8)`이 나온다. 기록한 뒤 에디터를 닫고 손으로 삭제한다 | 문구는 코드(`_cleanup_folder`, `zi.warn`)·기존 테스트 `test_cleanup_step_that_cannot_delete_…`와 글자 단위로 같다 |
+
+**게이트·검증**: WP-19 "19a-2 후속 3" 절과 같은 게이트(pytest 1479 passed / 3 skipped)와 적대 검증 라운드를 거쳤다(한 PR). 이 절에 해당하는 결과는 다음과 같다.
+- 문구 대조: 런북 §2·§12 #8·#40과 코드가 일치한다.
+- 뮤테이션: `WxH` 4종과 "크기 0 경로에서도 #40 WARNING"이 모두 잡힌다.
+- 검증 V4(C): §12 #40 행이 크기 0 경로를 빠뜨렸다. 그 행에 한 구절을 넣었다(이 경고는 팩 폴백을 탈 때만 나온다).
+
+**병합 시 반영(문안)**
+- STATUS WP-06 행 비고 끝에 `· R87 (C) 후속(R87-3·4·5, 테스트·주석·런북) PR #<번호> 병합`.
+- ROADMAP zone_import 줄: 바꿀 것 없음. V-04c 카드: 바꿀 것 없음(기대 문구 불변).
+- 위 "(C) 후속 2" 절의 **병합** 줄 끝에 `→ R87-3·4·5는 PR #<번호>에서 해소`.
+
+**병합**: [PR #89](https://github.com/wooklym/golmok/pull/89) → main(오케스트레이터 결정 D-019; 리뷰 [R89](https://github.com/wooklym/golmok/pull/89#issuecomment-5917306038)). 위 "병합 시 반영(문안)"은 STATUS WP-06 행에 옮겼다. ROADMAP·V-04c 카드는 바꿀 것이 없다. 리뷰 (C) R89-4(런북 §12 #4 행의 크기 0 문구를 §2·#40 행과 같게 "(또는 #40으로 판정 불가)"·`WxH`로)는 이 병합 커밋에서 정정했다. 이 절 쪽에 남은 (C)는 없다.

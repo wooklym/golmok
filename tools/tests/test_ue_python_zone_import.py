@@ -727,26 +727,44 @@ def test_nullrhi_unmerged_tiles_are_not_packed_either(monkeypatch, tmp_path, zon
     assert facade["detail"]["how"] == "merged by importer (size unverifiable without RHI)"
 
 
-def test_zero_size_skips_udim_pack_fallback(monkeypatch, tmp_path, zone):
-    # a 0x0 size (no platform data yet) is not a size to pack on either (V-04b F1)
+@pytest.mark.parametrize("size", [(0, 0), (512, 0)])
+def test_zero_size_skips_udim_pack_fallback(monkeypatch, tmp_path, zone, size):
+    # a size with a 0 (no platform data yet) is not a size to pack on either (V-04b F1); R87-3: WxH in order
+    w, h = size
     fake = fake_unreal.install(monkeypatch, tmp_path, udim_merge=False)
-    monkeypatch.setattr(fake_unreal.FakeTexture2D, "_reported_size", lambda self: (0, 0))
+    monkeypatch.setattr(fake_unreal.FakeTexture2D, "_reported_size", lambda self: size)
     zi = importlib.import_module("golmok.zone_import")
     result = _run(zi, zone)
     assert fake.calls_of("make_udim") == []
     message = (
-        "texture T_facade: UDIM merge not verifiable: the editor reports size 0x0 (no texture data yet); "
-        "pack fallback skipped - check the texture in a GUI editor (runbook #4)"
+        f"texture T_facade: UDIM merge not verifiable: the editor reports size {w}x{h} "
+        "(no texture data yet); pack fallback skipped - check the texture in a GUI editor (runbook #4)"
     )
     assert result["warnings"] == [message]
     # R81-7: with RHI the texture line names the size, not a missing RHI
     facade = next(a for a in result["assets"] if a["asset"].endswith("T_facade"))
-    assert facade["detail"]["how"] == "merged by importer (size 0x0)"
+    assert facade["detail"]["how"] == f"merged by importer (size {w}x{h})"
     assert (
-        f"zone_import: texture {FOLDER}/Textures/T_facade tiles=[1001, 1002, 1011] size=0x0 vt=on "
-        "(merged by importer (size 0x0))"
+        f"zone_import: texture {FOLDER}/Textures/T_facade tiles=[1001, 1002, 1011] size={w}x{h} vt=on "
+        f"(merged by importer (size {w}x{h}))"
     ) in fake.logged("log")
     assert not [line for line in fake.logged("log") if "without RHI" in line]
+
+
+def test_zero_size_without_get_command_line_names_the_size(monkeypatch, tmp_path, zone):
+    """R87-4: RHI not detectable (#40) and a 0 size: the size WARNING alone; no pack, no #40 WARNING."""
+    fake = fake_unreal.install(monkeypatch, tmp_path, udim_merge=False)
+    monkeypatch.delattr(fake.module.SystemLibrary, "get_command_line")
+    monkeypatch.setattr(fake_unreal.FakeTexture2D, "_reported_size", lambda self: (0, 512))
+    zi = importlib.import_module("golmok.zone_import")
+    result = _run(zi, zone)
+    assert fake.calls_of("make_udim") == []
+    assert result["warnings"] == [
+        "texture T_facade: UDIM merge not verifiable: the editor reports size 0x512 (no texture data yet); "
+        "pack fallback skipped - check the texture in a GUI editor (runbook #4)"
+    ]
+    facade = next(a for a in result["assets"] if a["asset"].endswith("T_facade"))
+    assert facade["detail"]["how"] == "merged by importer (size 0x512)"
 
 
 def test_zero_size_without_rhi_keeps_the_no_rhi_wording(monkeypatch, tmp_path, zone):

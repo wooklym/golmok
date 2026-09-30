@@ -214,20 +214,31 @@ GASP_INI_TEXT = re.compile(
 GASP_CONFIG_TEXT = re.compile(r"^unreal/golmok/(plugins/.+/)?config/.+$")  # every other Config file
 # R81-2/3: an add-gasp list object is {"name": "DDCvar.…", "default*"|"value": …} in any key order; strings
 # are skipped whole (a "{" / "}" in a help text), and group 1 names the cvar for the error line. Pair lists
-# [["DDCvar.X", 1]] and console lines "DDCvar.X 1" fail too; YAML lists, BOM-less UTF-16 and files outside
-# Config are left to review (WP-19 judgement 1-2).
+# [["DDCvar.X", 1]] and console lines "DDCvar.X 1" / "DDCvar.X true" fail too; YAML lists, BOM-less UTF-16 and
+# files outside Config are left to review (WP-19 judgement 1-2).
 # The body takes no backslash outside a string (none in valid JSON): a "{" inside an escaped string cannot
 # open a string at the escaping backslash and rescan the rest of the file (verify F1).
 _GASP_JSON_BODY = r"(?:[^{}\"\\]|\"(?:[^\"\\]|\\.)*\")*"  # no brace outside a string; disjoint
 GASP_TEXT_INI_FORMS = re.compile(  # ini sections / keys, a DDCvar key with a value, add-gasp's DDCvar list
-    r"DataDrivenConsoleVariableSettings|CVarsArray|GameplayTagList|(?<![\w.])ddcvar\.[\w.]+\"?\s*[:=]"
+    r"DataDrivenConsoleVariableSettings|CVarsArray|GameplayTagList"
+    r"|(?:(?<![\w.])|(?<=\\[nrt]))ddcvar\.[\w.]+\"?\s*[:=]"  # R87-1: also after a \n / \t escape in a string
     rf"|\{{(?={_GASP_JSON_BODY}(\"name\"\s*:\s*\"ddcvar\.[^\"]*\"))"
     rf"(?={_GASP_JSON_BODY}\"(?:default\w*|value)\"\s*:)"
     r"|\[\s*\"ddcvar\.[^\"]*\"\s*,\s*(?:-?\.?\d|true\b|false\b)"
-    r"|(?<![^\n])[ \t]*ddcvar\.[\w.]+[ \t]+-?\.?\d",
+    r"|(?<![^\n])[ \t]*ddcvar\.[\w.]+[ \t]+(?:-?\.?\d|true\b|false\b)",
     re.IGNORECASE,
 )
 GASP_MANIFEST = "unreal/Golmok/Config/Golmok/local/gasp_manifest.json"
+# R87-2: every DDCvar branch needs "ddcvar."; without it only the section literals run (the list body keeps
+# memory per character of a brace-less region: about 140 MB per MB of a {"samples": [...]} file)
+GASP_TEXT_SECTIONS = re.compile(  # no group: _gasp_text_form callers read group 1 only when m.re.groups
+    r"DataDrivenConsoleVariableSettings|CVarsArray|GameplayTagList", re.IGNORECASE
+)
+
+
+def _gasp_text_form(text: str) -> re.Match[str] | None:
+    """GASP_TEXT_INI_FORMS.search(text), with the DDCvar branches only when the text holds "ddcvar."."""
+    return (GASP_TEXT_INI_FORMS if "ddcvar." in text.lower() else GASP_TEXT_SECTIONS).search(text)
 
 
 def _git_paths(root: Path, *args: str) -> list[str] | None:
@@ -303,10 +314,12 @@ def check_gasp_guard(root: Path) -> list[str]:
                     )
             elif not GASP_INI_COMMIT_ALLOWED and GASP_CONFIG_TEXT.match(path.lower()):
                 text = _gasp_text(root / path)
-                m = GASP_TEXT_INI_FORMS.search(text)
+                m = _gasp_text_form(text)
                 if m:
                     no = text.count("\n", 0, m.start()) + 1
-                    shown = m.group(1) or m.group(0)  # R81-2: the "name": "DDCvar.…" of a list, not "{"
+                    # R81-2: the "name": "DDCvar.…" of a list, not "{"; R87-6: a pretty pair list on one line
+                    name = m.group(1) if m.re.groups else None
+                    shown = " ".join((name or m.group(0)).split())
                     errors.append(f"{path}:{no}: GASP 가드 — GASP ini 형식 텍스트({shown})는 커밋하지 않는다")
     return errors
 
