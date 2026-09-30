@@ -186,13 +186,20 @@ public:
   }
   if(bMoving)
   {
+   // Opt-in fault injection exercises the same failure path as a viewport focus-loss flush.
+   if(Course==4 && Step==1 && bKeyExpected && Now-StepAt>=.25 &&
+      FParse::Param(FCommandLine::Get(),TEXT("GolmokZoneWalkForceInputFlush")))
+    PC->FlushPressedKeys();
+   // InputKey is processed by PlayerInput on the next tick; do not inspect the press frame.
+   if(bKeyExpected && Now>StepAt && !PC->IsInputKeyDown(EKeys::W))
+    return Fail(TEXT("input flushed (viewport focus lost)"));
    if(S.bPush)
    {
     // The facade contact occurs around 2s; do not start measuring while still approaching it.
-    const double FaceY=(Course==0?495.:500.)-Character->GetCapsuleComponent()->GetScaledCapsuleRadius();
+    const double FaceY=(500.-(Course==0?.5*Zone->BlockerThicknessCm:0.))-Character->GetCapsuleComponent()->GetScaledCapsuleRadius();
     const bool bFacadeSettled=FMath::Abs(Pos.Y-FaceY)<=5 && Character->GetVelocity().Size2D()<1;
     const bool bCanMeasure=(Course==0 || Course==1)?bFacadeSettled:Now-StepAt>=2;
-    if(!bPushMeasured && Now-StepAt>20) return Fail(TEXT("obstacle contact did not settle within20s"));
+    if(!bPushMeasured && Now-StepAt>20) return Fail(*FString::Printf(TEXT("obstacle contact did not settle within20s: y=%.3f face=%.3f speed=%.3f cm/s"),Pos.Y,FaceY,Character->GetVelocity().Size2D()));
     if(Now-StepAt>=.25 && bCanMeasure && !bPushMeasured){PushStart=Pos;PushAt=Now;bPushMeasured=true;}
     if(!bPushMeasured || Now-PushAt<1) return false;
     Check(TEXT("obstacle 1s push displacement <5cm"),FVector::Dist(Pos,PushStart)<5,FVector::Dist(Pos,PushStart));
@@ -241,7 +248,7 @@ public:
   return false;
  }
 private:
- void Key(bool Down){if(PC.IsValid())PC->InputKey(FInputKeyEventArgs::CreateSimulated(EKeys::W,Down?IE_Pressed:IE_Released,Down?1.f:0.f));}
+ void Key(bool Down){bKeyExpected=Down;if(PC.IsValid())PC->InputKey(FInputKeyEventArgs::CreateSimulated(EKeys::W,Down?IE_Pressed:IE_Released,Down?1.f:0.f));}
  void Release(){Key(false);}
  void Save(){if(!Folder.IsEmpty())FFileHelper::SaveStringToFile(Log,*(Folder/TEXT("walk.txt")),FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);}
  void Check(const TCHAR* Label,bool OK,double Value){Test->TestTrue(Label,OK);Log+=FString::Printf(TEXT("assert %s value=%.5f %s\n"),Label,Value,OK?TEXT("PASS"):TEXT("FAIL"));}
@@ -253,8 +260,10 @@ private:
    auto* Debug=PC->GetWorld()->GetSubsystem<UGolmokDebugSubsystem>();
    if(Debug && Debug->IsRecording())
    {
-    // EndPlay discards the active recording. StopRecording would overwrite the last good walk_01.
-    const FString Warning=TEXT("ZoneWalk failure: active recording left unsaved for PIE teardown; existing path file preserved.");
+    // World-subsystem Deinitialize discards the active recording; StopRecording would save it.
+    const FString Path=Debug->PathFilePath(TEXT("walk_01"));
+    const FString Warning=FString::Printf(TEXT("ZoneWalk failure: active walk_01 recording left unsaved for world-subsystem Deinitialize; path=%s (%s)."),
+     *Path,IFileManager::Get().FileExists(*Path)?TEXT("existing file left untouched"):TEXT("no existing file"));
     Test->AddWarning(Warning);Log+=Warning+TEXT("\n");
    }
    else PC->ConsoleCommand(TEXT("golmok.path stop"),true);
@@ -263,7 +272,7 @@ private:
   Log+=FString(TEXT("FAILED: "))+Why+TEXT("\n");Save();return true;
  }
  FAutomationTestBase* Test;int32 Course,Step=0;double InsideAt=0,BaseExposure=0,FinalizedAt=0,PlacedAt=0,Started=0,Now=0,StepAt=0,SampleAt=0,WaitAt=0,PushAt=0,RecordAt=0,TargetDistance=0,MinGroundClearance=1e9;
- bool bOverlayChecked=false,bFinalized=false,bPlaced=false,bReady=false,bMoving=false,bWaiting=false,bPushMeasured=false,bEntered=false,bExited=false,bUnloaded=false,bExtraWest=true;
+ bool bKeyExpected=false,bOverlayChecked=false,bFinalized=false,bPlaced=false,bReady=false,bMoving=false,bWaiting=false,bPushMeasured=false,bEntered=false,bExited=false,bUnloaded=false,bExtraWest=true;
  TWeakObjectPtr<APlayerController> PC;TWeakObjectPtr<AGolmokCharacter> Character;
  FVector Pos,MoveStart,PushStart;FVector2D Direction;TArray<FStep> Steps;TArray<FString> Files;FString Folder,Log;
 };

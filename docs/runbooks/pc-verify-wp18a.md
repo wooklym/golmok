@@ -208,3 +208,32 @@ T2 실제 실행 명령(2026-09-28, offscreen):
 시퀀스는 큐 등록 전 L_Dev·L_ZoneTest·합성 실내 서브레벨 패키지 존재를 확인한다. 누락이면 PIE를 시작하지 않고 경로와 준비 안내를 오류로 남긴다. 300초 타임아웃은 각 코스 latent command의 **첫 Update부터** 계산하며 큐 생성 뒤 앞 코스에서 보낸 시간은 포함하지 않는다. 제한 대상은 해당 command 수명이며, 별도 맵 로드/PIE 시작 command의 시간 제한은 아니다.
 
 새 capture.txt에는 실제 RHI 이름, 실행 명령줄, clear_noon 적용 성공 여부, 진단 카메라 TargetArmLength를 적는다. 조명 액터/프리셋 적용 실패는 테스트 실패다. 매 프레임 feet(캡슐 바닥), portal_present/inside/entered/exited를 기록하고 계단 랜딩/지면 높이·포털 진입/복귀 단언은 PASS/FAIL과 값을 남긴다. COMPLETE의 assertions는 이 코스 단언 결과이며 이미지 품질 합격 표시가 아니다. 전체 명령줄이 로컬 파일에 있으므로 외부에 전달할 때 민감한 인자가 없는지 확인한다. 기존 T2 시트/capture.txt는 당시 실행 근거라 소급해서 덮어쓰지 않는다.
+
+
+## 12. T7 ZoneWalk RHI 회귀 확인 (2026-09-30)
+
+대상은 합성 `L_ZoneTest06`의 InputKey 드라이버다. 실제 키보드 지속 입력·사람 눈 품질 검수는 별도다. 준비는 [WP-06 런북](pc-verify-wp06.md) §0~§4를 따른다. 다른 indexed zone을 끄고, 기존 `walk_01.json`의 SHA-256·수정 시각을 먼저 기록한다. GUI 잠금이 비어 있고 다른 UE 프로세스가 없을 때만 RHI를 시작한다. Claude PC 카드가 우선이며 실행 중 잠금을 유지·갱신한다.
+
+아래 명령에서 `$course`를 0, 1, 4로 바꾸어 별도 프로세스로 실행한다. 보고서 폴더는 실행마다 구분한다.
+
+```powershell
+$course = 0
+$project = 'C:/Users/user/golmok-astra/wp-13a-sources/unreal/Golmok/Golmok.uproject'
+$report = "C:/Users/user/golmok-astra/wp-13a-sources/unreal/Golmok/Saved/Automation/T7RHI-course$course"
+& 'C:/Program Files/Epic Games/UE_5.8/Engine/Binaries/Win64/UnrealEditor-Cmd.exe' `
+  $project '-ExecCmds=Automation RunTests Golmok.Character.RenderEvidence;Quit' `
+  "-ReportExportPath=$report" -GolmokZoneWalk `
+  -GolmokZoneWalkMap=/Game/Golmok/Maps/L_ZoneTest06 "-GolmokZoneWalkCourse=$course" `
+  '-ini:Game:[/Script/Golmok.GolmokZoneSubsystem]:bDiscoverFromIndex=False' `
+  '-ini:Input:[/Script/Engine.InputSettings]:bShouldFlushPressedKeysOnViewportFocusLost=False' `
+  '-ini:EditorPerProjectUserSettings:[/Script/UnrealEd.EditorPerformanceSettings]:bThrottleCPUWhenNotForeground=False' `
+  -d3d12 -RenderOffscreen -unattended -nosplash -nopause -nosound -ResX=960 -ResY=540
+```
+
+- 코스 0에는 `-GolmokCharacterRenderEvidence`도 붙여 ZoneWalk 우선 경고가 1회 나오는지 확인한다. Sequence 조합도 같은 경고 분기다. 코스 0·1은 성공해야 한다. `walk.txt`의 압박 1초 변위 <5 cm·장애물 접촉면 단언과 PNG 생성을 확인한다. 측정 시작 조건은 접촉면 ±5 cm **그리고** 수평 속도 <1 cm/s다. 유리 남면은 `500 - BlockerThicknessCm/2 - capsule radius`, 벽은 `500 - capsule radius`다.
+- 코스 4 **강제 실패 시험에는 반드시** `-GolmokZoneWalkForceInputFlush`를 추가한다. 녹화 시작 뒤 두 번째 waypoint에서 W를 누른 지 0.25 s가 지나면 `FlushPressedKeys()`를 호출한다. 즉시 `input flushed (viewport focus lost)`로 실패하는 것이 기대 결과다. 플래그 없이 코스 4를 끝내면 정상 녹화가 저장되므로 보존 시험과 혼동하지 않는다.
+- 실패 경고에 `walk_01`과 실제 파일 경로가 있고, PIE 정리 시 `world ending while recording path 'walk_01' ... discarded` 로그가 있어야 한다. 기존 파일 SHA-256·mtime은 실행 전후 동일해야 한다. 파일이 원래 없으면 경고는 `no existing file`이며 파일도 생기지 않아야 한다.
+- W 상태는 입력을 보낸 다음 틱부터 검사한다. 같은 프레임에는 PlayerInput이 아직 입력을 처리하지 않아 오탐할 수 있다. 두 ini 인자는 포커스 상실/백그라운드 throttle 우회이며 파일 설정을 바꾸지 않는다. 강제 flush는 이 우회와 무관하게 진단 경로를 검증한다.
+- 강제 실패의 report `failed=1`은 의도된 음성 시험 결과다. 정상 코스와 전체 headless 게이트는 `failed=0`이어야 한다. 경고가 있는 RenderEvidence 단독 실행의 `succeeded=0`은 `succeededWithWarnings` 및 테스트별 `state`와 함께 판정한다.
+
+불확실성: 실제 Windows 창 포커스 전환은 이 시험에서 재현하지 않는다. `FlushPressedKeys` 직접 호출은 엔진 입력 소실 이후의 처리만 검증한다. 접촉 20 s 타임아웃 메시지의 y·face·speed는 코드에 포함되며, 타임아웃 자체를 별도로 유도했는지는 실행 기록에 구분한다.
