@@ -139,7 +139,7 @@ namespace GolmokAudio
 		if (Steps.Data->HasField(TEXT("driver")))
 		{
 			if (!Steps.String(TEXT("driver"), Next.FootstepDriver)
-				|| !Steps.Check(Next.FootstepDriver == TEXT("auto") || Next.FootstepDriver == TEXT("distance") || Next.FootstepDriver == TEXT("notify"),
+				|| !Steps.Check(Next.FootstepDriver.Equals(TEXT("auto"), ESearchCase::CaseSensitive) || Next.FootstepDriver.Equals(TEXT("distance"), ESearchCase::CaseSensitive) || Next.FootstepDriver.Equals(TEXT("notify"), ESearchCase::CaseSensitive),
 					TEXT("driver"), TEXT("auto, distance or notify"))) return false;
 		}
 		if (!Steps.Number(TEXT("walk_stride_cm"), Next.WalkStride, 1, 10000) || !Steps.Number(TEXT("run_stride_cm"), Next.RunStride, 1, 10000)
