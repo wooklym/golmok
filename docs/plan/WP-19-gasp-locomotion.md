@@ -411,3 +411,4 @@ T2 digest 의존성, T4 이름 규칙(UE `INVALID_LONGPACKAGE_CHARACTERS`와 동
   - (C) R78-3 `FileNotFoundError` 런북 행, R78-4 폐포 1,187 대조 문구(리타깃 루트 몫), R78-6 `ls-files` 실패 분기 테스트(뮤테이션 `if False:`가 이제 잡힘), R78-10 §C #15 대안 문구.
   - pytest 1324 → **1326**.
 - **남긴 (C)**(다음 Claude 레인 push, 19b 전이면 좋음): R78-5 가드 구멍(Config 아래 ini가 아닌 텍스트·`unreal/Golmok` 밖 ini·이름을 바꿔 `Content/Golmok`에 넣은 GASP 에셋 — 의도적 우회만 해당), R78-7 `.git`이 있는데 toplevel 표기가 다르면(subst·정션) 조용히 건너뜀 → `os.path.samefile` 또는 실패, R78-8 플러그인 Content·`__ExternalActors__`를 쓰게 되면 허용 경로 추가(훅 주석 한 줄), R78-9 `GASP_INI_COMMIT_ALLOWED`와 `gasp_pure` 상수 동기화 주석, R78-11 D8 헤더 규칙을 엔진 헤더 이름 목록으로 좁힘, R78-12 커밋 순서 메모(내용 위반 없음). R78-5·7·8·9는 `check_repo.py` 훅 블록 안 수정이라 별도 훅 커밋으로 한다.
+- **병합**: [PR #78](https://github.com/wooklym/golmok/pull/78) → main(오케스트레이터 결정 D-019; 리뷰 전문 [R78](https://github.com/wooklym/golmok/pull/78#issuecomment-5909290591)). 위 "병합 시 반영(문안)"은 STATUS WP-19 행·마지막 갱신, ROADMAP 애니메이션 행에 옮겼다.
