@@ -1,0 +1,7 @@
+{
+  "schema_version": 1,
+  "comment": "Filled by 19b from the first add-gasp.ps1 -Verify that passes (Fab section 7(a): pin the acquired GASP). A different digest later warns 'GASP 갱신 — V-08b/V-15 재확인'.",
+  "engine_version": null,
+  "package_count": null,
+  "digest": null
+}

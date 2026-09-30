@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "mode": "abp",
+  "gasp": {
+    "content_root": "/Game/GASP",
+    "pawn_class": "/Game/GolmokLocal/GASP/BP_GolmokCharacter_GASP.BP_GolmokCharacter_GASP_C",
+    "pawn_interface": "Blueprints/Interfaces/BPI_SandboxCharacter_Pawn.BPI_SandboxCharacter_Pawn_C",
+    "anim_class": "Blueprints/SandboxCharacter_CMC_ABP.SandboxCharacter_CMC_ABP_C",
+    "preview": {
+      "source_mesh": "Characters/UEFN_Mannequin/Meshes/SKM_UEFN_Mannequin.SKM_UEFN_Mannequin",
+      "visual_mesh": null,
+      "visual_anim_class": null
+    },
+    "movement_profile": "p0",
+    "state": {
+      "just_landed_seconds": 0.3,
+      "teleport_jump_cm": 100,
+      "reinit_anim_on_teleport": true
+    }
+  },
+  "movement_profiles": {
+    "p0": {
+      "max_acceleration": 2048,
+      "braking_deceleration_walking": 2000,
+      "ground_friction": 8,
+      "braking_friction_factor": 2,
+      "use_separate_braking_friction": false,
+      "braking_friction": 0
+    },
+    "p1": null,
+    "p2": null
+  }
+}

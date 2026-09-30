@@ -49,6 +49,8 @@ RECORDS (fake.calls, design §5-0; "spawn" gets its label when set_actor_label i
     ("add_level_to_world", package) ("get_streaming_level", package) ("high_res_screenshot", path)
     ("save_map", world package, path) ("quit_editor",)
     ("set_current_level", package) (LevelEditorSubsystem.set_current_level_by_name)
+    WP-19 (gasp_import): ("migrate", (package, ...), destination_dir) ("rename_directory", old, new)
+    ("fixup_referencers", count) ("get_dependencies", package)
 
 KNOBS (install(**cfg) keywords = Fake attributes): obj_mapping=(100.0, M_OBJ) glb_mapping=(100.0, M_GLB)
     obj_routes_ok={"fbx","interchange","legacy_flag"} udim_merge=True texture_vt_default=True
@@ -74,6 +76,13 @@ KNOBS (install(**cfg) keywords = Fake attributes): obj_mapping=(100.0, M_OBJ) gl
     FakeLevel and opened) lit=True (that level already holds the five L_Dev lighting actors, seeded without
     spawn records, so synthetic_zone.open_or_create_level takes the plain load_level path; lit=False leaves
     it empty and the V-03 "had no lighting; rebuilt" branch runs on the first open)
+    WP-19: dependencies={} (package -> [package, ...] for AssetRegistry.get_dependencies; None for
+    packages that are neither there nor in the registry, like the engine) rename_directory_ok=True (False:
+    rename_directory returns False and moves nothing). migrate_packages copies each registered package to
+    <destination>/<rel>.uasset (b"<package>") unless that file exists (AssetMigrationConflict.SKIP);
+    rename_directory / rename_asset move the registry keys and, when present, the files under
+    fake.content_dir (a UE rename moves the package files).
+    unreal.load_class(None, "/Game/A/B.B_C") returns the registered asset /Game/A/B or None.
 
 Console (SystemLibrary.execute_console_command): "golmok.tod <preset>" picks the screenshot folder
 (fake.tod_commands records every golmok.tod argument list; the WP-14a subcommands time / mode / rate / status
@@ -145,6 +154,7 @@ KNOBS = {
     "viewport_size": (1014, 550), "nested_glb": False, "engine_udim_regex": False,
     "zone_transform": ZONE_ROOT_CM, "begin_play_starts_pie": True, "level": DEFAULT_LEVEL, "lit": True,
     "save_map_renames": True, "nullrhi": False, "relative_paths": False,
+    "dependencies": {}, "rename_directory_ok": True,  # WP-19 gasp_import
 }  # fmt: skip
 # (class, label, tags) of setup_dev_level._build_lighting(), seeded into the initial level when lit=True.
 L_DEV_LIGHTING = (
@@ -429,6 +439,15 @@ MeshNaniteSettings = _options("MeshNaniteSettings", {
 BodySetup = _options("BodySetup", {"collision_trace_flag": "CTF_USE_DEFAULT"})
 StaticMaterial = _options("StaticMaterial", {"material_interface": None, "material_slot_name": ""})
 CustomInput = _options("CustomInput", {"input_name": ""})
+AssetRegistryDependencyOptions = _options("AssetRegistryDependencyOptions", {
+    "include_soft_package_references": True, "include_hard_package_references": True,
+    "include_searchable_names": False, "include_soft_management_references": False,
+    "include_hard_management_references": False,
+})  # fmt: skip
+MigrationOptions = _options("MigrationOptions", {
+    "prompt": True, "ignore_dependencies": False, "asset_conflict": "SKIP", "orphan_folder": "",
+})  # fmt: skip
+AssetMigrationConflict = _enum("AssetMigrationConflict", "SKIP", "OVERWRITE", "RENAME")
 LevelStreamingDynamic = _options(
     "LevelStreamingDynamic", {"initially_loaded": True, "initially_visible": True, "world_asset": None}
 )
@@ -988,6 +1007,20 @@ class FakeEditorAssetLibrary(_Bound):
         self._fake.registry[new] = asset
         if isinstance(asset, FakeLevel) and old in self._fake.levels:
             self._fake.levels[new] = self._fake.levels.pop(old)
+        _move_package_files(self._fake, old, new)
+        return True
+
+    def rename_directory(self, source_directory_path, destination_directory_path):
+        """WP-19: moves every registered asset under the folder (and the folder on disk under content_dir)."""
+        old, new = _key(source_directory_path), _key(destination_directory_path)
+        self._fake.calls.append(("rename_directory", old, new))
+        if not self._fake.rename_directory_ok or not self.does_directory_exist(old):
+            return False
+        for key in [k for k in self._fake.registry if k.startswith(old + "/")]:
+            asset = self._fake.registry.pop(key)
+            asset.path = new + key[len(old) :]
+            self._fake.registry[asset.path] = asset
+        _move_package_files(self._fake, old, new)
         return True
 
     def duplicate_asset(self, source_asset_path, destination_asset_path):
@@ -1016,6 +1049,41 @@ class FakeEditorAssetLibrary(_Bound):
                     continue
             out.append(pure.object_path(key))
         return out + (sorted(folders) if include_folder else [])
+
+
+def _content_file(fake, package: str) -> Path | None:
+    """<content_dir>/<rel> for a /Game package or folder path (no extension), else None."""
+    return Path(fake.content_dir) / package[len("/Game/") :] if package.startswith("/Game/") else None
+
+
+def _move_package_files(fake, old: str, new: str) -> None:
+    """A UE rename moves the package files: move <old>(.uasset|.umap) or the folder <old> when present."""
+    source, target = _content_file(fake, old), _content_file(fake, new)
+    if source is None or target is None:
+        return
+    if source.is_dir():
+        target.parent.mkdir(parents=True, exist_ok=True)
+        os.replace(source, target)
+        return
+    for ext in (".uasset", ".umap"):
+        file = source.with_name(source.name + ext)
+        if file.is_file():
+            target.parent.mkdir(parents=True, exist_ok=True)
+            os.replace(file, target.with_name(target.name + ext))
+
+
+class FakeAssetRegistry(_Bound):
+    def get_dependencies(self, package_name, dependency_options):
+        name = str(package_name)
+        self._fake.calls.append(("get_dependencies", name))
+        if name in self._fake.dependencies:
+            return [Name(d) for d in self._fake.dependencies[name]]
+        return [] if name in self._fake.registry else None
+
+
+class FakeAssetRegistryHelpers(_Bound):
+    def get_asset_registry(self):
+        return FakeAssetRegistry(self._fake)
 
 
 class FakeMaterialEditingLibrary(_Bound):
@@ -1080,6 +1148,21 @@ class FakeAssetTools(_Bound):
         self._fake.registry[asset.path] = asset
         self._fake.calls.append(("create_asset", asset_name, folder, asset_class.unreal_name))
         return asset
+
+    def migrate_packages(self, package_names, destination_path, options=None):
+        """WP-19: copies registered packages as files; an existing destination file is skipped (SKIP)."""
+        names = tuple(str(n) for n in package_names)
+        self._fake.calls.append(("migrate", names, str(destination_path)))
+        for name in names:
+            if name not in self._fake.registry:
+                continue
+            target = Path(destination_path) / (name[len("/Game/") :] + ".uasset")
+            if not target.exists():
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_bytes(name.encode("utf-8"))
+
+    def fixup_referencers(self, referencers, *args, **kwargs):
+        self._fake.calls.append(("fixup_referencers", len(list(referencers))))
 
     def import_asset_tasks(self, tasks):
         for task in tasks:
@@ -1443,7 +1526,7 @@ class Fake:
             value = cfg.get(knob, default)
             if knob in ("obj_routes_ok", "fail_import"):
                 value = set(value)
-            elif knob == "bounds_offset":
+            elif knob in ("bounds_offset", "dependencies"):
                 value = dict(value)
             elif knob == "zone_transform":
                 value = _as_transform(value)
@@ -1738,6 +1821,9 @@ def _names(fake: Fake) -> dict:
         "MeshNaniteSettings": MeshNaniteSettings, "BodySetup": BodySetup, "StaticMaterial": StaticMaterial,
         "LevelEditorPlaySettings": FakePlaySettings, "PlayModeType": PlayModeType,
         "LevelStreamingDynamic": LevelStreamingDynamic,
+        "AssetRegistryDependencyOptions": AssetRegistryDependencyOptions,
+        "MigrationOptions": MigrationOptions, "AssetMigrationConflict": AssetMigrationConflict,
+        "load_class": lambda outer, path: fake.registry.get(_key(path)),
         "EditorActorSubsystem": EditorActorSubsystem, "LevelEditorSubsystem": LevelEditorSubsystem,
         "UnrealEditorSubsystem": UnrealEditorSubsystem,
         "StaticMeshEditorSubsystem": StaticMeshEditorSubsystem,
@@ -1749,6 +1835,7 @@ def _names(fake: Fake) -> dict:
         "Paths": FakePaths(fake), "AutomationLibrary": FakeAutomationLibrary(fake),
         "EditorLevelUtils": FakeEditorLevelUtils(fake),
         "EditorLoadingAndSavingUtils": FakeEditorLoadingAndSavingUtils(fake),
+        "AssetRegistryHelpers": FakeAssetRegistryHelpers(fake),
     }  # fmt: skip
     names.update({n: _static_library(n, instance) for n, instance in libraries.items()})
     names.update({n: _marker(n) for n in MATERIAL_EXPRESSIONS + COMPONENT_CLASSES})

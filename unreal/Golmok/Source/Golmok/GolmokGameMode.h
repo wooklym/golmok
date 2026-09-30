@@ -11,4 +11,7 @@ class GOLMOK_API AGolmokGameMode : public AGameModeBase
 
 public:
 	AGolmokGameMode();
+	// [WP-19 hook] animation.json mode gasp picks the local GASP pawn Blueprint per spawn (① fallback, D-021).
+	virtual UClass* GetDefaultPawnClassForController_Implementation(AController* InController) override;
+	// [/WP-19 hook]
 };

@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "comment": "WP-19 design section 8: migrate roots in the GASP 5.8 project (original paths). Migrate copies their /Game dependency closure; add-gasp.ps1 then moves it under /Game/GASP. Not roots: the GASP pawn SandboxCharacter_CMC, levels, MetaHumans. 'estimated' paths have no V-08 record; 19b replaces them with the real paths (a missing root is reported and skipped).",
+  "roots": [
+    {
+      "path": "/Game/Blueprints/SandboxCharacter_CMC_ABP",
+      "status": "confirmed",
+      "note": "V-08 (runbook pc-verify-animation section 8): the CMC animation Blueprint = animation.json gasp.anim_class"
+    },
+    {
+      "path": "/Game/Blueprints/Interfaces/BPI_SandboxCharacter_Pawn",
+      "status": "estimated",
+      "note": "pawn interface the 19b Blueprint implements = gasp.pawn_interface (also in the ABP closure)"
+    },
+    {
+      "path": "/Game/Characters/UEFN_Mannequin/Meshes/SKM_UEFN_Mannequin",
+      "status": "estimated",
+      "note": "source mesh on the GASP skeleton = gasp.preview.source_mesh"
+    },
+    {
+      "path": "/Game/Blueprints/RetargetedCharacters/ABP_GenericRetarget",
+      "status": "estimated",
+      "note": "runtime retarget ABP of GASP BP_Manny (V-08); VisualMesh anim class after 19b"
+    },
+    {
+      "path": "/Game/Characters/UE5_Mannequins/Meshes/SKM_Manny_Simple",
+      "status": "estimated",
+      "note": "GASP copy of the Manny mesh (retarget target skeleton), with its IK Retargeter in the closure"
+    }
+  ]
+}
