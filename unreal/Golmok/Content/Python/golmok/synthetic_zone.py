@@ -311,7 +311,8 @@ def abs_project_path(path) -> str:
     """Absolute, normalized OS path of an unreal.Paths result. The editor hands out project_saved_dir() /
     project_content_dir() relative to its binaries folder ('../../../<project>/Saved/'), which a deep checkout
     turns into a path over MAX_PATH 260 (V-04b F2: 269 characters); convert_relative_path_to_full (behind
-    hasattr) and then normpath(abspath) drop the '..' hops. Runbook §12 #31 (the rule of spike_runner._abs)."""
+    hasattr) and then normpath(abspath) drop the '..' hops. Runbook §12 #31. The one project-path helper:
+    zone_import, zone_index, interior_setup, viewpoints and spike_runner (_abs) all use it (R69-8)."""
     paths = unreal.Paths
     if hasattr(paths, "convert_relative_path_to_full"):
         path = paths.convert_relative_path_to_full(path)

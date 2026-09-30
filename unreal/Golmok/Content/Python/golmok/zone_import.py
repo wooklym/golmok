@@ -459,11 +459,33 @@ def _import_in_place(filename, folder: str, name: str, target: str, cls, row: in
     only: a PNG lands at <folder>/<name> (V-04, V-04b logs; runbook #37); an importer that names it otherwise is
     moved by _ensure_path (warning, row `row`). Meshes keep _import_moved (glTF sub-folders)."""
     paths = _import_task(filename, folder, destination_name=name, options=options)
-    picked = _pick(paths, cls)
-    src = _asset_key(picked.get_path_name())
-    asset = _ensure_path(picked, target, row)
+    try:
+        picked = _pick(paths, cls)
+        src = _asset_key(picked.get_path_name())
+        asset = _ensure_path(picked, target, row)
+    except Exception:
+        _discard_failed_import(paths, target)
+        raise
     _delete_assets(paths, keep={target, src})
     return asset
+
+
+def _discard_failed_import(paths: list[str], target: str) -> None:
+    """R69-11: an in-place import that failed after the importer created assets (no Texture2D among them, or
+    one under another name that could not be moved to `target`) deletes what it created besides `target`, so
+    no stray texture outlives the failed run. What cannot be deleted is one WARNING: the next run's cleanup
+    step (_cleanup_folder) deletes Texture2D / Material by-products outside the plan (runbook #8)."""
+    lib = unreal.EditorAssetLibrary
+    try:
+        _delete_assets(paths, keep={target})
+    except Exception as e:  # never hide the import error behind a cleanup error
+        unreal.log_warning(_pure.fmt("zi.warn", message=f"texture import cleanup failed: {e}"))
+    for key in sorted({_asset_key(p) for p in paths} - {target}):
+        if lib.does_asset_exist(key):
+            _warn(
+                f"texture import failed; could not delete {key} - the next run's cleanup step removes it "
+                "(runbook #8)"
+            )
 
 
 def _import_moved(filename, folder: str, name: str, target: str, cls, row: int, options=None, factory=None):
@@ -619,14 +641,25 @@ def _without_rhi() -> bool | None:
     Without RHI a texture's size comes from its source, and a merged UDIM then seems to report its first
     block (the tile size) [unverified on 5.8.3 source]: the size test cannot tell merged from unmerged, and
     packing a merged texture again ends the editor (V-04b F1)."""
+    reason = _no_rhi_reason()
+    return None if reason is None else bool(reason)
+
+
+def _no_rhi_reason() -> str | None:
+    """Why _without_rhi() is True, for the WARNING (R69-6): '-nullrhi', '/nullrhi' or 'commandlet -run=<x>
+    without -AllowCommandletRendering'; '' with RHI; None when SystemLibrary.get_command_line is missing."""
     lib = getattr(unreal, "SystemLibrary", None)
     if lib is None or not hasattr(lib, "get_command_line"):
         return None
     tokens = [t.strip("\"'") for t in str(lib.get_command_line()).lower().split()]
-    if NULLRHI_FLAG in tokens or "/nullrhi" in tokens:
-        return True
+    for flag in (NULLRHI_FLAG, "/nullrhi"):
+        if flag in tokens:
+            return flag
     # a commandlet (UnrealEditor-Cmd -run=pythonscript ...) renders nothing unless -AllowCommandletRendering
-    return any(t.startswith("-run=") for t in tokens) and "-allowcommandletrendering" not in tokens
+    run = next((t for t in tokens if t.startswith("-run=")), None)
+    if run is not None and "-allowcommandletrendering" not in tokens:
+        return f"commandlet {run} without -AllowCommandletRendering"
+    return ""
 
 
 def _tile_copy_name(name: str, u: int, v: int) -> str:
@@ -708,17 +741,21 @@ def _import_texture(tex: dict, asset_folder: str, reimport: bool, work: str) -> 
                 )
         elif len(tiles) > 1:
             size, tile = _texture_size(texture), _png_tile_size(tex["anchor"])
-            no_rhi = _without_rhi()
+            reason = _no_rhi_reason()
+            no_rhi = None if reason is None else bool(reason)
             if size is None or tile is None:
                 how = "merged by importer (size unknown)"
                 _warn(f"texture {tex['name']}: UDIM merge could not be verified by size (runbook #4)")
             elif no_rhi or 0 in size:
                 # V-04b F1: never pack on a size the editor cannot measure (a wrong pack is an engine assert)
                 how = HOW_NO_RHI
-                why = NULLRHI_FLAG if no_rhi else f"size {size[0]}x{size[1]}"
+                if no_rhi:  # R69-6: the cause, as the command line says it
+                    why = f" without RHI ({reason})"
+                else:
+                    why = f": the editor reports size {size[0]}x{size[1]} (no texture data yet)"
                 _warn(
-                    f"texture {tex['name']}: UDIM merge not verifiable without RHI ({why}); pack fallback "
-                    "skipped - check the texture in a GUI editor (runbook #4)"
+                    f"texture {tex['name']}: UDIM merge not verifiable{why}; pack fallback skipped - check "
+                    "the texture in a GUI editor (runbook #4)"
                 )
             elif size == tile:
                 if no_rhi is None and "get_command_line" not in _warned_once:  # once per call (R69-7)
@@ -986,7 +1023,7 @@ def import_assets(plan: dict, work_dir: str, remeasure=False, reimport_textures=
     """
     del _warnings[:]
     _warned_once.clear()
-    work = os.path.normpath(str(work_dir))
+    work = os.path.normpath(os.path.abspath(str(work_dir)))  # R69-8: absolute like every other path here
     for sub in ("visual", "collision"):
         os.makedirs(os.path.join(work, sub), exist_ok=True)
     asset_folder = plan["asset_folder"]
