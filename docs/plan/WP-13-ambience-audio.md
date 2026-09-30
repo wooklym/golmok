@@ -409,3 +409,11 @@ WP-19 결과/19b 인계 문안: `T13은 UGolmokFootstepComponent::UsesNotifyDriv
 ### 병합 시 반영 — T17
 
 STATUS/astra-tasks 문안: “선택 T17 R82-1/2/3/4/6 완료: 클래스+설정 세대 캐시, 평가 계수·nonnull 교체·폰 조건·필터 이벤트 회귀, 조건부 NOT EXECUTED, 알려진 오디오 JSON 키 case alias 거부. 등록36 유지. 19b/V-15 실제 원본 폴리·청취 검증은 별도.”
+
+## 병합 기록 — T17 PR [#85](https://github.com/wooklym/golmok/pull/85) (2026-09-30, 오케스트레이터 세션)
+
+**내용**: 위 "T17" 절과 같다. 선택 과제 R82-1·2·3·4·6(클래스 + 설정 세대 캐시, 테스트 전용 평가 계수·non-null 클래스 교체·폰 조건·필터 이벤트 `ev` 회귀, 조건부 NOT EXECUTED, 알려진 오디오 JSON 키의 대소문자 변형 거부). 등록 수는 36으로 같고, Astra 전체 UE 36 Success(양성 fixture EXECUTED)다.
+
+**병합 전 리뷰(Opus 5.5 ultracode 적대 검증, [R85](https://github.com/wooklym/golmok/pull/85#issuecomment-5913445157))**: (A) 0 · (B) 0 · (C) 4. 게이트(리눅스): ruff, format 112, pytest 1403 passed / 3 skipped, check_repo, `diff --check`, 등록 36, CI 10/10; main(#84)과 충돌 0, 합친 트리 pytest 1406. UE 빌드·전체 36 Success는 Astra 보고다. 확인(결함 없음): R82-1·2·3·4·6 모두 해결(평가 계수 정확히 +1, 클래스 ∧ 설정 세대 캐시 키, 변이 모델에서 캐시·키·세대·폰 조건·`ev` 순서 변이 모두 검출), ① 기본 폰 경로가 main과 같음, 캐시 무효화 누락 없음, 실제 `audio.json`·레거시 fixture 무영향, 레인 준수. (C → 선택): R85-1 KeyCase·캐시 리셋 개별 커버리지 공백 3(ambience 단독 변이, 대소문자 중복 키 고정, `OnRegister` 리셋), R85-2 `stride_scale_by_mesh` 오류 안내, R85-3 남은 C++/Python 비대칭 무해 기록. R85-4는 이 커밋에서 처리. 설계 리뷰 불필요(품질 가설·D-021 (2) 불변).
+
+**병합**: 오케스트레이터 결정(D-019). main(#84 포함)을 병합한 뒤 이 커밋으로 반영했다. 위 "병합 시 반영 — T17" 문안은 STATUS 병행 트랙 WP-13 행과 `astra-tasks.md` T17에 옮겼다. 남은 (C) R85-1~3은 선택으로 이월해 다음 오디오 레인 push(19b 뒤 원본 폴리·청취 후속 등)에 함께 싣는다. 19b를 막지 않는다. PC는 main에서 UE 전체 36을 재실행할 때 Footstep 로그의 `EXECUTED auto positive cache/class/generation/HUD` Info를 확인한다(R85-4).
