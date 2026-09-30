@@ -382,3 +382,15 @@ WP-19 결과/19b 인계 문안: `T13은 UGolmokFootstepComponent::UsesNotifyDriv
 
 - **astra-tasks T15/STATUS**: “T15 R79-1·2c 및 C3/4/5/6 일부/7 구현·Audio 헤드리스 검증 완료. auto는 native GASP AND 소스 애님 클래스 계약, 클래스 키 캐시. drv/ev 진단·엄격 driver 파싱. 등록36 유지, 실제 GASP 원본 폴리 억제·V-15 청취는 19b 대기.” 전체 UE 게이트 차단이 남으면 해소 전 완료 판정에 포함하지 않는다.
 - **WP-19 19b 인계**: “UsesNotifyDriver는 진단 전용, 원본 GASP 발 폴리 억제 조건으로 사용하지 않는다. 19b는 driver와 무관하게 원본 발 폴리를 끄고 Step/Land만 NotifyFootEvent로 단일 전달한다. auto는 native GASP 폰과 실제 GetMesh 소스 애님 클래스 RequiresGaspPawn 둘 다 충족할 때 notify, 그 밖은 distance. 무이벤트 시간 폴백 없음.”
+
+## 병합 기록 — T15 PR [#82](https://github.com/wooklym/golmok/pull/82) (2026-09-30, 오케스트레이터 세션)
+
+**내용**: 위 "T15" 절과 같다. R79-1(auto = 네이티브 GASP 폰 ∧ `GetMesh()` 소스 애님이 `RequiresGaspPawn`, 애님 클래스 약참조 키 캐시·`OnRegister` 리셋, 시간 초과 폴백 없음), R79-2(c)(`UsesNotifyDriver()`는 진단용, 원본 폴리 억제 조건 아님), (C) R79-3 driver 대소문자 구분·R79-4 ① 동적 단언·R79-5 HUD `drv=<실효>(<설정>) ev=<수>`·R79-6 게임 스레드 가드·R79-7 전방 선언. 등록 수는 36으로 같다.
+
+**병합 전 리뷰(Opus 5.5 ultracode 적대 검증 + 짧은 설계 리뷰, [R82](https://github.com/wooklym/golmok/pull/82#issuecomment-5910685446))**: (A) 0 · (B) 0 · (C) 6.
+- 게이트(리눅스): ruff, format 112, pytest 1355 passed / 3 skipped, check_repo, `diff --check`, 등록 36, CI 10/10. main(#83)·#80·#81과 충돌 0, 넷을 합친 트리 pytest 1403. UE 빌드·Audio 2 Success는 Astra 보고이며, 전체 35/1의 원인이던 main `Animation.Config` 단언은 [#83](https://github.com/wooklym/golmok/pull/83)으로 해소됐다(PC 전체 36 재실행 대기).
+- 확인(결함 없음): ① 기본 폰 발소리 경로가 main과 바이트 단위로 같음, 틱·이벤트가 같은 술어·캐시로 상호 배제(이중 재생 없음, GASP↔ABP 전환 때 중복 한 보 없음), 캐시가 로스터 교체·preview·`SetAnimInstanceClass`·BP 재컴파일·GC를 따라감, 디스크 읽기는 클래스가 바뀔 때 1회, 컴파일 위험 낮음, 레인 준수.
+- (C → 선택 과제 T17): R82-1 캐시 테스트가 캐시 존재·non-null 교체 무효화를 증명하지 못함, R82-2 캐시 키에 설정 세대 없음(실사용 영향 없음), R82-3 양성 블록을 건너뛸 때 마지막 Info 과장, R82-4 폰 클래스 조건·`ev` 필터 포함 미단언, R82-6(기존) 오디오 JSON 키 대소문자 C++/Python 불일치. R82-5(문서)는 이 커밋에서 반영(D-021 진행 기록 (2) 문구, WP-19 결과 23번 완료형).
+- 설계 리뷰: 품질 가설 변화 없음, 새 D 번호 없음. GASP 폰에 ABP 로스터를 적용하면 무음이 아니라 거리 발소리가 나서 R79의 품질 결함이 해소된다.
+
+**병합**: 오케스트레이터 결정(D-019). main(#83·#80 포함)을 병합한 뒤 이 커밋으로 반영했다. 위 "병합 시 반영 — T15"의 "전체 UE 게이트 차단"은 #83으로 원인이 해소되어 PC 전체 36 재실행 대기로 옮겼다. STATUS 병행 트랙 WP-13 행, WP-19 결과 23번, `astra-tasks.md` T15·T17, DECISIONS D-021 진행 기록에 반영했다.
