@@ -96,6 +96,7 @@ CONSOLE_COMMANDS = {
     "golmok.travel",  # [WP-15 hook]
     "golmok.save",  # [WP-15 hook]
     "golmok.load",  # [WP-15 hook]
+    "golmok.anim",  # [WP-19 hook]
 }
 
 # Golmok.Build.cs as WP-05 left it (PC fix e446504): no new module for WP-09 (StreamableManager is in Engine).
