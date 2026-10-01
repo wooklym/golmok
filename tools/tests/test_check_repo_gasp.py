@@ -265,6 +265,7 @@ CONFIG_TEXT_FAILS += (
     ("unreal/Golmok/Config/Golmok/cvars.yaml", "cvars:\n  DDCvar.X: 1\n", 2),  # any Config text file
     ("unreal/Golmok/Config/DefaultEngine.ini.orig", "a\nDDCvar.FootPlacementMode\n", 2),  # .ini rule
     ("unreal/Golmok/Config/DefaultEngine.ini.bak", "[/Script/Engine.DataDrivenConsoleVariableSettings]\n", 1),
+    ("unreal/Golmok/Config/Golmok/cvars.txt", "a\n\nDDCvar.X 1\n", 3),  # R89 verify C3: console line number
 )
 
 
@@ -475,7 +476,12 @@ CVAR_OTHER_FORMS_FAIL = (
     ("; tuning\n  ddcvar.x -0.5\n", "ddcvar.x"),
     ("DDCvar.X true\n", "DDCvar.X"),  # R87-6: console bool values
     ("\tDDCvar.Y False\n", "DDCvar.Y"),
-    # R87-1: a key after a \n / \t escape inside a JSON string (main caught these)
+    ("DDCvar.X false", "DDCvar.X"),  # R89 verify C1: the bool boundary is not stricter (end of text)
+    ("DDCvar.X true ; on\n", "DDCvar.X"),  # ... nor tied to the end of the line
+    ("DDCvar.X\t1\n", "DDCvar.X"),  # R89 verify C3: tab separator, .5 value, dotted name
+    ("DDCvar.X .5\n", "DDCvar.X"),
+    ("DDCvar.Foot.Mode 1\n", "DDCvar.Foot.Mode"),
+    # R87-1: a key after a \n / \t escape inside a JSON string (the rule before #87 caught these)
     ('{"ini": "[ConsoleVariables]\\nDDCvar.X=1"}\n', "DDCvar.X"),
     ('{"ini": "\\tDDCvar.X=1"}\n', "DDCvar.X"),
     ('{"ini": "a\\rDDCvar.X=1"}\n', "DDCvar.X"),  # verify: \r pinned too
@@ -508,6 +514,10 @@ CVAR_NAME_TEXTS_PASS = (
     "set DDCvar.X 1 in the console\n",  # console form only at the start of a line (verify F8)
     "DDCvar.X\n1\n",
     "DDCvar.X truthy flag, see the ABP\n",  # R87-6: a word that starts with true is not a value
+    "DDCvar.X trueish\n",  # R89-1: the bool value must end at a word boundary
+    "DDCvar.X falsey\n",
+    "DDCvar.X true면 켜짐\n",  # Hangul is a word character, so true면 is one word
+    "DDCvar.Lod2\n",  # R89 verify C3: a name alone needs a separator before the value
 )
 
 
@@ -562,6 +572,9 @@ SAME_VERDICT_TEXTS = (
         "",
         "[/Script/Engine.DataDrivenConsoleVariableSettings]\n",
         '{"x": 1}\n+CVarsArray=(Name="A")\n',
+        '+cvarsarray=(Name="A")\n',  # R89-3: a lower-case section line
+        '+gameplaytaglist=(Tag="A.B")\n',  # R89 verify C2: each section literal
+        "[/script/engine.datadrivenconsolevariablesettings]\n",
         'a\n+GameplayTagList=(Tag="A.B")\nDDCvar.X=1\n',  # a section before a key: the first one is shown
         '{"help": "DDCvar.X=1"}\n[ConsoleVariables]\n',
         '{"samples": [1, 2, 3]}\n',

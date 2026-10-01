@@ -521,4 +521,23 @@ R87-1·2·6을 처리했다(R87-7은 #87 병합 커밋에서 반영). 설계(§1
 - STATUS WP-19 행 비고 끝에 `· R87 (C) 후속(R87-1·2·6) PR #<번호> 병합`.
 - "19a-2 후속 2"의 **병합** 줄 끝에 `→ R87-1·2·6은 PR #<번호>에서 해소`.
 - 훅 재적용 메모: 커밋은 ① 레인 → ② 훅 → ③ 문서 → ④ 레인(검증 V1 테스트) → ⑤ 훅(검증 V2 주석) → ⑥ 문서다. 충돌로 훅 커밋만 다시 적용할 때는 ②(`WP-19: hook tools/scripts/check_repo.py`)에 ①이 따라간다(① 단독 트리는 새 GASP 테스트 38개가 실패하고, main + ② 트리는 1432 passed / OK다). ④는 ①·②가 있어야 적용·통과하고, ⑤는 주석만 바꾼다(R89-2 정정).
-- **병합**: [PR #89](https://github.com/wooklym/golmok/pull/89) → main(오케스트레이터 결정 D-019; 리뷰 [R89](https://github.com/wooklym/golmok/pull/89#issuecomment-5917306038) — (A) 0 · (B) 0 · (C) 4. 게이트(리눅스): ruff, format 112, pytest 1479 passed / 3 skipped, check_repo, `diff --check`, CI 10/10; main과 합친 트리 같음. 원격 ref 60개·파일 22,887개 가드 오탐 0(main 대비 새·사라진 오류 0, 빠른 경로 = 전체 규칙), 무작위 30만 개 미탐 0, 유니코드 접기 우회 없음(`re.IGNORECASE`와 `str.lower()` 조건 양방향 동치), `ddcvar.` 없는 8 MB 0.3 s·최고 8 MB(전 1086 MB), 뮤테이션 33개 중 24개 검출, 핫스팟 블록 밖 228줄 바이트 동일). 남은 (C)는 다음 Claude 레인 push: R89-1 콘솔 bool의 `\\b` 통과 사례 테스트(`trueish`·`falsey`·`true면`; 판단 2 문구는 이 병합 커밋에서 정정), R89-2 `test_check_repo_gasp.py` R87-1 주석의 "main"을 "#87 이전 규칙"으로(문서 쪽은 이 커밋에서 정정), R89-3 `GASP_TEXT_SECTIONS` 대소문자 무시 고정(`SAME_VERDICT_TEXTS`에 `+cvarsarray=(Name=\"A\")`). 훅 재적용 메모는 위 문안과 같다(②에 ①이 따라가고, ④·⑤는 독립).
+- **병합**: [PR #89](https://github.com/wooklym/golmok/pull/89) → main(오케스트레이터 결정 D-019; 리뷰 [R89](https://github.com/wooklym/golmok/pull/89#issuecomment-5917306038) — (A) 0 · (B) 0 · (C) 4. 게이트(리눅스): ruff, format 112, pytest 1479 passed / 3 skipped, check_repo, `diff --check`, CI 10/10; main과 합친 트리 같음. 원격 ref 60개·파일 22,887개 가드 오탐 0(main 대비 새·사라진 오류 0, 빠른 경로 = 전체 규칙), 무작위 30만 개 미탐 0, 유니코드 접기 우회 없음(`re.IGNORECASE`와 `str.lower()` 조건 양방향 동치), `ddcvar.` 없는 8 MB 0.3 s·최고 8 MB(전 1086 MB), 뮤테이션 33개 중 24개 검출, 핫스팟 블록 밖 228줄 바이트 동일). 남은 (C)는 다음 Claude 레인 push: R89-1 콘솔 bool의 `\\b` 통과 사례 테스트(`trueish`·`falsey`·`true면`; 판단 2 문구는 이 병합 커밋에서 정정), R89-2 `test_check_repo_gasp.py` R87-1 주석의 "main"을 "#87 이전 규칙"으로(문서 쪽은 이 커밋에서 정정), R89-3 `GASP_TEXT_SECTIONS` 대소문자 무시 고정(`SAME_VERDICT_TEXTS`에 `+cvarsarray=(Name=\"A\")`). 훅 재적용 메모는 위 문안과 같다(②에 ①이 따라가고, ④·⑤는 독립). → R89-1·2·3은 [PR #90](https://github.com/wooklym/golmok/pull/90)에서 해소.
+
+### 19a-2 후속 4 — 병합 리뷰 R89 남은 (C) (2026-10-01, Opus 5.5, 오케스트레이터 세션 `session_01NM6uvZaVMgq5SUSaduHD1Z`, 브랜치 `claude/claude-lane-c-followups4`) — 🟡 코드 완료(테스트만, PC 영향 없음)
+
+대기 시간에 오케스트레이터가 직접 처리했다(PC·Astra 결과 대기 16시간). `test_check_repo_gasp.py`만 바꾸고, 핫스팟 `check_repo.py`는 건드리지 않는다(훅 커밋 없음).
+
+| 항목 | 변경 | 테스트 |
+|---|---|---|
+| R89-1 | 콘솔 bool 값의 `\b` 경계를 통과 사례로 고정: `DDCvar.X trueish`·`falsey`·`true면 켜짐`(한글도 단어 문자라 `true면`은 한 단어) | `\b` 제거 뮤테이션에서 3개 모두 실패. 기존 `truthy`는 `true`로 시작하지 않아 경계를 시험하지 못했다 |
+| R89-2 | R87-1 주석 "main caught these" → "the rule before #87 caught these" | 주석만 |
+| R89-3 | `SAME_VERDICT_TEXTS`에 소문자 섹션 줄 `+cvarsarray=(Name="A")` | 빠른 경로(`ddcvar.` 없음)와 전체 규칙의 첫 매치가 같음 |
+
+게이트(리눅스): pytest 1501 passed / 3 skipped(+22), ruff, format, check_repo, `diff --check`.
+
+**적대 검증(별도 에이전트, 읽기 전용)** — (A) 0 · (B) 0 · (C) 3, 모두 반영. 범위는 테스트 파일 하나(핫스팟 `check_repo.py` 변경 없음). 뮤테이션 25개 중 R89 대상(`\b` 제거 2종, ASCII 경계 2종, 섹션 대소문자 2종)은 새 사례가 모두 잡았다. `true면`만이 ASCII 경계·`re.ASCII` 뮤테이션을 잡는다. R87-1 주석 정정은 #87 이전 규칙(`ddcvar\.[\w.]+"?\s*[:=]`, 30e79e6)이 세 사례를 모두 잡았음을 확인했다. (C1) 경계가 더 엄격해지는 쪽(`(?=\s)`·줄 끝)이 고정되지 않았다 → 실패 사례 `DDCvar.X false`(끝)·`DDCvar.X true ; on` 추가. (C2) 소문자 섹션은 CVarsArray만 → `+gameplaytaglist=`·`[/script/engine.datadrivenconsolevariablesettings]` 추가. (C3) 콘솔 분기의 구분자·값·이름·줄 번호 → 실패 `DDCvar.X\t1`·`DDCvar.X .5`·`DDCvar.Foot.Mode 1`, 통과 `DDCvar.Lod2`, `.txt` 줄 번호 3 추가. 반영 뒤 `(?=\s)`·`\w+` 이름·공백만 구분자 뮤테이션이 각각 잡히는 것을 확인했다. 참고(기존 비대칭, 조치 없음): 숫자 값에는 경계가 없어 `DDCvar.X 1이면 켜짐`은 실패하고 `true면`은 통과한다.
+
+**병합 시 반영(문안)**
+- STATUS WP-19 행 비고 끝에 `· R89 (C) 후속(R89-1·2·3) PR #<번호> 병합`.
+- "19a-2 후속 3"의 **병합** 줄 끝에 `→ R89-1·2·3은 PR #<번호>에서 해소`.
+- **병합**: [PR #90](https://github.com/wooklym/golmok/pull/90) → main(오케스트레이터 결정 D-019; 리뷰 [R90](https://github.com/wooklym/golmok/pull/90#issuecomment-5930465174) — (A) 0 · (B) 0 · (C) 3, 모두 이 PR에서 반영). 훅 커밋 없음(테스트·문서만). 남은 (C) 없음.
