@@ -225,12 +225,13 @@ Space(또는 Enter, 콘솔 `golmok.photo.shoot`). 순서: 같은 틱 `State = Sh
   ```
   saved <stamp>.png (2x)
   ```
-- [ ] `<stamp>.json` — 키 15개, 순서·형식은 `FormatPhotoMetaJson`(한 필드 한 줄, 2칸 들여쓰기, 끝 `\n`; `Golmok.Photo.MetaJson`이 바이트 대조하는 예):
+- [ ] `<stamp>.json` — 키 16개(WP-16a부터 `preset` 다음 `weather`), 순서·형식은 `FormatPhotoMetaJson`(한 필드 한 줄, 2칸 들여쓰기, 끝 `\n`; `Golmok.Photo.MetaJson`이 바이트 대조하는 예):
   ```
   {
     "version": 1,
     "time_utc": "2026-09-25T10:11:12Z",
     "preset": "overcast_morning",
+    "weather": {"state": "clear", "intensity": 0.00},
     "zone_id": "z_synthetic_001",
     "zone_version": 1,
     "lon": 126.9250123,
@@ -245,7 +246,7 @@ Space(또는 Enter, 콘솔 `golmok.photo.shoot`). 순서: 같은 틱 `State = Sh
     "character_hidden": false
   }
   ```
-  대조: `time_utc` = 촬영 UTC(`FDateTime::UtcNow()`), `preset` = HUD `tod:`의 현재 프리셋(`None`이면 `null`), `zone_id`/`zone_version` = 오버레이 1행(없으면 둘 다 `null`), `lon`/`lat` ≈ HUD `pos … lat … lon …`(캐릭터가 아니라 **카메라 폰** 위치라 반경 3 m 안에서 다름; GeoOrigin 없으면 셋 다 `null`), `ue_location` = 폰 위치 2자리, `rotation` = 카메라 컴포넌트 월드 회전(`[pitch, yaw, roll]`, 롤을 줬으면 세 번째 값 — §12 #44), `fov` 1자리, `exposure_ev` 2자리(상대 EV), `dof.enabled` = F 상태, `multiplier` = **실효 배율**, `character_hidden` = H 상태.
+  대조: `time_utc` = 촬영 UTC(`FDateTime::UtcNow()`), `preset` = HUD `tod:`의 현재 프리셋(`None`이면 `null`), `weather` = `golmok.weather status`의 목표(날씨 꺼짐이면 `null`; WP-16a), `zone_id`/`zone_version` = 오버레이 1행(없으면 둘 다 `null`), `lon`/`lat` ≈ HUD `pos … lat … lon …`(캐릭터가 아니라 **카메라 폰** 위치라 반경 3 m 안에서 다름; GeoOrigin 없으면 셋 다 `null`), `ue_location` = 폰 위치 2자리, `rotation` = 카메라 컴포넌트 월드 회전(`[pitch, yaw, roll]`, 롤을 줬으면 세 번째 값 — §12 #44), `fov` 1자리, `exposure_ev` 2자리(상대 EV), `dof.enabled` = F 상태, `multiplier` = **실효 배율**, `character_hidden` = H 상태.
 - [ ] 같은 초에 두 번(Space 연타는 `capture in progress`로 막히므로 창이 닫히자마자 다시): 두 번째 스템 `<stamp>_2`(`.json`/`.png` 존재 검사).
 - [ ] 캡처 창 중 거부(콘솔만 메시지, 키는 조용히):
   ```

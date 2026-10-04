@@ -240,9 +240,18 @@ def test_identity_returns_input_bit_identical(driver, light):
 
 def test_identity_flags(driver):
     cases = [IDENTITY, OVERCAST, RAIN, wp.Modifier(kelvin_weight=1e-12), wp.Modifier(exposure_offset=-0.0)]
+    one_field = [
+        wp.Modifier(lux_scale=0.5),
+        wp.Modifier(sky_scale=0.5),
+        wp.Modifier(fog_scale=1.5),
+        wp.Modifier(fog_height_falloff_scale=0.5),
+        wp.Modifier(exposure_offset=0.1),
+    ]
+    cases += one_field
+    expected = [1, 0, 0, 0, 1] + [0] * len(one_field)
     out = run(driver, [f"identity {mod_args(m)}" for m in cases])
-    assert [o[0] for o in out] == ["1", "0", "0", "0", "1"]
-    assert [int(wp.is_identity(m)) for m in cases] == [1, 0, 0, 0, 1]
+    assert [int(o[0]) for o in out] == expected
+    assert [int(wp.is_identity(m)) for m in cases] == expected
 
 
 def test_apply_rules(driver):
@@ -351,17 +360,15 @@ def test_precip_delay_boundaries(driver):
 
 
 def test_modifier_at(driver):
-    out = run(
-        driver,
-        [
-            f"modat {mod_args(IDENTITY)} {mod_args(RAIN)} 0",
-            f"modat {mod_args(IDENTITY)} {mod_args(RAIN)} {h(0.5)}",
-            f"modat {mod_args(IDENTITY)} {mod_args(RAIN)} 1",
-        ],
-    )
+    alphas = (0.0, 0.25, 0.5, 0.75, 1.0)
+    out = run(driver, [f"modat {mod_args(IDENTITY)} {mod_args(RAIN)} {h(a)}" for a in alphas])
+    for row, a in zip(out, alphas, strict=True):
+        assert bits(row) == mod_bits(wp.lerp_modifier(IDENTITY, RAIN, wp.smoothstep(a)))
+        assert mod_bits(wp.modifier_at(IDENTITY, RAIN, a)) == bits(row)
     assert bits(out[0]) == mod_bits(IDENTITY)
-    assert bits(out[1]) == mod_bits(wp.lerp_modifier(IDENTITY, RAIN, 0.5))  # smoothstep(0.5) = 0.5
-    assert bits(out[2]) == mod_bits(RAIN)
+    assert bits(out[-1]) == mod_bits(RAIN)
+    # smoothstep, not linear (design section 3): at alpha 0.25 the scales moved 15.625 % of the log2 gap
+    assert math.log2(f(out[1][0])) == pytest.approx(0.15625 * math.log2(RAIN.lux_scale), rel=1e-12)
 
 
 # ---- surface -------------------------------------------------------------------------------------------

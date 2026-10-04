@@ -484,7 +484,7 @@ PYTHONUTF8=1 PYTHONPATH=$PWD python -m pytest -q -p no:cacheprovider && python s
 
 **[미확인] UE 5.8 API**(런북 §12에 결과 칸): §17 #1~#14 + `DeactivateImmediate`·`ResetSystem`·`FActorSpawnParameters::NameMode`, `UNiagaraSystem::GetExposedParameters`·`FindParameterOffset`, `IsTickable` 오버라이드.
 
-**Astra(빗소리)**: 이슈 #30 질문(코멘트 5979986770)에 착수 시점까지 답 없음. Claude 쪽 API(§9)는 레이어·상태 방식 어느 쪽이든 그대로다.
+**Astra(빗소리)**: 착수 시점에는 답이 없었고, 이후 이슈 #30 [코멘트 5980334591](https://github.com/wooklym/golmok/issues/30#issuecomment-5980334591)로 답했다(오케스트레이터 확인 [5980906355](https://github.com/wooklym/golmok/issues/30#issuecomment-5980906355)). **레이어 방식**(낮/밤/실내 베드·두 슬롯 유지 + 별도 빗소리 채널, gain 곡선·실내 감쇠는 `audio.json` 데이터, 값은 청취 전 가설), **추가 Weather API 없음**(오디오 틱에서 `GetRainIntensity()`를 읽고 실내는 기존 `OnInteriorChanged`; 서브시스템 없음·꺼짐 → 0, 1프레임 지연 수용), 포토는 `IsFrozen()`으로 오디오를 멈추지 않고 기존 `PhotoGain`·mute 정책, `bInstant`는 §9가 정본. 이 구현의 API가 그대로 맞는다(리뷰 R112-D6). 과제는 Astra T24(병합 뒤 배정).
 
 **겹치는 브랜치**: PR #107(`claude/ue-followups-p14-p04c`)이 `Save/GolmokSaveSubsystem.h`(주석)·`Tests/GolmokTravelSaveTest.cpp`·`tools/tests/fake_unreal.py`를 고친다 — 이쪽 변경은 새 블록·끝 추가라 기계적으로 풀린다. PR #108(Astra, Characters/)과는 겹침 없음.
 

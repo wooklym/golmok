@@ -285,7 +285,7 @@ stat niagara
 |---|---|
 | 빗줄기 GPU(2 − 3) | ≤ **0.5 ms** |
 | 날씨 전체 GPU(2 − 1) | ≤ **+1.0 ms** |
-| 게임 스레드(2 − 1) | ≤ **+0.05 ms**(틱당 할당 없음) |
+| 게임 스레드(2 − 1) | ≤ **+0.05 ms**(틱당 할당 없음). `stat unit` Game 차이는 잡음보다 작으므로 `stat tickables`(서브시스템 `GetStatId` = `STATGROUP_Tickables`)의 날씨 틱 항목이나 Insights 캡처로 잰다(리뷰 R112-D8) |
 | 살아 있는 입자 | ≤ **20,000**(`max_spawn_rate` × 수명 1 s ≈ 12,000 기대) |
 
 - [ ] 예산을 넘으면 **코드가 아니라 데이터로** 낮춘다: `Config/Golmok/weather.json` `rain_fx.max_spawn_rate` 12000 → 8000 → 5000 순으로 바꾸고 PIE를 **새로 시작**(설정은 서브시스템 초기화 때 읽는다)해 2·3을 다시 잰다. 단계마다 값을 §13에 적는다. 채택하면 커밋 `WP-16a: PC fix max_spawn_rate <값>`에 `weather.json`과 함께 그 값을 고정한 테스트(`tools/tests/test_ue_config_weather.py`의 저장소 값, `Tests/GolmokWeatherTest.cpp` `Golmok.Weather.Config`의 값 단언)를 같이 고친다. 5000에서도 넘으면 V-16 결과에 적고 16b(머티리얼·크기)로 넘긴다.
@@ -301,6 +301,7 @@ $pak = 'C:\Program Files\Epic Games\UE_5.8\Engine\Binaries\Win64\UnrealPak.exe'
 Select-String "$env:TEMP\utoc.csv" -Pattern 'Golmok/Weather/(MPC_GolmokWeather|NS_GolmokRain)'
 ```
 - [ ] BuildCookRun 성공. `weather.json`이 스테이징됐고(기존 `../Config/Golmok` UFS 줄), 컨테이너에 `MPC_GolmokWeather`·`NS_GolmokRain`이 있다(soft 경로만 쓰는 에셋 — `DirectoriesToAlwaysCook` 훅, §12 #13). IoStore가 아니면 `.pak` `-List`로 같은 확인.
+- [ ] 패키지 실행 명령: `& "$pkg\Golmok.exe" -windowed -forcelogflush`(`$pkg`는 `pc-setup.md` §2a; `-log` 창은 포커스를 뺏으므로 쓰지 않는다). Windows 방화벽 대화상자가 뜨면 세션은 누르지 않고 소유자가 **취소**한다(C-07, `pc-setup.md` §2a).
 - [ ] 패키지 실행 → 로그(`$pkg\Golmok\Saved\Logs\Golmok.log` — `$pkg`는 `pc-setup.md` §2a의 `GOLMOK_PKG_DIR` 규칙)에 `weather: clear fixed, transition 20.0 s, 10 schedule slots, mpc ok, fx idle`, `MPC missing`·`rain fx missing`·`weather: off -` 줄 없음.
 - [ ] `~` → `golmok.weather rain heavy` → 20 s 전환·빗줄기(HUD는 Development 빌드에서 F1), `golmok.weather status` 끝 줄 `mpc ok | fx on | interior no | frozen no`.
 

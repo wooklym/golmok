@@ -728,7 +728,8 @@ bool UGolmokWeatherSubsystem::RunCommand(const TArray<FString>& Args, FString& O
 	using GolmokWeather::Runtime::ParseNumber;
 	const FString Usage = TEXT("weather: usage: golmok.weather [status] | clear|overcast [instant] | rain [light|moderate|heavy|<0.05~1>] [instant] | "
 							   "mode fixed|schedule | list | surface <wetness> [puddle] | fx on|off");
-	const FString Verb = Args.Num() > 0 ? Args[0] : FString(TEXT("status"));
+	// Verbs are matched lowercase: FString == ignores case but ParseWeather does not (review R112-D4).
+	const FString Verb = Args.Num() > 0 ? Args[0].ToLower() : FString(TEXT("status"));
 
 	if (Verb == TEXT("status") && Args.Num() <= 1)
 	{
@@ -749,7 +750,11 @@ bool UGolmokWeatherSubsystem::RunCommand(const TArray<FString>& Args, FString& O
 			return false;
 		}
 		EGolmokWeather Weather = EGolmokWeather::Clear;
-		ParseWeather(Verb, Weather);
+		if (!ParseWeather(Verb, Weather))
+		{
+			OutMessage = Usage;
+			return false;
+		}
 		return SetWeather(Weather, 0.f, Args.Num() == 2, OutMessage);
 	}
 	if (Verb == TEXT("rain"))
