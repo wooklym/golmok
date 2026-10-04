@@ -511,3 +511,15 @@ STATUS/astra-tasks 문안: “T20 캐릭터 레인 완료: `IsExplicitSelection(
 **병합 전 리뷰(Opus 5.5 ultracode 적대 검증, [R94](https://github.com/wooklym/golmok/pull/94#issuecomment-5978554246))**: (A) 0 · (B) 0 · (C) 2. 게이트(리눅스): ruff, format 112, pytest 1501 passed / 3 skipped, check_repo, `diff --check`, 등록 36, CI 10/10; base `8e7cfc5` = 당시 main. UE 빌드·전체 36 Success는 Astra 보고다. 확인(결함 없음): 플래그 전이 4가지와 (C) 수정마다 제품 줄을 되돌리는 변이를 테스트가 잡는다, 제품 동작 변화는 진단용 `ensureAlwaysMsgf`뿐(Shipping에서도 식은 평가됨, 정상 경로에서 발화하지 않음), 하류 #93과 `merge-tree` 충돌 0·API 서명 일치. (C → 다음 캐릭터 레인 push): R94-1 헤더에 `IsExplicitSelection()` 전이 계약 주석, 클래스 주석 "no saved selection" 갱신. R94-2(병합 세션 몫)는 이 커밋에서 처리. R91-5의 "문서 빈 줄" 지적은 파일 관례라 철회했다. 설계 리뷰 불필요(선택 우선순위·품질 가설·D-018·D-021 조건 불변).
 
 **병합**: 오케스트레이터 결정(D-019). 위 "병합 시 반영 — T20" 문안을 STATUS 병행 트랙 WP-18 행과 `astra-tasks.md` T20에 옮겼다. 세이브 결함(R91-1)의 해결은 이 PR이 아니라 바로 뒤 Claude 레인 #93(명시 선택만 저장·레거시 기본 id 복원 생략) 병합으로 선언한다. 19b 경로 확정 뒤 4개 경로 갱신 스택(R84 (C)·R94-1 포함)이 다음 캐릭터 레인 과제다.
+
+## T21 — 명시 선택 API 계약 주석 (2026-10-04 KST)
+
+배정: [이슈 #30 T21](https://github.com/wooklym/golmok/issues/30#issuecomment-5978814306). T20·Save 후속 #93이 병합된 main `6326ae8`에서 새 `astra/wp-19c-roster-followup5`로 진행했다.
+
+R94-1: `IsExplicitSelection()`의 헤더 주석에 명시 선택 성공, 같은 id 자동 복원 시 유지, 새 기본값/폴백 성공 시 해제, 자동 후보 전체 실패 시 유지라는 계약을 적었다. 클래스 설명의 낡은 “no saved selection”을 Save 레인이 이 조회 API로 명시 선택만 저장한다는 설명으로 바꿨다. 제품 동작과 공개/테스트 API 서명은 바꾸지 않았다.
+
+검증: UE5.8.3 build 성공(61.62s), 전체 **36 Success(24+경고12)/failed0/notRun0,194.48s**, Character7·Save.RoundTrip 포함. Python **1286 passed/218 skipped/208 warnings,92.76s**, ruff check/format114·check_repo·diff 통과. 실제 GASP 설치/GUI/리타깃과 RenderEvidence는 NOT EXECUTED. 로컬 근거: tools/.venv/t21-build.txt, t21-pytest.txt, t21-full-index.json.
+
+### 병합 시 반영 — T21
+
+STATUS/astra-tasks 문안: “T21 R94-1 완료: 명시 선택 플래그 전이 계약과 Save 연동 책임을 캐릭터 헤더에 명시. 주석만 변경, API·동작·등록36 유지. 실제 GASP/GUI 검증은 19b/V-15 대기.”
