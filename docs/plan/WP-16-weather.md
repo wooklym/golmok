@@ -1,6 +1,6 @@
 # WP-16 — 날씨(비) (D-015 (b)): 16a 상태·조명 수정자·빗줄기·계약(클라우드) / 16b 젖은 표면·look-dev(PC, D-010 뒤)
 
-상태: **16a 설계 확정 2026-10-04 (Opus, D-019)** — 구현 ⚪ 착수 대기(아래 "세션 카드", 브랜치 `claude/wp16a-weather`) · 16b ⚪ D-010 뒤 · 담당: 16a **Opus 5.5 ultracode**(Claude 레인), 빗소리 소비는 **ChatGPT Astra** 오디오 레인 과제(이슈 #30 합의 뒤 배정), 16b PC 세션 + 소유자 채점 · PC 검증 **V-16**(예약 요청 — 메모의 V-15는 WP-19가 썼다; 런북 `runbooks/pc-verify-wp16a.md`는 16a 세션이 쓴다). 설계 확정은 오케스트레이터 결정(D-019)이고 소유자가 뒤집을 수 있다(뒤집으면 16a 브랜치를 닫는다).
+상태: **16a 설계 확정 2026-10-04 (Opus, D-019)** — 구현 🟡 코드 완료·PC 검증 대기(V-16, 아래 "결과", 브랜치 `claude/wp16a-weather`) · 16b ⚪ D-010 뒤 · 담당: 16a **Opus 5.5 ultracode**(Claude 레인), 빗소리 소비는 **ChatGPT Astra** 오디오 레인 과제(이슈 #30 합의 뒤 배정), 16b PC 세션 + 소유자 채점 · PC 검증 **V-16**(예약 요청 — 메모의 V-15는 WP-19가 썼다; 런북 `runbooks/pc-verify-wp16a.md`는 16a 세션이 쓴다). 설계 확정은 오케스트레이터 결정(D-019)이고 소유자가 뒤집을 수 있다(뒤집으면 16a 브랜치를 닫는다).
 
 ## 목표
 "같은 골목이 아침·밤·**비**에 다르게 보인다"(DEVELOPMENT-PLAN §1.2 경험 3, D-015 (b)). 16a는 환경 표현 방식(D-010)과 무관한 날씨의 뼈대 — 상태 머신, 시간대 위의 조명 수정자, 빗줄기 파티클, 16b·오디오가 붙을 계약(MPC·이벤트), 세이브, 콘솔·HUD — 를 만든다. **기본 날씨는 clear(수정자 항등)라 기존 화면·자동화·런북은 바이트 단위로 그대로다.** 젖은 표면·웅덩이·반사·빗줄기 룩과 수정자 값 확정은 16b(D-010 뒤 PC look-dev)다.
@@ -422,4 +422,78 @@ PYTHONUTF8=1 PYTHONPATH=$PWD python -m pytest -q -p no:cacheprovider && python s
 ```
 
 ## 결과
-(16a 구현 세션이 채운다.)
+### 16a 구현 — 2026-10-04 (Opus 5.5 ultracode, 세션 session_01LBnDxTJqaPHaHe4915uZzk, 브랜치 `claude/wp16a-weather`)
+상태: **🟡 코드 완료·PC 검증 대기(V-16)**. UE 빌드·자동화는 클라우드에서 못 돌린다.
+
+**진행**: 오케스트레이터가 공유 계약(`GolmokWeatherMath.h`·`GolmokWeatherConfig.h`·`GolmokWeatherSubsystem.h`·`weather.json`)을 먼저 쓰고, 멀티 에이전트 워크플로로 구현했다(D-020): 구현 4(순수·설정 / 서브시스템·빗줄기 / Lighting / 세이브·포토) → 통합 2(자동화·훅·Python / 런북) → 적대 검증 2(UE 5.8 컴파일·API / 설계 대조, 파일 무수정) → 반영.
+
+**산출물**(설계 §1·§5-4·§6~§15 전부, 에셋 2개는 PC 몫)
+- `Source/Golmok/Weather/`: `GolmokWeatherMath.h`(순수), `GolmokWeatherConfig.{h,cpp}`(엄격 파서), `GolmokWeatherSubsystem.{h,cpp}`(상태 머신·일정·표면·MPC·ToD 수정자·콘솔 `golmok.weather`·HUD 공급자), `GolmokWeatherRainFx.{h,cpp}`(Niagara include 유일 파일).
+- `Lighting/GolmokTimeOfDay.{h,cpp}`: `SetWeatherModifier`/`GetWeatherModifier`, `ComposeTarget` = 기저 → 날씨(`ApplyWeather`, 항등이면 입력 그대로) → 실내, BeginPlay 끝 비항등 1회 적용. WP-13 훅 블록 무수정.
+- `Save/`: `FGolmokSaveWeather{Rule, State, Intensity, Mode, Wetness, Puddle}`, `WeatherRuleNone/V1`, 복원 위치 → 시간대 → 날씨 → 캐릭터, status·load 문구. `Photo/`: 메타 `weather`(preset 다음, 없으면 `null`, version 1 유지).
+- 테스트: `Tests/GolmokWeatherTest.cpp`(`Golmok.Weather.Config`·`.Lighting`·`.Runtime`, 등록 36 → **39**), `Golmok.Save.RoundTrip` 날씨 단계, `Golmok.Photo.MetaJson` 16키 갱신. pytest `test_ue_weather_math.py`(g++ 교차 + 무작위 600)·`test_ue_config_weather.py`(공유 오류 표 36 + Python 전용 21, C++ 표와 일치 강제)·`test_ue_python_weather_setup.py`·`test_ue_wp16_fixture.py`, `test_ue_photo_math.py`·드라이버.
+- Python: `golmok/weather_pure.py`(순수 규칙·파서 미러), `golmok/weather_setup.py`(MPC 생성·검사, NS 유무 로그).
+- 훅(파일별 커밋): `Golmok.Build.cs`(Niagara), `DefaultGame.ini`(쿡 `/Game/Golmok/Weather`), `test_ue_wp09`·`zone`·`wp05`·`wp19` 등록부, `Golmok.uproject` Niagara 항목(`WP-16: plugins`).
+- 런북 `docs/runbooks/pc-verify-wp16a.md`(V-16, §0~§13).
+
+**게이트**: `ruff check`·`ruff format --check` 통과, pytest **1702 passed / 3 skipped**, `check_repo.py` OK, `git diff --check` 깨끗.
+
+**구현 판단**(설계 빈틈, "기본 clear·fixed 종전 동일·Astra 레인 무수정·핫스팟 최소" 쪽으로; 설계 변경은 ★ — PR 설명 맨 위)
+1. ★ `rain_levels` 범위를 (0, 1]이 아니라 **[0.05, 1]**로 검사한다. (0, 1]이면 `light: 0.01`이 파서를 통과해도 `rain light`가 강도 규칙(§2 [0.05, 1])에 막힌다.
+2. 오류 문구 형식 `weather.json: <where>: <reason>`, `<where>`는 `root`·점 경로·`[i]`(예 `schedule[3].time`). 키 집합 오류는 빠진 키(스키마 순서) → 미지 키(코드 포인트 순서)라 파일 키 순서와 무관하다. `schema_version`을 키 집합보다 먼저, `modifiers.clear`를 modifiers 키 집합보다 먼저 본다.
+3. C++ 파서는 키를 대소문자 구분으로 찾는다(`FJsonObject` 맵은 대소문자 무시). 한 객체 안에서 대소문자만 다른 키(`mode`/`Mode`)는 엔진이 합쳐 C++·Python 문구가 다를 수 있다 — 공유 표 밖, 수용. 문자열 안 NUL(`"rain\u0000x"`)은 C++도 거절한다(검증 반영).
+4. 오브젝트 경로는 `/Game/`로 시작하고 마지막 세그먼트에 `.`(Package.Object)가 있어야 한다.
+5. 초기 일정 모드: BeginPlay 때는 시계가 아직 없을 수 있어, 시계를 처음 찾은 스텝이 그 칸으로 **즉시·이벤트 없이** 간다.
+6. 같은 목표 재요청은 no-op(이벤트 없음). 전환 중 같은 목표 + `instant`는 전환을 즉시 끝낸다(이벤트 없음). 강도 차 1e-5 이하는 같은 목표(콘솔 float vs 일정 double).
+7. 이벤트 `bInstant`는 `instant`일 때와 `transition_seconds` 0일 때 true. 이벤트마다 `weather: OnWeatherChanged <목표> (transition|instant)` 로그 1줄(런북 §6 칸마다 1회 확인용).
+8. `SetWeatherModifier`는 ToD의 현재 수정자와 같으면 부르지 않는다(불필요한 하늘 재캡처 방지). `bSettled` true는 착지마다 1회.
+9. MPC·Niagara 값은 0.001 넘게 바뀌거나 정확히 0·1에 닿을 때 쓴다(가라앉은 clear가 정확히 0). Niagara User 파라미터는 비활성 중에도 `RainNow`를 따른다.
+10. ToD 탐색은 캐시가 없을 때 0.5 s 간격(명령·BeginPlay는 즉시). 정상 상태 틱 할당 없음.
+11. `ResetRainFx`: 활성이면 카메라로 옮겨 `ResetSystem()`, 아니면 `DeactivateImmediate()`.
+12. HUD: clear·overcast는 강도 숫자 없음(`weather: clear | now 0.00 wet … | fixed | fx idle`), 전환 중 `(from <이전 목표> NN%)`, 일정 모드는 모드 칸 `schedule` + ` | schedule next HH:MM …` 또는 ` | schedule no clock`, 날씨 꺼짐은 `weather: off - <오류>`.
+13. `surface <w>`만 주면 웅덩이는 현재 값을 새 젖음 이하로 자른다. [0, 1] 밖은 오류.
+14. ★ `golmok.weather fx on|off`도 포토 모드 중 **거절**한다(설계 §10은 "변경 명령"만 명시; 멈춘 빗줄기를 지우거나 리셋하면 §7-3 "포토 중 호출 없음"과 어긋남 — 검증 반영).
+15. ★ 에셋 없음 경고 2줄(MPC·NS)은 **프로세스당 1회**, 자동화 중에는 `Display`. V-16 전에는 PIE 월드마다 Warning 2개가 기존 자동화·런북 Warning 수를 바꾸기 때문(§19 "종전 동일")이다.
+16. Lighting "시계 진행 중" 판정 = `ClockMode != Fixed && bBaseFromClock && IsActorTickEnabled()`. 하나라도 거짓이면 곧바로 `ApplyState`(조용히 버려지지 않음). 직접 쓰기 앞에 `ResolveTargets()`.
+17. 세이브: 날씨가 꺼진 실행은 이전 스냅숏의 날씨(보유 중이면 슬롯 값, 아니면 Rule 0)를 유지한다(weather.json 없는 실행이 저장된 비를 지우지 않게). 복원 대기 중에도 슬롯 날씨 유지(캐릭터 선례).
+18. 세이브 dirty: 복원 자신의 변경은 dirty 아님(`bRestoringWeather`). 목표 변경 없는 **모드만 변경**도 dirty(스냅숏 비교 — 검증 반영). 젖음만 바뀐 것은 dirty 아님.
+19. 손상 세이브 값: rain 강도 [0.05, 1] 밖은 클램프 + 메시지 `(saved intensity X -> Y)`, 비유한 강도는 moderate, 비유한 젖음·웅덩이는 0. 모르는 상태는 clear지만 저장된 표면·모드는 적용.
+20. 사진 메타 강도는 소수 2자리(`0.60`, clear·overcast `0.00`) — 기존 고정 소수 관례·HUD와 같다(설계 예 `0.6`과 같은 값).
+21. 세이브 서브시스템 헤더에 UENUM 전방 선언을 두지 않고 `AddWeakLambda`로 구독(UHT 위험 회피 — 검증 반영).
+22. `weather_setup`: 앞 세 개가 계약 이름·순서·기본 0이면 통과하고 뒤에 더 있는 파라미터는 16b 추가로 로그만. NS 없음은 Warning. Python이 `scalar_parameters`를 못 쓰면 빈 MPC를 저장하고 Error로 §2a 수동 절차를 안내.
+23. `test_ue_wp19_fixture.py`의 "WP-19 블록이 DefaultGame.ini 끝" 단언에 새 훅 줄 1개(`tail = tail.split("; [WP-16 hook]")[0]…`)를 더했다(기존 줄 무수정). `test_ue_wp05_fixture.py` 쿡 개수 줄은 WP-19 선례대로 제자리 수정(4 → 5, 줄 끝 `[WP-16 hook]`).
+24. 자동화의 알파 민감 구간은 한 latent `Update()` 안에서 `StepWeather`로 손으로 구동한다. `OnTraveled`는 L_Dev에 이동 존이 없어 직접 Broadcast. 포토 진입은 알파 0.6(비가 이미 내림)에서.
+25. 자동화의 NS 단계는 컴포넌트 override 저장소(`ReadUserParameters`, 값 비교)와 **에셋 노출 파라미터**(`HasUserParameters`)를 따로 본다 — `SetVariable*`가 override에 없는 항목을 만들어 버리므로(검증 반영).
+26. 런북: 룩 매트릭스 20장은 로컬에 두고 5×4 접촉 시트 1장 + HDR 1장만 커밋. `max_spawn_rate`를 낮추면 그 값을 고정한 테스트 2곳도 같이 고친다. 패키지 경로는 `$pkg`(`GOLMOK_PKG_DIR`) 규칙.
+27. V-14 런북(`pc-verify-wp15a.md`)의 복원·저장 로그 예시는 날씨가 켜지면 `tod …` 뒤에 `, weather …`가 붙는다. 그 런북은 열린 PR #107도 고치므로 여기서 수정하지 않고 V-16 §9와 아래 "병합 시 반영"에 둔다. `pc-verify-wp19.md`·`pc-verify-wp15a.md`의 "36개" 총수 줄도 실행 당시 기록이라 두고, 강제되는 `pc-verify-wp12.md`만 39로 고쳤다.
+
+**적대 검증 1라운드**(에이전트 2, 파일 무수정)
+| # | 렌즈 | 등급 | 내용 | 조치 |
+|---|---|---|---|---|
+| R1 | 설계 | 확정 | `Golmok.Photo.MetaJson`이 새 `weather` 키를 모름(예시·15키) | `GolmokPhotoTest.cpp` 예시에 `"weather": null`, 키 16(`MetaKeyCount`), rain 객체 단언 추가 |
+| R2 | 설계 | 유력 | 파서가 `FJsonObject::Values`를 `TPair<FString,…>`로 순회 — 5.8은 `FSharedString` 키 | 저장소 선례대로 `const auto&` + `FString Key(*Pair.Key)` |
+| R3 | 설계 | 유력 | 포토 중 `fx on|off` 허용 | 거절(판단 14) + 자동화 단언 |
+| R4 | 설계 | 가능 | C++/Python 차이: 문자열 NUL, 대소문자 충돌 키, 비BMP 정렬 | NUL은 C++도 거절; 대소문자 충돌·비BMP는 수용·기록(판단 3) |
+| R5 | 설계 | 가능 | 모드만 바꾸면 세이브 dirty 아님 | 스냅숏 모드 비교로 dirty(판단 18) |
+| R6 | 설계 | 가능 | 에셋 없음 Warning 2개가 PIE 월드마다 → 기존 Warning 수 변화 | 프로세스당 1회·자동화 중 Display(판단 15) |
+| R7 | 설계 | 가능 | V-14 런북 로그 예시와 `, weather …` 접미 불일치 | 판단 27, 병합 시 반영 |
+| R8 | UE | 가능 | User 파라미터 읽기가 에셋 노출을 증명 못 함 | `HasUserParameters`(에셋 노출 저장소) 추가(판단 25) |
+| R9 | UE | 가능 | UCLASS 헤더의 UENUM 전방 선언(UHT) | 제거, `AddWeakLambda`(판단 21) |
+| — | UE | — | 확정 컴파일·링크 결함 0(UHT·틱 오버라이드·콘솔·MPC·Niagara API·유니티 이름·축소 변환·섀도잉·포맷 지정자·훅) | — |
+| R10 | 런북 | — | 런북이 기대하는 `OnWeatherChanged` 로그가 코드에 없음(통합 에이전트 지적) | 로그 추가(판단 7) |
+
+**[미확인] UE 5.8 API**(런북 §12에 결과 칸): §17 #1~#14 + `DeactivateImmediate`·`ResetSystem`·`FActorSpawnParameters::NameMode`, `UNiagaraSystem::GetExposedParameters`·`FindParameterOffset`, `IsTickable` 오버라이드.
+
+**Astra(빗소리)**: 이슈 #30 질문(코멘트 5979986770)에 착수 시점까지 답 없음. Claude 쪽 API(§9)는 레이어·상태 방식 어느 쪽이든 그대로다.
+
+**겹치는 브랜치**: PR #107(`claude/ue-followups-p14-p04c`)이 `Save/GolmokSaveSubsystem.h`(주석)·`Tests/GolmokTravelSaveTest.cpp`·`tools/tests/fake_unreal.py`를 고친다 — 이쪽 변경은 새 블록·끝 추가라 기계적으로 풀린다. PR #108(Astra, Characters/)과는 겹침 없음.
+
+### 병합 시 반영(오케스트레이터가 공유 문서에 옮긴다)
+- **STATUS 트랙 1A WP-16 행**: 이 브랜치가 이미 `🟡 16a 코드 완료·PC 검증 대기(V-16)`로 고쳤다. 병합 뒤 "갱신 이력"에 한 줄: `2026-10-04 WP-16a 구현 병합(#PR) — Weather/ 서브시스템·Niagara 빗줄기·MPC 계약·세이브 Rule 0/1·포토 메타 weather, 자동화 39, pytest 1702; V-16 대기`.
+- **STATUS V-16 행**: `⚪ 대기(16a 병합 뒤)` → `⚪ PC 대기 — 런북 runbooks/pc-verify-wp16a.md`. PC 카드 문안: "V-16(WP-16a 날씨): 런북 `pc-verify-wp16a.md` §0~§13, 브랜치 `pc/v16-verify-wp16a`, 에셋 2개(MPC·NS) 저작·커밋(LFS·잠금), 자동화 39."
+- **ROADMAP**: WP-16 행 `16a 🟡 코드 완료·PC 검증 대기(V-16)`.
+- **DECISIONS**: D-015 진행 기록에 "2026-10-04 WP-16a 구현(오케스트레이터 결정 D-019, 되돌릴 수 있음): 설계 대비 변경 3 — rain_levels [0.05, 1], 포토 중 `fx on|off` 거절, 에셋 없음 경고 프로세스당 1회·자동화 중 Display(WP-16 결과 판단 1·14·15)". D-002: 새 의존 없음(Niagara는 엔진 동봉 1st-party, 설계 §7-1).
+- **DEVELOPMENT-PLAN §5.1 WP-16a 행**: 상태 `🟡 코드 완료(2026-10-04)·V-16 대기`.
+- **pc-verify-wp15a.md(V-14)** §2·68행 부근: "WP-16a부터 `tod …` 뒤에 `, weather <목표> wet x puddle y <모드>`(또는 `, weather - (not in save)`)가 붙는다" 한 줄(PR #107 병합 뒤 그 브랜치 기준으로).
+- **WP-12 문서 §2-2 메타 예시**: `"weather": {"state": "rain", "intensity": 0.60}` 줄(preset 다음).
+- **이슈 #30**: 16a 병합 알림 + Astra 빗소리 과제 배정(계약 §9, 답이 오면 그 방식).
