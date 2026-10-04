@@ -434,3 +434,11 @@ UE build·Audio2 Success(경고1)/failed0/notRun0 통과. 최종 build6.80s 성�
 ### 병합 시 반영 — T19
 
 STATUS/astra-tasks 문안: “선택 T19 R85-1a/b/c·2 완료: 객체별 DOM case 변이, driver/Driver 중복 거절 UE5.8.3 회귀, 재등록 평가 계수+1, 폐기된 stride_scale_by_mesh의 교체 안내 보존. 등록36, R85-3 Python alias 검사 선택 이월. 실제 GASP/청취는 19b/V-15 대기.”
+
+## 병합 기록 — T19 PR [#92](https://github.com/wooklym/golmok/pull/92) (2026-10-04, 오케스트레이터 세션)
+
+**내용**: 위 "T19" 절과 같다. 선택 과제 R85-1a/b/c·2(객체별 DOM 대소문자 변이로 `Ambience.KeyCase`·`Durations.KeyCase` 개별 검출, `"driver":"auto","Driver":"notify"` 중복 거절 고정, `ReregisterComponent` 뒤 평가 계수 +1, 폐기 키 `stride_scale_by_mesh` 철자 변형의 `use stride_cm_by_character` 안내 보존). 등록 수는 36으로 같고, Astra 전체 UE 36 Success다.
+
+**병합 전 리뷰(Opus 5.5 ultracode 적대 검증, [R92](https://github.com/wooklym/golmok/pull/92#issuecomment-5977301171))**: (A) 0 · (B) 0 · (C) 3. 게이트(리눅스): ruff, format 112, pytest 1501 passed / 3 skipped, check_repo, `diff --check`, 등록 36, CI 10/10; base `c3f6541` = 당시 main(충돌 0). UE 빌드·전체 36 Success는 Astra 보고다. 확인(결함 없음): R85-1a/b/c·2 모두 해결 — 파서 KeyCase 구조 모델(CRLF 실제 `audio.json`)의 변이 6개(각 KeyCase 삭제, driver KeyCase 제외, FindOrAdd식 엔진, `OnRegister` 리셋 삭제, R85-2 되돌림)를 모두 검출, 상태·순서 독립, 레인 준수, 런북 `pc-verify-wp13.md` :234·:257 문구와 일치. (C → 선택): R92-1 R85-1c 양성 블록 실행 증거(EXECUTED Info에 `reregister`, 결과 절 한 줄, 런북 헤드리스 범위), R92-2 중복 driver 거절 경로를 정확한 오류 문구로 고정하고 메커니즘 기록, R92-3 반복 라벨에 객체 이름. 설계 리뷰 불필요(품질 가설·D-021 (2) 불변).
+
+**병합**: 오케스트레이터 결정(D-019). 위 "병합 시 반영 — T19" 문안은 STATUS 병행 트랙 WP-13 행과 `astra-tasks.md` T19에 옮겼다. R85-3(Python alias 검사)과 R92-1~3은 선택으로 이월해 다음 오디오 레인 push(19b 뒤 원본 폴리·청취 후속 등)에 함께 싣는다. 19b를 막지 않는다. PC는 main에서 UE 전체 36을 재실행할 때 Footstep 로그의 양성 fixture `EXECUTED` Info를 확인한다(R85-4, R92-1).
