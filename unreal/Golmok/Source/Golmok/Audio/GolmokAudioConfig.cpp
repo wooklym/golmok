@@ -135,7 +135,7 @@ namespace GolmokAudio
 		const auto Steps = Root.Child(TEXT("footsteps"));
 		if (!Ambience.Valid() || !Ambience.Check(Ambience.Data->Values.Num() == 3, TEXT(""), TEXT("three ambience states")) || !Presets.Valid() || !Steps.Valid()) return false;
 		if (!Ambience.KeyCase({TEXT("outdoor_day"), TEXT("outdoor_night"), TEXT("interior")})
-			|| !Steps.KeyCase({TEXT("driver"), TEXT("walk_stride_cm"), TEXT("run_stride_cm"), TEXT("run_threshold_cm_s"), TEXT("teleport_threshold_cm"), TEXT("pitch_range"), TEXT("volume_range"), TEXT("landing"), TEXT("stride_scale_by_mesh"), TEXT("stride_cm_by_character"), TEXT("sets"), TEXT("surface_sets")})) return false;
+			|| !Steps.KeyCase({TEXT("driver"), TEXT("walk_stride_cm"), TEXT("run_stride_cm"), TEXT("run_threshold_cm_s"), TEXT("teleport_threshold_cm"), TEXT("pitch_range"), TEXT("volume_range"), TEXT("landing"), TEXT("stride_cm_by_character"), TEXT("sets"), TEXT("surface_sets")})) return false;
 		for (const TCHAR* Name : {TEXT("outdoor_day"), TEXT("outdoor_night"), TEXT("interior")})
 		{
 			FString Key;

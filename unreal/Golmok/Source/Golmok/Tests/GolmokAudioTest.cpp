@@ -95,6 +95,9 @@ namespace GolmokAudioTest
 					Test->TestTrue(TEXT("HUD positive driver and event count"), Audio->Describe().Contains(TEXT("drv=notify(auto) ev=1")));
 					Steps->TickComponent(.1f, LEVELTICK_All, nullptr);
 					Test->TestEqual(TEXT("repeat query event Tick and HUD evaluate contract only once"), Steps->GetAnimContractEvaluationsForTest(), Evaluations + 1);
+					Steps->ReregisterComponent();
+					Test->TestTrue(TEXT("reregister retains notify contract"), Steps->UsesNotifyDriver());
+					Test->TestEqual(TEXT("reregister evaluates contract once more"), Steps->GetAnimContractEvaluationsForTest(), Evaluations + 2);
 					Pawn->GetMesh()->SetAnimInstanceClass(UAnimInstance::StaticClass());
 					Test->TestFalse(TEXT("nonnull class change invalidates positive cache"), Steps->UsesNotifyDriver());
 					Pawn->GetMesh()->SetAnimInstanceClass(TestAnim);
@@ -423,6 +426,36 @@ bool FGolmokAudioFootstepTest::RunTest(const FString& Parameters)
 		TestFalse(FString::Printf(TEXT("case alias key %s rejected"), Key), GolmokAudio::ParseConfig(Mutated, Parsed, Error));
 		TestTrue(TEXT("key case failure names field"), Error.Contains(FString(Key).ToUpper(), ESearchCase::CaseSensitive));
 		TestEqual(TEXT("key failure preserves assets"), Parsed.Assets.Num(), Config.Assets.Num());
+	}
+	for (const TCHAR* ObjectName : {TEXT("ambience"), TEXT("crossfade_seconds_by_state")})
+	{
+		TSharedPtr<FJsonObject> Root;
+		FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Manifest), Root);
+		const auto Object = Root->GetObjectField(ObjectName);
+		const auto Value = Object->TryGetField(TEXT("outdoor_day"));
+		Object->RemoveField(TEXT("outdoor_day")); Object->SetField(TEXT("OUTDOOR_DAY"), Value);
+		FString Mutated; FJsonSerializer::Serialize(Root.ToSharedRef(), TJsonWriterFactory<>::Create(&Mutated));
+		FGolmokAudioConfig Parsed = Config;
+		TestFalse(FString::Printf(TEXT("isolated %s key alias rejected"), ObjectName), GolmokAudio::ParseConfig(Mutated, Parsed, Error));
+		TestTrue(TEXT("isolated alias names exact object"), Error.Contains(FString(ObjectName) + TEXT(".OUTDOOR_DAY"), ESearchCase::CaseSensitive));
+	}
+	{
+		TSharedPtr<FJsonObject> Root;
+		FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Manifest), Root);
+		Root->GetObjectField(TEXT("footsteps"))->RemoveField(TEXT("driver"));
+		FString Mutated; FJsonSerializer::Serialize(Root.ToSharedRef(), TJsonWriterFactory<TCHAR, TCondensedJsonPrintPolicy<TCHAR>>::Create(&Mutated));
+		TestTrue(TEXT("duplicate driver fixture inserted"), Mutated.ReplaceInline(TEXT("\"walk_stride_cm\":"), TEXT("\"driver\":\"auto\",\"Driver\":\"notify\",\"walk_stride_cm\":"), ESearchCase::CaseSensitive) == 1);
+		FGolmokAudioConfig Parsed = Config;
+		TestFalse(TEXT("case-only duplicate driver keys rejected"), GolmokAudio::ParseConfig(Mutated, Parsed, Error));
+	}
+	{
+		TSharedPtr<FJsonObject> Root;
+		FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Manifest), Root);
+		Root->GetObjectField(TEXT("footsteps"))->SetBoolField(TEXT("Stride_Scale_By_Mesh"), true);
+		FString Mutated; FJsonSerializer::Serialize(Root.ToSharedRef(), TJsonWriterFactory<>::Create(&Mutated));
+		FGolmokAudioConfig Parsed = Config;
+		TestFalse(TEXT("obsolete case alias rejected"), GolmokAudio::ParseConfig(Mutated, Parsed, Error));
+		TestTrue(TEXT("obsolete case alias gives replacement guidance"), Error.Contains(TEXT("use stride_cm_by_character")));
 	}
 	for (const TCHAR* Value : {TEXT("\"auto\""), TEXT("\"distance\""), TEXT("\"notify\""), TEXT("\"Notify\""), TEXT("null"), TEXT("true"), TEXT("1"), TEXT("[]"), TEXT("{}"), TEXT("\"bad\"")})
 	{
