@@ -215,3 +215,45 @@ def test_animation_roster_contract_allows_game_root_relocation():
             entry["mesh"] = "/Game/Relocated/Mesh.Mesh"
     validate(roster)
     validate_animation_contract(roster, animation)
+
+
+# T23: normalized screen Y measured upward from the bottom; no spring-arm collision.
+def framing_y(entry, point_x, point_z):
+    camera = entry["camera"]
+    pitch = math.radians(-15)
+    forward_x, forward_z = math.cos(pitch), math.sin(pitch)
+    relative_z = point_z - entry["capsule"]["half_height_cm"]
+    # SocketOffset is rotated with the boom, so subtract its camera-local components.
+    depth = camera["boom_cm"] + point_x * forward_x + relative_z * forward_z - camera["socket_cm"][0]
+    up = -point_x * forward_z + relative_z * forward_x - camera["socket_cm"][2]
+    assert depth > 0
+    tan_vertical = math.tan(math.radians(camera["fov_deg"] / 2)) / (16 / 9)
+    return 0.5 + up / (2 * depth * tan_vertical)
+
+
+def framing_margins(entry):
+    audio = json.loads((REPO / "unreal/Golmok/Config/Golmok/audio.json").read_text(encoding="utf-8"))
+    half_stride = audio["footsteps"]["stride_cm_by_character"][entry["id"]]["walk"] / 2
+    lag = entry["movement"]["walk_cm_s"] / 12  # unchanged CameraLagSpeed
+    return (
+        framing_y(entry, 0, 0),
+        framing_y(entry, -half_stride - lag, 0),
+        framing_y(entry, 0, entry["height_cm"]),
+    )
+
+
+@pytest.mark.parametrize("entry", ROSTER["characters"], ids=lambda entry: entry["id"])
+def test_walking_camera_framing(entry):
+    feet, moving_foot, head = framing_margins(entry)
+    assert feet >= 0.12
+    assert moving_foot >= 0.03
+    assert head <= 0.80
+
+
+@pytest.mark.parametrize(
+    "character,old_z", [("manny", 55), ("proxy135", 45), ("proxy110", 39.44444444444444)]
+)
+def test_previous_camera_framing_fails_floor_margin(character, old_z):
+    entry = copy.deepcopy(next(e for e in ROSTER["characters"] if e["id"] == character))
+    entry["camera"]["socket_cm"][2] = old_z
+    assert framing_margins(entry)[0] < 0.12

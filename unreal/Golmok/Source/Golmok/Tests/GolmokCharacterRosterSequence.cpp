@@ -20,6 +20,7 @@
 #include "Misc/Paths.h"
 #include "Misc/PackageName.h"
 #include "Misc/CommandLine.h"
+#include "Misc/Parse.h"
 #include "DynamicRHI.h"
 #include "Player/GolmokCharacter.h"
 #include "Portals/GolmokPortal.h"
@@ -54,10 +55,12 @@ public:
    Folder=FPaths::ConvertRelativePathToFull(FPaths::ProjectSavedDir()/TEXT("Automation/WP18T2Sequence")/(Id+FString::Printf(TEXT("_course%d_"),Course)+FGuid::NewGuid().ToString(EGuidFormats::Digits)));
    IFileManager::Get().MakeDirectory(*Folder,true);
    Manifest=TEXT("ENGINE INPUT DRIVER RENDER EVIDENCE; not real keyboard/video; no hitch/fps verdict\nfixed simulation dt=1/60; screenshot requests at 0.1s sim intervals; image resolved on render frame\n");
-   Manifest+=FString::Printf(TEXT("id=%s course=%d (0=walk3s/run3s,1=L_Dev stairs,2=portal roundtrip) camera=diagnostic boom1.5 pitch-10\n"),*Id,Course);
+   bFraming=FParse::Param(FCommandLine::Get(),TEXT("GolmokCharacterFraming"));
+   Manifest+=FString::Printf(TEXT("id=%s course=%d (0=walk3s/run3s,1=L_Dev stairs,2=portal roundtrip) camera=%s\n"),*Id,Course,bFraming?TEXT("roster boom pitch-15"):TEXT("diagnostic boom1.5 pitch-10"));
+   if(bFraming) Manifest+=TEXT("T23: course0 overrides legacy description: S walking toward camera for 6s, no run; roster boom, pitch -15.\n");
    Release(); FString Message;
    if (!Roster || !Roster->SelectCharacter(Id,Message)) return Fail(*Message);
-   Character->GetCameraBoom()->TargetArmLength*=1.5;
+   if(!bFraming) Character->GetCameraBoom()->TargetArmLength*=1.5;
    if(auto* Debug=World->GetSubsystem<UGolmokDebugSubsystem>()) Debug->SetHudVisible(false);
    auto* Light=AGolmokTimeOfDay::Find(World);
    const bool bLightApplied=Light && Light->ApplyPreset(TEXT("clear_noon"),true);
@@ -75,7 +78,7 @@ public:
    Position.Z+=Character->GetCapsuleComponent()->GetScaledCapsuleHalfHeight()+3;
    Character->GetCharacterMovement()->StopMovementImmediately();
    Character->SetActorLocation(Position,false,nullptr,ETeleportType::TeleportPhysics);
-   Character->SetActorRotation(Rotation); Rotation.Pitch=-10; PC->SetControlRotation(Rotation);
+   Character->SetActorRotation(Rotation); Rotation.Pitch=bFraming?-15:-10; PC->SetControlRotation(Rotation);
    Manifest+=FString::Printf(TEXT("setup teleport sim=%.4f position=%s; no teleports during traversal\n"),Now,*Position.ToString());
    Phase=2; PhaseAt=Now; return false;
   }
@@ -83,7 +86,7 @@ public:
   {
    if(Now-PhaseAt<3 || Character->GetCharacterMovement()->IsFalling()) return false;
    if(Course==2 && (!Portal || !Portal->IsSublevelVisible())) return false;
-   Start=Now; NextCapture=.1; Key(EKeys::W,true); Phase=3; return false;
+   Start=Now; NextCapture=.1; Key(bFraming && Course==0?EKeys::S:EKeys::W,true); Phase=3; return false;
   }
   if(Phase==4)
   {
@@ -92,7 +95,7 @@ public:
    Save(); Test->AddInfo(TEXT("SEQUENCE ")+Folder); return true;
   }
   const double Elapsed=Now-Start;
-  if(Course==0 && !bShift && Elapsed>=3){Key(EKeys::LeftShift,true); bShift=true;}
+  if(Course==0 && !bFraming && !bShift && Elapsed>=3){Key(EKeys::LeftShift,true); bShift=true;}
   if(Course==1 && !bReturn && Character->GetActorLocation().X>=900)
   {
    Check(TEXT("stairs reached landing"),FMath::Abs(Feet()-170)<4,Feet());
@@ -133,6 +136,7 @@ private:
  void Release(){Key(EKeys::W,false);Key(EKeys::S,false);Key(EKeys::LeftShift,false);}
  bool Fail(const TCHAR* Message){Test->AddError(FString::Printf(TEXT("%s course%d phase%d: %s"),*Id,Course,Phase,Message));Release();Save();return true;}
  FAutomationTestBase* Test; FString Id,Folder,Manifest; int32 Course,Phase=0; double WallStart=0,Now=0,Start=0,End=0,PhaseAt=0,NextCapture=0,OldDelta=0;
+ bool bFraming=false;
  bool bStarted=false,bAssertionsPassed=true,bOldFixed=false,bClockChanged=false,bShift=false,bReturn=false,bStopped=false,bEntered=false,bExited=false;
  TWeakObjectPtr<APlayerController> PC; TWeakObjectPtr<AGolmokCharacter> Character; TArray<FString> Files;
 };
@@ -147,8 +151,9 @@ void Enqueue(FAutomationTestBase* Test)
    return;
   }
  }
- for(const TCHAR* Id:{TEXT("proxy135"),TEXT("proxy110"),TEXT("quinn")}) for(int32 Course=0;Course<3;++Course)
+ for(const TCHAR* Id:{TEXT("manny"),TEXT("proxy135"),TEXT("proxy110"),TEXT("quinn")}) for(int32 Course=0;Course<3;++Course)
  {
+  if(FString(Id)==TEXT("manny") && !FParse::Param(FCommandLine::Get(),TEXT("GolmokCharacterFraming"))) continue;
   ADD_LATENT_AUTOMATION_COMMAND(FEditorLoadMap(Course==2?TEXT("/Game/Golmok/Maps/L_ZoneTest"):TEXT("/Game/Golmok/Maps/L_Dev")));
   ADD_LATENT_AUTOMATION_COMMAND(FStartPIECommand(false));
   ADD_LATENT_AUTOMATION_COMMAND(FSequence(Test,Id,Course));

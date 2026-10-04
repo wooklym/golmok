@@ -49,7 +49,7 @@ namespace GolmokCharacterRosterTest
 		Test->TestTrue(TEXT("default mesh rotation"), Character->GetMesh()->GetRelativeRotation().Equals(FRotator(0, -90, 0)));
 		Test->TestTrue(TEXT("default mesh scale"), Character->GetMesh()->GetRelativeScale3D().Equals(FVector::OneVector));
 		Test->TestEqual(TEXT("default boom"), Character->GetCameraBoom()->TargetArmLength, 320.f);
-		Test->TestTrue(TEXT("default socket"), Character->GetCameraBoom()->SocketOffset.Equals(FVector(0, 45, 55)));
+		Test->TestTrue(TEXT("default socket"), Character->GetCameraBoom()->SocketOffset.Equals(FVector(0, 45, 2)));
 		Test->TestEqual(TEXT("default FOV"), Character->GetFollowCamera()->FieldOfView, 80.f);
 		Test->TestEqual(TEXT("default walk"), Character->GetWalkSpeed(), 180.f);
 		Test->TestEqual(TEXT("default run"), Character->GetRunSpeed(), 500.f);
@@ -242,7 +242,7 @@ namespace GolmokCharacterRosterTest
 			Test->TestEqual(TEXT("proxy walk"), Character->GetCharacterMovement()->MaxWalkSpeed, 145.f);
 			Test->TestEqual(TEXT("proxy run"), Character->GetRunSpeed(), 380.f);
 			Test->TestEqual(TEXT("proxy boom"), Character->GetCameraBoom()->TargetArmLength, 260.f);
-			Test->TestTrue(TEXT("proxy socket"), Character->GetCameraBoom()->SocketOffset.Equals(FVector(0, 35, 45)));
+			Test->TestTrue(TEXT("proxy socket"), Character->GetCameraBoom()->SocketOffset.Equals(FVector(0, 35, 2)));
 			Test->TestEqual(TEXT("proxy FOV"), Character->GetFollowCamera()->FieldOfView, 75.f);
 
 			// A roof fits 135 cm, but blocks the 184 cm default capsule.
