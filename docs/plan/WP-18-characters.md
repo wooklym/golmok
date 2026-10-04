@@ -49,10 +49,10 @@
 
 | id | 메시/ABP | 키·메시 스케일 | 캡슐 | 붐/소켓/FOV | 걷기/달리기 |
 |---|---|---|---|---|---|
-| `manny` (default) | SKM_Manny_Simple / ABP_Unarmed | 180 / (1,1,1) | 42/92 | 320/(0,45,55)/80 | 180/500 |
+| `manny` (default) | SKM_Manny_Simple / ABP_Unarmed | 180 / (1,1,1) | 42/92 | 320/(0,45,2)/80 | 180/500 |
 | `quinn` | SKM_Quinn_Simple / 같은 ABP | 180 / (1,1,1) | 42/92 | 같음 | 180/500 |
-| `proxy135` | Manny / 같은 ABP | 135 / (0.8,0.8,0.75) | 33.6/69 | 260/(0,35,45)/75 | 145/380 |
-| `proxy110` | Manny / 같은 ABP | 110 / (0.8,0.8,0.6111111) | 33.6/56.2222222 | 226.6666667/(0,29.4444444,39.4444444)/72.2222222 | 120/310 |
+| `proxy135` | Manny / 같은 ABP | 135 / (0.8,0.8,0.75) | 33.6/69 | 260/(0,35,2)/75 | 145/380 |
+| `proxy110` | Manny / 같은 ABP | 110 / (0.8,0.8,0.6111111) | 33.6/56.2222222 | 226.6666667/(0,29.4444444,0)/72.2222222 | 120/310 |
 
 메시 경로는 `/Game/Characters/Mannequins/Meshes/<name>.<name>`, ABP는 `/Game/Characters/Mannequins/Anims/Unarmed/ABP_Unarmed.ABP_Unarmed_C`. 각 메시 offsetZ는 −half, yaw−90. 프록시는 **키/가로폭 변형**이며 4.5등신 머리/팔다리 리타깃 결과가 아니다.
 
@@ -134,7 +134,7 @@ Fable PC 세션이 실 Zone(없으면 L_Basemap_Yeonnam)에서 회색 콘크리�
 | Python 게이트 | 설계: ruff/check_repo 성공, format93개, pytest590 passed/39 skipped. 구현: ruff/check_repo 성공, format95개, pytest608 passed/42 skipped. 양쪽208 warnings, 로컬 g++ skip 포함 |
 | CI 코드 검증 | b8105f2의 [Actions](https://github.com/wooklym/golmok/actions/runs/36248981836) 전체5 jobs success. Linux3.11/3.12·Windows3.12+MinGW 각각647 passed/3 skipped. 최신 head checks도 PR에서 확인 |
 | UE5.8.3 | add-mannequin·build 성공. Character 필터2 Success. 합성 실내 준비 후 전체 **18 Success(13+경고5), failed0/notRun0**, 39.11s. Movement180/500cm/s·점프90cm, 기존 테스트 수정 없음 |
-| V-11/V-12 | **V-11 🟢**: [PC #100·Opus 채점](https://github.com/wooklym/golmok/pull/100#issuecomment-5979649367), 실제 키 입력 4종 이동·계단·포털·교체·캡슐 복구·hitch/VRAM 검증 통과. 카메라 구도 T23 후속, 애니메이션 품질은 V-15, V-12·18b는 대기 |
+| V-11/V-12 | **V-11 🟢**: [PC #100·Opus 채점](https://github.com/wooklym/golmok/pull/100#issuecomment-5979649367), 실제 키 입력 4종 이동·계단·포털·교체·캡슐 복구·hitch/VRAM 검증 통과. [§14-7](../runbooks/pc-verify-wp18a.md) 채점, 카메라 구도 T23 [#108](https://github.com/wooklym/golmok/pull/108) 병합(소켓 Z 2/2/0, 실제 키 입력 재검수는 다음 PC 카드), 애니메이션 품질은 V-15, V-12·18b는 대기 |
 
 UE 실행에서 `FScopedMovementUpdate` include 경로와 부모 캡슐의 지연 이동 후 메시 offset이−92로 남는 문제를 발견했다. 메시 상대변환을 먼저 적용하는 순서로 수정한 뒤−69/고정 발밑 단언과 전체 회귀 테스트가 통과했다. 전체 UE 경고5건은 L_Dev GeoOrigin/의도된 누락 Zone 자산·버전 fixture 경고이며 개별 state는 전부 Success다. nullrhi의 HUD fps는 성능 결과로 사용하지 않았다.
 
