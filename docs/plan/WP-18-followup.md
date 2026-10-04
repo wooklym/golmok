@@ -523,3 +523,11 @@ R94-1: `IsExplicitSelection()`의 헤더 주석에 명시 선택 성공, 같은 
 ### 병합 시 반영 — T21
 
 STATUS/astra-tasks 문안: “T21 R94-1 완료: 명시 선택 플래그 전이 계약과 Save 연동 책임을 캐릭터 헤더에 명시. 주석만 변경, API·동작·등록36 유지. 실제 GASP/GUI 검증은 19b/V-15 대기.”
+
+## 병합 기록 — T21 PR [#96](https://github.com/wooklym/golmok/pull/96) (2026-10-04, 오케스트레이터 세션)
+
+**내용**: 위 "T21" 절과 같다(R94-1: `IsExplicitSelection()` 전이 계약 주석, 클래스 주석의 세이브 연동 설명). 주석만 바뀌었고 API·동작·등록 36은 그대로다. Astra 전체 UE 36 Success에 새 main의 `Save.RoundTrip`(#93 세이브 후속)이 포함되어, #93이 PC 빌드에서 컴파일·통과한 첫 근거가 됐다.
+
+**병합 전 리뷰([R96](https://github.com/wooklym/golmok/pull/96#issuecomment-5979382620))**: (A) 0 · (B) 0 · (C) 0. 주석만 바뀐 PR이라 오케스트레이터(Opus 5.5)가 직접 대조했다. 계약 문구가 `cpp:351`·`:360-363`·`:401`의 전이와 일치하고, 클래스 주석이 #93 `TakeSnapshot`과 일치하며, 레인을 지켰다. CI 10/10.
+
+**병합**: 오케스트레이터 결정(D-019). main(`f1535ac`, 문서 #95)을 병합한 뒤 이 커밋으로 반영했다. 위 "병합 시 반영 — T21" 문안은 STATUS 병행 트랙 WP-18 행과 `astra-tasks.md` T21에 옮겼다. 19b 경로 확정 뒤 4개 경로 갱신 스택(R84 (C))이 다음 캐릭터 레인 과제다.
