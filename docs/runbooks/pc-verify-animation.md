@@ -110,7 +110,7 @@
 | ③ | 미실행 | §4 조건(②가 라이선스·용량·성능·스켈레톤 중 하나로 막힘)에 해당하지 않는다: 라이선스는 가능(§0, 사용자 재확인 필요), 성능 차이 없음, 스켈레톤 차이는 GASP 메시로 우회, 용량은 보관 방식 결정 사항. ②a가 막힌 원인은 통합 방식(폰 인터페이스)이라 ③도 같은 C++ 공급 작업이 필요하고 품질 기대치는 ②b보다 낮다(research/09 §3) | — | — |
 
 **시험 방법·환경**(재현용)
-- 무인 실행: GUI 에디터(원격 Python) + Slate 틱 드라이버가 PIE를 띄우고 Win32 SendInput으로 키(W·Shift·S·Space·Left Ctrl)와 마우스(S4 원 그리기 60°/s)를 넣는다. 장면마다 순간이동으로 배치(S1~S4 골목 입구, S5 계단 앞, S6 경사 앞, S7 60 cm 벽 앞), 장면별 화면 녹화(ffmpeg gdigrab 30 fps), 틱마다 캡슐·발목(`foot_*`)·앞꿈치(`ball_*`) 뼈 월드 좌표 기록. 스크립트·원자료는 세션 스크래치에만 있다.
+- 무인 실행: GUI 에디터(원격 Python) + Slate 틱 드라이버가 PIE를 띄우고 Win32 SendInput으로 키(W·Shift·S·Space·Left Ctrl)와 마우스(S4 원 그리기 60°/s)를 넣는다. 장면마다 순간이동으로 배치(S1~S4 골목 입구, S5 계단 앞, S6 경사 앞, S7 60 cm 벽 앞), 장면별 화면 녹화(ffmpeg gdigrab 30 fps), 틱마다 캡슐·발목(`foot_*`)·앞꿈치(`ball_*`) 뼈 월드 좌표 기록. 스크립트·원자료는 세션 스크래치에만 있다(드라이버·지표의 `tools/` 커밋과 정의 통일은 [V-08b 카드](pc-verify-v08b.md) §9).
 - 녹화(저장소 밖): `C:\UE\v08_recordings\cmp_S1~S7_1-2b-2a.mp4`(왼쪽부터 ①·②b·②a 나란히), 장면별 원본 녹화와 드라이버 보고·틱 샘플(JSON)은 `scenes\`, 성능 CSV 3개는 폴더 바로 아래.
 - 성능: 창 모드 `-game` 1920×1080(CSV `systemresolution` 확인), `-csvCaptureFrames=6000 -ExitAfterCsvProfiling`, 달리며 원 그리기 약 30 s, 로딩·대기 구간을 뺀 `golmok-perf`. 다른 UE 프로세스 없음. 게임 내 콘솔이 SendInput으로 열리지 않아 `csvprofile start/stop` 대신 V-01 방식.
 - ② 시험 설정(커밋 `V-08: 시험용 설정` 뒤 §7에서 되돌림): `Golmok.uproject` 플러그인 21개(GASP 목록 + BlendStack), `DefaultEngine.ini`에 GASP `DataDrivenConsoleVariableSettings` 27개, GASP `DefaultGameplayTags.ini`(태그 39개). **Migrate는 이 설정을 옮기지 않는다** — DDCvar가 없으면 GASP ABP는 발 배치 IK(`DDCvar.FootPlacementMode=1`)·스레드 안전 업데이트 등이 꺼진 상태로 돈다.
@@ -130,7 +130,7 @@
 
 계단·경사 지표는 앞꿈치 뼈 하나로 디딤면을 판정하는 단순 계산이라 ①과 ②b를 가르지 못했다(②b는 디딤판 모서리를 넘는 발이 많아 p10이 크게 음수). 녹화에서는 ②b가 디딤판마다 발을 올리고 무릎을 굽히는 계단 동작을, ①은 평지 걷기 주기를 그대로 쓴다. ②b는 경사에서 발이 약 2 cm 떠 있다.
 
-**주의(병합 리뷰 R21-3)**: ②b는 GASP 기본 회전 모드(S키 뒷걸음)라 S3과 S5·S6의 내려가는 구간은 ①의 돌아서기와 다른 동작이다. ①↔②b 비교는 S1·S2·S4가 유효하다. 돌아서기 모드 측정은 V-08b에서 한다.
+**주의(병합 리뷰 R21-3)**: ②b는 GASP 기본 회전 모드(S키 뒷걸음)라 S3과 S5·S6의 내려가는 구간은 ①의 돌아서기와 다른 동작이다. ①↔②b 비교는 S1·S2·S4가 유효하다. 돌아서기 모드 측정은 V-08b에서 한다([V-08b 카드](pc-verify-v08b.md) §2).
 
 측정 표 B — 입력 반응(캡슐 수평 속도, 틱 샘플)
 
@@ -141,7 +141,7 @@
 | 걷다가 키를 뗀 뒤 정지 | 0.04~0.05 s, 2~3 cm | 0.10 s, 9 cm |
 | 달리다 키를 뗀 뒤 정지 | 0.09~0.10 s, 14~15 cm | 0.24~0.25 s, 54 cm |
 
-②b의 자연스러운 출발·정지는 애니메이션뿐 아니라 GASP의 느린 가감속에서도 나온다. ②를 들이면 우리 이동 값도 이쪽으로 옮겨야 같은 품질이 나온다(조작감과 맞바꿈). [추정 — 우리 이동 값으로 GASP 애니메이션을 돌린 측정은 없다. V-08b ②b′ A/B로 확인(병합 리뷰 R21-8)]
+②b의 자연스러운 출발·정지는 애니메이션뿐 아니라 GASP의 느린 가감속에서도 나온다. ②를 들이면 우리 이동 값도 이쪽으로 옮겨야 같은 품질이 나온다(조작감과 맞바꿈). [추정 — 우리 이동 값으로 GASP 애니메이션을 돌린 측정은 없다. V-08b ②b′ A/B로 확인(병합 리뷰 R21-8) — [V-08b 카드](pc-verify-v08b.md) §1]
 
 측정 표 C — `stat anim`(달리며 원 그리기 중, 평균/최대 ms, 에디터 PIE 2560×1392)
 
@@ -174,7 +174,7 @@ Pose Search 전용 줄은 표시 한도(`stats.MaxPerGroup`, 상위 25개) 밖�
 - 단 이번 ②의 점수는 **GASP 폰을 그대로 쓴 품질 상한(②b)**이다. 우리 C++ 캐릭터에 설정만 붙인 ②a는 작동하지 않았으므로 채택하면 **통합 WP**가 필요하다: ① `AGolmokCharacter`가 GASP 애님이 요구하는 캐릭터 상태(보행 모드·자세·회전 모드·입력 의도·착지 속도 등, `BPI_SandboxCharacter_Pawn`)를 공급 — 인터페이스를 구현하는 얇은 BP 서브클래스(D-003 "불가피한 BP") 또는 GASP ABP의 `SetReferences`/`UpdateEssentialValues`를 C++ 공급으로 바꾸기, ② 이동 값(가감속·걷기 200·뒷걸음/회전 모드·점프 높이)을 GASP 데이터에 맞출지 결정(표 B의 조작감 맞바꿈), ③ 에셋 정리(ABP 폐포 약 1.1 GB 기준, MetaHuman·Echo·Paragon 제외 가능성), ④ DDCvar·게임플레이 태그 설정 이식, ⑤ 매니 메시로 쓰려면 GASP의 런타임 리타깃(`BP_Manny` + `ABP_GenericRetarget`) 경로 시험.
 - **Chooser Experimental 의존 여부**: 5.8.3 플러그인 서술자에는 Chooser·Pose Search 모두 플래그가 없다(문서 배너만 Experimental, 표 1). 더 큰 문제는 GASP CMC ABP가 **Experimental 모듈 4개(Mover·CurveExpression·DrawDebugLibrary·MovieSceneAnimMixer)와 Beta 2개(Motion Warping·Animation Locomotion Library)를 직접 참조**한다는 점이다(GASP 폰은 GameplayCameras(Experimental)도 씀 — 우리 카메라를 쓰면 불필요). 통합 WP에서 ABP의 디버그 그리기·Mover 참조를 걷어내 줄일 수 있는지 먼저 확인하고, 남는 Experimental 의존의 허용 여부를 정한다.
 - 결정 전까지 main은 ① 그대로다(이 브랜치의 시험 설정은 §7에서 되돌렸다).
-- 범위 밖: WP-18(D-018)의 "V-08 추가 시험"(4.5등신 프록시에 GASP 리타깃·145/380 cm/s·25 cm 계단·귀여움 채점)은 이 카드에서 하지 않았다 — ② 통합 뒤 별도 PC 카드가 맞다.
+- 범위 밖: WP-18(D-018)의 "V-08 추가 시험"(4.5등신 프록시에 GASP 리타깃·145/380 cm/s·25 cm 계단·귀여움 채점)은 이 카드에서 하지 않았다 — ② 통합 뒤 별도 PC 카드가 맞다. → [V-08b 카드](pc-verify-v08b.md) §3-3에서 한다.
 
 **결정 목록**
 1. (소유자, 사실 확인) §0 라이선스 인용을 같은 URL에서 재확인 — D-019상 승인이 아니라 사실 확인 항목.
