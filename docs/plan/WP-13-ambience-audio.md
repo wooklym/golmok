@@ -417,3 +417,20 @@ STATUS/astra-tasks 문안: “선택 T17 R82-1/2/3/4/6 완료: 클래스+설정 
 **병합 전 리뷰(Opus 5.5 ultracode 적대 검증, [R85](https://github.com/wooklym/golmok/pull/85#issuecomment-5913445157))**: (A) 0 · (B) 0 · (C) 4. 게이트(리눅스): ruff, format 112, pytest 1403 passed / 3 skipped, check_repo, `diff --check`, 등록 36, CI 10/10; main(#84)과 충돌 0, 합친 트리 pytest 1406. UE 빌드·전체 36 Success는 Astra 보고다. 확인(결함 없음): R82-1·2·3·4·6 모두 해결(평가 계수 정확히 +1, 클래스 ∧ 설정 세대 캐시 키, 변이 모델에서 캐시·키·세대·폰 조건·`ev` 순서 변이 모두 검출), ① 기본 폰 경로가 main과 같음, 캐시 무효화 누락 없음, 실제 `audio.json`·레거시 fixture 무영향, 레인 준수. (C → 선택): R85-1 KeyCase·캐시 리셋 개별 커버리지 공백 3(ambience 단독 변이, 대소문자 중복 키 고정, `OnRegister` 리셋), R85-2 `stride_scale_by_mesh` 오류 안내, R85-3 남은 C++/Python 비대칭 무해 기록. R85-4는 이 커밋에서 처리. 설계 리뷰 불필요(품질 가설·D-021 (2) 불변).
 
 **병합**: 오케스트레이터 결정(D-019). main(#84 포함)을 병합한 뒤 이 커밋으로 반영했다. 위 "병합 시 반영 — T17" 문안은 STATUS 병행 트랙 WP-13 행과 `astra-tasks.md` T17에 옮겼다. 남은 (C) R85-1~3은 선택으로 이월해 다음 오디오 레인 push(19b 뒤 원본 폴리·청취 후속 등)에 함께 싣는다. 19b를 막지 않는다. PC는 main에서 UE 전체 36을 재실행할 때 Footstep 로그의 `EXECUTED auto positive cache/class/generation/HUD` Info를 확인한다(R85-4).
+
+
+## T19 결과 — 키 검사별 회귀와 재등록 캐시 (2026-10-04 KST)
+
+배정: [이슈 #30 T19](https://github.com/wooklym/golmok/issues/30#issuecomment-5913613213), R85 (C) 후속. main `c3f6541`에서 별도 `astra/wp-19c-footstep-followup3`; T18 PR과 독립이다.
+
+- **R85-1a**: DOM에서 ambience 또는 crossfade_seconds_by_state 한 객체의 outdoor_day만 OUTDOOR_DAY로 바꾸고 실패와 정확한 객체 경로를 검사한다. 다른 객체의 키 오류가 해당 검사의 누락을 가리지 않는다.
+- **R85-1b**: footsteps에 정확히 `"driver":"auto","Driver":"notify"`를 넣은 원문 JSON을 TestFalse로 고정했다. UE5.8.3 실제 실행에서 거절됐다. 이 결과는 해당 순서의 입력에 대한 것이며 모든 중복 키 조합을 보장하지 않는다.
+- **R85-1c**: auto 양성에서 ReregisterComponent 후 조회가 참이고 RequiresGaspPawn 평가 계수가 정확히 +1 증가하는지 단언한다.
+- **R85-2**: stride_scale_by_mesh는 KeyCase 목록에서 제외했다. Stride_Scale_By_Mesh도 기존 HasField 검사로 거절하고 `use stride_cm_by_character` 안내를 내는지 DOM 회귀로 확인한다.
+- **R85-3**: Python 알려진 키 alias 검사는 선택 이월했다. 기존 C++/Python 비대칭과 동적 id/값의 대소문자 규칙은 이번 범위가 아니다.
+
+UE build·Audio2 Success(경고1)/failed0/notRun0 통과. 최종 build6.80s 성공, 전체 **36 Success(24+경고12)/failed0/notRun0**, pytest **1286 passed/218 skipped/208 warnings,82.44s**, ruff check/format114·check_repo·diff 통과. GaspSmoke 설치 미충족·RenderEvidence NOT EXECUTED는 실제 검증 성공이 아니다. 근거: tools/.venv/t19-{audio,full}-index.json, t19-build.txt/t19-pytest.txt. 등록36 유지. 실제 GASP·GUI·원본 폴리·청취는 NOT EXECUTED. 오디오 레인만 변경하고 설정/훅/핫스팟/공유 문서/음원·라이선스는 변경하지 않았다.
+
+### 병합 시 반영 — T19
+
+STATUS/astra-tasks 문안: “선택 T19 R85-1a/b/c·2 완료: 객체별 DOM case 변이, driver/Driver 중복 거절 UE5.8.3 회귀, 재등록 평가 계수+1, 폐기된 stride_scale_by_mesh의 교체 안내 보존. 등록36, R85-3 Python alias 검사 선택 이월. 실제 GASP/청취는 19b/V-15 대기.”
