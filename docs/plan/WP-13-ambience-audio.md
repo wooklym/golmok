@@ -465,3 +465,30 @@ STATUS/astra-tasks 문안: “T22 R92-1~3·R85-3 완료: 재등록 양성 실행
 **병합 전 리뷰(Opus 5.5 ultracode 적대 검증, [R101](https://github.com/wooklym/golmok/pull/101#issuecomment-5979548775))**: (A) 0 · (B) 0 · (C) 3. 게이트(리눅스): ruff, format 112, pytest 1522 passed / 3 skipped(+21), check_repo, `diff --check`, 등록 36, CI 10/10; base `f1535ac`(main merge-tree 충돌 0). UE 빌드·전체 36 Success는 Astra 보고다. 확인(결함 없음): C++ `KeyCase` 목록과 Python 목록이 객체 6개·이름 40개·순서까지 같고 `stride_scale_by_mesh`는 빠짐(R85-2), `audio_pure.py` 변이 52개 중 호출 단위 변이는 모두 검출, Python 중복 키 처리가 UE보다 엄격(CI 통과 파일이 UE에서 다른 값으로 읽히지 않음), R92-1~3 해결, 레인 준수. (C → 선택): R101-1 역순 중복 driver pytest가 실제 역순을 만들지 못함(`del` 뒤 순서 단언), R101-2 이름 단위 C++ 대응 패리티 테스트(모듈 상수 + `GolmokAudioConfig.cpp` 6개 목록 대조, 선례 `test_ue_config_animation.py`·`test_ue_config_photo.py`), R101-3 폐기 키 검사의 대소문자 무시. 설계 리뷰 불필요(검증 엄격화·테스트·문서뿐).
 
 **병합**: 오케스트레이터 결정(D-019). 최신 main을 합친 뒤 이 커밋으로 반영했다. 위 "병합 시 반영 — T22" 문안은 STATUS 병행 트랙 WP-13 행과 `astra-tasks.md` T22에 옮겼다. R101-1~3은 선택으로 이월해 다음 오디오 레인 push(19b 뒤 원본 폴리·청취 후속 등)에 함께 싣는다. 19b를 막지 않는다.
+
+
+## T24 — WP-16a 빗소리 레이어 (2026-10-05 KST)
+
+배정: [이슈 #30 T24](https://github.com/wooklym/golmok/issues/30#issuecomment-5981293651), 계약 확정 [5980906355](https://github.com/wooklym/golmok/issues/30#issuecomment-5980906355). main `cb221aa`에서 `astra/wp-13-rain-layer`로 시작했다. 기존 WP-13/V-10 🟢와 별개로 **T24 🟡 코드·헤드리스 검증, 빗소리 청취/패키지 대기**다.
+
+- 기존 세 환경음 상태·두 크로스페이드 슬롯을 유지하고 독립 `RainChannel`을 추가했다. BeginPlay와 매 Audio 틱에서 Weather `Get`→`IsEnabled`→`GetRainIntensity`를 읽는다. null/disabled는 0이며 이벤트나 목표 강도로 대체하지 않는다. Weather 레인 수정·추가 API·틱 의존 순서 변경 없음(최대 1프레임 지연 수용). `fx off`는 날씨 자체를 끄는 API가 아니므로 소리는 유지한다.
+- `audio.json` 선택 `rain` 절: 루프 자산 ID·2~32점 선형 gain 곡선·실내 감쇠. 처음 `[0,0]`, 마지막 강수량 1, 강수량 엄격 증가·유한 0~1·루프 참조를 C++/Python이 검사한다. 절이 없는 구 manifest는 빗소리 없이 동작한다. 강수 0/0.3/1에 gain 0/0.35/0.8, 실내 ×0.35는 승인된 **초기 청취 가설**이고 최종 품질 합격이 아니다.
+- 문간에서 갑자기 볼륨이 떨어지지 않도록 실내 배율에 기존 목적 상태 fade 시간과 진폭 S-curve를 재사용한다(초기 바인딩은 현재 실내 상태를 즉시 반영, 이후 변화는 fade). 원본 SoundWave gain(0.5)은 임포트에서, 곡선 × 실내 × master × PhotoGain은 채널에서 각각 한 번 적용한다. 포토 정지 중에도 Audio의 실시간 envelope가 진행하며 `IsFrozen`으로 멈추지 않는다. HUD `rain`은 실제 강수량, `rain_gain`은 채널 배율이다.
+- `make_placeholder_audio.py`를 그대로 사용해 seed 1307·4 s·mono PCM16/48 kHz 합성 루프 384,044 bytes를 생성했다. 자산/출처/크레딧은 기존 JSON 단일 소스와 `ATTRIBUTION.md`·txt·런타임 credits 경로를 그대로 쓴다. 새 외부 소스·라이선스·저역 통과·wet 발소리 없음. 생성 `.uasset`은 로컬 검증용, WAV만 LFS 추적한다.
+- R101 선택 3건: driver 역순 검사 전에 기존 driver를 제거하고 실제 마지막 키 순서를 단언, Python AST `key_case` 목록과 C++ `KeyCase` 목록의 **이름 집합·중복 수** 대조(새 rain 포함 7개 목록), 폐기된 `stride_scale_by_mesh`의 철자 변형도 Python에서 거절한다.
+- wp13 런북 §6과 현재 패키지 재현 명령을 `$pkg`/`GOLMOK_PKG_DIR`로 변경하고 명시 `-OutDir`/실제 `Package output` 대조를 적었다. 당시 경로·7개 쿡 증거는 역사적 실행 기록으로 보존한다. §7-1 급정지 문구에 −80 dBFS 기준 레벨 게이트·수 LSB 무음·`--silence-floor 0` 이전 방식, §9에 빗소리 PC 카드와 8개 임포트/쿡 기준을 추가했다.
+
+### 검증 — T24
+
+- Python 전체: **1483 passed / 272 skipped / 208 warnings**, 90.30 s(Windows g++ 교차검증 등 skip). 설정·생성기·임포터 표적 134 passed / 1 skipped. ruff check·format(119 files)·check_repo·diff check 통과.
+- UE5.8.3 빌드: 첫 main 동기화 포함 168.25 s, 최종 증분 9.89 s 성공. 엔진 `Character.h`의 C4996만 관찰했고 프로젝트 컴파일 오류 없음.
+- 실제 UE 헤드리스 WAV 임포트/재임포트 **8+8**, loop/volume 8개 단언, `T24_IMPORT_VERIFIED_8_REIMPORT_8`(로컬 `Saved/Logs/Golmok-backup-2026.10.04-15.20.59.log`), commandlet **0 errors / 0 warnings**.
+- UE 전체 **39 Success (succeeded 26 + succeededWithWarnings 13), failed 0 / notRun 0, 195.57 s**. Audio 2개 모두 Success이며 새 rain·save·photo EXECUTED Info를 확인했다(로컬 `tools/.venv/t24-full-index.json`). 기존 Audio StateMachine에 null/disabled 경로·강수 상승/하강·clear·늦은 공급자/실내 바인딩·기존 베드 보존·실제 독립 GUID 세이브 슬롯 복원·master/mute·Photo maintain 두 pause 모드·GamePause mute 페이드 검사를 추가했다. 등록은 **39 유지**(WP-16a가 +3). 컴포넌트 논리 검증과 `-nosound` 결과를 청취로 기록하지 않는다.
+- **미실행**: 실제 오디오 장치 루프백·주관적 밸런스·패키지 쿡/재생. V-16 이후 오디오 PC 카드([wp13 §9](../runbooks/pc-verify-wp13.md))에서 수행한다. 소유자 결정 필요 없음, Opus 코드/품질 가설 리뷰 요청.
+- 겹침: 시작 시 열린 #113 `claude/wp16a-followups`는 Weather/Save 및 그 테스트·wp16 런북으로 직접 겹치는 수정 파일이 없다. 핫스팟/공유 문서/등록부 변경 없음.
+
+### 병합 시 반영 — T24
+
+STATUS/astra-tasks 문안: “T24 빗소리 레이어 완료: 낮/밤/실내 두 슬롯 유지 + 별도 rain 채널, 실제 강수 조회·실내 S-curve 감쇠·master/PhotoGain 공유, JSON 곡선/합성 루프·크레딧, null/disabled·세이브 복원·포토 회귀. 등록39 유지. R101 선택3건과 wp13 패키지 경로/무음 바닥 문구 포함. T24 🟡 청취·패키지 검증 대기(V-16 이후 오디오 카드), 기존 WP-13/V-10 🟢 유지.”
+
+DECISIONS D-015 진행 문안: “T24 오디오가 WP-16a 실제 강수를 별도 레이어로 소비한다. gain 곡선 0→0 / 0.3→0.35 / 1→0.8와 실내 ×0.35는 초기 청취 가설이며 최종은 PC/Opus 검토. 실내 전환은 기존 목적 상태 fade 시간의 S-curve를 재사용한다. 새 음원 출처 채택 없음, 합성 플레이스홀더. 되돌리기: audio.json의 rain 절 제거(루프/크레딧까지 제거하려면 assets.rain·생성 파일도 함께 정리).”
