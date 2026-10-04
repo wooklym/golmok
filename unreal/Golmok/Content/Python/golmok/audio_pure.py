@@ -144,7 +144,7 @@ def parse_config(data):
             if item.get("license_url") != expected:
                 raise ValueError(f"{prefix}.license_url: expected URL matching declared license")
         for supplied in item:
-            for canonical in ("source", "seed", "synthesis"):
+            for canonical in ("source", "seed", "synthesis", "seconds"):
                 if supplied.lower() == canonical and supplied != canonical:
                     raise ValueError(f"{prefix}.{supplied}: expected {canonical}")
         # Python-only generator selection; adopted audio may retain this inert metadata.
@@ -153,6 +153,11 @@ def parse_config(data):
             raise ValueError(f"{prefix}.synthesis: expected default or rain")
         if item["license"] == "project-generated" and synthesis == "rain" and not item["loop"]:
             raise ValueError(f"{prefix}.synthesis: rain requires a loop")
+        if "seconds" in item:
+            if type(item["seconds"]) is not int or not 16 <= item["seconds"] <= 30:
+                raise ValueError(f"{prefix}.seconds: expected integer in [16, 30]")
+            if item["license"] == "project-generated" and (synthesis != "rain" or not item["loop"]):
+                raise ValueError(f"{prefix}.seconds: only supported for rain loops")
         verified = item.get("verified")
         if not isinstance(verified, str) or not re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}", verified):
             raise ValueError(f"{prefix}.verified: expected YYYY-MM-DD")

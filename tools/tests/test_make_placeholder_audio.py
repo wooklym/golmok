@@ -47,25 +47,29 @@ def test_generation_budget_and_preserve_real_audio(tmp_path):
         assert Path(path).stat().st_size <= 5_000_000
         with wave.open(path) as wav:
             assert (wav.getnchannels(), wav.getsampwidth(), wav.getframerate()) == (1, 2, 48000)
+            if Path(path).name == "rain.wav":
+                assert wav.getnframes() == data["assets"]["rain"]["seconds"] * 48000
     rain_item = data["assets"]["rain"]
     with wave.open(str(tmp_path / rain_item["source"])) as wav:
         rain_pcm = wav.readframes(wav.getnframes())
-    assert rain_pcm == generator.samples(rain_item["seed"], True, synthesis="rain")
+    assert rain_pcm == generator.samples(
+        rain_item["seed"], True, synthesis="rain", seconds=rain_item["seconds"]
+    )
     assert rain_pcm != generator.samples(rain_item["seed"], True)
     assert (tmp_path / "ATTRIBUTION.md").read_bytes() == (tmp_path / "Credits/audio-credits.txt").read_bytes()
 
 
 @pytest.mark.parametrize("seed", [0, 13, 1307, 2**32 - 1])
 def test_rain_texture_spectrum_and_repeated_seams(seed, tmp_path):
-    pcm = generator.samples(seed, True, synthesis="rain")
-    assert pcm == generator.samples(seed, True, synthesis="rain")
+    pcm = generator.samples(seed, True, synthesis="rain", seconds=24)
+    assert pcm == generator.samples(seed, True, synthesis="rain", seconds=24)
     rain = np.frombuffer(pcm, dtype="<i2").astype(float)
     bed = np.frombuffer(generator.samples(seed, True), dtype="<i2").astype(float)
     frequency = np.fft.rfftfreq(len(rain), 1 / 48000)
 
     def spectrum(values):
         power = abs(np.fft.rfft(values)) ** 2
-        return (frequency * power).sum() / power.sum(), power
+        return (np.fft.rfftfreq(len(values), 1 / 48000) * power).sum() / power.sum(), power
 
     centroid, power = spectrum(rain)
     bed_centroid, _ = spectrum(bed)
@@ -101,7 +105,9 @@ def test_rain_synthesis_requires_generated_loop(tmp_path):
 
 def test_rain_transients_change_envelope():
     seed = 1307
-    rain = np.frombuffer(generator.samples(seed, True, synthesis="rain"), dtype="<i2").astype(float)
+    rain = np.frombuffer(generator.samples(seed, True, synthesis="rain", seconds=24), dtype="<i2").astype(
+        float
+    )
     frequency = np.fft.rfftfreq(len(rain), 1 / 48000)
     band = np.minimum(np.clip((frequency - 1000) / 500, 0, 1), np.clip((8000 - frequency) / 1500, 0, 1))
     baseline = np.fft.irfft(np.fft.rfft(np.random.default_rng(seed).uniform(-1, 1, len(rain))) * band)
@@ -130,7 +136,7 @@ def test_generated_wavs_match_committed_lfs(tmp_path):
         )
 
 
-@pytest.mark.parametrize("field", ["Source", "Seed", "Synthesis"])
+@pytest.mark.parametrize("field", ["Source", "Seed", "Synthesis", "Seconds"])
 def test_python_only_aliases_rejected(field, tmp_path):
     data = generator.load_config()
     data["assets"]["rain"][field] = data["assets"]["rain"][field.lower()]
@@ -146,15 +152,19 @@ def test_rain_k_weighted_gain_target():
     weighted = {}
     for name in ("rain", "outdoor_day"):
         item = data["assets"][name]
-        pcm = generator.samples(item["seed"], True, synthesis=item.get("synthesis", "default"))
+        pcm = generator.samples(
+            item["seed"], True, synthesis=item.get("synthesis", "default"), seconds=item.get("seconds")
+        )
         samples = np.frombuffer(pcm, dtype="<i2").astype(float) / 32768 * item["gain"]
         if name == "rain":
             samples *= data["rain"]["gain_curve"][-1][1]
         weighted[name] = levels(samples)["K"]
-    assert weighted["rain"] - weighted["outdoor_day"] == pytest.approx(-2, abs=0.02)
+    assert weighted["rain"] - weighted["outdoor_day"] == pytest.approx(-2, abs=0.02), (
+        "C-08 목표를 바꾸면 목표값과 rain gain을 함께 고친다"
+    )
 
 
-@pytest.mark.parametrize("frequency, expected_a", [(100, -19.14), (1000, 0), (4000, 0.96)])
+@pytest.mark.parametrize("frequency, expected_a", [(100, -19.14), (1000, 0), (4000, 0.96), (10000, -2.49)])
 def test_weighting_reference_tones(frequency, expected_a):
     x = np.sin(2 * np.pi * frequency * np.arange(48000) / 48000)
     measured = levels(x)
@@ -166,3 +176,30 @@ def test_weighting_reference_tones(frequency, expected_a):
     response /= np.polyval([0.73248077421585, -1.69065929318241, 1], z)
     response *= (1 - z) ** 2 / np.polyval([0.99007225036621, -1.99004745483398, 1], z)
     assert measured["K"] == pytest.approx(-3.0103 + 20 * np.log10(abs(response)) - 0.691, abs=0.001)
+
+
+@pytest.mark.parametrize("value", [None, True, 4, 15, 31, 24.0, "24"])
+def test_invalid_rain_seconds_before_writes(value, tmp_path):
+    data = generator.load_config()
+    data["assets"]["rain"]["seconds"] = value
+    config = tmp_path / "audio.json"
+    config.write_text(json.dumps(data), encoding="utf-8")
+    with pytest.raises(ValueError, match=r"assets.rain.seconds"):
+        generator.generate(config, tmp_path / "out")
+    assert not (tmp_path / "out").exists()
+
+
+def test_seconds_restricted_to_generated_rain(tmp_path):
+    data = generator.load_config()
+    data["assets"]["outdoor_day"]["seconds"] = 24
+    config = tmp_path / "audio.json"
+    config.write_text(json.dumps(data), encoding="utf-8")
+    with pytest.raises(ValueError, match="only supported for rain loops"):
+        generator.generate(config, tmp_path / "out")
+
+
+def test_weighting_rate_and_997hz_reference():
+    tone = np.sin(2 * np.pi * 997 * np.arange(48000) / 48000)
+    assert levels(tone)["K"] == pytest.approx(-3.01, abs=0.01)
+    with pytest.raises(ValueError, match="48000 Hz"):
+        levels(tone, 44100)
