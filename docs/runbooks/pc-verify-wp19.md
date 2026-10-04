@@ -132,7 +132,7 @@ python tools\scripts\check_repo.py
 - [ ] `-GolmokAnim=gasp`(또는 `golmok.anim mode gasp`, 대소문자 무관)로 PIE → `golmok.anim preview` → `preview on: … (debug only, not saved; a roster apply replaces it, golmok.anim preview off restores the roster entry)`. `preview: … is not an anim Blueprint for the skeleton of …`가 나오면 ABP `TargetSkeleton`과 소스 메시 스켈레톤이 다르다(로스터와 같은 엄격 규칙, §D #17) — 두 스켈레톤 이름을 §A9에 적는다. 시각 ABP는 로스터와 같은 규칙이라 `TargetSkeleton`이 비어 있어도(템플릿 ABP) 받는다(리뷰 R78-2). `ABP_GenericRetarget`의 `TargetSkeleton` 값(없음 또는 스켈레톤 이름)을 §A9에 적는다(§D #19). 로스터 적용(`golmok.character`·빙의 변경)은 preview를 덮어쓴다(19c T12 [#77](https://github.com/wooklym/golmok/pull/77): 소스 메시를 바꾸고 시각 메시를 설정하거나 해제한다). `golmok.anim preview off`는 로스터 항목을 다시 적용한다. 매니(시각 메시)가 캡슐을 따라 걷고 달린다. `golmok.anim profile p1`·`p2`로 즉시 바뀐다(`profile p1: max_acceleration …`).
 - [ ] 텔레포트: `golmok.travel`(또는 포털) 직후 메시가 캡슐 위치에 다시 붙는다. `golmok.anim status`의 `teleports n reinit n`이 오른다. 히치(ms)를 기록한다(§D #7).
 - [ ] 헤드리스 `.\tools\ue\test.ps1 -Filter Golmok.Animation` → `GaspSmoke` `[Info] GASP installed: EXECUTED`, `walk 3 s: PlantedSlip ≤ 30 cm/m`, `run 3 s: PlantedSlip ≤ 30 cm/m`, 발 뼈 4개가 움직임, 상태가 Walk/Run을 보고. 값과 발 뼈별 planted travel을 §A9에 적는다. 이때 `golmok.character: GASP mode default failed: <id>: <사유>; trying fallback` Warning이 보이면 잡음이 아니라 `manny_gasp` 리타깃·경로 실패 진단이다(T14 [#80](https://github.com/wooklym/golmok/pull/80)) — 사유와 `golmok.character list`의 적용 id를 §A9에 적는다.
-- [ ] `golmok.anim preview off` → 로스터가 현재 항목을 다시 적용(`preview off; roster: selected manny …`).
+- [ ] `golmok.anim preview off` → 로스터가 현재 항목을 다시 적용(`preview off; roster: selected manny …`). preview off는 현재 항목을 명시 선택으로 만들고 세이브에 남는다(다음 저장 뒤 `golmok.save status` `slot:` 줄 `character <id>` — `WP-15-zone-travel-save.md` "R91-1 후속" 판단 4, 19b가 정한다).
 
 - [ ] gasp 모드에서 경로 재생(`golmok.path play …`) 등으로 다른 폰에 빙의한 동안 HUD가 `anim: abp (possessed <클래스> is not the GASP pawn)`를 보인다(R76 C5).
 
@@ -160,7 +160,7 @@ python tools\scripts\check_repo.py
 - [ ] 이동 의미 불변(180/500/90 cm, 로스터 145/380)은 자동으로 확인한다(`Golmok.Player.Movement`, `Golmok.Character.Locomotion`, `Golmok.Animation.StateProvider`).
 
 ### B4. 통합 확인 (점수 밖, 실패하면 기본 전환 차단)
-- [ ] 로스터 교체(abp ↔ gasp 항목), 포털 왕복, `golmok.travel` 뒤 메시–캡슐 어긋남(텔레포트 재초기화), 포토 모드 구도·keep-height, 80 cm 통로 관통 0, 발소리 동기·이중 재생 없음, 세이브 복원.
+- [ ] 로스터 교체(abp ↔ gasp 항목), 포털 왕복, `golmok.travel` 뒤 메시–캡슐 어긋남(텔레포트 재초기화), 포토 모드 구도·keep-height, 80 cm 통로 관통 0, 발소리 동기·이중 재생 없음, 세이브 복원(PIE는 `golmok.load`. 시작 시 자동 복원과 캐릭터 규칙은 §B7).
 - [ ] Offset Root Bone 메시–캡슐 최대 거리를 기록한다.
 
 ### B5. BP 컴파일 직후 PIE (V-08 함정)
@@ -171,6 +171,9 @@ python tools\scripts\check_repo.py
 
 ### B7. 패키지
 - [ ] Development·Shipping cook·실행(gasp/abp 각각), 크기 증가 기록, 태그·DDCvar 경고 0(`Config/Tags/GASP.ini`·`Config/Golmok/local/` 스테이징 — §D #5), S4 성능, 플러그인을 켠 ① 패키지 정상, `/Game/GASP`·`/Game/GolmokLocal`이 없는 클론의 ① 패키지 정상(§D #9).
+- [ ] 세이브 캐릭터 복원(R91-1 후속, `WP-15-zone-travel-save.md` "R91-1 후속"; Development 패키지, 같은 세이브 폴더): abp 세션 세이브로 `-GolmokAnim=gasp` 실행 → GASP 폰이 `manny_gasp`를 유지한다(`golmok.character list` `current=manny_gasp`). 새 세이브(`golmok.save status` `character - (automatic)`)면 시작 로그에 `character` 부분이 없다. abp 실행에서 `golmok.character quinn` 뒤 닫고 gasp로 실행 → `…, character quinn; …`, `current=quinn`(명시 선택은 GASP 폰에도 복원 — T18 의도).
+- [ ] (선택) 옛 빌드 세이브: 이 변경 전 빌드가 쓴 `golmok_auto.sav`(규칙 0)로 `-GolmokAnim=gasp` 실행 → 시작 로그 `…, character manny (legacy default, not pinned); …`, `current=manny_gasp`. 시작 직후 저장(복원 이동 도착·첫 방문 등)이 슬롯을 규칙 1로 다시 쓸 수 있으므로 `golmok.save status`가 아니라 시작 로그로 판정한다. 옛 세이브 얻는 법: 이 PR 빌드를 돌리기 전에 PC의 `unreal\Golmok\Saved\SaveGames\golmok_auto.sav`(에디터 PIE·`-game`이 쓴 것)를 백업해 두었다가 패키지 세이브 폴더에 복사한다. 그 폴더는 `FPaths::ProjectSavedDir()` 아래 `SaveGames\`(슬롯 `golmok_auto`·사용자 0 — `UGolmokSaveSubsystem::SlotName`)이고 Development 패키지는 보통 `<패키지>\Windows\Golmok\Saved\SaveGames\`다. 패키지를 한 번 실행·종료해 `golmok_auto.sav`가 생긴 곳으로 확인한다. 세이브는 패키지 시작 맵과 같은 레벨에서 만든 것이어야 한다(다르면 `position not restored`로 캐릭터 단계까지 건너뛴다). 옛 세이브가 없으면 건너뛴다 — 자동화 `Golmok.Save.RoundTrip`의 레거시 단언이 덮는다.
+- [ ] 거절된 명시 복원은 세이브에 남는다(R91-1 후속 판단 2, 적대적 검증 V1): gasp 실행에서 `golmok.character manny_gasp` 뒤 닫고 `-GolmokAnim=abp`로 실행 → 시작 로그 `…, character manny_gasp (not applied, kept for the next save); …`, 폰은 자동 `manny`. `golmok.save` 뒤 `golmok.save status` `slot:` 줄은 `character manny_gasp`. 닫고 gasp로 실행 → `…, character manny_gasp; …`, `current=manny_gasp`.
 - [ ] `Content\GASP`가 있는 PC에서 `.\tools\ue\package.ps1`은 `Content\GASP exists: this package cooks the whole local GASP copy …` 경고를 먼저 낸다. `/Game/GASP`는 `DefaultGame.ini` 훅으로 **모드와 무관하게 항상 쿡**되므로 abp 패키지에도 GASP 약 1 GB가 들어가고, GASP 플러그인을 켜지 않은 PC에서는 쿡 오류가 날 수 있다(§D #18). 크기·쿡 로그를 기록한다. 쿡 방식 변경(하드 참조 + `/Game/GolmokLocal`만 쿡)은 19b가 결정한다(WP 문서 19a-2 판단 9).
 - [ ] 기존 `+DirectoriesToAlwaysStageAsUFS=(Path="../Config/Golmok")`가 `Config/Golmok/local/`(매니페스트의 GASP 프로젝트 절대 경로·해시, DDCvar JSON)도 패키지에 넣는다. DDCvar 등록에 필요하므로 의도된 동작이다. 다만 add-gasp를 돌린 PC의 패키지는 외부로 배포하지 않는다(GASP 콘텐츠 포함 — D-021 소유자 항목).
 
