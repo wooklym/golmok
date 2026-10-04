@@ -143,6 +143,10 @@ def parse_config(data):
             }[item["license"]]
             if item.get("license_url") != expected:
                 raise ValueError(f"{prefix}.license_url: expected URL matching declared license")
+        for supplied in item:
+            for canonical in ("source", "seed", "synthesis"):
+                if supplied.lower() == canonical and supplied != canonical:
+                    raise ValueError(f"{prefix}.{supplied}: expected {canonical}")
         # Python-only generator selection; adopted audio may retain this inert metadata.
         synthesis = item.get("synthesis", "default")
         if not isinstance(synthesis, str) or synthesis not in ("default", "rain"):

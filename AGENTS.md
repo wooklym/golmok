@@ -62,7 +62,7 @@ CLAUDE.md에서 너에게 그대로 적용되지 않는 부분이 있다. "Work-
     - `docs/runbooks/pc-verify-wp18*`
     - `docs/outreach/character-*`
     - `docs/images/characters/`
-  - 오디오 레인(WP-13·WP-17): `unreal/Golmok/Source/Golmok/Audio/`, `Source/Golmok/Tests/GolmokAudio*.cpp`, `unreal/Golmok/Config/Golmok/audio.json`, `unreal/Golmok/Content/Golmok/Audio/`, `unreal/Golmok/Content/Python/golmok/audio_import.py`(+ `audio_pure.py`), `tools/scripts/make_placeholder_audio.py`, `tools/tests/test_ue_audio*.py`, `tools/tests/test_ue_config_audio.py`, `tools/tests/test_ue_python_audio_import.py`, `tools/tests/test_make_placeholder_audio.py`, `tools/tests/fixtures/ue/audiomath*`, `docs/research/10-*`, `docs/plan/WP-13*`, `docs/plan/WP-17*`, `docs/runbooks/pc-verify-wp13*`, `docs/capture/03-*`.
+  - 오디오 레인(WP-13·WP-17): `unreal/Golmok/Source/Golmok/Audio/`, `Source/Golmok/Tests/GolmokAudio*.cpp`, `unreal/Golmok/Config/Golmok/audio.json`, `unreal/Golmok/Content/Golmok/Audio/`, `unreal/Golmok/Content/Python/golmok/audio_import.py`(+ `audio_pure.py`), `tools/scripts/make_placeholder_audio.py`, `tools/tests/test_ue_audio*.py`, `tools/tests/test_ue_config_audio.py`, `tools/tests/test_ue_python_audio_import.py`, `tools/tests/test_make_placeholder_audio.py`, `tools/tests/audio_weighting.py`, `tools/tests/fixtures/ue/audiomath*`, `docs/research/10-*`, `docs/plan/WP-13*`, `docs/plan/WP-17*`, `docs/runbooks/pc-verify-wp13*`, `docs/capture/03-*`.
   - 새 레인은 소유자가 과제로 배정한다.
 - **Claude 레인**(코딩 Opus ultracode·설계도 Opus, D-020): `Source/Golmok/{Geo,Zones,Portals,Lighting,Debug,Photo}/`, 그 밖의 `Tests/*`, 다른 `Config/Golmok/*.json`, `Content/Python/golmok/`, 기존 `tools/tests/*`(아래 핫스팟 제외). 이 파일들은 고치지 않는다. 필요하면 PR 설명이나 소유자를 통해 요청한다. `Player/`의 파일은 모두 핫스팟이라 훅으로만 고친다.
 - **공유 핫스팟**
