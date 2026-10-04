@@ -41,7 +41,8 @@ namespace GolmokCharacters
 	GOLMOK_API bool LoadRoster(FGolmokCharacterRoster& OutRoster, FString& OutError);
 }
 
-/** World-local console roster; no saved selection, input mapping, or pawn replacement. */
+/** World-local console roster; Save/ reads IsExplicitSelection() to persist explicit choices only.
+ * No input mapping or pawn replacement here. */
 UCLASS()
 class GOLMOK_API UGolmokCharacterSubsystem : public UWorldSubsystem
 {
@@ -57,6 +58,8 @@ public:
 	FString DescribeRoster() const;
 	const FGolmokCharacterRoster& GetRoster() const { return Roster; }
 	const FString& GetCurrentId() const { return CurrentId; }
+	/** True while CurrentId came from SelectCharacter. Automatic reapplication of that id keeps it;
+	 * a successful automatic default/fallback clears it, and a fully failed automatic pass leaves it unchanged. */
 	bool IsExplicitSelection() const { return bExplicitSelection; }
 	const FString& GetLoadError() const { return LoadError; }
 
