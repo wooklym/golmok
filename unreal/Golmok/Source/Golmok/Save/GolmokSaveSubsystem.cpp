@@ -5,6 +5,7 @@
 #include "Characters/GolmokCharacterSubsystem.h"
 #include "CoreGlobals.h"
 #include "Engine/GameInstance.h"
+#include "Engine/GameViewportClient.h"
 #include "Engine/World.h"
 #include "GameFramework/Pawn.h"
 #include "GameFramework/PlayerController.h"
@@ -173,6 +174,7 @@ void UGolmokSaveSubsystem::Deinitialize()
 	FWorldDelegates::OnWorldBeginTearDown.Remove(TearDownHandle);
 	TearDownHandle.Reset();
 	HandleWorldEnd(ActiveWorld.Get());
+	UnbindViewportClose();
 	Super::Deinitialize();
 }
 
@@ -209,6 +211,12 @@ void UGolmokSaveSubsystem::HandleWorldBeginPlay(UWorld& InWorld)
 	if (UGolmokPhotoModeSubsystem* Photo = InWorld.GetSubsystem<UGolmokPhotoModeSubsystem>())
 	{
 		PhotoHandle = Photo->OnPhotoSaved.AddUObject(this, &UGolmokSaveSubsystem::OnPhotoSaved);
+	}
+	UnbindViewportClose();
+	if (UGameViewportClient* Viewport = InWorld.GetGameViewport())
+	{
+		ViewportCloseHandle = Viewport->OnCloseRequested().AddUObject(this, &UGolmokSaveSubsystem::OnViewportCloseRequested);
+		CloseViewport = Viewport;
 	}
 	InWorld.GetTimerManager().SetTimer(VisitTimer, FTimerDelegate::CreateUObject(this, &UGolmokSaveSubsystem::OnVisitPoll), VisitPollSeconds,
 		/*bLoop*/ true);
@@ -287,8 +295,10 @@ void UGolmokSaveSubsystem::HandleWorldEnd(UWorld* InWorld)
 	{
 		return;
 	}
-	// Synchronous: an async write during shutdown can be lost (spec §3). The snapshot was refreshed at OnWorldBeginTearDown
-	// (actors still valid; TakeSnapshot keeps it once bIsTearingDown is set) or is taken now when the world is not tearing down.
+	// Synchronous: an async write during shutdown can be lost (spec §3). The snapshot was refreshed when the game viewport was
+	// asked to close (PIE stop / exit, window closed: before the engine destroys the local player's controller) or at
+	// OnWorldBeginTearDown (-game quit / map change: actors still valid; TakeSnapshot keeps it once bIsTearingDown is set or
+	// the pawn is gone), or is taken now when the world is not tearing down.
 	if (bAutomatic && Snapshot.bValid && !bSuppressWrites)
 	{
 		SaveNow(/*bSync*/ true, TEXT("world end"));
@@ -307,6 +317,7 @@ void UGolmokSaveSubsystem::HandleWorldEnd(UWorld* InWorld)
 	}
 	TraveledHandle.Reset();
 	PhotoHandle.Reset();
+	UnbindViewportClose();
 	ActiveWorld.Reset();
 }
 
@@ -320,13 +331,39 @@ void UGolmokSaveSubsystem::OnPreExit()
 
 void UGolmokSaveSubsystem::OnWorldBeginTearDown(UWorld* InWorld)
 {
-	// PIE stop, map change and game exit set bIsTearingDown here, before EndPlay and before the game instance shuts down:
-	// the pawn is still valid, so the world-end / pre-exit sync save writes where the player is now, not the last poll
-	// (up to VisitPollSeconds old).
+	// Map change and the -game quit command set bIsTearingDown here, before EndPlay and before the game instance shuts down:
+	// the pawn is still valid, so the world-end / pre-exit sync save writes where the player is now, not the last poll (up to
+	// VisitPollSeconds old). PIE stop / PIE exit and a closed game window get here with the local player already removed (no
+	// pawn: TakeSnapshot keeps what OnViewportCloseRequested took).
 	if (InWorld && InWorld == ActiveWorld.Get())
 	{
 		TakeSnapshot(*InWorld, /*bForce*/ true);
 	}
+}
+
+void UGolmokSaveSubsystem::OnViewportCloseRequested(FViewport* InViewport)
+{
+	// PIE stop / PIE exit (UEditorEngine::EndPlayMap, ULocalPlayer::HandleExitCommand) and closing the game window
+	// (UGameEngine::OnGameWindowClosed) close the game viewport first; the engine then removes the local player, destroying
+	// its controller (the pawn is unpossessed, so GetPlayerPawn finds none), before the primary world's BeginTearingDown -
+	// OnWorldBeginTearDown would keep the last poll (up to VisitPollSeconds old). Here the pawn still stands where the
+	// player stopped (R49-2, V-14). Not while a restore is pending (the slot's held values stay, as in OnVisitPoll) and not
+	// before the first snapshot of this world (closing at once writes nothing, as before).
+	UWorld* World = ActiveWorld.Get();
+	if (World && !bRestorePending && Snapshot.bValid)
+	{
+		TakeSnapshot(*World, /*bForce*/ true);
+	}
+}
+
+void UGolmokSaveSubsystem::UnbindViewportClose()
+{
+	if (UGameViewportClient* Viewport = CloseViewport.Get())
+	{
+		Viewport->OnCloseRequested().Remove(ViewportCloseHandle);
+	}
+	CloseViewport.Reset();
+	ViewportCloseHandle.Reset();
 }
 
 // ---- snapshot / index -----------------------------------------------------------------------------------------
@@ -335,7 +372,7 @@ bool UGolmokSaveSubsystem::TakeSnapshot(UWorld& InWorld, bool bForce)
 {
 	if (InWorld.bIsTearingDown && !bForce)
 	{
-		return Snapshot.bValid; // keep the last one (refreshed at OnWorldBeginTearDown): actors are going away
+		return Snapshot.bValid; // keep the last one (refreshed at OnViewportCloseRequested / OnWorldBeginTearDown): actors are going away
 	}
 	APawn* Pawn = GolmokSavePrivate::PlayerPawn(&InWorld);
 	if (!Pawn)

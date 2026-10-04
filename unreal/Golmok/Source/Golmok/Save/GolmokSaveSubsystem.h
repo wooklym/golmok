@@ -7,6 +7,8 @@
 #include "TimerManager.h"
 #include "GolmokSaveSubsystem.generated.h"
 
+class FViewport;
+class UGameViewportClient;
 class UWorld;
 
 /**
@@ -17,8 +19,9 @@ class UWorld;
  * Triggers: travel arrival (UGolmokTravelSubsystem::OnTraveled), first visit (a loaded zone's footprint contains the
  * player for the first time; polled every VisitPollSeconds, never per frame), photo saved (WP-12 OnPhotoSaved hook),
  * every AutosaveIntervalSeconds when something changed, world end and FCoreDelegates::OnPreExit (synchronous). The
- * synchronous end saves write a snapshot refreshed at FWorldDelegates::OnWorldBeginTearDown (actors still valid), not the
- * last poll.
+ * synchronous end saves write a snapshot refreshed when the game viewport is asked to close (PIE stop / exit, game window
+ * closed: the engine then removes the local player, destroying its controller, before the world tears down) and at
+ * FWorldDelegates::OnWorldBeginTearDown (-game quit / map change: actors still valid there), not the last poll.
  *
  * Restore (bRestoreOnBeginPlay; the command line switch -GolmokNoRestore turns it off for runbooks / automation): the
  * travel subsystem's OnWorldBeginPlay calls HandleWorldBeginPlay, which loads the visit / photo index and, one tick
@@ -142,7 +145,7 @@ private:
 		double YawUE = 0.0;
 	};
 
-	/** bForce: also while the world is tearing down (OnWorldBeginTearDown, before EndPlay: actors are still valid). */
+	/** bForce: also while the world is tearing down (OnViewportCloseRequested / OnWorldBeginTearDown); without a pawn the last snapshot is kept. */
 	bool TakeSnapshot(UWorld& InWorld, bool bForce = false);
 	/** The slot's position / zone become the snapshot and are held (not overwritten by the pawn at the PlayerStart) until a
 	 *  travel arrives or the pawn walks more than HoldReleaseCm from where it stood: a failed / pending restore never loses the save. */
@@ -155,6 +158,8 @@ private:
 	void OnRestoreTick();
 	void OnPreExit();
 	void OnWorldBeginTearDown(UWorld* InWorld);
+	void OnViewportCloseRequested(FViewport* InViewport);
+	void UnbindViewportClose();
 	void OnAsyncSaved(const FString& InSlotName, const int32 InUserIndex, bool bSuccess);
 	void MarkDirty() { bDirty = true; }
 
@@ -165,6 +170,8 @@ private:
 	FDelegateHandle PhotoHandle;
 	FDelegateHandle PreExitHandle;
 	FDelegateHandle TearDownHandle;
+	TWeakObjectPtr<UGameViewportClient> CloseViewport; // the active world's game viewport (OnCloseRequested bound)
+	FDelegateHandle ViewportCloseHandle;
 
 	TArray<FGolmokSaveVisit> Visited;
 	TArray<FString> Photos;
