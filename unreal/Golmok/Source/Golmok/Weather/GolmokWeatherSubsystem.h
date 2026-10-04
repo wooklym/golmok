@@ -102,6 +102,8 @@ public:
 	bool IsFxEnabled() const { return bFxEnabled; }
 	/** ResetSystem() on the rain component (travel arrival, save position restore): no teleport streaks. */
 	void ResetRainFx();
+	/** ResetRainFx calls so far, also those without a rain component (automation: travel / restore reset exactly once). */
+	int32 GetRainFxResetCount() const { return RainFxResetCount; }
 
 	/** golmok.weather arguments (without the command name) -> true on success; OutMessage is the console reply. */
 	bool RunCommand(const TArray<FString>& Args, FString& OutMessage);
@@ -201,8 +203,10 @@ private:
 	bool bScheduleNoClock = false;
 	/** initial.mode schedule before the clock was available: the first evaluation with a clock is instant, without an event. */
 	bool bInitialSchedulePending = false;
-	/** World seconds (StepWeather deltas) until the next AGolmokTimeOfDay::Find while none is cached. */
+	/** World seconds (StepWeather deltas) until the next AGolmokTimeOfDay::Find while none is cached (0 after the BeginPlay miss). */
 	double TimeOfDaySearchCooldown = 0.0;
+	/** GetRainFxResetCount. */
+	int32 RainFxResetCount = 0;
 	/** MPC parameter names (GolmokWeatherMath::Mpc*), built once in Initialize. */
 	FName MpcRainName;
 	FName MpcWetnessName;

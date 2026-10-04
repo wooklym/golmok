@@ -36,8 +36,9 @@
 // off): rain 0.60 fixed with wetness 0.42 / puddle 0.10 is saved as rule 1 with those five values and shown on the
 // golmok.save status slot line; a weather change marks the save dirty, the restore's own change does not. Restores of a
 // slot without position / zone / home (rule 3): rule 1 brings the five values back instantly; a rule 0 slot keeps the
-// current weather ("weather - (not in save)"); an unknown state name restores as clear with "(unknown weather 'snow')";
-// an intensity of 3 is clamped to 1 and a mode of 7 restores as fixed. With an AGolmokTimeOfDay with keyframes, a saved
+// current weather ("weather - (not in save)"); both reset the rain fx exactly once (R112-U8); an unknown state name
+// restores as clear with "(unknown weather 'snow')"; an intensity of 3 is clamped to 1 and a mode of 7 restores as
+// fixed. With an AGolmokTimeOfDay with keyframes, a saved
 // Schedule mode is applied after the saved time of day: the slot of the restored time (not of the time before the
 // restore) becomes the target, by a transition from the saved weather, and marks the save dirty.
 //
@@ -1019,7 +1020,10 @@ namespace GolmokTravelSaveTest
 				Test->AddInfo(FString::Printf(TEXT("%s: %s"), What, *RestoreMessage));
 				return RestoreMessage;
 			};
+			// R112-U8: a restore without a zone travel resets the rain fx exactly once, whatever the weather rule.
+			int32 Resets = Weather->GetRainFxResetCount();
 			FString Restored = RestoreSlot(TEXT("weather rule 1"));
+			Test->TestEqual(TEXT("weather rule 1: rain fx reset once"), Weather->GetRainFxResetCount(), Resets + 1);
 			Test->TestTrue(TEXT("weather rule 1: restore message"), Restored.Contains(TEXT(", weather rain 0.60 wet 0.42 puddle 0.10 fixed")));
 			Test->TestEqual(TEXT("weather rule 1: five values restored"), LiveWeather(*Weather), FString(TEXT("rain 0.60 wet 0.42 puddle 0.10 fixed")));
 			Test->TestFalse(TEXT("weather rule 1: instant (no transition)"), Weather->IsTransitioning());
@@ -1031,7 +1035,9 @@ namespace GolmokTravelSaveTest
 			Weather->SetWeather(EGolmokWeather::Overcast, 0.f, /*bInstant*/ true, Message);
 			const FGolmokSaveWeather Saved = Slot->Weather;
 			Slot->Weather = FGolmokSaveWeather();
+			Resets = Weather->GetRainFxResetCount();
 			Restored = RestoreSlot(TEXT("weather rule 0"));
+			Test->TestEqual(TEXT("weather rule 0: rain fx reset once (no OnTraveled without a zone travel)"), Weather->GetRainFxResetCount(), Resets + 1);
 			Test->TestTrue(TEXT("weather rule 0: message 'weather - (not in save)'"), Restored.Contains(TEXT(", weather - (not in save)")));
 			Test->TestEqual(TEXT("weather rule 0: current weather kept (overcast)"), static_cast<int32>(Weather->GetTargetWeather()), static_cast<int32>(EGolmokWeather::Overcast));
 			Test->TestTrue(TEXT("golmok.save status: rule 0 slot line 'weather - (not in save)'"), Save->DescribeStatus().Contains(TEXT("weather - (not in save)")));

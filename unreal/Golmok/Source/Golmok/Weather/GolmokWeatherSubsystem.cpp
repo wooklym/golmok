@@ -474,8 +474,13 @@ AGolmokTimeOfDay* UGolmokWeatherSubsystem::ResolveTimeOfDay(bool bForce)
 	{
 		return nullptr;
 	}
-	TimeOfDaySearchCooldown = GolmokWeather::Runtime::TimeOfDaySearchSeconds;
 	AGolmokTimeOfDay* Found = AGolmokTimeOfDay::Find(GetWorld());
+	// R112-U9: a forced search that misses (OnWorldBeginPlay on a level whose time of day the player controller spawns
+	// later; also SetWeather / SetMode there) leaves the cooldown at 0, so the next StepWeather searches again instead
+	// of showing a non-clear initial weather on unmodified lighting for up to TimeOfDaySearchSeconds. That tick's miss
+	// starts the 0.5 s throttle, so a level without any time of day still pays at most one extra search after a forced
+	// one and otherwise one per 0.5 s, never one per tick.
+	TimeOfDaySearchCooldown = (bForce && !Found) ? 0.0 : GolmokWeather::Runtime::TimeOfDaySearchSeconds;
 	if (Found)
 	{
 		TimeOfDay = Found;
@@ -596,6 +601,7 @@ void UGolmokWeatherSubsystem::Traveled(const FString& ZoneId)
 
 void UGolmokWeatherSubsystem::ResetRainFx()
 {
+	++RainFxResetCount;
 	AActor* FxActor = RainFxActor.Get();
 	if (!IsValid(FxActor))
 	{

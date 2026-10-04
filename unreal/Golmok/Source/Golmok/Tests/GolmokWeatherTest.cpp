@@ -7,20 +7,22 @@
 // delay boundaries, puddle <= wetness, schedule across midnight). All pass under -nullrhi.
 //
 // Golmok.Weather.Lighting (L_Dev PIE): the subsystem drives the level's AGolmokTimeOfDay. On the level-lighting base
-// rain turns the exposure override on and clear restores the authored flag; each cycle preset x {clear, overcast,
-// rain 0.6} applied instantly reads back as GolmokWeatherMath::Apply(the clear preset state), and clear returns to the
-// clear state bit for bit; the interior overlay keeps its own fog / bias over the weather-reduced sun and sky; a
-// weather transition driven by hand (StepWeather) is the formula at alpha 0.5 and lands on the target; weather never
-// changes IsNight() or fires OnPresetChanged / OnNightChanged; Clock (60 min/s) + Schedule fires OnWeatherChanged
-// exactly once at the 15:00 slot boundary with its arguments; a weather change during a running time-of-day
-// transition makes the transition end on the new composition.
+// rain turns the exposure override on and clear restores the authored flag; each cycle preset x {clear, overcast, rain
+// 0.6} applied instantly reads back as GolmokWeatherMath::Apply(the clear preset state), and clear returns to the clear
+// state bit for bit; the interior overlay keeps its own fog / bias over the weather-reduced sun and sky; a weather
+// transition driven by hand (StepWeather) is the formula at alpha 0.5 and lands on the target; weather never changes
+// IsNight() (at a minute whose base lux is just above the night threshold, found in the loaded presets) or fires
+// OnPresetChanged / OnNightChanged; Clock (60 min/s) + Schedule fires OnWeatherChanged exactly once at the 15:00 slot
+// boundary with its arguments; a weather change during a running time-of-day transition makes the transition end on the
+// new composition.
 // Golmok.Weather.Runtime (L_Dev PIE): golmok.weather parsing (rain heavy / 0.42 / out of range / instant, an explicit
 // state in schedule mode -> fixed), OnWeatherChanged counts and what a subscriber reads inside the callback, the
 // precipitation delay (rising: 0 below alpha 0.5, falling: 0 at alpha 0.5), the surface integration table, photo mode
 // (GamePause: no progress, changes refused, the transition continues after Exit), the HUD line, the rain fx activity
-// rules (interior, fx off, travel reset) when NS_GolmokRain exists and the MPC instance values when MPC_GolmokWeather
-// exists. Without those assets the steps are skipped with an Info line ("MPC_GolmokWeather missing - skipped",
-// "NS_GolmokRain missing - skipped"), so both pass under -nullrhi on a clone before V-16.
+// rules (interior, fx off, travel reset: the OnTraveled binding plus ResetRainFx() itself, no broadcast) when
+// NS_GolmokRain exists and the MPC instance values when MPC_GolmokWeather exists. Without those assets the steps are
+// skipped with an Info line ("MPC_GolmokWeather missing - skipped", "NS_GolmokRain missing - skipped"), so both pass
+// under -nullrhi on a clone before V-16.
 //
 // Headless: .\tools\ue\test.ps1 -Filter Golmok.Weather   (or in the editor console: Automation RunTests Golmok.Weather)
 
@@ -35,6 +37,7 @@
 #include "Engine/World.h"
 #include "GameFramework/Actor.h"
 #include "GameFramework/PlayerController.h"
+#include "Lighting/GolmokClockMath.h"
 #include "Lighting/GolmokTimeOfDay.h"
 #include "Map/GolmokTravelSubsystem.h"
 #include "Materials/MaterialParameterCollection.h"
@@ -697,13 +700,41 @@ namespace GolmokWeatherTests
 			}
 		}
 
-		/** 21:24 (lux 0.114, day): heavy rain cuts the sun below the night threshold, but IsNight() reads the base only. */
+		/**
+		 * A day minute whose base lux lies in [threshold, threshold / rain lux_scale) - just above the night threshold, so
+		 * heavy rain cuts the sun below it - but IsNight() reads the base only (R112-U11: found from the loaded presets
+		 * through EvaluateClock, so a 14b night-lux retune moves the minute instead of breaking the test).
+		 */
 		void NightUnaffected()
 		{
 			AGolmokTimeOfDay* Tod = TimeOfDay.Get();
+			UGolmokWeatherSubsystem* W = Weather.Get();
+			const double Threshold = static_cast<double>(Tod->NightLuxThreshold);
+			const double RainLuxScale = W->GetConfig().Rain.LuxScale;
+			// 1 % margins on both sides keep float rounding (the float threshold, the composed lux) out of the decision.
+			const double Low = Threshold * 1.01;
+			const double High = Threshold / RainLuxScale * 0.99;
+			float Minute = -1.f;
+			double BaseLux = 0.0;
+			for (int32 M = 0; static_cast<double>(M) < GolmokClockMath::MinutesPerDay && Minute < 0.f; ++M)
+			{
+				FGolmokLightingState Base;
+				if (Tod->EvaluateClock(static_cast<double>(M), Base) && Base.Lux >= Low && Base.Lux < High)
+				{
+					Minute = static_cast<float>(M);
+					BaseLux = Base.Lux;
+				}
+			}
+			if (Minute < 0.f)
+			{
+				Test->AddInfo(FString::Printf(TEXT("no minute with base lux in [%g, %g) (threshold %g, rain lux_scale %g) - NightUnaffected skipped"), Low,
+					High, Threshold, RainLuxScale));
+				return;
+			}
+			const FString When = FString::Printf(TEXT("%02d:%02d (base lux %g)"), static_cast<int32>(Minute) / 60, static_cast<int32>(Minute) % 60, BaseLux);
 			Set(EGolmokWeather::Clear, 0.f, true);
-			Tod->SetTimeOfDay(1284.f, /*bInstant*/ true);
-			if (!Test->TestFalse(TEXT("21:24 is not night"), Tod->IsNight()))
+			Tod->SetTimeOfDay(Minute, /*bInstant*/ true);
+			if (!Test->TestFalse(*FString::Printf(TEXT("%s is not night"), *When), Tod->IsNight()))
 			{
 				return;
 			}
@@ -712,8 +743,8 @@ namespace GolmokWeatherTests
 			Set(EGolmokWeather::Rain, 1.f, true);
 			FGolmokLightingState S;
 			Tod->CaptureState(S);
-			Test->TestTrue(*FString::Printf(TEXT("21:24 rain 1.0: lux %g < the night threshold"), S.Lux), S.Lux < static_cast<double>(Tod->NightLuxThreshold));
-			Test->TestFalse(TEXT("21:24 rain 1.0: still not night"), Tod->IsNight());
+			Test->TestTrue(*FString::Printf(TEXT("%s rain 1.0: lux %g < the night threshold"), *When, S.Lux), S.Lux < Threshold);
+			Test->TestFalse(*FString::Printf(TEXT("%s rain 1.0: still not night"), *When), Tod->IsNight());
 			Set(EGolmokWeather::Overcast, 0.f, true);
 			Set(EGolmokWeather::Clear, 0.f, true);
 			Test->TestEqual(TEXT("weather changes fire no OnPresetChanged"), PresetEvents, 0);
@@ -1196,13 +1227,19 @@ namespace GolmokWeatherTests
 
 			if (UGolmokTravelSubsystem* Travel = UGolmokTravelSubsystem::Get(World))
 			{
-				Travel->OnTraveled.Broadcast(TEXT("weather_test")); // the travel arrival notification
-				Test->TestTrue(TEXT("after OnTraveled: rain fx reset and still active"), GolmokWeatherRainFx::IsActive(Fx));
-				Test->TestTrue(TEXT("after OnTraveled: weather unchanged"), W->GetTargetWeather() == EGolmokWeather::Rain && W->GetRainIntensity() == 1.f);
+				// R112-U7: the travel arrival reset is checked as its two halves, the OnTraveled binding and ResetRainFx()
+				// itself. Broadcasting OnTraveled here would also run UGolmokSaveSubsystem::OnTraveled (a visit of a fake
+				// zone, ReleaseHold, MarkDirty) in the PIE world.
+				Test->TestTrue(TEXT("the weather subsystem is bound to OnTraveled"), Travel->OnTraveled.IsBoundToObject(W));
+				const int32 ResetsBefore = W->GetRainFxResetCount();
+				W->ResetRainFx(); // what UGolmokWeatherSubsystem::Traveled does on the travel arrival
+				Test->TestEqual(TEXT("ResetRainFx counted once"), W->GetRainFxResetCount(), ResetsBefore + 1);
+				Test->TestTrue(TEXT("after ResetRainFx: rain fx reset and still active"), GolmokWeatherRainFx::IsActive(Fx));
+				Test->TestTrue(TEXT("after ResetRainFx: weather unchanged"), W->GetTargetWeather() == EGolmokWeather::Rain && W->GetRainIntensity() == 1.f);
 				if (Camera)
 				{
 					const FVector Expected = Camera->GetCameraLocation() + FVector(0.0, 0.0, W->GetConfig().HeightOffsetCm);
-					Test->TestTrue(TEXT("after OnTraveled: the fx sits at the camera"), Fx->GetActorLocation().Equals(Expected, 1.0));
+					Test->TestTrue(TEXT("after ResetRainFx: the fx sits at the camera"), Fx->GetActorLocation().Equals(Expected, 1.0));
 				}
 			}
 			else

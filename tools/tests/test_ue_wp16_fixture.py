@@ -2,7 +2,8 @@
 
 - Source/Golmok/Weather/ holds exactly the design section 1 files; named namespaces only (no anonymous
   namespace, no file-scope `static`), LogGolmok, and Niagara headers only in GolmokWeatherRainFx.cpp.
-- The hook blocks are exactly the section 15 text (Golmok.Build.cs, DefaultGame.ini) and Golmok.uproject lists
+- The hook blocks are exactly the section 15 text (Golmok.Build.cs; DefaultGame.ini: one contiguous block
+  somewhere after the WP-19 block) and Golmok.uproject (parsed JSON) lists
   {"Name": "Niagara", "Enabled": true} as a new element before AndroidFileServer.
 - AGolmokTimeOfDay::ComposeTarget applies the weather before the interior overlay (section 5-3).
 - The three automation tests are declared under the editor guard; the HUD line comes from a provider (Debug/
@@ -46,7 +47,6 @@ INI_HOOK = (
     "[/Script/UnrealEd.ProjectPackagingSettings]\n"
     '+DirectoriesToAlwaysCook=(Path="/Game/Golmok/Weather")\n'
 )
-UPROJECT_LINE = '\t\t{"Name": "Niagara", "Enabled": true},'
 # Allowed: static_assert, and function-local statics (two tabs or more of indentation).
 FILE_SCOPE_STATIC = re.compile(r"^\t?static\b(?!_assert)", re.M)
 
@@ -105,22 +105,25 @@ def test_build_cs_hook_block():
     )  # design 17 #2: add only if linking fails
 
 
-def test_default_game_ini_hook_at_the_end():
+def test_default_game_ini_hook_after_the_wp19_block():
+    # R112-U6 (a): a later WP may append its block after this one; this one stays whole and after WP-19's.
     text = _read(UE / "Config" / "DefaultGame.ini")
-    assert text.count(INI_HOOK) == 1 and text.endswith("\n\n" + INI_HOOK)
+    assert text.count(INI_HOOK) == 1  # contiguous: the three lines exactly, in order
     assert text.count("[WP-16 hook]") == 1
+    assert text.count("; [WP-19 hook]") == 1
+    assert text.index("; [WP-19 hook]") < text.index(INI_HOOK)
+    at = text.index(INI_HOOK)
+    assert at == 0 or text[at - 1] == "\n"  # starts on its own line
 
 
 def test_uproject_enables_niagara_before_android_file_server():
-    raw = _read(UE / "Golmok.uproject")
-    project = json.loads(raw)
+    # R112-U6 (b): parsed JSON only, so a reformatted .uproject (editor save) keeps passing.
+    project = json.loads(_read(UE / "Golmok.uproject"))
     plugins = project["Plugins"]
-    assert {"Name": "Niagara", "Enabled": True} in plugins
+    niagara = [p for p in plugins if p.get("Name") == "Niagara"]
+    assert niagara == [{"Name": "Niagara", "Enabled": True}]
     names = [p["Name"] for p in plugins]
     assert names.index("Niagara") == names.index("AndroidFileServer") - 1
-    lines = raw.splitlines()
-    at = lines.index(UPROJECT_LINE)
-    assert lines[at + 1 : at + 3] == ["\t\t{", '\t\t\t"Name": "AndroidFileServer",']
     assert project["Modules"][0]["AdditionalDependencies"] == [
         "Engine",
         "EnhancedInput",
@@ -152,7 +155,9 @@ def test_three_automation_tests_under_the_editor_guard():
         "FStartPIECommand(false)",
         "StepWeather(",
         "Photo->Enter(",
-        "OnTraveled.Broadcast(",
+        "ResetRainFx()",
+        "OnTraveled.IsBoundToObject(",
+        "GetRainFxResetCount()",
     ):
         assert needle in text, needle
 
@@ -167,9 +172,11 @@ def test_every_shared_error_message_is_in_the_automation_test():
 def test_hud_line_comes_from_a_provider_and_debug_is_untouched():
     code = _strip_comments(_read(SUBSYSTEM_CPP))
     assert "AddExtraHudLineProvider(" in code and "RemoveExtraHudLineProvider(" in code
+    # R112-U6 (c): no weather identifiers in Debug/ (the generic word "weather" in a comment is fine).
     for path in sorted((SOURCE / "Debug").glob("*")):
         text = _read(path)
-        assert "WP-16" not in text and "weather" not in text.lower(), path.name
+        for needle in ("WP-16", "GolmokWeather"):
+            assert needle not in text, (path.name, needle)
 
 
 def test_console_command_is_registered_once():
