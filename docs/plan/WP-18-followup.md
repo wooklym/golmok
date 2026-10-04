@@ -480,3 +480,11 @@ STATUS/astra-tasks 문안: “T16 R80-1~5 완료: GASP 교차 분류를 공통 A
 ### 병합 시 반영 — T18
 
 STATUS/astra-tasks 문안: “선택 T18 R77-6/7/8 구현: 일반 폰 GASP 항목 로드 전 거절(기존 설정 경로 해석), 명시 선택만 CurrentId 우선, 모든 검사 후 소스→visual 적용 및 Clear 단위 스케일. 로드 시도0·자동/명시 모드 선택·visual 시점 회귀 포함. 등록36 유지, 실제 GASP 19b/V-15 대기.” 19b 경로 확정 뒤 4개 경로 갱신 스택이 여전히 우선이며 R84 (C)는 그 과제에 묶는다.
+
+## 병합 기록 — T18 PR [#91](https://github.com/wooklym/golmok/pull/91) (2026-10-04, 오케스트레이터 세션)
+
+**내용**: 위 "T18" 절과 같다. R77-7(일반 폰의 GASP 로스터 항목을 `FConfig::AssetPath` 경로 일치 또는 `visual`로 판정해 메시·애님 로드 전에 거절, 로드 뒤 `RequiresGaspPawn` 판정 유지), R77-8(`SelectCharacter` 성공만 명시 선택, 명시일 때만 `CurrentId`가 모드 기본값보다 앞), R77-6(모든 검사 뒤 소스 메시·애님 → visual, visual 없는 항목은 Clear 뒤 상대 스케일 1). 등록 수는 36으로 같고, Astra 전체 UE 36 Success다.
+
+**병합 전 리뷰(Opus 5.5 ultracode 적대 검증, [R91](https://github.com/wooklym/golmok/pull/91#issuecomment-5977339808))**: (A) 0 · (B) 1 · (C) 5. 게이트(리눅스): ruff, format 112, pytest 1501 passed / 3 skipped, check_repo, `diff --check`, 등록 36, CI 10/10. UE 빌드·전체 36 Success는 Astra 보고다. 확인(결함 없음): R77-6·7·8 모두 해결 — 각 수정을 되돌리는 변이를 테스트가 잡는다(`Test.cpp:76`·`:127`·`:130`·`:132`·`:138`·`:158`), 사전 거절은 로드 뒤 거절의 부분집합(종전 적용을 새로 거절하지 않음), 경로 비교·설정 파싱 실패·상태 전이·C++ 위생·레인 준수. **해석 판정 — 수락**: "자동 적용은 거짓"을 새 기본값·폴백 선택에만 적용하고 명시 id의 자동 복원은 명시로 유지한 Astra 해석이 R77-8 의도에 맞다(문자 그대로면 두 번째 Photo/Path 복귀에서 선택을 잃어 "Photo/path pawns retain the selection" 계약이 깨진다 — 배정 문안의 오류). (B) **R91-1**: 세이브가 명시 여부와 무관하게 `GetCurrentId()`를 저장하고(`GolmokSaveSubsystem.cpp:372`) 복원이 `SelectCharacter`로 다시 적용해(`:816-826`), 이전 abp 세션의 자동 `manny`가 GASP 폰에 명시로 고정된다 — 기존 동작이며 이 PR 원인이 아니다. 19b·V-15 §B7 전에 고친다: 캐릭터 레인 `IsExplicitSelection()` 추가(Astra **T20**) → 세이브는 명시 선택만 저장·레거시 세이브 처리(Claude 레인, T20 병합 뒤). `golmok.anim preview off`의 같은 승격은 19b에서 정한다. (C → T20 선택): R91-2 폴백 성공이 명시 플래그를 지우는 단언, R91-3 거절 사유 단언·visual 절 전용 계수 비교, R91-4 관찰자 애님 클래스·리터럴 메시, R91-5 `SetVisualOverride` 반환값과 사소 정리. 설계 리뷰 불필요(품질 가설·D-018·D-021 조건 불변).
+
+**병합**: 오케스트레이터 결정(D-019). main(T19 #92 포함)을 병합한 뒤 이 커밋으로 반영했다. 위 "병합 시 반영 — T18" 문안에 "명시 id 자동 복원은 명시 유지(R91 수락)"와 R91-1 후속을 더해 STATUS 병행 트랙 WP-18 행과 `astra-tasks.md` T18·T20에 옮겼다. 19b 경로 확정 뒤 4개 경로 갱신 스택(R84 (C) 포함)이 T20보다 우선이다.
