@@ -738,3 +738,25 @@ STATUS/astra-tasks 문안: “T28 완료: 파형/설정값 유지, rain PC판정
 **병합**: 오케스트레이터 결정(D-019). 이 커밋으로 반영했다(base가 main `75b8869`라 합칠 것 없음). 위 "병합 시 반영 — T28" 문안은 STATUS 병행 트랙 WP-13 행과 `astra-tasks.md` T28에 옮겼다. 새 결정이 없어 DECISIONS는 바꾸지 않았다.
 
 오케스트레이터 판단(퀄리티 우선): R118-1(디지털 0 보장)과 R118-3(PC 카드 측정 조건)은 PC 청취 카드 **전에** 고친다. 그래서 R118-2, R114-2 전체, R114-4와 묶어 Astra **T29**로 바로 배정한다(파형 무변경). R117-4는 C-08 청취 뒤다. wp13 §9 오디오 PC 카드는 T29 병합 뒤 V-16과 함께 발행한다.
+
+
+## T29 — 디지털 0·PC 측정 조건·강수 검증 경계 (2026-10-05 KST)
+
+배정: [이슈 #30 T29](https://github.com/wooklym/golmok/issues/30#issuecomment-5985455075), [R118](https://github.com/wooklym/golmok/pull/118#issuecomment-5985411136). main `7d54053`에서 `astra/wp-13-audio-quality2`로 시작했다. WAV8개·audio.json·크레딧은 변경하지 않았다.
+
+- 필수 R118-1: `GolmokAudioMath::ShouldSendVolume(float Current, float Target)`로 생략 판정을 분리했다. 마지막 전송값과의 차가1e-4 이상이면 전송하고, 목표0·현재비0이면 차와 무관하게 전송한다. mute·clear·envelope 끝은 디지털0, 이미0이면 생략한다. 1 끝값에는 기존 임계값 규칙을 유지한다. rain/베드 모두 같은 함수를 쓴다. float32 임계값 바로 아래/정확히/바로 위,0/1 끝값과 무작위500쌍을 Python 거울/g++ 드라이버로 대조한다.
+- 필수 R118-3: §9-2 밤 명령 `golmok.tod night`·판정 창 전체 정지(발소리 없음), 녹음 원본은 §7-1 `stop_recording_output`의 dir/name 경로, 소수 안착 시각은 `int(start_s * rate)`로 절단한다. 합성 PCM16 스테레오80초를 안착25.125초부터48초로 자르고 `audio_analysis` whole-file RMS 실행을 확인했다. 실제 게임 측정은 아니다.
+- 권장 R118-2: plateau `[[0,0],[.5,.5],[1,.5]]` 수락, X순서·gain감소 동시 위반 시 X진단 우선(C++/Python), Count1·Y0.7의 RainGain0 회귀를 추가했다.
+- 권장 R114-2: 미등록/비루프 자산,2..32점 상하한(33개 **증가** 점 거부·32개 수락), 점 형태, X/Y 범위·타입·NaN, 중복/감소X·감소gain, 끝점과 실내gain을 검사한다. 새 곡선 사례는 정확한 진단을 단언하고 C++ 실패는 자산·실내gain·전체 점배열을 보존하는지 확인한다. 범위 밖X는 유효 끝점·증가 조건과 수학적으로 겹치므로 정확한 범위 진단으로 검사 순서도 고정한다. UE는 NaN 토큰을 숫자로 읽어 필드 유한성 검사에서 거절하고 Infinity 토큰은 JSON 단계에서 거절한다. Python은 둘 다 필드 유한성 검사에서 거절한다.
+- 이전 생존 변이5개(미등록id·32점 상한·X범위·엄격증가 `<`/삭제)와 plateau거부 변이를 실제 Python 파서 사본에 적용해 새 테스트가6개 모두 검출함을 확인했다. 생산 파서는 변경하지 않았다.
+- 선택 R114-4(PIE 기대값을 GetConfig에서 도출)는 이월한다. 이번 변경은 볼륨0 계약·파서 경계·PC 카드 조건까지이며, 기존 PIE 초기가설 수치의 설정 의존성은 남아 있다. R117-4 약한 비 질감/밸런스·마스킹은 C-08 뒤다.
+
+### 검증 — T29
+
+- 로컬 Python 전체 **1533 passed/274 skipped/208 warnings**(87.76 s). 이후 오류 문구 단언 보강은 해당 파일140 passed/1 skipped로 재검증했다. g++/clang++ 부재로 순수 수학 드라이버10건은 로컬 skip, CI에서 교차검증한다. 기존 WAV8개 재생성/LFS 해시 회귀 통과.
+- ruff check/format·check_repo·diff --check 통과. UE5.8.3 빌드 최초12.95 s·최종6.52 s 성공. 첫 실행은 NaN의 JSON단계 거부를 기대한 테스트2단언이 실패했다(38 Success/1 Fail). UE의 실제 유한성 진단으로 기대값을 고친 뒤 전체 **39 Success**(일반26+경고13), Failed0/NotRun0, 195.184 s. Audio2 포함, 등록39 유지. 최종 보고서 `t29-full-index.json`의 전체 state로 확인했다.
+- UE 경고13은 기존 fixture·실제GASP 미설치 경로 등이며, `-nullrhi -nosound` 실행이다. 실제 출력/루프백/패키지/청취 미실행. 새출처·라이선스·소유자 결정·훅·공유 문서 직접 수정 없음. 열린 다른 PR 없음, main과 충돌 없음. Opus ultracode 코드 리뷰 요청.
+
+### 병합 시 반영 — T29
+
+STATUS/astra-tasks 문안: “T29 완료: rain/베드 볼륨 생략에서 디지털0 보장·순수 판정함수와 float32 거울, wp13 §9-2 정지·밤·소수시각 절단·녹음 경로 명시, plateau/진단순서/Count1 및 강수 검증 독립 경계·정확한 진단·파서 원자성 보강. WAV8개·audio.json·크레딧 무변경, 등록39 유지. 선택 R114-4는 이월, 실제 출력·패키지·청취는 T29 병합 뒤 V-16과 wp13 §9 PC카드, 약한 비 질감은 C-08 뒤.”
