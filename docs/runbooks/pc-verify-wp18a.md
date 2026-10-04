@@ -121,6 +121,7 @@ V-12는 실제 Zone, 없으면 L_Basemap_Yeonnam에서 **프록시2종 × PBR/5.
 | 전체 UE 경고 | L_Dev GeoOrigin 부재 안내, 의도된 누락 Zone chunk/collision과 version mismatch fixture 경고. 개별 state는 전부 Success. missing asset 경고를 실자산 품질 합격으로 읽지 않음 |
 | 기본 이동 실측 | 걷기/좌우/후진180cm/s, 달리기500cm/s, 점프 정점90cm. 기존 테스트 수정 없음 |
 | GUI/실제 포털과 교체/포토 통합/성능/V-12 | **미실행**, Fable PC 후속. 최종 4.5등신 캐릭터 제작/리타깃은18b |
+| V-11 PC 영상·사람 눈 검수 자료(2026-10-04) | **실행**(§14): 4종 × 걷기→달리기·계단 왕복·점프·25 cm 턱·80 cm 통로·붐·포털 왕복 2회를 SendInput 실제 키 입력으로 1920×1080 60 fps 녹화(영상 16개, 시트 16장), 틱별 추적·`stat fps`/`stat memory`·교체 hitch·VRAM. 채점은 소유자·오케스트레이터(Opus), 세션은 관찰만 기록 |
 
 2026-09-27 포털 통합 자동화 추가 후 최신 결과: **UE 전체19 Success(14+경고5), failed0/notRun0, 63.79s**. Character 필터는3 Success이며, 새 `PortalRoundTrip`24.08s에서3회 왕복 완료 로그를 확인했다. Python/ruff/check_repo 성공(608 passed/42 skipped/208 warnings, 32.85s). 위 초기 표의 포털+교체 미실행은 이제 **GUI 조합만** 해당한다. 화면/실제 보행·실제 경로 재생·포토·성능/V-12는 계속 대기다.
 
@@ -172,6 +173,8 @@ $wp18Result.tests | ForEach-Object { $_.entries.event.message } | Select-String 
 2026-09-27 Astra가 사용자 보안 창 처리 후 L_Dev의1280×720 게임 창에서4종 목록, Quinn→proxy135→proxy110→Manny 교체, 각4종 Space 점프·착지, 잘못된 ID 거절을 확인했다. 엔진 캡처4장(2560×1440)과 로그·검증 범위는 [후속 기록의 GUI 절](../plan/WP-18-followup.md#보안-창-처리-뒤-gui-검증)에 있다. 두 프록시의 기본 구도에서는 발끝이 하단에 잘렸다.
 
 이 결과는 §7 초기 표의 GUI 전부 미실행 상태를 **기초 동작 부분 확인**으로 갱신한다. 이후 §8 Locomotion에서 지속 키 입력·달리기 중 교체·턱/계단/붐 충돌은 물리 자동화로 확인했다. T2(2026-09-28)에서 PIE 재시작과 초기 메시 실패 로그 뒤 Quinn 콘솔 선택을 확인했다. 로스터 기본 Manny가 BeginPlay에서 캡슐을 덮으므로 ini만으로 GUI 캡슐 화면은 재현되지 않는다. 오케스트레이터 D-019 결정으로 Runtime 헤드리스 복구 검사와 T2 ini 실패 로그로 대체·종결했다. 보행 주기/관절/발 미끄러짐은 [엔진 입력 드라이버 렌더 근거(실제 키보드 지속 입력·영상 아님)](#11-t2-연속-엔진-렌더-근거-재현-런북-9-보완)를 Fable이 판정하며 실제 키보드 영상·사람 눈 검수는 PC 카드로 인계한다. 현재 WP-12 컴파일 차단은 해소됐으며 사진 통합6조합은 T1 직접 실행 완료(EXECUTED 6/6, 경고 0)다. T2(#39): 엔진 입력 드라이버 렌더 근거·PIE 재시작·콘솔 선택 확인(§11); 잔여 실제 키보드 지속 입력 영상·사람 눈 검수는 PC 카드, 시트 판정은 Fable. 품질 채점은 V-12에서 별도로 한다.
+
+**V-11 PC 카드 실행(2026-10-04, §14)**: 실제 키보드 지속 입력(SendInput) 영상·대표 프레임 시트·틱별 추적 자료를 만들었다. 첫 GUI 화면은 PIE 시작 3 s 뒤 Manny가 정상 표시됐다(캡슐 화면 없음, ini 실패 경로는 D-019로 종결된 채 그대로). 사람 눈 채점은 소유자·오케스트레이터(Opus)가 §14 자료로 한다. WP-18·V-11은 채점 전까지 🟡이다.
 
 ## 10. 자동 재적용 실패와 Controller 바인딩 (B7 검토)
 
@@ -301,3 +304,85 @@ T11 실행(2026-09-30): 정상 6코스 1 Success·경고0·단언25 PASS·PNG37�
 Locomotion의 Block 판정 직전에 X·Y·Feet·Speed2D·MovementMode·해당 Block 단계 최대 월드 프레임 dt를 Info로 출력한다. 최초 T12 실패의 정확한 라벨·실행 순서는 WP-18-followup T14 절을 참조한다. 콜드 반복 실험은 이번에 하지 않았고 간헐 실패 원인/해결을 주장하지 않는다.
 
 GASP 보폭 67/146 cm는 **[추정] 기존 ① 값 복사**다. notify가 실제 발 타이밍을 공급하며 distance 진단 값은 V-15에서 재측정한다. 패키지 스모크에서는 `golmok.character proxy135`로 LoadObjectIfPresent의 패키지 조회·전환도 확인한다(이번 헤드리스 실행과 별개).
+
+
+## 14. V-11 — 실제 키보드 지속 입력 영상·사람 눈 검수 자료 (PC, 2026-10-04)
+
+**세션은 영상·시트·수치·관찰을 사실대로 적고 판정하지 않는다. 채점은 소유자와 오케스트레이터(Opus)가 한다.** 실행: Claude Desktop 워크트리 `sharp-wright-5b1e4a`, 브랜치 `pc/v11-verify-wp18` ← origin/main `8e7cfc5`, Opus 5.5, Windows 11, UE 5.8.3 Launcher, RTX 5060 8 GB, 모니터 2560×1440. GUI 잠금은 V-13·V-14·V-04c 세션과 메시지로 조율했고, fps/hitch/VRAM을 재는 run(v11a·v11d) 동안 다른 UE 프로세스는 없었다(오디오 run v11b·c·e·f 때는 다른 세션의 헤드리스 `UnrealEditor-Cmd`가 1~2개 돌았다).
+
+### 14-1. 준비·게이트
+
+| 항목 | 결과 |
+|---|---|
+| 자산 | V-09c 워크트리(`upbeat-mccarthy-343277`)의 마네킹·`L_Dev`·`L_ZoneTest`·합성 Zone을 복사. 이 워크트리는 LFS 파일이 포인터 상태라 `git lfs pull` 뒤 오디오 임포트(헤드리스 `WP13_IMPORT_VERIFIED_7_REIMPORT_7`, 크레딧 diff 없음) |
+| `build.ps1` | Succeeded 247 s, C++ 무수정(엔진 헤더 C4996 경고만) |
+| `test.ps1 -SetupDevLevel -Filter Golmok.Character` | 7개 전부 `Success`(succeeded 6 + succeededWithWarnings 1 = `RenderEvidence` 설계대로 NOT EXECUTED), failed 0·notRun 0, 117 s. 자동화 이름 변경 없음. Locomotion 4종 실측: 달리기 500/500/380/310, 걷기 180/180/145/120 cm/s, 점프 정점 ≈ 90 cm, 25 cm 턱 통과, 성인 80 cm 통로 x = −5012.9 정지 |
+
+### 14-2. 방법
+
+- 입력: Win32 `SendInput`으로 키를 누른 채 유지(실제 키보드와 같은 OS 입력 경로). PIE는 새 창 1920×1080(Alt+P), 에디터 실행 인자 `-ini:…:bThrottleCPUWhenNotForeground=False`·`-ini:Engine:[Audio]:UnfocusedVolumeMultiplier=1.0`. 드라이버(V-09c `pie_driver.py` 확장)는 Slate post-tick에서 단계를 진행하며 저장소에 넣지 않았다.
+- 녹화: ffmpeg `ddagrab` 60 fps `h264_nvenc -cq 21`, 실측 59.4~59.7 fps. v11a(A·B)는 UE 창 제목 표시줄이 포함된 1926×1120, 나머지는 게임 뷰포트 1920×1080만. 원본은 커밋하지 않고 PC 로컬 `C:\Users\user\golmok-pc-recordings\v11-2026-10-04\`(영상 `rec\` 16개·WAV `wav\` 4개·보고서/스크립트, 821 MB)에 둔다.
+- 카메라: 캐릭터별 게임 카메라 그대로(로스터 붐/소켓/FOV), 제어 pitch −15°(점프·붐 −12°/−10°). 후면 = W, 측면 = 카메라 yaw 0에서 D(캐릭터가 오른쪽으로 돌아 측면이 보임) 또는 yaw 90에서 A/D.
+- 틱별 추적: 키를 누르는 동안 매 틱 캡슐 위치·평면 속도·`IsMovingOnGround`·`foot_l/foot_r/ball_l/ball_r` 소켓 월드 좌표(약 120 fps). 전 PIE의 틱 dt, 교체 명령의 동기 실행 시간, `nvidia-smi` 50 ms VRAM.
+- 25 cm 턱·80 cm 통로: `Golmok.Character.Locomotion`과 같은 좌표·크기(턱 중심 (−4700, −4000) 600×400×25 cm, 통로 벽 (−4700, −5565)/(−4700, −5435) 600×50×250 cm)의 큐브를 PIE 전 에디터 월드에 스폰했다(저장하지 않음, 에디터는 프로세스 종료).
+
+| run | 맵 | 내용 | 녹화 |
+|---|---|---|---|
+| v11a | L_Dev | 4종 × A(걷기 3 s → Shift 달리기 3 s, 후면 W·측면 D), B(17 cm×10 계단 왕복, 측면 yaw 90 A↑D↓ → 후면 W↑S↓), `stat fps`/`stat unit`·`stat memory` | A·B 8개 |
+| v11d | L_Dev | 4종 × D(제자리 점프 2회 측면, 25 cm 턱 측면, 80 cm 통로 후면 — 프록시는 통로 안에서 `golmok.character manny` 요청, 골목 벽 앞 붐 yaw −90 → 0) | D 4개 |
+| v11b | L_ZoneTest | 4종 × C(door_1 앞 140 cm에서 W 2.4 s 진입·S 3.2 s 복귀 × 2회) + 오디오(§ wp13 T8) | C 4개 |
+
+v11a의 D 코스는 큐브를 `transient=True`로 스폰해 PIE 월드에 복제되지 않았다(턱에서 캡슐 z 불변, 성인이 통로를 통과, 프록시의 통로 안 `manny` 요청이 성공). 드라이버 픽스처 오류라 버리고 v11d에서 비transient 큐브로 다시 녹화했다. v11d에서는 턱 +25 cm 상승, 성인 x = −5012.9 정지, 프록시 통과, 통로 안 확대 거절(`new capsule is blocked; move away from the wall/ceiling first`, 프록시·위치 유지)이 기록됐다.
+
+### 14-3. 대표 프레임 시트
+
+각 시트는 해당 영상에서 틱 추적 시각으로 고른 8프레임(2열×4행, 뷰포트 전체, 긴 변 1600 px, ≤ 300 KB)이다. 라벨의 t는 영상 시각(녹화 시작 지연 ≈ 0.35 s 보정)이다.
+
+| 캐릭터 | A 걷기→달리기 | B 계단 왕복 | C 포털 왕복 2회 | D 점프·턱·통로·붐 |
+|---|---|---|---|---|
+| proxy135 | [A](pc-verify-wp18a-v11-proxy135-A.jpg) | [B](pc-verify-wp18a-v11-proxy135-B.jpg) | [C](pc-verify-wp18a-v11-proxy135-C.jpg) | [D](pc-verify-wp18a-v11-proxy135-D.jpg) |
+| proxy110 | [A](pc-verify-wp18a-v11-proxy110-A.jpg) | [B](pc-verify-wp18a-v11-proxy110-B.jpg) | [C](pc-verify-wp18a-v11-proxy110-C.jpg) | [D](pc-verify-wp18a-v11-proxy110-D.jpg) |
+| quinn | [A](pc-verify-wp18a-v11-quinn-A.jpg) | [B](pc-verify-wp18a-v11-quinn-B.jpg) | [C](pc-verify-wp18a-v11-quinn-C.jpg) | [D](pc-verify-wp18a-v11-quinn-D.jpg) |
+| manny | [A](pc-verify-wp18a-v11-manny-A.jpg) | [B](pc-verify-wp18a-v11-manny-B.jpg) | [C](pc-verify-wp18a-v11-manny-C.jpg) | [D](pc-verify-wp18a-v11-manny-D.jpg) |
+
+영상 길이: A 16.0 s, B 18.6~23.8 s, C 20.6~20.7 s, D 23.2~29.9 s(로컬 `rec\<캐릭터>_<코스>.mp4`).
+
+### 14-4. 성능·메모리·교체 hitch
+
+| 항목 | 값 |
+|---|---|
+| `stat fps`/`stat unit`(L_Dev 골목, Manny, PIE 1920×1080) | 119.99 FPS(8.33 ms; 에디터 PIE 프레임 상한), Game 5.88 ms, Draw 0.00 ms(엔진 값, V-07 메모), RHIT 0.10 ms, GPU Time 5.92 ms, Mem 3.56 GB, VRam 3.82 / 6.96 GB, RenderRes 72.8 %(1399×789) |
+| `stat memory` | Texture Memory Used 52.61 MB, Streaming/Texture Pool 1000 MB(Wanted 2.57 MB), PixelShader 123.01 MB, SkeletalMesh Vertex 5.20 MB·Index 1.48 MB, StaticMesh 4.14 MB, Audio 0.07 MB |
+| VRAM(`nvidia-smi`, GPU 전체·데스크톱 포함) | v11a 최대 6749 MiB(중앙값 6687, 에디터 시작 전 2059), v11d 최대 6687 MiB |
+| 틱 dt(v11a 전체 36 248틱) | 중앙값 8.34 ms, p99 9.78 ms. 125 ms 틱은 모두 녹화기 시작/종료 순간(드라이버의 ffmpeg 실행·종료 대기, 키 입력 구간 밖) |
+| 키 입력 구간 안 > 16.7 ms 틱 | 3회: proxy135 점프 30.4 ms, proxy110 계단 후면 상승 29.4 ms, manny 후면 달리기 33.4 ms |
+| 첫 교체 hitch | `golmok.character quinn`(세션 첫 Quinn 메시 로드) 명령 89.0 ms·그 틱 98.8 ms(v11d 85.6 ms). proxy135/proxy110/manny 교체는 0.9~2.4 ms, 앞뒤 틱 ≤ 9.4 ms(Manny와 같은 메시) |
+
+### 14-5. 관찰(판정 아님)
+
+수치는 틱 추적에서 계산했다. 발 지표는 V-08 정의를 따랐다: 소켓이 평지 기준 높이(그 캐릭터 평지 프레임의 2번째 백분위) + 2.5 cm 이내이고 캡슐이 접지 중이면 '딛은 발', 틱마다 딛은 소켓의 수평 이동 중 최솟값을 합해 이동 1 m당 cm(`slip/m`)로, 딛은 발이 15 cm/s보다 빨리 움직인 틱 수를 '미끄러짐 프레임'으로 셌다. 계단·턱은 소켓 높이에서 그 위치의 디딤판 높이를 뺀 뒤 같은 기준을 썼다.
+
+| 캐릭터 | 걷기 slip/m (후면·측면) | 걷기 미끄러짐 프레임 | 달리기 slip/m | 달리기 미끄러짐 프레임 | 계단 ball − 디딤판(상승 p10 / 하강 p90) | 25 cm 턱 ball − 디딤판(p10~p90) |
+|---|---|---|---|---|---|---|
+| proxy135 | 22.0 · 22.5 | 353/356 · 355/359 | 30.0 · 29.5 | 295/295 · 294/294 | −9.0~−9.8 / +9.7~+11.6 cm | −0.1~+1.1 cm |
+| proxy110 | 21.9 · 22.6 | 350/358 · 349/358 | 23.4 · 23.5 | 357/359 · 357/358 | −11.3~−12.0 / +12.6 cm | 0.0~+1.0 cm |
+| quinn | 6.9 · 7.9 | 57/359 · 58/359 | 5.7 · 6.0 | 167/211 · 173/212 | −6.7~−7.8 / +11.6~+12.0 cm | −0.8~+0.6 cm |
+| manny | 6.9 · 7.9 | 53/359 · 57/359 | 5.9 · 6.0 | 169/210 · 175/214 | −7.1~−8.0 / +12.5 cm | −1.0~+0.7 cm |
+
+- **발 접지·미끄러짐**: 두 프록시는 걷기·달리기에서 딛은 발이 거의 모든 틱에 15 cm/s보다 빠르게 움직였고 1 m당 22~30 cm 미끄러졌다. Manny/Quinn은 걷기 7~8 cm/m(틱의 16 %), 달리기 6 cm/m다. 프록시는 메시 스케일(0.8, 0.8, 0.75/0.61)·속도(145/120, 380/310 cm/s)와 원본 ABP_Unarmed 보폭의 차이가 그대로 드러나는 구간이다(원인 판단은 채점자 몫).
+- **계단 승강 자세**: 상승 중 디딤 ball 소켓이 디딤판 아래 p10 −7~−12 cm(발끝이 단에 묻힘), 하강 중 위 p90 +10~+13 cm(발이 뜸) — 4종 모두 IK 없이 캡슐을 따라가는 구간이다. 중앙값은 +0.3~+1.0 cm다. 시트 proxy110 B 측면 상승(t = 3.69 s)에서 무릎이 깊게 굽은 자세가 보인다. 계단 위 공중(낙하) 틱은 0이다.
+- **25 cm 턱**: 캡슐 바닥이 +25 cm 올라가고 내려왔으며(공중 틱 0), 턱 위 ball − 디딤판은 p10~p90 −1.0~+1.1 cm다.
+- **팝·T-pose·부유**: 캡슐에 대한 발 소켓의 틱당 상대 이동 최댓값은 2.0~6.9 cm(약 120 fps)다. 예외 1회 23.8 cm는 manny 후면 달리기의 33.4 ms 틱(위 hitch)과 같은 틱이다. 16장 시트·첫 PIE 화면에서 T-pose 프레임은 없었다. 걷기·계단·턱 구간 공중 틱 0, 점프는 1회당 약 0.85 s 공중이다(정점 +90 cm).
+- **걷기↔달리기 전환**: Shift를 누른 뒤 0.07~0.15 s 안에 달리기 속도(프록시 380/310, 성인 500 cm/s)에 도달했다. 달리기→걷기 전환은 이번 코스에 없다(Shift와 W를 함께 뗌).
+- **포털 통과 연속성**: L_ZoneTest door_1 왕복 2회 × 4종에서 틱당 최대 이동 1.65~2.44 cm(순간이동 없음), 캡슐 z 불변, 안에서 `inside=True`·`interior=True`, 밖에서 `inside=False`·`interior=False`. 시트 C에서 실내 조명으로 바뀌는 장면이 이어진다.
+- **80 cm 통로·붐**: 성인(84 cm 캡슐) 통로 입구 x = −5012.9 cm 정지, 프록시 통과, 통로 안 Manny 요청 거절(위 로그). 골목 벽 앞 yaw −90에서 카메라 y = 236.0(벽 안쪽 면 250), yaw 0에서 붐 복귀(proxy135 카메라 x 1251.8, Manny 1194.4).
+- **구도**: 프록시 후면 구도에서 발이 화면 하단 가장자리에 걸리는 프레임이 있다(예: 계단 후면 하강, 점프 착지). 런북 §9의 "프록시 기본 구도에서 발끝이 하단에 잘림" 관찰과 같은 현상이다.
+- **프록시 캡슐 화면 → 수동 복구**: PIE 시작 3 s 뒤 첫 화면(`ui/pie_first`)에 Manny가 정상 표시됐다(캡슐 없음). ini 메시 실패 경로는 D-019(2026-09-28)로 Runtime 헤드리스 검사로 대체·종결돼 이번에 재현하지 않았다.
+- **게임패드**: 연결된 게임패드가 없어 미실행.
+- **녹화 잡음**: v11a(A·B) 영상 오른쪽 아래 구석에 Windows 알림("Claude") 토스트가 몇 초 겹친 구간이 있다(게임 화면 아님, 캐릭터와 겹치지 않음).
+
+### 14-6. 막힌 것·한계
+
+- 이 자료는 원본 ABP_Unarmed·마네킹 프록시(전체 스케일)이며 4.5등신 리타깃·최종 캐릭터 품질이 아니다(18b/V-12/V-15 범위).
+- 발 지표는 소켓(관절) 기준이라 메시 발바닥 접지와 다를 수 있다. 사람 눈 채점은 영상 원본으로 한다.
+- 패키지 실행 스모크(§ wp13 V-10b ①)는 다른 PC 세션 GUI 단계가 모두 끝난 뒤 마지막에 한다(새 exe 경로의 방화벽 창 대비).
