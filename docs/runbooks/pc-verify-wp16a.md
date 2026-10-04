@@ -50,7 +50,7 @@ git pull
 .\tools\ue\build.ps1
 ```
 - [ ] 컴파일·링크 오류 0, **프로젝트 소스 경고 0**(엔진 헤더 C4996은 종전처럼 무시). 오류가 나면 §12.
-- [ ] Niagara 관련 UBT 경고 문구가 있으면 그대로 기록(§12 #1). `Niagara` 모듈 링크 오류(`UNiagaraComponent`·`FNiagaraVariable` 미해결 외부 기호)면 §12 #2: 같은 훅 블록에 `PrivateDependencyModuleNames.Add("NiagaraCore");`를 더한다(`test_ue_wp09_fixture.py`의 `BUILD_CS_PRIVATE` 훅 줄도 함께).
+- [ ] Niagara 관련 UBT 경고 문구가 있으면 그대로 기록(§12 #1). `Niagara` 모듈 링크 오류(`UNiagaraComponent`·`FNiagaraVariable` 미해결 외부 기호)면 §12 #2: 같은 훅 블록에 `PrivateDependencyModuleNames.Add("NiagaraCore");`를 더한다(`test_ue_wp09_fixture.py`의 `BUILD_CS_PRIVATE` 훅 줄도 함께). 같은 `WP-16a: PC fix` 커밋에서 `tools/tests/test_ue_wp16_fixture.py`의 `BUILD_CS_HOOK`(정확한 3줄)과 `"NiagaraCore" not in` 단언도 함께 고친다(그대로 두면 CI가 빨개진다, 리뷰 R112-U2).
 - [ ] `.\tools\ue\open-editor.ps1` → 에러 없이 열림(Niagara 플러그인 활성 대화상자 없음).
 
 ## 2. 에셋 저작(PC만 고치는 이진 에셋 2개)
@@ -309,7 +309,7 @@ Select-String "$env:TEMP\utoc.csv" -Pattern 'Golmok/Weather/(MPC_GolmokWeather|N
 | # | 파일 | API·항목 | 불확실한 점 | 대안 | PC 결과 |
 |---|---|---|---|---|---|
 | 1 | `Golmok.uproject` | `Niagara.uplugin` `EnabledByDefault`, 목록에 없을 때 UBT 경고 | 경고 문구·기본 활성 여부 | 명시 항목은 어느 쪽이든 무해 — uplugin 값과 빌드 로그를 기록만 | |
-| 2 | `Golmok.Build.cs` 훅 | `PrivateDependencyModuleNames.Add("Niagara")`만으로 `UNiagaraComponent`·`UNiagaraSystem`·`FNiagaraVariable`·`FNiagaraTypeDefinition` 링크 | NiagaraCore 공개 전이 여부 | 링크 오류면 같은 훅 블록에 `NiagaraCore` 추가(+ `BUILD_CS_PRIVATE` 훅 줄) | |
+| 2 | `Golmok.Build.cs` 훅 | `PrivateDependencyModuleNames.Add("Niagara")`만으로 `UNiagaraComponent`·`UNiagaraSystem`·`FNiagaraVariable`·`FNiagaraTypeDefinition` 링크 | NiagaraCore 공개 전이 여부 | 링크 오류면 같은 훅 블록에 `NiagaraCore` 추가(+ `BUILD_CS_PRIVATE` 훅 줄) | — 이때 `test_ue_wp16_fixture.py` `BUILD_CS_HOOK`·NiagaraCore 단언도 같은 커밋에서 갱신(R112-U2) |
 | 3 | `GolmokWeatherRainFx.cpp` | `NewObject<UNiagaraComponent>` + `SetAsset` + `SetUsingAbsoluteRotation` + `SetRootComponent` + `AddInstanceComponent` + `RegisterComponent`(plain `AActor`) | 컴파일·등록·렌더 | `UNiagaraFunctionLibrary::SpawnSystemAttached`(5.8 서명, `ENCPoolMethod::None`)로 만들고 액터는 소유자로만 | |
 | 4 | `GolmokWeatherRainFx.cpp` | `SetVariableFloat`/`SetVariableVec3`에 `User.` 접두 이름, 읽기 `GetOverrideParameters()`(const)·`FindParameterOffset`·`GetParameterValue<float/FVector3f>` | 접두 필요 여부, const 접근자·템플릿 존재 | `Golmok.Weather.Runtime`이 파라미터 존재를 단언. 실패하면 접두 없는 이름(`RainIntensity` 등)으로 쓰기, 읽기는 `GetOverrideParameters().GetParametersWithOffsets()` 순회 | |
 | 5 | Tests | `-nullrhi`에서 GPU 이미터 컴포넌트 생성·`IsActive()` 조회 | 활성 상태가 RHI 없이 의미 있는지 | 계약(컴포넌트·파라미터·활성 요청)만 단언, 시뮬레이션은 §4·§7 PIE GUI | |

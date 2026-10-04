@@ -126,6 +126,23 @@ namespace GolmokWeatherTests
 		return true;
 	}
 
+	/** Field by field within 1e-12 relative: a non-identity modifier computed here and in the subsystem (another translation
+	 * unit, exp2 / log2 Lerp) may differ in the last bits under the compiler's floating-point flags (review R112-U3). Copies
+	 * and the identity keep SameBits. */
+	bool NearlySame(const GolmokWeatherMath::Modifier& A, const GolmokWeatherMath::Modifier& B)
+	{
+		for (int32 Index = 0; Index < GolmokWeatherMath::ModifierFieldCount; ++Index)
+		{
+			const double X = GolmokWeatherMath::GetField(A, Index);
+			const double Y = GolmokWeatherMath::GetField(B, Index);
+			if (FMath::Abs(X - Y) > 1e-12 * FMath::Max(1.0, FMath::Max(FMath::Abs(X), FMath::Abs(Y))))
+			{
+				return false;
+			}
+		}
+		return true;
+	}
+
 	GolmokWeatherMath::Modifier MakeModifier(double Lux, double Sky, double Fog, double Falloff, double KelvinTarget, double KelvinWeight,
 		double Exposure)
 	{
@@ -615,7 +632,7 @@ namespace GolmokWeatherTests
 			const GolmokWeatherMath::Modifier M = TargetModifier(Weather->GetConfig(), EGolmokWeather::Rain, 0.6f);
 			Set(EGolmokWeather::Rain, 0.6f, true);
 			Test->TestTrue(TEXT("the subsystem drives this time of day (its modifier == the weather's)"), SameBits(Tod->GetWeatherModifier(), Weather->GetCurrentModifier()));
-			Test->TestTrue(TEXT("rain 0.6 instant: the current modifier is the target"), SameBits(Weather->GetCurrentModifier(), M));
+			Test->TestTrue(TEXT("rain 0.6 instant: the current modifier is the target"), NearlySame(Weather->GetCurrentModifier(), M));
 			FGolmokLightingState Rain;
 			Tod->CaptureState(Rain);
 			CheckLight(Test, Rain, GolmokWeatherMath::Apply(ToLight(Authored), M), Authored, TEXT("level lighting + rain 0.6"));
@@ -751,15 +768,15 @@ namespace GolmokWeatherTests
 			W->StepWeather(0.5 * Config.TransitionSeconds);
 			Test->TestTrue(*FString::Printf(TEXT("alpha 0.5 after half the transition (%.4f)"), W->GetTransitionAlpha()), FMath::IsNearlyEqual(W->GetTransitionAlpha(), 0.5f, 1e-5f));
 			const GolmokWeatherMath::Modifier Half = GolmokWeatherMath::ModifierAt(GolmokWeatherMath::Modifier(), Target, 0.5);
-			Test->TestTrue(TEXT("alpha 0.5: modifier == Lerp(identity, rain 0.6, smoothstep(0.5))"), SameBits(W->GetCurrentModifier(), Half));
-			Test->TestTrue(TEXT("alpha 0.5: the time of day holds that modifier"), SameBits(Tod->GetWeatherModifier(), Half));
+			Test->TestTrue(TEXT("alpha 0.5: modifier == Lerp(identity, rain 0.6, smoothstep(0.5))"), NearlySame(W->GetCurrentModifier(), Half));
+			Test->TestTrue(TEXT("alpha 0.5: the time of day holds that modifier"), SameBits(Tod->GetWeatherModifier(), W->GetCurrentModifier()));
 			Test->TestTrue(TEXT("alpha 0.5: rising rain not started yet"), W->GetRainIntensity() == 0.f);
 			FGolmokLightingState S;
 			Tod->CaptureState(S);
 			CheckLight(Test, S, GolmokWeatherMath::Apply(ToLight(Clear), Half), Clear, TEXT("weather transition alpha 0.5"));
 			W->StepWeather(0.5 * Config.TransitionSeconds);
 			Test->TestFalse(TEXT("alpha 1: transition finished"), W->IsTransitioning());
-			Test->TestTrue(TEXT("alpha 1: modifier == target"), SameBits(W->GetCurrentModifier(), Target) && SameBits(Tod->GetWeatherModifier(), Target));
+			Test->TestTrue(TEXT("alpha 1: modifier == target"), NearlySame(W->GetCurrentModifier(), Target) && SameBits(Tod->GetWeatherModifier(), W->GetCurrentModifier()));
 			Test->TestEqual(TEXT("alpha 1: rain == target"), W->GetRainIntensity(), 0.6f);
 			Tod->CaptureState(S);
 			CheckLight(Test, S, GolmokWeatherMath::Apply(ToLight(Clear), Target), Clear, TEXT("weather transition alpha 1"));

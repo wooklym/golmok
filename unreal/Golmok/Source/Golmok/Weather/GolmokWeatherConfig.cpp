@@ -144,7 +144,7 @@ namespace GolmokWeather
 		/** A JSON string without an embedded NUL ("rain\u0000x" must not parse as "rain" through the C string; Python rejects it too). */
 		bool IsPlainString(const FJsonValuePtr& Value)
 		{
-			return Value->Type == EJson::String && FCString::Strlen(*Value->AsString()) == Value->AsString().Len();
+			return Value.IsValid() && Value->Type == EJson::String && FCString::Strlen(*Value->AsString()) == Value->AsString().Len();
 		}
 
 		/** "state" (and "intensity" for rain only) of initial / a schedule slot; the key set is already checked. */
