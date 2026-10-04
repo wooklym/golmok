@@ -62,6 +62,7 @@ ALLOWED_PLUGINS = {
     "PoseSearch", "Chooser", "AnimationWarping", "MotionWarping", "AnimationLocomotionLibrary", "BlendStack",
     "CurveExpression", "DrawDebugLibrary", "MovieSceneAnimMixer", "Mover",
 }  # fmt: skip
+ALLOWED_PLUGINS |= {"Niagara"}  # [WP-16 hook] engine FX plugin, not Experimental
 FORBIDDEN_PLUGINS = {
     "GameplayCameras", "ChaosMover", "MoverExamples", "Locomotor", "SmartObjects", "GameplayInteractions",
     "MetaHuman", "LiveLink", "RigLogic", "HairStrands",
@@ -222,6 +223,7 @@ def test_gitignore_and_default_game_ini_hooks():
         assert line in block, line
     ini = _read(UE / "Config" / "DefaultGame.ini")
     tail = ini[ini.index("; [WP-19 hook]") :]
+    tail = tail.split("; [WP-16 hook]")[0].rstrip()  # [WP-16 hook] weather block follows
     assert tail.splitlines()[-3:] == [
         "[/Script/UnrealEd.ProjectPackagingSettings]",
         '+DirectoriesToAlwaysCook=(Path="/Game/GASP")',
