@@ -465,3 +465,18 @@ STATUS/astra-tasks 문안: “T16 R80-1~5 완료: GASP 교차 분류를 공통 A
 **병합 전 리뷰(Opus 5.5 ultracode 적대 검증, [R84](https://github.com/wooklym/golmok/pull/84#issuecomment-5912309493))**: (A) 0 · (B) 0 · (C) 5. 게이트: pytest 1406 passed / 3 skipped(main 1403 + 3), ruff·format·check_repo·`diff --check`, CI 10/10, 등록 36. R80-1~5 모두 해결(재현 25건 기대대로, 새 테스트는 종전 접두사 구현에서 실패, ① 항목이 공통 ABP가 아니면 의도된 fail-closed). R80-5의 `Pair.Key.Equals` 제안은 UE 5.8 JSON 키가 `UE::FSharedString`이라 컴파일되지 않는 **리뷰어 스펙 오류**였고 `ToView().Equals(…, CaseSensitive)`가 같은 의미다. (C) R84-1 `visual` 절 전용 테스트, R84-2 `abp == default` 음성 사례·`relocate` 값, R84-3 계약이 anim 경로만 봄(19b 경로 갱신 배정 때 4개 경로 모두 갱신 명시), R84-4 fail-closed 메시지, R84-5 폴백 Log 단언 — 다음 캐릭터 레인 과제(19b 경로 갱신)에 묶는다.
 
 **병합**: 오케스트레이터 결정(D-019). main을 병합한 뒤 이 커밋으로 반영했다. 위 "병합 시 반영 — T16" 문안은 STATUS 병행 트랙 WP-18 행과 `astra-tasks.md` T16에 옮겼다. 19b가 `content_root`·`gasp.anim_class`를 바꾸면 D-021 진행 기록 (6)대로 Astra 경로 갱신 브랜치를 19b 위 스택으로 배정한다.
+
+
+## T18 — 선택·로드·visual 적용 순서 후속 (2026-10-04 KST)
+
+배정: [이슈 #30 T18](https://github.com/wooklym/golmok/issues/30#issuecomment-5913613213). main `c3f6541`에서 독립 `astra/wp-19c-roster-followup3`. 병합된 T17 브랜치에는 push하지 않았다.
+
+- **R77-7**: animation 설정의 기존 AssetPath 해석 결과와 로스터 AnimPath를 비교한다. 경로 일치 또는 visual이 있고 폰이 GASP 계약을 지원하지 않으면 메시·애님 로드 전에 기존 호환성 사유로 거절한다. 로드 뒤 RequiresGaspPawn 검사는 유지했다. 테스트 전용 에셋 로드 시도 계수로 manny_gasp/uefn_gasp 거절의 증가0을 검사한다.
+- **R77-8**: SelectCharacter 성공만 명시 선택으로 표시하며, 명시 선택일 때만 CurrentId를 모드 기본값보다 앞에 둔다. 새 모드 기본값/폴백의 자동 적용은 거짓이다. 기존 명시 id의 자동 복원은 명시 의도를 보존한다. 매 자동 복원마다 무조건 거짓으로 지우면 두 번째 Photo/Path 복귀 때 선택이 기본값으로 돌아가므로, 배정의 “자동 적용은 거짓”을 새 자동 선택에 적용했다. 반복 possession 단언으로 이 차이를 고정했다. 자동 ABP 선택 뒤 GASP 모드의 새 폰에 test_visual 기본값이 적용되고, 명시 manny 선택은 모드 기본값보다 우선하는지 합성 계약으로 검사한다.
+- **R77-6**: 모든 로드·호환성·캡슐 검사 후 소스 메시/애님을 먼저 적용하고 visual을 적용한다. SetVisualOverride의 유일 실패 조건인 null 입력은 앞에서 검사하므로 이후 실패 반환 경로를 두지 않는다. visual 없는 항목은 Clear 뒤 상대 스케일1로 초기화한다. 테스트 전용 visual 적용 직전 관찰자가 새 소스 메시를 확인하고 Clear 후 단위 스케일을 검사한다.
+
+실제 GASP 통합/에셋·GUI·리타깃 품질은 NOT EXECUTED. 헤드리스의 임시 인터페이스/설치된 기본 ABP 계약만 검사한다. 공유 문서·animation.json·로스터 데이터·훅·핫스팟 변경 없음, 등록36 유지. 최종 UE5.8.3 build9.28s 성공, Character7 Success, 전체 **36 Success(24+경고12)/failed0/notRun0**. Python **1286 passed/218 skipped/208 warnings,88.53s**, ruff check/format114·check_repo·diff 통과. GaspSmoke 설치 미충족·RenderEvidence NOT EXECUTED는 실제 성공으로 기록하지 않는다. 근거: tools/.venv/t18-{character,full}-index.json, t18-build.txt/t18-pytest.txt.
+
+### 병합 시 반영 — T18
+
+STATUS/astra-tasks 문안: “선택 T18 R77-6/7/8 구현: 일반 폰 GASP 항목 로드 전 거절(기존 설정 경로 해석), 명시 선택만 CurrentId 우선, 모든 검사 후 소스→visual 적용 및 Clear 단위 스케일. 로드 시도0·자동/명시 모드 선택·visual 시점 회귀 포함. 등록36 유지, 실제 GASP 19b/V-15 대기.” 19b 경로 확정 뒤 4개 경로 갱신 스택이 여전히 우선이며 R84 (C)는 그 과제에 묶는다.
