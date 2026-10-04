@@ -151,7 +151,29 @@ namespace GolmokSavePrivate
 		const bool bApplied = Tod.ApplyPreset(FName(*Saved.PresetName), /*bInstant*/ true);
 		return FString::Printf(TEXT(", tod %s%s%s"), *Saved.PresetName, bApplied ? TEXT("") : TEXT(" (unknown preset)"), *Note);
 	}
+
+	/** "quinn" (explicit) | "- (automatic)" (rule 1, nothing pinned) | "manny (legacy)" / "-" (rule 0): golmok.save status. */
+	FString DescribeSavedCharacter(const UGolmokSaveGame& Save)
+	{
+		if (Save.CharacterIdRule >= UGolmokSaveGame::CharacterIdRuleExplicit)
+		{
+			return Save.CharacterId.IsEmpty() ? FString(TEXT("- (automatic)")) : Save.CharacterId;
+		}
+		return Save.CharacterId.IsEmpty() ? FString(TEXT("-")) : FString::Printf(TEXT("%s (legacy)"), *Save.CharacterId);
+	}
 } // namespace GolmokSavePrivate
+
+namespace GolmokSaveCharacter
+{
+	bool IsLegacyDefault(int32 Rule, const FString& SavedId, const FGolmokCharacterRoster& Roster)
+	{
+		if (Rule >= UGolmokSaveGame::CharacterIdRuleExplicit || SavedId.IsEmpty())
+		{
+			return false;
+		}
+		return SavedId == Roster.DefaultId || Roster.DefaultByAnimMode.FindKey(SavedId) != nullptr;
+	}
+} // namespace GolmokSaveCharacter
 
 // ---- lifecycle ------------------------------------------------------------------------------------------------
 
@@ -268,7 +290,10 @@ void UGolmokSaveSubsystem::HoldSlotPosition(const UGolmokSaveGame& Save)
 		Snapshot.TodPreset = Save.TimeOfDay.PresetName;
 		Snapshot.TodMinutes = Save.TimeOfDay.Minutes;
 		Snapshot.TodMode = Save.TimeOfDay.Mode;
+		// The slot's character passes through with its own rule (a legacy automatic id must not become rule 1); the
+		// first pawn snapshot replaces both with the live explicit selection.
 		Snapshot.CharacterId = Save.CharacterId;
+		Snapshot.CharacterIdRule = Save.CharacterIdRule;
 	}
 }
 
@@ -369,7 +394,9 @@ bool UGolmokSaveSubsystem::TakeSnapshot(UWorld& InWorld, bool bForce)
 	}
 	if (const UGolmokCharacterSubsystem* Characters = InWorld.GetSubsystem<UGolmokCharacterSubsystem>())
 	{
-		S.CharacterId = Characters->GetCurrentId();
+		// R91-1: only an explicit selection is saved (S.CharacterIdRule 1). An automatic mode default / fallback stays
+		// empty, so the next run picks its own mode default (manny_gasp on a GASP pawn) instead of pinning this one.
+		S.CharacterId = Characters->IsExplicitSelection() ? Characters->GetCurrentId() : FString();
 	}
 	if (bHoldSlotPosition)
 	{
@@ -433,6 +460,7 @@ UGolmokSaveGame* UGolmokSaveSubsystem::BuildSaveObject()
 	Out->Visited = Visited;
 	Out->Photos = Photos;
 	Out->CharacterId = Snapshot.CharacterId;
+	Out->CharacterIdRule = Snapshot.CharacterIdRule;
 	if (const UWorld* World = ActiveWorld.Get())
 	{
 		Out->LevelName = LevelNameOf(*World);
@@ -804,7 +832,10 @@ bool UGolmokSaveSubsystem::Restore(FString& OutMessage)
 	}
 
 	// Time of day (spec §3 / §4: WP-14a {Minutes, Mode} per mode, instant; a save without minutes by its preset) and
-	// character (WP-18 public API; Astra files unchanged).
+	// character (WP-18 public API; Astra files unchanged). Character (R91-1): an empty id (rule 1: the selection was
+	// automatic) restores nothing; a legacy save's roster default is left to the mode default instead of being pinned;
+	// any other id is an explicit choice and comes back as one (SelectCharacter also when the same id is only applied
+	// automatically, so the next save keeps it).
 	FString Extras;
 	if (Save->TimeOfDay.Minutes >= 0.f || !Save->TimeOfDay.PresetName.IsEmpty())
 	{
@@ -817,7 +848,11 @@ bool UGolmokSaveSubsystem::Restore(FString& OutMessage)
 	{
 		if (UGolmokCharacterSubsystem* Characters = World->GetSubsystem<UGolmokCharacterSubsystem>())
 		{
-			if (Characters->GetCurrentId() != Save->CharacterId)
+			if (GolmokSaveCharacter::IsLegacyDefault(Save->CharacterIdRule, Save->CharacterId, Characters->GetRoster()))
+			{
+				Extras += FString::Printf(TEXT(", character %s (legacy default, not pinned)"), *Save->CharacterId);
+			}
+			else if (Characters->GetCurrentId() != Save->CharacterId || !Characters->IsExplicitSelection())
 			{
 				FString CharacterMessage;
 				const bool bSelected = Characters->SelectCharacter(Save->CharacterId, CharacterMessage);
@@ -883,7 +918,7 @@ FString UGolmokSaveSubsystem::DescribeStatus() const
 		Out += FString::Printf(TEXT("\n  slot: schema %d, saved %s, zone %s v%d, position %s (lat %.7f lon %.7f h %.2f, yaw %.1f), tod %s, character %s, visited %d, photos %d"),
 			Save->SaveSchemaVersion, *Save->SavedAtUtc, Save->ZoneId.IsEmpty() ? TEXT("-") : *Save->ZoneId, Save->ZoneVersion,
 			Save->bHasPosition ? TEXT("yes") : TEXT("no"), Save->Lat, Save->Lon, Save->HeightEllipsoidal, Save->YawDeg,
-			*GolmokSavePrivate::DescribeSavedTod(Save->TimeOfDay), Save->CharacterId.IsEmpty() ? TEXT("-") : *Save->CharacterId,
+			*GolmokSavePrivate::DescribeSavedTod(Save->TimeOfDay), *GolmokSavePrivate::DescribeSavedCharacter(*Save),
 			Save->Visited.Num(), Save->Photos.Num());
 	}
 	if (!LastMessage.IsEmpty())

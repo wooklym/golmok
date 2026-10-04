@@ -160,7 +160,7 @@ python tools\scripts\check_repo.py
 - [ ] 이동 의미 불변(180/500/90 cm, 로스터 145/380)은 자동으로 확인한다(`Golmok.Player.Movement`, `Golmok.Character.Locomotion`, `Golmok.Animation.StateProvider`).
 
 ### B4. 통합 확인 (점수 밖, 실패하면 기본 전환 차단)
-- [ ] 로스터 교체(abp ↔ gasp 항목), 포털 왕복, `golmok.travel` 뒤 메시–캡슐 어긋남(텔레포트 재초기화), 포토 모드 구도·keep-height, 80 cm 통로 관통 0, 발소리 동기·이중 재생 없음, 세이브 복원.
+- [ ] 로스터 교체(abp ↔ gasp 항목), 포털 왕복, `golmok.travel` 뒤 메시–캡슐 어긋남(텔레포트 재초기화), 포토 모드 구도·keep-height, 80 cm 통로 관통 0, 발소리 동기·이중 재생 없음, 세이브 복원(PIE는 `golmok.load`. 시작 시 자동 복원과 캐릭터 규칙은 §B7).
 - [ ] Offset Root Bone 메시–캡슐 최대 거리를 기록한다.
 
 ### B5. BP 컴파일 직후 PIE (V-08 함정)
@@ -171,6 +171,7 @@ python tools\scripts\check_repo.py
 
 ### B7. 패키지
 - [ ] Development·Shipping cook·실행(gasp/abp 각각), 크기 증가 기록, 태그·DDCvar 경고 0(`Config/Tags/GASP.ini`·`Config/Golmok/local/` 스테이징 — §D #5), S4 성능, 플러그인을 켠 ① 패키지 정상, `/Game/GASP`·`/Game/GolmokLocal`이 없는 클론의 ① 패키지 정상(§D #9).
+- [ ] 세이브 캐릭터 복원(R91-1 후속, `WP-15-zone-travel-save.md` "R91-1 후속"; Development 패키지, 같은 세이브 폴더): abp 세션 세이브로 `-GolmokAnim=gasp` 실행 → GASP 폰이 `manny_gasp`를 유지한다(`golmok.character list` `current=manny_gasp`). 이 변경 전 빌드의 세이브(`golmok.save status` `character manny (legacy)`)면 시작 로그에 `character manny (legacy default, not pinned)`, 새 세이브(`character - (automatic)`)면 `character` 부분이 없다. abp 실행에서 `golmok.character quinn` 뒤 닫고 gasp로 실행 → `…, character quinn; …`, `current=quinn`(명시 선택은 GASP 폰에도 복원 — T18 의도).
 - [ ] `Content\GASP`가 있는 PC에서 `.\tools\ue\package.ps1`은 `Content\GASP exists: this package cooks the whole local GASP copy …` 경고를 먼저 낸다. `/Game/GASP`는 `DefaultGame.ini` 훅으로 **모드와 무관하게 항상 쿡**되므로 abp 패키지에도 GASP 약 1 GB가 들어가고, GASP 플러그인을 켜지 않은 PC에서는 쿡 오류가 날 수 있다(§D #18). 크기·쿡 로그를 기록한다. 쿡 방식 변경(하드 참조 + `/Game/GolmokLocal`만 쿡)은 19b가 결정한다(WP 문서 19a-2 판단 9).
 - [ ] 기존 `+DirectoriesToAlwaysStageAsUFS=(Path="../Config/Golmok")`가 `Config/Golmok/local/`(매니페스트의 GASP 프로젝트 절대 경로·해시, DDCvar JSON)도 패키지에 넣는다. DDCvar 등록에 필요하므로 의도된 동작이다. 다만 add-gasp를 돌린 PC의 패키지는 외부로 배포하지 않는다(GASP 콘텐츠 포함 — D-021 소유자 항목).
 

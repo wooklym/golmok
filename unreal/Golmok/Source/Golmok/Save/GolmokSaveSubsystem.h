@@ -8,6 +8,19 @@
 #include "GolmokSaveSubsystem.generated.h"
 
 class UWorld;
+struct FGolmokCharacterRoster;
+
+/** The saved WP-18 character (R91-1). Pure, so Golmok.Save.RoundTrip checks it without a pawn or roster assets. */
+namespace GolmokSaveCharacter
+{
+	/**
+	 * True for a save written before UGolmokSaveGame::CharacterIdRule (rule 0) whose id is a roster default (`default` or
+	 * a `default_by_anim_mode` value): such saves also kept automatic picks, so Restore leaves the mode default in place
+	 * instead of pinning that id with SelectCharacter. A legacy non-default id (e.g. quinn) was chosen and is restored as
+	 * an explicit choice; a rule 1 id is always explicit.
+	 */
+	bool IsLegacyDefault(int32 Rule, const FString& SavedId, const FGolmokCharacterRoster& Roster);
+} // namespace GolmokSaveCharacter
 
 /**
  * Automatic save (WP-15a, D-017; docs/plan/WP-15-zone-travel-save.md §3). Game instance subsystem: one slot
@@ -26,7 +39,8 @@ class UWorld;
  * ① saved zone in the level / index with the same version -> the saved position (preloaded through
  * UGolmokTravelSubsystem::TravelToLocation) ② another version -> that zone's spawn; zone gone -> HomeZoneId's spawn
  * ③ otherwise nothing (PlayerStart). Then the time of day (WP-14a {Minutes, Mode} per mode, instant; a save without
- * minutes -> its preset) and the WP-18 character are applied.
+ * minutes -> its preset) and the WP-18 character are applied. Only an explicit character selection is saved (R91-1,
+ * UGolmokSaveGame::CharacterIdRule); a legacy save's roster default is not re-applied.
  * GameMode / PlayerController are not touched (hot-spot rule).
  *
  * While automation tests run (GIsAutomationTesting) nothing is written or restored automatically, so a developer's
@@ -137,7 +151,8 @@ private:
 		FString TodPreset;
 		float TodMinutes = -1.f; // WP-14a clock minutes; -1 = restore by TodPreset
 		uint8 TodMode = 0;       // EGolmokClockMode as uint8
-		FString CharacterId;
+		FString CharacterId;     // explicit WP-18 selection only (R91-1); empty = automatic / unknown
+		int32 CharacterIdRule = UGolmokSaveGame::CharacterIdRuleExplicit; // the slot's own rule only while HoldSlotPosition passes its id through
 		FVector LocationUE = FVector::ZeroVector;
 		double YawUE = 0.0;
 	};

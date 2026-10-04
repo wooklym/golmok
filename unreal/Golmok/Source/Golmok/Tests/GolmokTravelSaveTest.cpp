@@ -21,6 +21,13 @@
 // golmok.save reset while standing in a zone (R49-1): direct and timer visit polls neither record that zone nor recreate
 // the slot; after leaving it and coming back it is a first visit again and the slot is written. The slot and the test
 // photo are deleted at the end.
+// Character (R91-1; skipped with an Info line without an automatically applied roster character and a 'quinn' entry):
+// the automatic pick is saved as an empty id with CharacterIdRule 1; after SelectCharacter(quinn) the slot holds quinn
+// (rule 1). Restores of a slot without position / zone / home (rule 3, only the character step runs): a legacy (rule 0)
+// roster default does not call SelectCharacter while the automatic pick differs (current id and explicit flag kept), the
+// same id with rule 1 is applied as explicit, a legacy non-default id is restored as explicit, a rule 1 id that is only
+// applied automatically becomes explicit, an empty rule 1 id changes nothing. GolmokSaveCharacter::IsLegacyDefault is
+// also checked on a literal roster before the map check (runs without the map or assets).
 //
 // Headless: .\tools\ue\test.ps1 -Filter Golmok.Travel   /   -Filter Golmok.Save
 
@@ -29,6 +36,7 @@
 
 #if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
 
+#include "Characters/GolmokCharacterSubsystem.h"
 #include "Components/CapsuleComponent.h"
 #include "Editor.h"
 #include "Engine/World.h"
@@ -64,6 +72,7 @@ namespace GolmokTravelSaveTest
 	const TCHAR* TestSlot = TEXT("golmok_test_wp15a");
 	const TCHAR* TestPhotoRel = TEXT("Screenshots/Golmok/photo/wp15a_test.png");
 	const TCHAR* MissingPhotoRel = TEXT("Screenshots/Golmok/photo/wp15a_missing.png");
+	const TCHAR* QuinnId = TEXT("quinn"); // a non-default roster entry (characters.json)
 	constexpr double TravelWaitSeconds = 25.0; // TravelTimeoutSeconds (20) + margin
 	constexpr double ToleranceCm = 0.1;        // 1 mm
 	constexpr float TodClockMinutes = 787.f;   // 13:07, saved in Clock mode
@@ -495,6 +504,23 @@ namespace GolmokTravelSaveTest
 				Test->TestNotNull(TEXT("visit kept"), Slot->FindVisit(SecondZoneId));
 				Test->TestTrue(TEXT("both photo entries kept"), Slot->Photos.Contains(TestPhotoRel) && Slot->Photos.Contains(MissingPhotoRel));
 				Test->TestFalse(TEXT("SavedAtUtc set"), Slot->SavedAtUtc.IsEmpty());
+				// R91-1: every write records the rule; the automatic pick of this fresh PIE world is not saved (explicit: phase 3).
+				Test->TestEqual(TEXT("CharacterIdRule 1 (explicit selections only)"), Slot->CharacterIdRule, 1);
+				const UGolmokCharacterSubsystem* Characters = World->GetSubsystem<UGolmokCharacterSubsystem>();
+				bCharacterReady = Characters && Characters->GetLoadError().IsEmpty() && !Characters->GetCurrentId().IsEmpty()
+					&& Characters->GetCurrentId() != QuinnId && Characters->GetRoster().Find(QuinnId) != nullptr;
+				if (bCharacterReady)
+				{
+					Test->TestFalse(FString::Printf(TEXT("character %s applied automatically (precondition)"), *Characters->GetCurrentId()),
+						Characters->IsExplicitSelection());
+					Test->TestTrue(FString::Printf(TEXT("automatic character %s not saved (CharacterId '%s')"), *Characters->GetCurrentId(), *Slot->CharacterId),
+						Slot->CharacterId.IsEmpty());
+					Test->TestTrue(TEXT("golmok.save status: character - (automatic)"), Save->DescribeStatus().Contains(TEXT("character - (automatic)")));
+				}
+				else
+				{
+					Test->AddInfo(TEXT("character steps skipped: no automatically applied WP-18 roster character other than quinn, or no quinn entry (mannequin: tools/ue/add-mannequin.ps1)"));
+				}
 				if (bTodReady)
 				{
 					Test->TestTrue(FString::Printf(TEXT("tod minutes %.3f saved (13:07)"), Slot->TimeOfDay.Minutes),
@@ -638,6 +664,7 @@ namespace GolmokTravelSaveTest
 				}
 				Test->TestEqual(TEXT("home restore arrived at z_synthetic_002"), Travel->GetLastArrivedZoneId(), FString(SecondZoneId));
 				CheckArrival(Travel, Zones->FindZone(SecondZoneId), Pawn, TEXT("home spawn"));
+				CheckCharacterRule(World, Save, Pawn);
 				return Next(4);
 			}
 
@@ -707,6 +734,98 @@ namespace GolmokTravelSaveTest
 		}
 
 	private:
+		/**
+		 * R91-1, synchronous (no tick, no GC: the roster override is restored before returning). The restores use a slot
+		 * without position / zone and no HomeZoneId (rule 3: no travel), so only Restore's character step acts.
+		 */
+		void CheckCharacterRule(UWorld* World, UGolmokSaveSubsystem* Save, APawn* Pawn)
+		{
+			UGolmokCharacterSubsystem* Characters = World->GetSubsystem<UGolmokCharacterSubsystem>();
+			if (!bCharacterReady || !Characters || !Pawn)
+			{
+				return; // phase 0 said why
+			}
+			FString Message;
+			if (!Test->TestTrue(TEXT("character: SelectCharacter(quinn)"), Characters->SelectCharacter(QuinnId, Message)))
+			{
+				Test->AddError(Message);
+				return;
+			}
+			Test->TestTrue(TEXT("character: quinn is an explicit selection"), Characters->IsExplicitSelection());
+			Test->TestTrue(TEXT("character: SaveNow(sync)"), Save->SaveNow(/*bSync*/ true, TEXT("test character"), &Message));
+			UGolmokSaveGame* Slot = Save->LoadSlot();
+			if (!Test->TestNotNull(TEXT("character: LoadSlot"), Slot))
+			{
+				return;
+			}
+			Test->TestEqual(TEXT("explicit selection saved: CharacterId quinn"), Slot->CharacterId, FString(QuinnId));
+			Test->TestEqual(TEXT("explicit selection saved: CharacterIdRule 1"), Slot->CharacterIdRule, 1);
+
+			TGuardValue<FString> NoHome(Save->HomeZoneId, FString());
+			Slot->bHasPosition = false;
+			Slot->ZoneId.Reset();
+			Slot->ZoneVersion = 0;
+			Slot->TimeOfDay = FGolmokSaveTimeOfDay();
+			const FString DefaultId = Characters->GetRoster().DefaultId;
+			{
+				// The automatic pick differs from the roster default, as manny_gasp does on a GASP pawn: every mode default -> quinn.
+				FGolmokCharacterRoster& Roster = Characters->MutableRosterForTest();
+				TGuardValue<TMap<FString, FString>> ModeGuard(Roster.DefaultByAnimMode, Roster.DefaultByAnimMode);
+				for (TPair<FString, FString>& Mode : Roster.DefaultByAnimMode)
+				{
+					Mode.Value = QuinnId;
+				}
+				Characters->ApplyDefaultForTest(Pawn);
+				Test->TestEqual(TEXT("character: automatic mode default quinn (precondition)"), Characters->GetCurrentId(), FString(QuinnId));
+				Test->TestFalse(TEXT("character: quinn is automatic (precondition)"), Characters->IsExplicitSelection());
+
+				Slot->CharacterIdRule = 0; // a save from before the rule, holding the roster default
+				Slot->CharacterId = DefaultId;
+				UGameplayStatics::SaveGameToSlot(Slot, Save->SlotName, 0);
+				Test->TestTrue(TEXT("golmok.save status marks the legacy character"),
+					Save->DescribeStatus().Contains(FString::Printf(TEXT("character %s (legacy)"), *DefaultId)));
+				Save->Restore(Message);
+				Test->AddInfo(Message);
+				Test->TestEqual(FString::Printf(TEXT("legacy default %s: no SelectCharacter, automatic quinn kept"), *DefaultId), Characters->GetCurrentId(),
+					FString(QuinnId));
+				Test->TestFalse(FString::Printf(TEXT("legacy default %s: selection stays automatic"), *DefaultId), Characters->IsExplicitSelection());
+				Test->TestTrue(FString::Printf(TEXT("legacy default named in the restore message (%s)"), *Message), Message.Contains(TEXT("(legacy default, not pinned)")));
+
+				Slot->CharacterIdRule = 1; // the same id chosen explicitly
+				UGameplayStatics::SaveGameToSlot(Slot, Save->SlotName, 0);
+				Save->Restore(Message);
+				Test->TestEqual(FString::Printf(TEXT("rule 1 %s: restored"), *DefaultId), Characters->GetCurrentId(), DefaultId);
+				Test->TestTrue(FString::Printf(TEXT("rule 1 %s: explicit"), *DefaultId), Characters->IsExplicitSelection());
+			}
+
+			Characters->ApplyDefaultForTest(Pawn); // the real roster again
+			const FString AutoId = Characters->GetCurrentId();
+			Test->TestFalse(FString::Printf(TEXT("character: %s automatic again (precondition)"), *AutoId), Characters->IsExplicitSelection());
+			Slot->CharacterIdRule = 0; // a legacy non-default id: chosen, so restored as explicit
+			Slot->CharacterId = QuinnId;
+			UGameplayStatics::SaveGameToSlot(Slot, Save->SlotName, 0);
+			Save->Restore(Message);
+			Test->AddInfo(Message);
+			Test->TestEqual(TEXT("legacy non-default quinn: restored"), Characters->GetCurrentId(), FString(QuinnId));
+			Test->TestTrue(TEXT("legacy non-default quinn: explicit"), Characters->IsExplicitSelection());
+
+			Characters->ApplyDefaultForTest(Pawn);
+			Slot->CharacterIdRule = 1; // an explicit id that this run has only applied automatically
+			Slot->CharacterId = AutoId;
+			UGameplayStatics::SaveGameToSlot(Slot, Save->SlotName, 0);
+			Save->Restore(Message);
+			Test->TestEqual(FString::Printf(TEXT("rule 1 %s (same as the automatic pick): kept"), *AutoId), Characters->GetCurrentId(), AutoId);
+			Test->TestTrue(FString::Printf(TEXT("rule 1 %s (same as the automatic pick): now explicit"), *AutoId), Characters->IsExplicitSelection());
+
+			Characters->ApplyDefaultForTest(Pawn);
+			Slot->CharacterId.Reset(); // rule 1, automatic at save time
+			UGameplayStatics::SaveGameToSlot(Slot, Save->SlotName, 0);
+			Save->Restore(Message);
+			Test->TestEqual(TEXT("rule 1 empty id: current character unchanged"), Characters->GetCurrentId(), AutoId);
+			Test->TestFalse(TEXT("rule 1 empty id: still automatic"), Characters->IsExplicitSelection());
+			Test->TestFalse(FString::Printf(TEXT("rule 1 empty id: no character step (%s)"), *Message), Message.Contains(TEXT(", character")));
+		}
+
 		bool Cleanup(UGolmokSaveSubsystem* Save)
 		{
 			if (bArmed && Save)
@@ -730,7 +849,23 @@ namespace GolmokTravelSaveTest
 		bool bOriginalAutomatic = false;
 		bool bArmed = false;
 		bool bTodReady = false; // an AGolmokTimeOfDay with keyframes: the WP-14a time-of-day steps run
+		bool bCharacterReady = false; // an automatic roster pick other than quinn and a quinn entry: the R91-1 character steps run
 	};
+
+	/** R91-1 pure rule on a literal roster (the characters.json defaults): no map, pawn or roster assets needed. */
+	void CheckLegacyDefaultRule(FAutomationTestBase* Test)
+	{
+		FGolmokCharacterRoster Roster;
+		Roster.DefaultId = TEXT("manny");
+		Roster.DefaultByAnimMode.Add(TEXT("abp"), TEXT("manny"));
+		Roster.DefaultByAnimMode.Add(TEXT("gasp"), TEXT("manny_gasp"));
+		Test->TestTrue(TEXT("rule 0: roster default manny is a legacy default (not pinned)"), GolmokSaveCharacter::IsLegacyDefault(0, TEXT("manny"), Roster));
+		Test->TestTrue(TEXT("rule 0: GASP mode default manny_gasp is a legacy default (not pinned)"),
+			GolmokSaveCharacter::IsLegacyDefault(0, TEXT("manny_gasp"), Roster));
+		Test->TestFalse(TEXT("rule 0: non-default quinn is restored"), GolmokSaveCharacter::IsLegacyDefault(0, QuinnId, Roster));
+		Test->TestFalse(TEXT("rule 1: an explicit manny is restored"), GolmokSaveCharacter::IsLegacyDefault(1, TEXT("manny"), Roster));
+		Test->TestFalse(TEXT("rule 0: an empty id is no legacy default"), GolmokSaveCharacter::IsLegacyDefault(0, FString(), Roster));
+	}
 
 	bool SkipWithoutMap(FAutomationTestBase* Test)
 	{
@@ -766,6 +901,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGolmokSaveRoundTripTest, "Golmok.Save.RoundTri
 bool FGolmokSaveRoundTripTest::RunTest(const FString& Parameters)
 {
 	using namespace GolmokTravelSaveTest;
+	CheckLegacyDefaultRule(this);
 	if (SkipWithoutMap(this))
 	{
 		return true;

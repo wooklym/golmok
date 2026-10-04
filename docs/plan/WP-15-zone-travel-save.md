@@ -29,7 +29,7 @@
 - 실내 zone(`kind: interior`)으로는 직접 이동하지 않는다(부모 exterior의 스폰으로 보냄, 메시지). 베이스맵 범위 밖 zone("다른 지역")은 15a 범위 밖: index에 있으면 목록에 표시하되 이동은 "지원 안 함" 메시지.
 
 ### 3. 세이브 (15a) — `Save/GolmokSaveGame` + `Save/GolmokSaveSubsystem`(GameInstance 서브시스템)
-- `UGolmokSaveGame : USaveGame` 필드: `SaveSchemaVersion`(1), `Lat/Lon/HeightEllipsoidal`(double), `YawDeg`(ENU 기준, UE yaw 아님), `ZoneId`·`ZoneVersion`(현재 안에 있는 권위 zone, 없으면 빈 문자열), `TimeOfDay`(§4: `{PresetName, Minutes, Mode}` — WP-14a 연결 2026-09-28, 아래 "시간대 저장·복원"), `Visited[]`(`{ZoneId, Version, FirstVisitUtc}`), `Photos[]`(`Saved/` 기준 상대 경로 문자열만), `CharacterId`(WP-18 로스터 현재 id, 문자열; 없으면 빈 값), `SavedAtUtc`. UE 좌표는 저장하지 않는다.
+- `UGolmokSaveGame : USaveGame` 필드: `SaveSchemaVersion`(1), `Lat/Lon/HeightEllipsoidal`(double), `YawDeg`(ENU 기준, UE yaw 아님), `ZoneId`·`ZoneVersion`(현재 안에 있는 권위 zone, 없으면 빈 문자열), `TimeOfDay`(§4: `{PresetName, Minutes, Mode}` — WP-14a 연결 2026-09-28, 아래 "시간대 저장·복원"), `Visited[]`(`{ZoneId, Version, FirstVisitUtc}`), `Photos[]`(`Saved/` 기준 상대 경로 문자열만), `CharacterId`(WP-18 로스터 현재 id, 문자열; 없으면 빈 값 — R91-1 후속(2026-10-04)부터 명시 선택 id만 + `CharacterIdRule`, 아래 "R91-1 후속"), `SavedAtUtc`. UE 좌표는 저장하지 않는다.
 - 자동 저장 슬롯 1개 `golmok_auto`(사용자 인덱스 0), `AsyncSaveGameToSlot`만 사용. 트리거: 이동 완료, 첫 방문(zone 진입 = `NotifyZoneLoaded` 뒤 `FootprintContains(플레이어)`가 처음 참일 때), 포토 촬영 완료(WP-12에 델리게이트가 없으면 `// [WP-15 hook]` 블록으로 `OnPhotoSaved(FString RelativePath)` 추가), 주기 `AutosaveIntervalSeconds`(기본 60, 변경이 있을 때만), 월드 종료(`EndPlay`·`FCoreDelegates::OnPreExit`)는 **동기** `SaveGameToSlot`(종료 중 비동기는 유실).
 - **시간대 저장·복원**(WP-14a 연결, 2026-09-28, R49-7/R51-2 오케스트레이터 결정): `FGolmokSaveTimeOfDay{PresetName(FString), Minutes(float, 기본 −1 = 없음), Mode(uint8 = EGolmokClockMode를 static_cast, 0 Fixed·1 Clock·2 Realtime, 기본 0)}`. 필드 추가만이라 `SaveSchemaVersion` 1 유지(태그 직렬화 — 옛 세이브는 −1·0으로 읽힌다; 버전 검사가 1만 받으므로 올리면 옛 세이브가 거절된다). 저장: `GetTimeOfDayMinutes()`·`GetClockMode()`·`CurrentPreset`(시계 위에서는 가장 가까운 키프레임). 단 시각이 없는 상태는 `Minutes −1`: 레벨 조명(`HasTimeOfDay()` false), Fixed에서 키프레임 시각이 없는 프리셋을 기저로 건 경우(예: `interior`) — 이름으로 복원. 복원(모드별, 모두 즉시): 먼저 `SetClockMode(Fixed)`로 시계를 세운 뒤 **Fixed** → `SetTimeOfDay(Minutes, true)`; **Clock** → `SetTimeOfDay(Minutes, true)` 후 `SetClockMode(Clock)`(저장한 분부터 설정 속도로 계속; 이미 시계 기저라 두 번째 점프 없음); **Realtime** → `SetTimeOfDay(RealtimeTargetMinutes(), true)` 후 `SetClockMode(Realtime)`(PC 현지 시각이 정본 — 저장한 분은 무시). `SetClockMode(Clock)`을 먼저 부르면 프리셋 기저에서 전환(2 s) 점프와 `OnPresetChanged(…, false)`가 한 번 더 나가고, Realtime에서 `SetTimeOfDay`는 Fixed로 떨어지므로 이 순서로 한다. **`Minutes < 0`(WP-14a 이전 세이브 등)** 또는 키프레임 없음 → 종전 `ApplyPreset(PresetName, true)`(현재 모드 규칙 그대로: Realtime이면 Fixed로). 알 수 없는 `Mode` 값은 Fixed. 로그·`golmok.save status`·`golmok.load` 메시지에 `tod HH:MM <mode>`(`GolmokClockMath::FormatHHMM`).
 - 복원(`RestoreOnBeginPlay`, 기본 true; `-GolmokNoRestore` 명령줄로 끔 — 런북·자동화용): 월드 BeginPlay 뒤 GeoOrigin이 준비되면 ① 세이브의 `ZoneId`가 index에 있고 version 같음 → 저장 위치로 ② version 다름·zone 없음 → 그 zone(있으면) 또는 `HomeZoneId`(Config, 기본 빈 값 = 현재 PlayerStart 유지)의 스폰으로 `TravelToZone` ③ 어느 것도 없으면 복원 안 함(로그). 복원 뒤 시간대(§4)·캐릭터(§4) 적용. 위치 복원은 캐릭터가 이미 스폰된 뒤 `SetActorLocation`(GameMode·PlayerController는 hot-spot: 손대지 않고 서브시스템 `OnWorldBeginPlay`에서 한 틱 뒤 처리).
@@ -96,7 +96,7 @@ hot-spot·레인: `Build.cs`·`Default*.ini`·GameMode·PlayerController·Charac
 11. **첫 방문** = 로드된 모든 zone 중 footprint가 플레이어를 포함하는 것(겹친 낮은 우선순위 zone 포함), 1 s 폴링(매 프레임 아님).
 12. **HUD 줄은 Debug 훅으로 직접**: `ExtraHudLineProviders`에 넣으면 `Golmok.Audio.StateMachine`이 개수(1)를 단언해 깨진다.
 13. **OnPhotoSaved는 png가 있을 때만** 발화(`-nullrhi`는 png를 쓰지 않음) — 자동화는 `NotePhoto`로 색인을 검증.
-14. **캐릭터**: WP-18 `UGolmokCharacterSubsystem::GetCurrentId/SelectCharacter`가 이미 공개라 저장·복원에 사용(Astra 후속 불필요, Astra 파일 무수정).
+14. **캐릭터**: WP-18 `UGolmokCharacterSubsystem::GetCurrentId/SelectCharacter`가 이미 공개라 저장·복원에 사용(Astra 후속 불필요, Astra 파일 무수정). → 자동 선택까지 저장해 다음 실행에 명시로 고정하던 문제(R91-1)는 아래 "R91-1 후속"(명시 선택만 저장, T20 `IsExplicitSelection()`).
 15. **시간대**: WP-14a 전이라 `PresetName`만(`ApplyPreset(Name, true)`). ~~WP-14a 병합 뒤 `{Minutes, Mode}` 연결 커밋 필요~~ → **반영(2026-09-28, 아래 "병합 준비")**: `{PresetName, Minutes, Mode}` 저장, 모드별 즉시 복원, `Minutes < 0`(구 세이브)은 프리셋 폴백, 스키마 1 유지.
 16. **z_synthetic_002 스폰을 파사드 B 창 앞(x −8)** 으로: 002는 충돌 에셋이 없어 L_ZoneTest `Zone_Ground`(001 중심 ±200 m)가 받쳐야 하는데 문 앞(x +5)은 205 m로 평면 밖.
 17. z_synthetic_001 매니페스트는 생성기가 없는 WP-02 픽스처라 `zm.load → zm.save`로 v2 키를 넣었다(원본 바이트 왕복 확인).
@@ -152,3 +152,48 @@ WP-14a(PR #51)가 main에 들어온 뒤 오케스트레이터 결정(R49-7 / R51
 - **리뷰 요약(R49)**: 레인·핫스팟 무변경, 훅은 별도 커밋 표식 블록, WP-13 훅 보존, v1 manifest 6개 validator·UE 파서 통과, 좌표 변환·세이브 내용(경위도 double·ENU yaw) 교차검증. (A) R49-1 reset 재방문 억제, (B) R49-2~5, note R49-8/9 반영; R49-6 `bRestoreInPIE=False` Fable 채택; R49-7은 병합 준비 커밋(자동화 32·시간대 연결); R49-10 허용.
 - **Fable 결정 기록**: DECISIONS D-014·D-017 진행(bRestoreInPIE, GeoOrigin 없는 travel 거절, 시간대 연결·복원 순서).
 - **(C) 옮긴 것**: STATUS 마지막 갱신·WP-15a 행·트랙 1B V-13/V-14 행·세션 로그, ROADMAP 게임 기능 줄, DECISIONS D-014/D-017, 이 절. 다음: V-14 PC 카드, 15b는 D-009 자문 뒤.
+
+## R91-1 후속 — 명시 캐릭터 선택만 저장 (2026-10-04)
+
+클라우드 Opus 5.5 세션(https://claude.ai/code/session_01NM6uvZaVMgq5SUSaduHD1Z), 브랜치 `claude/save-explicit-character`(main 8e7cfc5 기준). Claude 레인 파일만 고쳤다(`Save/`, `Tests/GolmokTravelSaveTest.cpp`, 이 문서, 런북 2개). UE 컴파일·자동화는 PC. **Astra T20의 `IsExplicitSelection()`을 쓰므로 T20 병합 전에는 컴파일되지 않는다 — T20 뒤에 병합한다.**
+
+- **문제**(리뷰 [R91](https://github.com/wooklym/golmok/pull/91#issuecomment-5977339808) (B) R91-1, 기존 동작이며 T18 원인 아님): `TakeSnapshot`이 명시 여부와 무관하게 `GetCurrentId()`를 저장하고, `Restore`는 현재 id와 다르면 `SelectCharacter`로 다시 적용했다. `SelectCharacter`는 선택을 명시로 표시한다(T18 `bExplicitSelection`). 그래서 abp 세션의 **자동** `manny`가 다음 `-GolmokAnim=gasp` 실행에서 GASP 폰에 명시로 고정되고(standalone·패키지는 BeginPlay 다음 틱에 자동 복원, PIE는 `bRestoreInPIE=False`라 제외), 다음 세이브가 다시 `manny`를 쓴다. V-15 §B8로 `mode: gasp`가 기본이 되면, 옛 세이브가 있는 모든 실행이 HUD `anim: gasp`인 채 ①로 돈다.
+- **규칙**: `UGolmokSaveGame::CharacterIdRule`(`int32`, `UPROPERTY(SaveGame)`, 상수 `CharacterIdRuleLegacy` 0·`CharacterIdRuleExplicit` 1)을 더했다.
+  - 0은 규칙 이전 세이브다(자동 선택을 포함한 아무 현재 id). 필드가 없는 옛 `.sav`는 태그 직렬화로 0으로 읽힌다.
+  - 1은 명시 선택만 담는다.
+  - `SaveSchemaVersion`은 1 그대로다(필드 추가·기본값. `Restore`가 1만 받으므로 올리면 옛 세이브가 거절된다).
+  - 스냅숏은 `IsExplicitSelection()`일 때만 `GetCurrentId()`를 저장하고, 자동이면 빈 id를 저장한다. 규칙은 1이다(`FSnapshot::CharacterIdRule` 기본 1 → `BuildSaveObject`).
+  - 예외는 하나다. 폰 스냅숏이 아직 없을 때 슬롯 값을 보류하는 경로(`HoldSlotPosition`)는 슬롯의 id와 규칙을 그대로 넘긴다. 레거시 자동 id가 규칙 1로 바뀌어 명시로 승격되면 안 되기 때문이다. 첫 폰 스냅숏이 둘 다 현재 값으로 바꾼다.
+- **복원**:
+  - 빈 id(규칙 1 = 저장 때 자동 선택)는 아무것도 하지 않는다.
+  - **레거시 가드**: 규칙 0이고 id가 로스터 기본값(`default` 또는 `default_by_anim_mode`의 값, 지금은 `manny`·`manny_gasp`)이면 `SelectCharacter`를 부르지 않는다. 자동·모드 기본 선택이 그대로 남고, 메시지에 `, character manny (legacy default, not pinned)`가 붙는다. 판정은 순수 함수 `GolmokSaveCharacter::IsLegacyDefault(Rule, SavedId, Roster)`(헤더 선언)가 한다.
+  - 그 밖의 id(규칙 1, 또는 레거시 비기본 `quinn` 등 — 사용자가 고른 것이므로 명시로 본다)는 종전처럼 `SelectCharacter`로 복원한다. 현재 id가 같아도 자동 적용일 뿐이면(`!IsExplicitSelection()`) 다시 불러 명시로 만든다. 그러지 않으면 다음 세이브가 그 명시 선택을 빈 id로 잃는다.
+- **판단**:
+  1. 레거시 가드의 "로스터 기본 id"를 `default_by_anim_mode` 값까지 넓혔다. gasp 세션의 레거시 자동 `manny_gasp`도 같은 부류다(19b가 gasp 기본값을 바꾸면 옛 자동 `manny_gasp`가 새 기본값을 덮는다). 일반 폰에서는 GASP 항목 적용이 어차피 거절되므로 잃는 것이 없다. 옛 빌드에서 사용자가 일부러 기본 id를 골랐다면 그 선택을 한 번 잃는다(구별할 수 없다. 다시 고르면 규칙 1로 저장된다).
+  2. 명시 id 복원이 거절된 세션(예: 명시 GASP id를 abp 폰에 복원 → 로드 전 거절)의 다음 세이브는 빈 id를 쓴다. 종전에는 그 세션의 자동 id를 썼다. 어느 쪽이든 그 선택은 잃는다. 슬롯의 명시 id를 보류하는 처리가 필요하면 19b 뒤 후속으로 한다.
+  3. `golmok.save status`의 `slot:` 줄은 `character quinn`(명시)·`character - (automatic)`(규칙 1 빈 id)·`character manny (legacy)`(규칙 0)로 쓴다. 저장 로그 형식은 바꾸지 않았다.
+- **의존**: Astra T20의 `bool UGolmokCharacterSubsystem::IsExplicitSelection() const`(`bExplicitSelection` 반환). 이 브랜치는 그 서명으로 썼고 캐릭터 레인 파일은 고치지 않았다. 그 밖에 쓰는 공개 API는 `GetRoster()`(`DefaultId`·`DefaultByAnimMode`)·`GetCurrentId`·`SelectCharacter`, 테스트 훅 `MutableRosterForTest`·`ApplyDefaultForTest`(`WITH_DEV_AUTOMATION_TESTS`)다.
+- **테스트**(`Golmok.Save.RoundTrip` 안, 새 등록 없음 — 36 유지):
+  - 지도 검사 전 순수 단언(리터럴 로스터 `manny`·abp `manny`·gasp `manny_gasp`): 규칙 0의 `manny`·`manny_gasp`는 레거시 기본이고, 규칙 0 `quinn`·규칙 1 `manny`·빈 id는 아니다.
+  - 단계 0: 슬롯 `CharacterIdRule` 1. 자동 선택(전제: 명시 아님)은 `CharacterId` 빈 값, `golmok.save status`에 `character - (automatic)`.
+  - 단계 3(동기): 위치·zone·`HomeZoneId`가 없는 슬롯을 써서 규칙 ③(이동 없음)으로 캐릭터 단계만 돌린다.
+    - `SelectCharacter(quinn)` → 슬롯 `quinn`·규칙 1.
+    - 모드 기본값을 모두 `quinn`으로 바꾼 로스터(GASP 폰의 `manny_gasp`와 같은 상황)에서 자동 `quinn` + 레거시 `manny` → 현재 id `quinn`, 자동 유지, 메시지 `(legacy default, not pinned)`, status `character manny (legacy)`. 같은 슬롯을 규칙 1로 → `manny` 명시.
+    - 실제 로스터로 자동 `manny` + 레거시 `quinn` → `quinn` 명시.
+    - 규칙 1 `manny`(자동과 같은 id) → 명시로 바뀐다.
+    - 규칙 1 빈 id → 변화 없음, 메시지에 캐릭터 단계 없음.
+  - 변이별로 실패하는 단언:
+    - 스냅숏 게이트를 되돌리면 단계 0의 빈 id 단언.
+    - 규칙 쓰기를 빼면 규칙 1 단언 2곳.
+    - 레거시 가드를 빼면 자동 `quinn` 유지·자동 유지·메시지 단언.
+    - 가드가 규칙을 보지 않으면 규칙 1 `manny` 단언.
+    - 레거시 id를 모두 건너뛰면 레거시 `quinn` 단언.
+    - 같은 id 재적용 조건을 빼면 "now explicit" 단언.
+    - status 표기를 되돌리면 status 단언 2곳.
+    - 모드 기본값 비교를 빼면 순수 `manny_gasp` 단언.
+  - 매니킨이 없으면 PIE 캐릭터 단계는 `[Info] character steps skipped: …`로 건너뛴다(순수 단언은 돈다).
+  - 세이브 필드를 미러링하는 Python 테스트·픽스처는 없다(`tools/`에서 `CharacterId` grep 0건). pytest는 바꾸지 않았다.
+- **PC 확인**:
+  - `runbooks/pc-verify-wp15a.md` §2(기대 Info), §6(재시작: 명시 `quinn` 복원, 자동 선택은 `character - (automatic)`), §9 #13.
+  - `runbooks/pc-verify-wp19.md` §B7(GASP 설치 PC: 옛 abp 세이브 `manny` + `-GolmokAnim=gasp` → `manny_gasp` 유지, 명시 `quinn` → `quinn`).
+- **게이트**(리눅스): ruff 통과, format 112, pytest 1501 passed / 3 skipped(기준과 같음), check_repo OK, `git diff --check` 통과, 자동화 등록 36.
