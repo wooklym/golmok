@@ -50,7 +50,12 @@ Input is a master-submix recording (``unreal.AudioMixerLibrary.start_recording_o
   ramps to silence on placeholder beds (300 seeds each): hard cut flagged 300/300 (0–9.4 ms; 2998/3000 in
   a larger run), 5 ms ramp 95 %, 10 ms 43 %, 12 ms 13 %, 15 ms 1 %, 20, 40 and 250 ms 0 %. The drop is
   read on one 5 ms window, so it scatters by about ±2 dB there (a hard cut to a bed 15 dB quieter was
-  listed 2 times in 100, one 30 dB quieter 100 times).
+  listed 2 times in 100, one 30 dB quieter 100 times). Only audible material can stop: the reference
+  must be above the silence floor (``silence_floor``, −80 dBFS, as for the click sigma), because residual
+  flicker of a few LSB is silence (V-10b: ±2 LSB at about −97 dBFS flickering to 0 gave 17 false stops).
+  A hard cut on a bed at −78 dBFS RMS is listed (20 of 20 seeds), one at −81 or −82 dBFS is not; at −80
+  the 100 ms reference scatters across the floor. ``--silence-floor 0`` restores the old behaviour (every
+  reference above the −120 dB level floor).
   The report lists them for the mono mix and for each channel (a cut on one channel of a stereo bed
   lowers the mix by 3-6 dB only, so it is seen on the channel).
 - ``dip``: largest drop of the envelope below the straight line (in dB) between the levels before and
@@ -515,6 +520,7 @@ def abrupt_stop(
     drop_db: float = STOP_DROP_DB,
     within_ms: float = STOP_WITHIN_MS,
     window_ms: float = STOP_WINDOW_MS,
+    silence_floor: float = SILENCE_FLOOR,
 ) -> list[tuple[float, float, float]]:
     """Level drops of ≥ ``drop_db`` completed within ≤ ``within_ms`` → [(t s, drop dB, duration ms), …].
 
@@ -531,7 +537,10 @@ def abrupt_stop(
     the defaults: a 10 ms linear ramp to silence sits on it; a 20 ms ramp leaves p = 1/12 (6 dB under the
     boundary) and a 250 ms fade about 1/130 of the 100 ms before its last 10 ms, so neither is listed; the
     module docstring has the measured rates. Only drops are looked for: an abrupt start is not listed.
-    Pass one channel to check that channel.
+    Only audible material can stop: R must be above ``silence_floor`` (in dB), since residual flicker of
+    a few LSB is silence (V-10b: ±2 LSB at about −97 dBFS gave 17 false stops); 0 keeps every R above
+    the −120 dB level floor, which was the behaviour before (a drop from R = −120 dB would need a level
+    of −140). Pass one channel to check that channel.
     """
     x = to_mono(samples)
     w = max(1, int(round(sr * window_ms / 1000.0)))
@@ -547,7 +556,8 @@ def abrupt_stop(
     ref_lo = np.maximum(0, g - within - ref)
     ref_power = (energy[g - within] - energy[ref_lo]) / (g - within - ref_lo)
     ref_db = _db_power(ref_power)
-    cand = level <= ref_db - drop_db
+    floor_db = _db_amplitude(silence_floor)
+    cand = (level <= ref_db - drop_db) & (ref_db > floor_db)  # only audible material can stop
     if not cand.any():
         return []
     span = int(round(sr * (within_ms + _STOP_POST_MS) / 1000.0 / step))  # in grid steps
@@ -564,7 +574,7 @@ def abrupt_stop(
         skip_to = k + -(-within // step) + 1
         p = (energy[g[k]] - energy[g[k] - within]) / within / max(ref_power[k], 10.0 ** (FLOOR_DB / 10.0))
         drop = float(ref_db[k] - level[k])
-        if p >= 1.0 / 3.0 and drop >= drop_db:
+        if p >= 1.0 / 3.0 and drop >= drop_db and ref_db[k] > floor_db:
             duration = 1.5 * within_ms * (1.0 - min(p, 1.0))
             out.append((float(g[k] / sr), drop, float(duration)))
     return out
@@ -613,7 +623,9 @@ def analyse(
     Clicks and abrupt stops are looked for in the mono mix and in each channel (for one channel, the mix
     is the channel); ``click`` gives the largest z with its ``channel`` (``None``: the mix), and
     ``abrupt_stops`` the mix's stops with each channel's under ``channels``. Levels, settle and dip use
-    the mono mix. ``trace`` adds each event's envelope and ``settle_s_smoothed``.
+    the mono mix. ``silence_floor`` is the click sigma's silence and the floor an abrupt stop's
+    reference must exceed (``abrupt_stops.ref_floor_dbfs``). ``trace`` adds each event's envelope and
+    ``settle_s_smoothed``.
     """
     samples = np.asarray(samples)
     mono = to_mono(samples)
@@ -624,12 +636,15 @@ def analyse(
     def score(signal: np.ndarray) -> tuple[float, float | None]:
         return click_score(signal, sr, exclude=exclude, window_ms=window_ms, silence_floor=silence_floor)
 
-    mix_click, mix_stops = score(mono), abrupt_stop(mono, sr)
+    def stops(signal: np.ndarray) -> list[tuple[float, float, float]]:
+        return abrupt_stop(signal, sr, silence_floor=silence_floor)
+
+    mix_click, mix_stops = score(mono), stops(mono)
     if len(channels) == 1:
         ch_clicks, ch_stops = [mix_click], [mix_stops]
     else:
         ch_clicks = [score(c) for c in channels]
-        ch_stops = [abrupt_stop(c, sr) for c in channels]
+        ch_stops = [stops(c) for c in channels]
     (z, z_t), where = mix_click, None
     for c, (cz, ct) in enumerate(ch_clicks if len(channels) > 1 else []):
         if cz > z:
@@ -661,6 +676,7 @@ def analyse(
             "drop_db": STOP_DROP_DB,
             "within_ms": STOP_WITHIN_MS,
             "window_ms": STOP_WINDOW_MS,
+            "ref_floor_dbfs": _db_amplitude(silence_floor),
             "first": _stops_row(mix_stops)["first"],
             "channels": [_stops_row(s) for s in ch_stops],
         },
@@ -781,7 +797,8 @@ def format_report(report: dict, name: str = "") -> str:
     stops = report["abrupt_stops"]
     lines.append(
         f"abrupt stops {stops['count']}{' in the mix' if multi else ''} (drop >= {stops['drop_db']:g} dB"
-        f" within <= {stops['within_ms']:g} ms, {stops['window_ms']:g} ms RMS)" + _stops_text(stops)
+        f" within <= {stops['within_ms']:g} ms, {stops['window_ms']:g} ms RMS,"
+        f" reference above {stops['ref_floor_dbfs']:g} dBFS)" + _stops_text(stops)
     )
     if multi:
         for c, row in enumerate(stops["channels"]):
@@ -867,8 +884,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         type=float,
         default=SILENCE_FLOOR,
         metavar="A",
-        help=f"|x| below this is silence for the click sigma (default {SILENCE_FLOOR:g}, about -80 dBFS;"
-        " 0 counts every sample, the V-10 behaviour)",
+        help=f"|x| below this is silence for the click sigma, and an abrupt stop needs a reference level"
+        f" above it (default {SILENCE_FLOOR:g}, about -80 dBFS; 0 counts every sample and every"
+        " reference, the V-10 behaviour)",
     )
     p.add_argument(
         "--trace",

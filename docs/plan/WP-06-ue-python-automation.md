@@ -542,7 +542,7 @@ python tools/scripts/make_synthetic_zone.py --out <dir> [--zone-id z_synthetic_s
 {"schema": 1, "zone_id": "…", "version": 1, "asset_folder": "/Game/…", "route": "fbx",
  "obj_mapping": {"scale": 100.0, "m": [[…]], "err": 0.0}, "glb_mapping": {…},
  "assets": [{"kind": "texture|material|chunk|collision|file", "asset": "/Game/… 또는 Content 상대경로", "ok": true,
-             "detail": {"tiles": [...], "size": [w, h], "vt": true, "how": "…"} | {"parent": "…", "texture": "…"} | {"tris": n, "bounds_error_cm": 0.0, "slots": {...}, "unmatched": []} | {"bounds_error_cm": 0.0} | {"bytes": n}}],
+             "detail": {"tiles": [...], "size": [w, h], "vt": true, "how": "…"} | {"parent": "…", "texture": "…"} | {"tris": n, "bounds_error_cm": 0.0, "slots": {...}, "unmatched": [], "full_precision_uvs": "set"|"on"|null} | {"bounds_error_cm": 0.0} | {"bytes": n}}],
  "warnings": ["…"], "interior": null}
 ```
 
@@ -1100,7 +1100,7 @@ def tick(fake, n: int, dt: float = 0.1)           # 등록된 slate 콜백을 n�
 | A1 | 합성 zone(`ZONE_ORIGIN` = 스펙 §4 B)이 `L_ZoneTest`의 WP-04/05 픽스처 `z_synthetic_001`과 같은 원점·겹치는 footprint → PIE에서 겹침 해소(우선순위·버전 동률 → id 순)로 WP-06 zone의 시각 레이어가 숨겨지고 WP-04 벽·`door_1`이 §3/§5/§7에 섞임 | **블로킹** | 런북 §0: `L_ZoneTest`를 `L_ZoneTest06`으로 복제하고 픽스처 zone 액터 2개를 지운 사본에서 검증(`ZONE_TEST_MAP`, `.gitignore`, `actors 2` 로그 갱신). 원본 맵은 WP-05 자동화 테스트용으로 유지 |
 | A2 | `legacy_flag` 경로가 캐시 적중 시 콘솔 플래그를 다시 보내지 않음 → 새 에디터 세션에서 청크 임포트가 Interchange로 가서 실패(V-05에서 드러남) | **블로킹** | `_importer_mappings` 캐시 적중 분기에서 `Interchange.FeatureFlags.Import.OBJ 0` 재전송 + 테스트 `test_legacy_flag_rearmed_on_cache_hit` |
 | ① | UDIM 병합 판정이 컴파일 전 크기를 읽을 가능성 | 결함 아님(에디터 빌드의 `GetPlatformData`는 비동기 컴파일을 기다림; 타일 크기를 돌려줘도 중복 팩 1회뿐 — **V-04b에서 번복**: 중복 팩은 엔진 assert, 아래 "후속 V-04b F1~F3") | (0, 0)만 유해 → `size`에 0이 있으면 "unknown"으로 처리 |
-| ② | Full Precision UV 미설정(half-float UV, UDIM u/v ≤ 10에서 8K 타일 기준 8~64 texel 계단) | 실제·잠재 품질 문제(V-04 256 px에서는 안 보임; Nanite 외 소비자 — 폴백 메시·HWRT·Lumen hit lighting) | **V-05 전** `StaticMeshEditorSubsystem.get/set_lod_build_settings`로 LOD0 `use_full_precision_u_vs=True`(hasattr 가드, 런북 §12 행 추가) — 미반영, V-04 인계 |
+| ② | Full Precision UV 미설정(half-float UV, UDIM u/v ≤ 10에서 8K 타일 기준 8~64 texel 계단) | 실제·잠재 품질 문제(V-04 256 px에서는 안 보임; Nanite 외 소비자 — 폴백 메시·HWRT·Lumen hit lighting) | **V-05 전** `StaticMeshEditorSubsystem.get/set_lod_build_settings`로 LOD0 `use_full_precision_u_vs=True`(hasattr 가드, 런북 §12 #41) — 반영(PR #107, PC 확인은 V-05 S7): `zone_import._full_precision_uvs`(청크마다 Nanite 전; 이미 True면 호출 없음; API·필드 없음·되읽기 실패는 임포트당 WARNING 1줄 뒤 계속), 요약 줄 `zone_import: full precision UVs (LOD0) on N/N chunks (…)`, 충돌 메시는 제외(위치만 씀) |
 | ③ | TIF/JPG UDIM 앵커 크기 판정(PNG IHDR만) | 실제(pc-spike가 TIF를 허용했음) | pc-spike.md 텍스처 행을 **PNG만**으로, `_pure.import_plan`이 PNG 아닌 UDIM 세트에 경고 |
 | ④ | `MI_<safe(material)>` 이름 충돌 미검출(대소문자만 다른 MTL 재질이 한 MI를 공유 → 뒤 텍스처가 이김) | 실제(드묾) | `tex_names`/`mi_names`를 소문자 키로, 충돌은 plan problem |
 | ⑤ | 비인덱스 TRIANGLES의 감김 반전 누락 | 실제이나 현재 도달 불가(golmok-mesh GLB는 항상 인덱스) | 거울 매핑 + 비인덱스 프리미티브면 `ValueError` |

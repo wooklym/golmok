@@ -170,6 +170,7 @@ def test_run_call_order_and_registry(fake, unreal, zone, zi):
         calls.append(("import", f"SM_{cid}.obj", f"{FOLDER}/_import", f"SM_{cid}", "fbx"))
         calls.append(("rename", f"{FOLDER}/_import/SM_{cid}", mesh))
         calls += [("delete_asset", f"{FOLDER}/_import/{m}") for m in usemtl]  # importer by-products
+        calls.append(("set_lod_build", mesh, 0, True))  # LOD0 full precision UVs (runbook #41)
         calls.append(("set_nanite", mesh, True))
         calls += [("set_material", mesh, i, f"{FOLDER}/Materials/MI_{m}") for i, m in enumerate(usemtl)]
         calls.append(("save", mesh))
@@ -215,6 +216,7 @@ def test_run_call_order_and_registry(fake, unreal, zone, zi):
         f"zone_import: material {FOLDER}/Materials/MI_ground parent={M_ZONE_SCAN} texture=T_ground",
         f"zone_import: chunk {FOLDER}/SM_c_e000_n000 tris=66 bounds ok (error 0.00 cm) "
         "slots=facade=MI_facade,ground=MI_ground",
+        "zone_import: full precision UVs (LOD0) on 2/2 chunks (2 set, 0 already on)",
         f"zone_import: collision {FOLDER}/SM_{ZONE}_collision_c_w001_n000 bounds ok (error 0.00 cm) "
         "complex-as-simple nanite=off",
         f"zone_import: copied blockers.json, manifest.json -> "
@@ -1383,6 +1385,123 @@ def test_hasattr_branches(fake, unreal, zone, zi, monkeypatch):
         )
 
 
+# ---- WP-06 round 2 item 2: LOD0 full precision UVs on chunk meshes (runbook §12 #41) ----------------------
+
+UV_WARNING = (
+    "zone_import: WARNING {why}: chunk meshes keep half-float UVs - set Use Full Precision UVs in the Static "
+    "Mesh editor (LOD0 Build Settings) by hand (runbook #41)"
+)
+
+
+def test_full_precision_uvs_set_on_chunk_meshes_only(fake, zone, zi):
+    result = _run(zi, zone)
+    assert fake.calls_of("set_lod_build") == [
+        ("set_lod_build", f"{FOLDER}/SM_{cid}", 0, True) for cid in CHUNKS
+    ]  # one rebuild per chunk; collision meshes are left alone (positions only)
+    for cid in CHUNKS:
+        assert fake.registry[f"{FOLDER}/SM_{cid}"].lod_build[0].use_full_precision_u_vs is True
+    for cid in CHUNKS:
+        assert (
+            fake.registry[f"{FOLDER}/SM_{ZONE}_collision_{cid}"].lod_build[0].use_full_precision_u_vs is False
+        )
+    # before Nanite, so the Nanite build of the chunk already reads full precision UVs
+    mesh = f"{FOLDER}/SM_{CHUNKS[0]}"
+    kinds = [c[0] for c in fake.calls if c[0] in ("set_lod_build", "set_nanite") and c[1] == mesh]
+    assert kinds == ["set_lod_build", "set_nanite"]
+    chunks = [a for a in result["assets"] if a["kind"] == "chunk"]
+    assert [a["detail"]["full_precision_uvs"] for a in chunks] == ["set", "set"]
+    logs = fake.logged("log")
+    line = "zone_import: full precision UVs (LOD0) on 2/2 chunks (2 set, 0 already on)"
+    assert logs.count(line) == 1
+    last_chunk = max(i for i, t in enumerate(logs) if t.startswith("zone_import: chunk "))
+    first_collision = min(i for i, t in enumerate(logs) if t.startswith("zone_import: collision "))
+    assert last_chunk < logs.index(line) < first_collision
+    assert fake.logged("warning") == [] and result["warnings"] == []
+
+
+def test_full_precision_uvs_rerun_sets_each_new_mesh_once(fake, zone, zi):
+    _run(zi, zone)
+    _run(zi, zone)  # a re-run imports new meshes (the previous asset is replaced): set again, once each
+    assert (
+        fake.calls_of("set_lod_build")
+        == [("set_lod_build", f"{FOLDER}/SM_{cid}", 0, True) for cid in CHUNKS] * 2
+    )
+    mesh = fake.registry[f"{FOLDER}/SM_{CHUNKS[0]}"]
+    n = len(fake.calls)
+    assert zi._full_precision_uvs(mesh) == "on"  # already on: no set call, no rebuild
+    assert fake.calls[n:] == []
+
+
+def test_full_precision_uvs_already_on_from_the_importer(monkeypatch, tmp_path, zone):
+    fake = fake_unreal.install(monkeypatch, tmp_path, full_precision_uvs=True)
+    zi = importlib.import_module("golmok.zone_import")
+    result = _run(zi, zone)
+    assert fake.calls_of("set_lod_build") == []
+    assert "zone_import: full precision UVs (LOD0) on 2/2 chunks (0 set, 2 already on)" in fake.logged("log")
+    chunks = [a for a in result["assets"] if a["kind"] == "chunk"]
+    assert [a["detail"]["full_precision_uvs"] for a in chunks] == ["on", "on"]
+    assert result["warnings"] == []
+
+
+@pytest.mark.parametrize(
+    "missing, why",
+    [
+        (
+            "get_lod_build_settings",
+            "StaticMeshEditorSubsystem.get_lod_build_settings/set_lod_build_settings unavailable",
+        ),
+        (
+            "set_lod_build_settings",
+            "StaticMeshEditorSubsystem.get_lod_build_settings/set_lod_build_settings unavailable",
+        ),
+        ("field", "MeshBuildSettings.use_full_precision_u_vs not settable ("),
+        ("sticks", "set_lod_build_settings did not keep use_full_precision_u_vs=True"),
+    ],
+)
+def test_full_precision_uvs_unavailable_warns_once_and_import_completes(
+    fake, unreal, zone, zi, monkeypatch, missing, why
+):
+    if missing == "field":
+        older = fake_unreal._options("MeshBuildSettings", {"recompute_normals": True})  # no such field
+        monkeypatch.setattr(unreal.StaticMeshEditorSubsystem, "get_lod_build_settings", lambda *a: older())
+    elif missing == "sticks":
+        monkeypatch.setattr(unreal.StaticMeshEditorSubsystem, "set_lod_build_settings", lambda *a: None)
+    else:
+        monkeypatch.delattr(unreal.StaticMeshEditorSubsystem, missing)
+    result = _run(zi, zone)
+    warnings = fake.logged("warning")
+    assert len(warnings) == 1, warnings  # once per import, not once per chunk
+    head = UV_WARNING.split("{why}")[0] + why
+    assert warnings[0].startswith(head) and warnings[0].endswith(UV_WARNING.split("{why}")[1])
+    if missing != "field":
+        assert warnings[0] == UV_WARNING.format(why=why)
+    assert fake.calls_of("set_lod_build") == []
+    assert len(result["warnings"]) == 1
+    assert "zone_import: full precision UVs (LOD0) on 0/2 chunks (0 set, 0 already on)" in fake.logged("log")
+    result_path = Path(fake.saved_dir) / "Golmok" / "zone_import" / ZONE / "v1" / "import_result.json"
+    assert f"zone_import: done {ZONE} v1: 8 assets, 1 warnings -> {result_path}" in fake.logged("log")
+    assert all(a["ok"] for a in result["assets"])  # the import goes on: Nanite, slots, collision, files
+    assert len(fake.calls_of("set_nanite")) == 4 and fake.calls_of("rebuild_in_editor")
+    chunks = [a for a in result["assets"] if a["kind"] == "chunk"]
+    assert [a["detail"]["full_precision_uvs"] for a in chunks] == [None, None]
+    _run(zi, zone)  # the next import warns again (once)
+    assert len(fake.logged("warning")) == 2
+
+
+def test_full_precision_uvs_tuple_return_is_unwrapped(fake, unreal, zi, monkeypatch):
+    """[미확인] runbook #41: an out-parameter binding may hand back (bool, MeshBuildSettings)."""
+    original = unreal.StaticMeshEditorSubsystem.get_lod_build_settings
+    monkeypatch.setattr(
+        unreal.StaticMeshEditorSubsystem,
+        "get_lod_build_settings",
+        lambda self, mesh, lod: (True, original(self, mesh, lod)),
+    )
+    mesh = fake_unreal.FakeStaticMesh(fake, f"{FOLDER}/SM_x")
+    assert zi._full_precision_uvs(mesh) == "set" and mesh.lod_build[0].use_full_precision_u_vs is True
+    assert zi._full_precision_uvs(mesh) == "on"
+    assert fake.calls_of("set_lod_build") == [("set_lod_build", f"{FOLDER}/SM_x", 0, True)]
+
+
 def test_result_json_written(fake, zone, zi):
     result = _run(zi, zone)
     path = Path(fake.saved_dir) / "Golmok" / "zone_import" / ZONE / "v1" / "import_result.json"
@@ -1410,6 +1529,7 @@ def test_result_json_written(fake, zone, zi):
         "bounds_error_cm": 0.0,
         "slots": {"facade": "MI_facade", "ground": "MI_ground"},
         "unmatched": [],
+        "full_precision_uvs": "set",
     }
     assert by_asset[f"{FOLDER}/SM_{ZONE}_collision_c_e000_n000"] == {"bounds_error_cm": 0.0}
     assert set(by_asset) == _expected_assets(zone.expected) | {

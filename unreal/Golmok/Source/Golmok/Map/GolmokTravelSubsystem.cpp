@@ -10,6 +10,7 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/Pawn.h"
 #include "GameFramework/PlayerController.h"
+#include "GameFramework/SpringArmComponent.h"
 #include "Geo/GolmokGeoSubsystem.h"
 #include "HAL/IConsoleManager.h"
 #include "HAL/PlatformTime.h"
@@ -59,6 +60,43 @@ namespace GolmokTravelPrivate
 	{
 		UGolmokGeoSubsystem* Geo = World ? World->GetSubsystem<UGolmokGeoSubsystem>() : nullptr;
 		return Geo && Geo->HasOrigin();
+	}
+
+	/**
+	 * After a teleport (P14-2, V-14): a spring arm keeps its lag reference (PreviousDesiredLoc / PreviousArmOrigin /
+	 * PreviousDesiredRot) across SetActorLocation, so with bEnableCameraLag (AGolmokCharacter: CameraLagSpeed 12) the
+	 * camera flies the whole travel distance (~150-190 m) over the next frames. One arm update with the lag off and
+	 * DeltaTime 0 puts the arm end at the new location and rewrites those references (UpdateDesiredArmLocation assigns
+	 * them after the lag branches); the lag flags are put back at once, so nothing outlives this call. The camera cut
+	 * keeps motion blur / TAA history from smearing the jump. Call after the pawn location, rotation and control rotation.
+	 */
+	void SnapCameraAfterTeleport(APawn* Pawn, APlayerController* PC)
+	{
+		if (Pawn)
+		{
+			TInlineComponentArray<USpringArmComponent*> Arms;
+			Pawn->GetComponents(Arms);
+			for (USpringArmComponent* Arm : Arms)
+			{
+				// UActorComponent::TickComponent checks bRegistered; the native arm never dereferences the tick function.
+				// Called through the public base virtual (the override's access in the arm header does not matter).
+				if (!Arm || !Arm->IsRegistered())
+				{
+					continue;
+				}
+				const bool bLag = Arm->bEnableCameraLag;
+				const bool bRotationLag = Arm->bEnableCameraRotationLag;
+				Arm->bEnableCameraLag = false;
+				Arm->bEnableCameraRotationLag = false;
+				static_cast<UActorComponent*>(Arm)->TickComponent(0.f, LEVELTICK_All, nullptr);
+				Arm->bEnableCameraLag = bLag;
+				Arm->bEnableCameraRotationLag = bRotationLag;
+			}
+		}
+		if (APlayerCameraManager* Camera = PC ? PC->PlayerCameraManager.Get() : nullptr)
+		{
+			Camera->SetGameCameraCutThisFrame();
+		}
 	}
 } // namespace GolmokTravelPrivate
 
@@ -320,7 +358,8 @@ bool UGolmokTravelSubsystem::StartTravel(
 
 	if (ZoneId.IsEmpty())
 	{
-		// A saved basemap position: no zone to wait for, placed at once (no fade).
+		// A saved basemap position: no zone to wait for, placed at once, then the camera snaps and the screen fades in
+		// from black (spec §2 ⑧ "fade in -> standing"; nothing to load, so no fade out first).
 		TargetZoneId.Reset();
 		APawn* Pawn = GetPlayerPawn();
 		if (ACharacter* Character = Cast<ACharacter>(Pawn))
@@ -333,10 +372,13 @@ bool UGolmokTravelSubsystem::StartTravel(
 		Pawn->SetActorLocation(DestinationUE, /*bSweep*/ false, nullptr, ETeleportType::TeleportPhysics);
 		const FRotator Rotation(0.0, DestinationYawUE, 0.0);
 		Pawn->SetActorRotation(Rotation);
-		if (APlayerController* PC = GetPlayerController())
+		APlayerController* PC = GetPlayerController();
+		if (PC)
 		{
 			PC->SetControlRotation(Rotation);
 		}
+		GolmokTravelPrivate::SnapCameraAfterTeleport(Pawn, PC);
+		StartFade(1.f, 0.f);
 		LastArrivalLocationUE = Pawn->GetActorLocation();
 		LastArrivalYawUE = DestinationYawUE;
 		OutMessage = FString::Printf(TEXT("placed at the saved position (no zone) UE (%.0f, %.0f, %.0f) yaw %.1f"), LastArrivalLocationUE.X,
@@ -455,10 +497,13 @@ void UGolmokTravelSubsystem::Arrive(AGolmokZone& Zone)
 	Pawn->SetActorLocation(Location, /*bSweep*/ false, nullptr, ETeleportType::TeleportPhysics);
 	const FRotator Rotation(0.0, YawUE, 0.0);
 	Pawn->SetActorRotation(Rotation);
-	if (APlayerController* PC = GetPlayerController())
+	APlayerController* PC = GetPlayerController();
+	if (PC)
 	{
 		PC->SetControlRotation(Rotation);
 	}
+	// The screen is still black here (the fade in starts in FinishArrival): the camera is already at the pawn by then.
+	GolmokTravelPrivate::SnapCameraAfterTeleport(Pawn, PC);
 	LastArrivalLocationUE = Pawn->GetActorLocation();
 	LastArrivalYawUE = YawUE;
 	State = EGolmokTravelState::Arriving;

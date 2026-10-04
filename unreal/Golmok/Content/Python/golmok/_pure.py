@@ -1432,6 +1432,9 @@ LOG = {
     "zi.texture": "zone_import: texture {asset} tiles={tiles} size={w}x{h} vt={vt} ({how})",
     "zi.material": "zone_import: material {asset} parent={parent} texture={texture}",
     "zi.chunk": "zone_import: chunk {asset} tris={tris} bounds ok (error {err:.2f} cm) slots={slots}",
+    "zi.uv": (
+        "zone_import: full precision UVs (LOD0) on {on}/{chunks} chunks ({changed} set, {kept} already on)"
+    ),
     "zi.collision": (
         "zone_import: collision {asset} bounds ok (error {err:.2f} cm) complex-as-simple nanite=off"
     ),

@@ -755,3 +755,16 @@ def test_save_map_save_as(monkeypatch, tmp_path, renames):
     if not renames:
         assert unreal.get_editor_subsystem(unreal.LevelEditorSubsystem).load_level(dst)
         assert fake.actors == fake.levels[dst] and copy in fake.actors
+
+
+def test_lod_build_settings_are_struct_copies(fake, unreal):
+    """StaticMeshEditorSubsystem.get/set_lod_build_settings (zone_import full precision UVs; runbook #41)."""
+    mesh = fake_unreal.FakeStaticMesh(fake, f"{FOLDER}/SM_x")
+    sub = unreal.get_editor_subsystem(unreal.StaticMeshEditorSubsystem)
+    settings = sub.get_lod_build_settings(mesh, 0)
+    assert isinstance(settings, unreal.MeshBuildSettings) and settings.use_full_precision_u_vs is False
+    settings.set_editor_property("use_full_precision_u_vs", True)
+    assert mesh.lod_build[0].use_full_precision_u_vs is False  # a copy until it is set back
+    sub.set_lod_build_settings(mesh, 0, settings)
+    assert sub.get_lod_build_settings(mesh, 0).use_full_precision_u_vs is True
+    assert fake.calls == [("set_lod_build", f"{FOLDER}/SM_x", 0, True)]
