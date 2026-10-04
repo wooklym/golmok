@@ -15,7 +15,7 @@
 // Golmok.Photo.MetaJson:  FormatPhotoMetaJson matches the design section 2-2 layout byte for byte (null groups, string
 //                         escapes, FJsonSerializer round trip); GolmokPhotoJson::ParseConfigText rejects the design
 //                         section 2-1 violations and accepts Config/Golmok/photo.json; on L_Dev BuildMeta / Shoot()
-//                         write <stem>.json (15 keys in order), a second shot in the same second gets _2, Exit()
+//                         write <stem>.json (16 keys in order, WP-16a weather), a second shot in the same second gets _2, Exit()
 //                         during a capture is deferred, golmok.photo.set works.
 //
 // Every wait uses FPlatformTime::Seconds(): the world clock stands still while the game is paused. Files the tests
@@ -106,6 +106,7 @@ namespace GolmokPhotoTest
 							   TEXT("  \"version\": 1,\n")
 							   TEXT("  \"time_utc\": \"2026-09-25T10:11:12Z\",\n")
 							   TEXT("  \"preset\": \"overcast_morning\",\n")
+							   TEXT("  \"weather\": null,\n")
 							   TEXT("  \"zone_id\": \"z_synthetic_001\",\n")
 							   TEXT("  \"zone_version\": 1,\n")
 							   TEXT("  \"lon\": 126.9250123,\n")
@@ -120,8 +121,9 @@ namespace GolmokPhotoTest
 							   TEXT("  \"character_hidden\": false\n")
 							   TEXT("}\n");
 
-	/** Design section 2-2 key order (the meta file is written one key per line in this order). */
-	const TCHAR* MetaKeys[15] = {TEXT("version"), TEXT("time_utc"), TEXT("preset"), TEXT("zone_id"), TEXT("zone_version"), TEXT("lon"), TEXT("lat"), TEXT("height_m"),
+	/** Design section 2-2 key order (the meta file is written one key per line in this order) + WP-16a "weather" after "preset". */
+	constexpr int32 MetaKeyCount = 16;
+	const TCHAR* MetaKeys[MetaKeyCount] = {TEXT("version"), TEXT("time_utc"), TEXT("preset"), TEXT("weather"), TEXT("zone_id"), TEXT("zone_version"), TEXT("lon"), TEXT("lat"), TEXT("height_m"),
 		TEXT("ue_location"), TEXT("rotation"), TEXT("fov"), TEXT("exposure_ev"), TEXT("dof"), TEXT("multiplier"), TEXT("character_hidden")};
 
 	TSharedPtr<FJsonObject> ParseJson(const FString& Text)
@@ -979,8 +981,8 @@ namespace GolmokPhotoTest
 				if (Test->TestTrue(TEXT("meta file parses"), Root.IsValid()))
 				{
 					const TArray<FString> Keys = KeysInOrder(Root);
-					Test->TestEqual(TEXT("15 keys"), Keys.Num(), 15);
-					for (int32 i = 0; i < Keys.Num() && i < 15; ++i)
+					Test->TestEqual(TEXT("16 keys"), Keys.Num(), MetaKeyCount);
+					for (int32 i = 0; i < Keys.Num() && i < MetaKeyCount; ++i)
 					{
 						Test->TestEqual(*FString::Printf(TEXT("key %d"), i), Keys[i], FString(MetaKeys[i]));
 					}
@@ -1277,14 +1279,21 @@ bool FGolmokPhotoMetaJsonTest::RunTest(const FString& Parameters)
 	Nulls.bHasGeo = false;
 	const FString NullText = FromStd(GolmokPhotoMath::FormatPhotoMetaJson(Nulls));
 	TestTrue(TEXT("preset null"), NullText.Contains(TEXT("  \"preset\": null,\n")));
+	// WP-16a design section 10: the weather object (target state, intensity with 2 decimals).
+	GolmokPhotoMath::PhotoMeta Rainy = Example;
+	Rainy.bHasWeather = true;
+	Rainy.WeatherState = "rain";
+	Rainy.WeatherIntensity = 0.6;
+	TestTrue(TEXT("weather object after preset"), FromStd(GolmokPhotoMath::FormatPhotoMetaJson(Rainy))
+		.Contains(TEXT("  \"preset\": \"overcast_morning\",\n  \"weather\": {\"state\": \"rain\", \"intensity\": 0.60},\n")));
 	TestTrue(TEXT("zone null pair"), NullText.Contains(TEXT("  \"zone_id\": null,\n  \"zone_version\": null,\n")));
 	TestTrue(TEXT("geo null triple"), NullText.Contains(TEXT("  \"lon\": null,\n  \"lat\": null,\n  \"height_m\": null,\n")));
 	const TSharedPtr<FJsonObject> NullRoot = ParseJson(NullText);
 	if (TestTrue(TEXT("null variant parses"), NullRoot.IsValid()))
 	{
 		const TArray<FString> NullKeys = KeysInOrder(NullRoot);
-		TestEqual(TEXT("null variant keeps 15 keys"), NullKeys.Num(), 15);
-		for (int32 i = 0; i < NullKeys.Num() && i < 15; ++i)
+		TestEqual(TEXT("null variant keeps 16 keys"), NullKeys.Num(), MetaKeyCount);
+		for (int32 i = 0; i < NullKeys.Num() && i < MetaKeyCount; ++i)
 		{
 			TestEqual(*FString::Printf(TEXT("null variant key %d"), i), NullKeys[i], FString(MetaKeys[i]));
 		}

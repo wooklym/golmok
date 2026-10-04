@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "initial": {"state": "clear", "mode": "fixed"},
+  "transition_seconds": 20.0,
+  "rain_levels": {"light": 0.3, "moderate": 0.6, "heavy": 1.0},
+  "modifiers": {
+    "overcast": {"lux_scale": 0.3, "sky_scale": 1.0, "fog_scale": 1.4, "fog_height_falloff_scale": 0.8,
+                 "kelvin_target": 6800.0, "kelvin_weight": 0.5, "exposure_offset": -0.2},
+    "rain":     {"lux_scale": 0.12, "sky_scale": 0.8, "fog_scale": 2.0, "fog_height_falloff_scale": 0.6,
+                 "kelvin_target": 7200.0, "kelvin_weight": 0.7, "exposure_offset": -0.4}
+  },
+  "surface": {"wet_seconds": 60.0, "dry_seconds": 600.0, "puddle_min_intensity": 0.4,
+              "puddle_fill_seconds": 240.0, "puddle_dry_seconds": 1200.0},
+  "schedule": [
+    {"time": "00:00", "state": "rain", "intensity": 0.3},
+    {"time": "03:00", "state": "overcast"},
+    {"time": "08:30", "state": "clear"},
+    {"time": "13:00", "state": "overcast"},
+    {"time": "15:00", "state": "rain", "intensity": 0.6},
+    {"time": "16:30", "state": "rain", "intensity": 1.0},
+    {"time": "17:00", "state": "rain", "intensity": 0.3},
+    {"time": "17:45", "state": "overcast"},
+    {"time": "19:30", "state": "clear"},
+    {"time": "22:30", "state": "overcast"}
+  ],
+  "rain_fx": {"system": "/Game/Golmok/Weather/NS_GolmokRain.NS_GolmokRain", "enabled": true,
+              "max_spawn_rate": 12000, "box_half_extent_cm": [1000, 1000, 500], "height_offset_cm": 300},
+  "mpc": "/Game/Golmok/Weather/MPC_GolmokWeather.MPC_GolmokWeather"
+}

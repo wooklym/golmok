@@ -778,6 +778,7 @@ namespace GolmokPhotoMath
 		int Version = 1;
 		std::string TimeUtc;                       // "YYYY-MM-DDThh:mm:ssZ"
 		bool bHasPreset = false;  std::string Preset;
+		bool bHasWeather = false; std::string WeatherState;  double WeatherIntensity = 0.0; // WP-16a design §10
 		bool bHasZone = false;    std::string ZoneId;  int ZoneVersion = 0;
 		bool bHasGeo = false;     double Lon = 0.0, Lat = 0.0, HeightM = 0.0;
 		Vec3 UeLocation{};  Vec3 Rotation{};       // cm; pitch yaw roll deg
@@ -802,7 +803,7 @@ namespace GolmokPhotoMath
 		return Out;
 	}
 
-	/** Exact section 2-2 layout (fixed key order, one key per line, 2-space indent, trailing "\n"). Never fails. */
+	/** Exact section 2-2 layout (fixed key order, one key per line, 2-space indent, trailing "\n"), plus WP-16a "weather" after "preset" (version stays 1). Never fails. */
 	inline std::string FormatPhotoMetaJson(const PhotoMeta& M)
 	{
 		using GolmokStatsMath::FormatFixed;
@@ -812,6 +813,9 @@ namespace GolmokPhotoMath
 		Out += "  \"version\": " + std::to_string(M.Version) + ",\n";
 		Out += "  \"time_utc\": " + JsonQuote(M.TimeUtc) + ",\n";
 		Out += "  \"preset\": " + (M.bHasPreset ? JsonQuote(M.Preset) : std::string("null")) + ",\n";
+		// WP-16a design §10: the weather target ("rain" 0.60; 0.00 for clear / overcast), null without a weather subsystem or with it off.
+		Out += "  \"weather\": " + (M.bHasWeather ? "{\"state\": " + JsonQuote(M.WeatherState) + ", \"intensity\": " + FormatFixed(M.WeatherIntensity, 2) + "}"
+										  : std::string("null")) + ",\n";
 		if (M.bHasZone)
 		{
 			Out += "  \"zone_id\": " + JsonQuote(M.ZoneId) + ",\n";
