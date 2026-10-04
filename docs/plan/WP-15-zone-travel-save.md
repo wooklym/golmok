@@ -174,10 +174,11 @@ WP-14a(PR #51)가 main에 들어온 뒤 오케스트레이터 결정(R49-7 / R51
      - **가드는 복원 시점의 로스터로 판정한다**(적대적 검증 V3로 정정). 그래서 19b가 gasp 기본값을 바꾸는 것까지 막아 주지는 않는다. 규칙 0 세이브는 모두 세이브에 `CharacterId`가 생긴 WP-15a(2026-09-28)부터 이 변경 전까지의 빌드가 썼다. 그 빌드들의 로스터 기본값은 `default` `manny`(WP-18 `c9194d5`부터)와 `default_by_anim_mode` abp `manny`·gasp `manny_gasp`(WP-19 `3da6712`, 2026-09-30부터)뿐이다(`characters.json` 이력). V-15 §B8은 gasp 기본값 `manny_gasp`를 유지하므로 지금 로스터로 둘 다 걸러진다.
      - 19b가 gasp 기본값을 바꾸면 옛 자동 `manny_gasp`는 더는 기본값이 아니므로 명시로 복원·고정된다. 받아들인다: GASP 폰에서는 세이브 때와 같은 모습이고, abp 폰에서는 적용이 거절되어 자동 선택이 남는다(그 id는 판단 2로 세이브에 남는다). 옛 기본 id를 C++에 하드코딩하지 않는다. 바꾸게 되면 그 커밋이 이 판단을 다시 본다.
   2. **거절된 명시 복원은 세이브에 남는다**(적대적 검증 V1). 첫 초안은 명시 id 복원이 거절된 세션(예: 명시 GASP id를 abp 폰에 복원 → 로드 전 거절)의 다음 세이브가 빈 id를 써서, 이 서브시스템의 계약 "실패·보류된 복원은 세이브를 잃지 않는다"(`HoldSlotPosition`)를 어겼다. 이제 private `FString UnappliedCharacterId`(UPROPERTY 아님)가 그 id를 이 월드에서 새 명시 선택이 있을 때까지 들고 있다.
-     - `Restore`: 캐릭터 단계 시작에서 비우고, `SelectCharacter` 뒤 `UnappliedCharacterId = (bSelected || !GetRoster().Find(id)) ? 빈 값 : id`다. 로스터에 없는 id(지워진 항목, 로스터 로드 실패 포함)는 버린다. 로드 실패 때는 레거시 기본 id도 가릴 수 없으므로 규칙 1로 승격하지 않는 편이 안전하다.
+     - `Restore`: 캐릭터 단계 시작에서 비우고, `SelectCharacter` 뒤 `UnappliedCharacterId = (bSelected || !GetRoster().Find(id)) ? 빈 값 : id`다. 로스터에 없는 id(지워진 항목)는 버린다. 로스터 로드가 실패했으면(`GetLoadError()`) 규칙 1 id는 이미 명시 선택이므로 남기고, 규칙 0 id는 레거시 기본 id를 가릴 수 없으므로 버린다(규칙 1로 승격하지 않는다 — 검증 W2).
      - 빈 id·레거시 기본·이미 명시로 적용된 같은 id 갈래는 아무것도 남기지 않는다. 그래서 앞선 거절이 "자동"이라고 말하는 다음 복원 뒤의 세이브로 새지 않는다. 복원이 아무것도 하지 않고 일찍 끝나는 경우(슬롯 없음·스키마·다른 레벨)는 값을 그대로 둔다.
      - `TakeSnapshot`: `IsExplicitSelection()`이면 현재 id를 쓰고 `UnappliedCharacterId`를 비운다. 자동이면 `UnappliedCharacterId`(대개 빈 값)를 쓴다. 규칙은 1이다(적용되지 않은 명시 id도 명시 의도다).
      - 월드별 상태와 함께 `HandleWorldBeginPlay`에서 비운다(맵 이동은 종료 동기 저장이 그 id를 쓰고, 새 월드의 복원이 다시 판정한다). `golmok.save reset`(`ResetSlot`)에서도 비운다(지운 슬롯에서 온 값이라 다음 쓰기가 되살리면 안 된다 — 검증 지시 밖의 추가).
+     - 시작 복원이 아직 판정하지 않은 동안(`bRestorePending`) 폰 스냅숏이 생겨도 슬롯의 id·규칙(`HoldSlotPosition` 통과)을 그대로 쓴다. 그 사이의 쓰기(월드 종료·이동 도착·`golmok.save`)가 슬롯의 캐릭터를 지우지 않게 한다(검증 W1, 길어야 한 프레임 창).
      - 남는 것: 이 월드에서 복원 전에 이미 한 명시 선택(예: `golmok.character quinn` 뒤 `golmok.load`)은 보이는 선택이므로 거절된 id보다 앞선다. `-GolmokNoRestore` 실행은 복원을 시도하지 않으므로 다음 세이브가 슬롯의 id를 덮는다(위치와 같은 종전 동작).
   3. `golmok.save status`의 `slot:` 줄은 `character quinn`(명시)·`character - (automatic)`(규칙 1 빈 id)·`character manny (legacy)`(규칙 0)로 쓴다. 저장 로그 형식은 바꾸지 않았다.
   4. `golmok.anim preview off`(Claude 레인 `Animation/GolmokAnimationSubsystem.cpp`)는 `SelectCharacter(현재 id)`를 불러 현재 항목을 **명시 선택**으로 만든다. 그래서 자동 `manny_gasp`도 preview off 뒤에는 규칙 1로 저장되고 다음 실행에 고정된다(적대적 검증 V4). 코드는 바꾸지 않았다 — 19b가 정한다. `runbooks/pc-verify-wp19.md` §A8에 힌트 한 줄.
@@ -208,11 +209,12 @@ WP-14a(PR #51)가 main에 들어온 뒤 오케스트레이터 결정(R49-7 / R51
     - (V1) 스냅숏의 자동 갈래를 빈 값으로 되돌리거나 `Restore`의 `UnappliedCharacterId` 대입을 빼면 `id 'wp15a_unloadable' rule 1` 단언(대입을 빼면 메시지 단언도).
     - (V1) 대입의 `!Find` 항을 빼면 로스터 밖 id 단언. 캐릭터 단계 시작의 `Reset()`을 빼면 레거시 기본 뒤 단언. `ResetSlot`의 `Reset()`을 빼면 reset 뒤 단언.
     - (V1) 스냅숏 명시 갈래의 `Reset()`을 빼면 "does not come back" 단언. 명시 선택보다 보류 id를 앞세우면 `quinn` 단언.
-    - 단언 없음: 대입의 `bSelected ||` 항(빼도 성공한 복원 뒤 다음 스냅숏의 명시 갈래가 지운다 — 사실상 관찰 불가), `HandleWorldBeginPlay`의 `Reset()`(테스트는 한 월드), 폰 스냅숏 전 `HoldSlotPosition`의 id·규칙 통과(`HoldSlotPosition`은 private이고 자동화 중에는 시작 복원이 꺼져 있으며, 테스트의 `Restore`는 스냅숏이 이미 있어 그 경로를 타지 않는다 — **훅이 필요해 미검증**, V2b).
+    - 단언 없음: 대입의 `bSelected ||` 항(빼도 성공한 복원 뒤 다음 스냅숏의 명시 갈래가 지운다 — 사실상 관찰 불가), `HandleWorldBeginPlay`의 `Reset()`(테스트는 한 월드), 복원 보류 중 스냅숏의 슬롯 id·규칙 유지(W1)와 로스터 로드 실패 때 규칙 1 id 유지(W2)(둘 다 훅이 필요해 미검증), 폰 스냅숏 전 `HoldSlotPosition`의 id·규칙 통과(`HoldSlotPosition`은 private이고 자동화 중에는 시작 복원이 꺼져 있으며, 테스트의 `Restore`는 스냅숏이 이미 있어 그 경로를 타지 않는다 — **훅이 필요해 미검증**, V2b).
   - 매니킨이 없으면 PIE 캐릭터 단계는 `[Info] character steps skipped: …`로 건너뛴다(순수 단언은 돈다).
   - 세이브 필드를 미러링하는 Python 테스트·픽스처는 없다(`tools/`에서 `CharacterId` grep 0건). pytest는 바꾸지 않았다.
 - **PC 확인**:
   - `runbooks/pc-verify-wp15a.md` §2(기대 Info, 자동화 36개), §6(선택 0회차: 옛 세이브의 레거시 기본 / 재시작: 명시 `quinn` 복원, 자동 선택은 `character - (automatic)`), §9 #13.
   - `runbooks/pc-verify-wp19.md` §A8(preview off는 명시 선택), §B7(GASP 설치 PC: 옛 abp 세이브 `manny` + `-GolmokAnim=gasp` → `manny_gasp` 유지, 명시 `quinn` → `quinn`, 명시 `manny_gasp`를 abp로 → 거절되어도 세이브에 남음; 옛 세이브 만드는 법).
 - **적대적 검증 반영**(2026-10-04, (A) 0 · (B) 0 · (C) 6): V1 판단 2·복원·테스트, V2 테스트(a 순수 단언 추가, b `HoldSlotPosition` 통과는 미검증으로 표기), V3 판단 1 정정, V4 판단 4·`pc-verify-wp19.md` §A8, V5 `pc-verify-wp15a.md` 자동화 수 32 → 36(§2·§10), V6 `pc-verify-wp15a.md` §6 레거시 확인을 1회차 앞 선택 단계로·`pc-verify-wp19.md` §B7 옛 세이브 만드는 법(선택).
+- **적대적 검증 2라운드**(2026-10-04, V1~V6 델타·T20 병합 트리, (A) 0 · (B) 0 · (C) 3, 모두 반영): W1 복원 보류 중 폰 스냅숏이 슬롯의 캐릭터를 지우던 한 프레임 창 → 슬롯 id·규칙 유지, W2 로스터 로드 실패 때 규칙 1 id도 버리던 것 → 규칙 1은 남김(판단 2 문장 정정), W3 `pc-verify-wp15a.md` §6 단서에 0회차 비기본 id 경우 추가. 컴파일(병합 트리 식별자·const·유니티 빌드)·변이 대응표·거절 경로(로그 없이 거절)·레인을 다시 확인했다.
 - **게이트**(리눅스): ruff 통과, format 112, pytest 1501 passed / 3 skipped(기준과 같음), check_repo OK, `git diff --check` 통과, 자동화 등록 36.

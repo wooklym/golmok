@@ -402,6 +402,13 @@ bool UGolmokSaveSubsystem::TakeSnapshot(UWorld& InWorld, bool bForce)
 		S.CharacterId = Characters->GetCurrentId();
 		UnappliedCharacterId.Reset();
 	}
+	else if (bRestorePending && Snapshot.bValid)
+	{
+		// The begin-play restore has not decided yet: keep the slot's character and rule (HoldSlotPosition's pass-through),
+		// so a write in that window (world end, travel arrival, golmok.save) does not drop it.
+		S.CharacterId = Snapshot.CharacterId;
+		S.CharacterIdRule = Snapshot.CharacterIdRule;
+	}
 	else
 	{
 		S.CharacterId = UnappliedCharacterId;
@@ -868,7 +875,13 @@ bool UGolmokSaveSubsystem::Restore(FString& OutMessage)
 			{
 				FString CharacterMessage;
 				const bool bSelected = Characters->SelectCharacter(Save->CharacterId, CharacterMessage);
-				UnappliedCharacterId = (bSelected || !Characters->GetRoster().Find(Save->CharacterId)) ? FString() : Save->CharacterId;
+				// A refused id is kept for the next save when the roster knows it; with a broken roster (load error) a rule-1 id
+				// is still the user's explicit choice and is kept too, while a legacy (rule 0) id is dropped, since its legacy
+				// defaults cannot be told apart and it must not be promoted to rule 1.
+				const bool bKnownId = Characters->GetRoster().Find(Save->CharacterId) != nullptr;
+				const bool bKeepOnBrokenRoster =
+					!Characters->GetLoadError().IsEmpty() && Save->CharacterIdRule >= UGolmokSaveGame::CharacterIdRuleExplicit;
+				UnappliedCharacterId = (!bSelected && (bKnownId || bKeepOnBrokenRoster)) ? Save->CharacterId : FString();
 				const TCHAR* Applied = bSelected ? TEXT("")
 					: (UnappliedCharacterId.IsEmpty() ? TEXT(" (not applied, not in the roster)") : TEXT(" (not applied, kept for the next save)"));
 				Extras += FString::Printf(TEXT(", character %s%s"), *Save->CharacterId, Applied);
