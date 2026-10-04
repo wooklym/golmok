@@ -26,6 +26,7 @@ TEST_CPP = SOURCE / "Tests" / "GolmokWeatherTest.cpp"
 SUBSYSTEM_CPP = WEATHER / "GolmokWeatherSubsystem.cpp"
 RAIN_FX_CPP = WEATHER / "GolmokWeatherRainFx.cpp"
 TOD_CPP = SOURCE / "Lighting" / "GolmokTimeOfDay.cpp"
+SAVE_CPP = SOURCE / "Save" / "GolmokSaveSubsystem.cpp"
 
 WEATHER_FILES = {
     "GolmokWeatherMath.h",
@@ -157,6 +158,12 @@ def test_three_automation_tests_under_the_editor_guard():
     subsystem = _strip_comments(_read(SUBSYSTEM_CPP))
     start = subsystem.index("void UGolmokWeatherSubsystem::Traveled(")
     assert "ResetRainFx();" in subsystem[start : subsystem.index("\n}\n", start)]
+    # R113-5: the PIE step only checks that a binding exists; keep its target and Restore's one reset
+    # (R112-U8) static.
+    assert "OnTraveled.AddUObject(this, &UGolmokWeatherSubsystem::Traveled)" in subsystem
+    save = _strip_comments(_read(SAVE_CPP))
+    start = save.index("Extras += RestoreWeather(Save->Weather);")
+    assert "Weather->ResetRainFx();" in save[start : save.index("UnappliedCharacterId.Reset();", start)]
     for needle in (
         'TEXT("/Game/Golmok/Maps/L_Dev")',
         'TEXT("MPC_GolmokWeather missing - skipped")',
@@ -164,6 +171,7 @@ def test_three_automation_tests_under_the_editor_guard():
         "FStartPIECommand(false)",
         "StepWeather(",
         "Photo->Enter(",
+        'TEXT("NightUnaffected at %s")',  # R113: V-16 §3 records the minute from this Info line
     ):
         assert needle in text, needle
 

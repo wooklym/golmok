@@ -732,6 +732,7 @@ namespace GolmokWeatherTests
 				return;
 			}
 			const FString When = FString::Printf(TEXT("%02d:%02d (base lux %g)"), static_cast<int32>(Minute) / 60, static_cast<int32>(Minute) % 60, BaseLux);
+			Test->AddInfo(FString::Printf(TEXT("NightUnaffected at %s"), *When)); // passing assertions print nothing: V-16 §3 reads this line
 			Set(EGolmokWeather::Clear, 0.f, true);
 			Tod->SetTimeOfDay(Minute, /*bInstant*/ true);
 			if (!Test->TestFalse(*FString::Printf(TEXT("%s is not night"), *When), Tod->IsNight()))

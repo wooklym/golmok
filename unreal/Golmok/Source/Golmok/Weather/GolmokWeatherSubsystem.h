@@ -203,7 +203,7 @@ private:
 	bool bScheduleNoClock = false;
 	/** initial.mode schedule before the clock was available: the first evaluation with a clock is instant, without an event. */
 	bool bInitialSchedulePending = false;
-	/** World seconds (StepWeather deltas) until the next AGolmokTimeOfDay::Find while none is cached (0 after the BeginPlay miss). */
+	/** World seconds (StepWeather deltas) until the next AGolmokTimeOfDay::Find while none is cached (0 after a forced miss). */
 	double TimeOfDaySearchCooldown = 0.0;
 	/** GetRainFxResetCount. */
 	int32 RainFxResetCount = 0;
