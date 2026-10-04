@@ -102,7 +102,8 @@ public:
 
 	/**
 	 * WP-18 roster id of an explicit selection (UGolmokCharacterSubsystem::IsExplicitSelection: golmok.character, a
-	 * restored explicit id); empty when the selection was automatic (mode default / fallback) or unknown. See CharacterIdRule.
+	 * restored explicit id, or an explicit id that run's restore could not apply, kept); empty when the selection was
+	 * automatic (mode default / fallback) or unknown. See CharacterIdRule.
 	 */
 	UPROPERTY(SaveGame, VisibleAnywhere, BlueprintReadOnly, Category = "Golmok|Save")
 	FString CharacterId;

@@ -26,8 +26,11 @@
 // (rule 1). Restores of a slot without position / zone / home (rule 3, only the character step runs): a legacy (rule 0)
 // roster default does not call SelectCharacter while the automatic pick differs (current id and explicit flag kept), the
 // same id with rule 1 is applied as explicit, a legacy non-default id is restored as explicit, a rule 1 id that is only
-// applied automatically becomes explicit, an empty rule 1 id changes nothing. GolmokSaveCharacter::IsLegacyDefault is
-// also checked on a literal roster before the map check (runs without the map or assets).
+// applied automatically becomes explicit, an empty rule 1 id changes nothing. A rule 1 id that SelectCharacter refuses
+// (a test-only copy of quinn whose mesh does not exist) is kept by the next save with rule 1 until a new explicit pick;
+// an id not in the roster is dropped; a later legacy-default restore, golmok.save reset, or an explicit pick (also
+// once the selection is automatic again) leaves no trace of it. GolmokSaveCharacter::IsLegacyDefault is also checked on
+// a literal roster before the map check (runs without the map or assets), including a DefaultId that no mode uses.
 //
 // Headless: .\tools\ue\test.ps1 -Filter Golmok.Travel   /   -Filter Golmok.Save
 
@@ -73,11 +76,20 @@ namespace GolmokTravelSaveTest
 	const TCHAR* TestPhotoRel = TEXT("Screenshots/Golmok/photo/wp15a_test.png");
 	const TCHAR* MissingPhotoRel = TEXT("Screenshots/Golmok/photo/wp15a_missing.png");
 	const TCHAR* QuinnId = TEXT("quinn"); // a non-default roster entry (characters.json)
+	const TCHAR* UnloadableId = TEXT("wp15a_unloadable"); // test-only roster entry: quinn with MissingMeshPath (SelectCharacter refuses it)
+	const TCHAR* MissingMeshPath = TEXT("/Game/GolmokTests/Absent.Absent");
+	const TCHAR* UnknownId = TEXT("wp15a_not_in_roster");
 	constexpr double TravelWaitSeconds = 25.0; // TravelTimeoutSeconds (20) + margin
 	constexpr double ToleranceCm = 0.1;        // 1 mm
 	constexpr float TodClockMinutes = 787.f;   // 13:07, saved in Clock mode
 	constexpr float TodFixedMinutes = 1000.f;  // 16:40, saved in Fixed mode
 	constexpr float TodMinutesTolerance = 0.01f;
+
+	/** "id 'quinn' rule 1": a slot's character as one string, so one TestEqual shows both fields (R91-1 follow-up). */
+	FString SlotCharacter(const FString& Id, int32 Rule)
+	{
+		return FString::Printf(TEXT("id '%s' rule %d"), *Id, Rule);
+	}
 
 	/** Expected standing location / yaw for a zone's spawn (what UGolmokTravelSubsystem::Arrive computes). */
 	bool ExpectedArrival(AGolmokZone& Zone, APawn* Pawn, FVector& OutLocation, float& OutYaw)
@@ -824,6 +836,73 @@ namespace GolmokTravelSaveTest
 			Test->TestEqual(TEXT("rule 1 empty id: current character unchanged"), Characters->GetCurrentId(), AutoId);
 			Test->TestFalse(TEXT("rule 1 empty id: still automatic"), Characters->IsExplicitSelection());
 			Test->TestFalse(FString::Printf(TEXT("rule 1 empty id: no character step (%s)"), *Message), Message.Contains(TEXT(", character")));
+
+			// R91-1 follow-up V1: an explicit id this world refuses stays in the slot until a new explicit pick (a failed
+			// restore never loses the save). The refused entry is quinn with a mesh that does not exist: ApplyEntry refuses
+			// it before touching the pawn ("mesh/animation missing ..."). The roster entries are put back on return.
+			FGolmokCharacterRoster& Roster = Characters->MutableRosterForTest();
+			const FGolmokCharacterEntry* Quinn = Roster.Find(QuinnId);
+			if (!Test->TestNotNull(TEXT("character: quinn entry"), Quinn))
+			{
+				return;
+			}
+			FGolmokCharacterEntry Unloadable = *Quinn; // copied before the array grows
+			Unloadable.Id = UnloadableId;
+			Unloadable.MeshPath = MissingMeshPath;
+			TGuardValue<TArray<FGolmokCharacterEntry>> EntriesGuard(Roster.Entries, Roster.Entries);
+			Roster.Entries.Add(MoveTemp(Unloadable));
+			const auto RestoreSlot = [&](const FString& Id, int32 Rule)
+			{
+				Slot->CharacterIdRule = Rule;
+				Slot->CharacterId = Id;
+				UGameplayStatics::SaveGameToSlot(Slot, Save->SlotName, 0);
+				Save->Restore(Message);
+				Test->AddInfo(Message);
+			};
+			// The character the next save writes (the snapshot of this pawn, then the slot read back).
+			const auto SaveAndRead = [&](const TCHAR* Why) -> FString
+			{
+				FString SaveMessage;
+				if (!Save->SaveNow(/*bSync*/ true, Why, &SaveMessage))
+				{
+					return FString::Printf(TEXT("save failed: %s"), *SaveMessage);
+				}
+				const UGolmokSaveGame* Written = Save->LoadSlot();
+				return Written ? SlotCharacter(Written->CharacterId, Written->CharacterIdRule) : FString(TEXT("no slot"));
+			};
+			const FString AutomaticInSlot = SlotCharacter(FString(), 1);
+
+			RestoreSlot(UnloadableId, 1);
+			Test->TestTrue(FString::Printf(TEXT("%s: refused, %s still current and automatic (precondition)"), UnloadableId, *AutoId),
+				Characters->GetCurrentId() == AutoId && !Characters->IsExplicitSelection());
+			Test->TestTrue(FString::Printf(TEXT("%s: restore message says kept (%s)"), UnloadableId, *Message),
+				Message.Contains(TEXT("(not applied, kept for the next save)")));
+			Test->TestEqual(TEXT("refused explicit id: the next save keeps it with rule 1"), SaveAndRead(TEXT("test refused character")),
+				SlotCharacter(UnloadableId, 1));
+
+			RestoreSlot(UnknownId, 1);
+			Test->TestEqual(TEXT("id not in the roster: dropped by the next save"), SaveAndRead(TEXT("test unknown character")), AutomaticInSlot);
+
+			RestoreSlot(UnloadableId, 1); // pending again, then a restore that pins nothing
+			RestoreSlot(DefaultId, 0);
+			Test->TestTrue(FString::Printf(TEXT("legacy default after a refusal: not pinned (precondition: %s)"), *Message),
+				Message.Contains(TEXT("(legacy default, not pinned)")));
+			Test->TestEqual(TEXT("legacy default after a refusal: the refused id is not saved"), SaveAndRead(TEXT("test legacy after refusal")), AutomaticInSlot);
+
+			RestoreSlot(UnloadableId, 1); // pending again, then golmok.save reset
+			Save->ResetSlot(Message);
+			Test->TestEqual(TEXT("golmok.save reset after a refusal: the refused id is not saved"), SaveAndRead(TEXT("test reset after refusal")), AutomaticInSlot);
+
+			RestoreSlot(UnloadableId, 1); // pending again, then a new explicit pick
+			if (!Test->TestTrue(TEXT("refused, then SelectCharacter(quinn)"), Characters->SelectCharacter(QuinnId, Message)))
+			{
+				Test->AddError(Message);
+				return;
+			}
+			Test->TestEqual(TEXT("a new explicit pick replaces the refused id"), SaveAndRead(TEXT("test pick after refusal")), SlotCharacter(QuinnId, 1));
+			Characters->ApplyDefaultForTest(Pawn);
+			Test->TestEqual(TEXT("automatic again after that pick: the refused id does not come back"), SaveAndRead(TEXT("test automatic after pick")),
+				AutomaticInSlot);
 		}
 
 		bool Cleanup(UGolmokSaveSubsystem* Save)
@@ -865,6 +944,8 @@ namespace GolmokTravelSaveTest
 		Test->TestFalse(TEXT("rule 0: non-default quinn is restored"), GolmokSaveCharacter::IsLegacyDefault(0, QuinnId, Roster));
 		Test->TestFalse(TEXT("rule 1: an explicit manny is restored"), GolmokSaveCharacter::IsLegacyDefault(1, TEXT("manny"), Roster));
 		Test->TestFalse(TEXT("rule 0: an empty id is no legacy default"), GolmokSaveCharacter::IsLegacyDefault(0, FString(), Roster));
+		Roster.DefaultByAnimMode[TEXT("abp")] = QuinnId; // manny is now `default` only, no mode's value
+		Test->TestTrue(TEXT("rule 0: DefaultId alone is a legacy default"), GolmokSaveCharacter::IsLegacyDefault(0, TEXT("manny"), Roster));
 	}
 
 	bool SkipWithoutMap(FAutomationTestBase* Test)

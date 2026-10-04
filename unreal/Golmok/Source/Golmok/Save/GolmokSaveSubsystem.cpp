@@ -222,6 +222,7 @@ void UGolmokSaveSubsystem::HandleWorldBeginPlay(UWorld& InWorld)
 	bHoldSlotPosition = false;
 	bRestorePending = false;
 	ResetPresentZoneIds.Reset(); // a golmok.save reset in another world: that world's zones say nothing about this one
+	UnappliedCharacterId.Reset(); // a refusal in another world (its pawn / mode): this world's restore decides again
 	LoadIndexFromSlot();
 
 	if (UGolmokTravelSubsystem* Travel = UGolmokTravelSubsystem::Get(&InWorld))
@@ -392,11 +393,18 @@ bool UGolmokSaveSubsystem::TakeSnapshot(UWorld& InWorld, bool bForce)
 		S.TodMinutes = GolmokSavePrivate::TodMinutesToSave(*Tod); // WP-14a clock
 		S.TodMode = static_cast<uint8>(Tod->GetClockMode());
 	}
-	if (const UGolmokCharacterSubsystem* Characters = InWorld.GetSubsystem<UGolmokCharacterSubsystem>())
+	// R91-1: only an explicit selection is saved (S.CharacterIdRule 1). An automatic mode default / fallback is not, so
+	// the next run picks its own mode default (manny_gasp on a GASP pawn) instead of pinning this one; while automatic,
+	// an explicit id whose restore this world refused is saved instead (empty when there is none), until a new pick.
+	const UGolmokCharacterSubsystem* Characters = InWorld.GetSubsystem<UGolmokCharacterSubsystem>();
+	if (Characters && Characters->IsExplicitSelection())
 	{
-		// R91-1: only an explicit selection is saved (S.CharacterIdRule 1). An automatic mode default / fallback stays
-		// empty, so the next run picks its own mode default (manny_gasp on a GASP pawn) instead of pinning this one.
-		S.CharacterId = Characters->IsExplicitSelection() ? Characters->GetCurrentId() : FString();
+		S.CharacterId = Characters->GetCurrentId();
+		UnappliedCharacterId.Reset();
+	}
+	else
+	{
+		S.CharacterId = UnappliedCharacterId;
 	}
 	if (bHoldSlotPosition)
 	{
@@ -835,7 +843,10 @@ bool UGolmokSaveSubsystem::Restore(FString& OutMessage)
 	// character (WP-18 public API; Astra files unchanged). Character (R91-1): an empty id (rule 1: the selection was
 	// automatic) restores nothing; a legacy save's roster default is left to the mode default instead of being pinned;
 	// any other id is an explicit choice and comes back as one (SelectCharacter also when the same id is only applied
-	// automatically, so the next save keeps it).
+	// automatically, so the next save keeps it). A refused explicit id (e.g. a GASP entry on an abp pawn, no character
+	// view yet) stays in UnappliedCharacterId for the next save; an id the roster does not know is dropped. It is cleared
+	// first: a restore that pins nothing (empty id, legacy default) or applies the id leaves none, so an earlier refusal
+	// never leaks into the next save.
 	FString Extras;
 	if (Save->TimeOfDay.Minutes >= 0.f || !Save->TimeOfDay.PresetName.IsEmpty())
 	{
@@ -844,6 +855,7 @@ bool UGolmokSaveSubsystem::Restore(FString& OutMessage)
 			Extras += GolmokSavePrivate::RestoreTimeOfDay(*Tod, Save->TimeOfDay);
 		}
 	}
+	UnappliedCharacterId.Reset();
 	if (!Save->CharacterId.IsEmpty())
 	{
 		if (UGolmokCharacterSubsystem* Characters = World->GetSubsystem<UGolmokCharacterSubsystem>())
@@ -856,7 +868,10 @@ bool UGolmokSaveSubsystem::Restore(FString& OutMessage)
 			{
 				FString CharacterMessage;
 				const bool bSelected = Characters->SelectCharacter(Save->CharacterId, CharacterMessage);
-				Extras += FString::Printf(TEXT(", character %s%s"), *Save->CharacterId, bSelected ? TEXT("") : TEXT(" (not applied)"));
+				UnappliedCharacterId = (bSelected || !Characters->GetRoster().Find(Save->CharacterId)) ? FString() : Save->CharacterId;
+				const TCHAR* Applied = bSelected ? TEXT("")
+					: (UnappliedCharacterId.IsEmpty() ? TEXT(" (not applied, not in the roster)") : TEXT(" (not applied, kept for the next save)"));
+				Extras += FString::Printf(TEXT(", character %s%s"), *Save->CharacterId, Applied);
 			}
 		}
 	}
@@ -878,6 +893,7 @@ bool UGolmokSaveSubsystem::ResetSlot(FString& OutMessage)
 	const bool bDeleted = !bHad || UGameplayStatics::DeleteGameInSlot(SlotName, GolmokSavePrivate::UserIndex);
 	Visited.Reset();
 	Photos.Reset();
+	UnappliedCharacterId.Reset(); // came from the deleted slot: the next write must not bring it back
 	bDirty = false;
 	bSaveQueued = false;
 	bSyncAfterAsync = false;
