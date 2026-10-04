@@ -457,3 +457,11 @@ STATUS/astra-tasks 문안: “선택 T19 R85-1a/b/c·2 완료: 객체별 DOM cas
 ### 병합 시 반영 — T22
 
 STATUS/astra-tasks 문안: “T22 R92-1~3·R85-3 완료: 재등록 양성 실행 증거·런북, 중복 driver 정확한 거절 사유와 UE 역순 auto 수락 회귀, 객체별 진단 라벨, Python 알려진 키 별칭 검사(확장/동적 키 기존 규칙 유지). 등록36 유지. 실제 GASP 원본 폴리·청취는 19b/V-15 대기.”
+
+## 병합 기록 — T22 PR [#101](https://github.com/wooklym/golmok/pull/101) (2026-10-04, 오케스트레이터 세션)
+
+**내용**: 위 "T22" 절과 같다. 선택 과제 R85-3(Python `audio_pure.py`의 알려진 키 별칭 검사 — C++ `KeyCase`와 같은 객체 6곳·이름 40개, 확장 키·동적 id 규칙 유지, pytest +21)과 R92-1~3(재등록 양성 실행 증거·런북 범위, 중복 driver 정확한 거절 문구와 UE 역순 auto 수락 회귀, 객체별 진단 라벨). 등록 수는 36으로 같고, Astra 전체 UE 36 Success(Audio 2 포함)다.
+
+**병합 전 리뷰(Opus 5.5 ultracode 적대 검증, [R101](https://github.com/wooklym/golmok/pull/101#issuecomment-5979548775))**: (A) 0 · (B) 0 · (C) 3. 게이트(리눅스): ruff, format 112, pytest 1522 passed / 3 skipped(+21), check_repo, `diff --check`, 등록 36, CI 10/10; base `f1535ac`(main merge-tree 충돌 0). UE 빌드·전체 36 Success는 Astra 보고다. 확인(결함 없음): C++ `KeyCase` 목록과 Python 목록이 객체 6개·이름 40개·순서까지 같고 `stride_scale_by_mesh`는 빠짐(R85-2), `audio_pure.py` 변이 52개 중 호출 단위 변이는 모두 검출, Python 중복 키 처리가 UE보다 엄격(CI 통과 파일이 UE에서 다른 값으로 읽히지 않음), R92-1~3 해결, 레인 준수. (C → 선택): R101-1 역순 중복 driver pytest가 실제 역순을 만들지 못함(`del` 뒤 순서 단언), R101-2 이름 단위 C++ 대응 패리티 테스트(모듈 상수 + `GolmokAudioConfig.cpp` 6개 목록 대조, 선례 `test_ue_config_animation.py`·`test_ue_config_photo.py`), R101-3 폐기 키 검사의 대소문자 무시. 설계 리뷰 불필요(검증 엄격화·테스트·문서뿐).
+
+**병합**: 오케스트레이터 결정(D-019). 최신 main을 합친 뒤 이 커밋으로 반영했다. 위 "병합 시 반영 — T22" 문안은 STATUS 병행 트랙 WP-13 행과 `astra-tasks.md` T22에 옮겼다. R101-1~3은 선택으로 이월해 다음 오디오 레인 push(19b 뒤 원본 폴리·청취 후속 등)에 함께 싣는다. 19b를 막지 않는다.
