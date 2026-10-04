@@ -148,6 +148,15 @@ def test_three_automation_tests_under_the_editor_guard():
     guard = text.index("#if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR")
     assert text.index("IMPLEMENT_SIMPLE_AUTOMATION_TEST") > guard
     assert text.count("EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter") == 3
+    # R112-U7: the travel reset is checked as the OnTraveled binding plus the reset itself, never by a
+    # broadcast (it would also run UGolmokSaveSubsystem::OnTraveled); Traveled must still call ResetRainFx().
+    code = _strip_comments(text)
+    for needle in ("Travel->OnTraveled.IsBoundToObject(W)", "W->ResetRainFx();", "W->GetRainFxResetCount()"):
+        assert needle in code, needle
+    assert "OnTraveled.Broadcast(" not in code
+    subsystem = _strip_comments(_read(SUBSYSTEM_CPP))
+    start = subsystem.index("void UGolmokWeatherSubsystem::Traveled(")
+    assert "ResetRainFx();" in subsystem[start : subsystem.index("\n}\n", start)]
     for needle in (
         'TEXT("/Game/Golmok/Maps/L_Dev")',
         'TEXT("MPC_GolmokWeather missing - skipped")',
@@ -155,9 +164,6 @@ def test_three_automation_tests_under_the_editor_guard():
         "FStartPIECommand(false)",
         "StepWeather(",
         "Photo->Enter(",
-        "ResetRainFx()",
-        "OnTraveled.IsBoundToObject(",
-        "GetRainFxResetCount()",
     ):
         assert needle in text, needle
 

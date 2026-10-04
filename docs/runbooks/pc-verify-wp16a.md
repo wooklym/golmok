@@ -42,7 +42,7 @@
 | `Content/Python/golmok/weather_pure.py`·`weather_setup.py` (새) | 순수 Python 규칙·파서, 에디터 MPC 생성기 |
 | 훅(별도 커밋) | `Golmok.uproject` Niagara, `Golmok.Build.cs` `[WP-16 hook]` `PrivateDependencyModuleNames.Add("Niagara");`, `Config/DefaultGame.ini` `[WP-16 hook]` `+DirectoriesToAlwaysCook=(Path="/Game/Golmok/Weather")`, 등록부 테스트 |
 
-R112 후속(`claude/wp16a-followups`, 리뷰 R112 (C)): `GolmokWeatherSubsystem.{h,cpp}`(U9 첫 시간대 탐색, `GetRainFxResetCount`), `GolmokSaveSubsystem.cpp`(U8 복원 뒤 빗줄기 리셋 1회), `GolmokWeatherTest.cpp`(U7 `OnTraveled` 브로드캐스트 제거, U11 `NightUnaffected` 분을 프리셋에서 찾음), `GolmokTravelSaveTest.cpp`(U8 리셋 횟수 단언), `tools/tests/test_ue_wp16_fixture.py`(U6). 자동화 등록 수 39 불변. 확인 줄은 §3·§4·§9·§12 #17~#19.
+R112 후속(`claude/wp16a-followups`, 리뷰 R112 (C)): `GolmokWeatherSubsystem.{h,cpp}`(U9 첫 시간대 탐색, `GetRainFxResetCount`), `GolmokSaveSubsystem.cpp`(U8 복원 뒤 빗줄기 리셋 1회), `GolmokWeatherTest.cpp`(U7 `OnTraveled` 브로드캐스트 제거, U11 `NightUnaffected` 분을 프리셋에서 찾음), `GolmokTravelSaveTest.cpp`(U8 리셋 횟수 단언), `tools/tests/test_ue_wp16_fixture.py`(U6). 자동화 등록 수 39 불변. 확인 줄은 §3·§4·§9·§12 #17~#20.
 
 PC가 만드는 것: `Content/Golmok/Weather/MPC_GolmokWeather.uasset`, `Content/Golmok/Weather/NS_GolmokRain.uasset`(§2). `DefaultEngine.ini`·`DefaultInput.ini`·Player·GameMode·`Debug/`·Astra 레인은 **바뀌지 않았다**.
 
@@ -127,7 +127,7 @@ git lfs lock unreal/Golmok/Content/Golmok/Weather/NS_GolmokRain.uasset
 - [ ] **MPC·NS 단계가 EXECUTED**: `Golmok.Weather.Runtime`의 `[Info]`에 `MPC_GolmokWeather missing - skipped`나 NS 없음 skip 줄이 **없다**(§2 전에는 그 Info로 Success — 설계 §19). MPC 인스턴스 값 == 조회 값(±1e-3), 컴포넌트·User 파라미터 3개 존재·활성 규칙 단언이 실제로 돈다. `-nullrhi`에서 GPU 이미터 활성 조회가 막혀 다른 Info·Warning이 나오면 그대로 §12 #5에 적는다.
 - [ ] `Golmok.Save.RoundTrip` `Success`(날씨 단계 포함: Rule 1 왕복 다섯 값, Rule 0 슬롯 → 날씨 유지, 두 복원 모두 `rain fx reset once`(R112-U8), 모르는 상태 `snow` → clear, Schedule 모드는 시간대 뒤 복원). 날씨 단계가 Info로 건너뛰어졌으면(`weather` 서브시스템 없음·꺼짐) 실패로 본다.
 - [ ] `Golmok.Weather.Lighting`의 `NightUnaffected` 단계(R112-U11)가 **건너뛰지 않았다**: `[Info]`에 `no minute with base lux in … - NightUnaffected skipped`가 없고, 단언 문구의 시각(`hh:mm (base lux …) is not night`)을 §13에 적는다(0~1439분 중 처음 맞는 분 — 오늘 프리셋이면 night 유지가 끝난 05:30 뒤 새벽 램프 초입). 14b가 night lux를 바꾼 뒤에도 같은 확인.
-- [ ] `Golmok.Weather.Runtime`의 이동 리셋 단계(R112-U7, NS 있을 때): `the weather subsystem is bound to OnTraveled`·`ResetRainFx counted once` 통과. 이 테스트 뒤 `golmok.save status`에 `weather_test` 방문 기록이 생기지 않는다(브로드캐스트를 하지 않으므로).
+- [ ] `Golmok.Weather.Runtime`의 이동 리셋 단계(R112-U7, NS 있을 때): `the weather subsystem is bound to OnTraveled`·`ResetRainFx counted once` 통과. 실행 로그에 `weather_test`가 나오지 않는다(브로드캐스트를 하지 않으므로 세이브 서브시스템의 방문·저장 처리가 돌지 않는다).
 - [ ] 세 번째 명령: **39개** 전부 `Success`(WP-12 런북 `pc-verify-wp12.md` "두 번째 명령" 줄의 목록 = 기존 36 + `Weather.*` 3). `test.ps1`의 `Succeeded:`는 Warning 있는 테스트를 따로 세므로 상태 열로 판정(V-03). 기존 `Golmok.Lighting.*`·`Photo.*`·`Audio.*`·`Portal.*`가 무수정 통과하는 것이 "clear 항등 비트 동일"(설계 §5-1)의 근거다.
 
 ## 4. PIE — 상태 머신·전환(L_Dev)
@@ -333,6 +333,7 @@ Select-String "$env:TEMP\utoc.csv" -Pattern 'Golmok/Weather/(MPC_GolmokWeather|N
 | 17 | `GolmokWeatherTest.cpp` | `TMulticastDelegate::IsBoundToObject(const void*)`(R112-U7) | 5.8에서 공개 멤버인지 | 컴파일 오류면 `W->GetRainFxResetCount()` 단언만 두고 바인딩은 `UGolmokWeatherSubsystem`에 `bool IsTravelResetBound() const { return Travel.IsValid() && TraveledHandle.IsValid(); }`를 더해 단언 | |
 | 18 | `GolmokSaveSubsystem.cpp` `Restore` | 존 이동이 진행 중이면(`IsTraveling()`) 리셋을 도착 `OnTraveled`에 맡김(R112-U8) | 이동이 실패하면 리셋이 없다(위치가 안 바뀌어 줄무늬 원인도 없다고 봄) | 실패 뒤 줄무늬가 보이면 `Fail` 경로에서도 리셋(Map/ 수정은 Claude 레인) | |
 | 19 | `GolmokWeatherSubsystem.cpp` | `OnWorldBeginPlay` → 액터 BeginPlay(컨트롤러 `FindOrSpawn`) → 첫 서브시스템 틱 순서(R112-U9) | 첫 틱이 컨트롤러 BeginPlay 뒤인지 | §4 첫 프레임 줄이 실패하면 `OnWorldBeginPlay` 끝에서 `World->OnActorSpawned` 1회 구독으로 시간대 액터를 잡는다 | |
+| 20 | `GolmokSaveSubsystem.cpp` `Restore` → `ResetRainFx` | basemap 위치 복원은 같은 호출 안에서 순간 이동한 뒤 곧바로 리셋한다. 이때 `APlayerCameraManager::GetCameraLocation()`이 아직 지난 프레임의 POV(옛 자리)일 수 있다[추정, 리뷰 후속 검증] | 빗줄기가 옛 자리에서 다시 시작해 다음 틱에 100 m 넘게 이동할 수 있다. 화면은 페이드 인 중이라 보이지 않을 가능성이 크다. R112 전 Rule 1 리셋도 같았다 | §9 basemap 줄에서 줄무늬가 보이면 `Restore`의 리셋을 `SetTimerForNextTick`으로 한 틱 미룬다(RoundTrip 횟수 단언도 한 틱 뒤로) | |
 
 ## 13. 결과 기록
 
