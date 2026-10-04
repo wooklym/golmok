@@ -58,6 +58,9 @@ class GOLMOK_API UGolmokSaveGame : public USaveGame
 
 public:
 	static constexpr int32 CurrentSchemaVersion = 1;
+	/** CharacterIdRule values (R91-1): 0 = written before the rule (any current id), 1 = explicit selections only. */
+	static constexpr int32 CharacterIdRuleLegacy = 0;
+	static constexpr int32 CharacterIdRuleExplicit = 1;
 
 	UPROPERTY(SaveGame, VisibleAnywhere, BlueprintReadOnly, Category = "Golmok|Save")
 	int32 SaveSchemaVersion = CurrentSchemaVersion;
@@ -97,9 +100,21 @@ public:
 	UPROPERTY(SaveGame, VisibleAnywhere, BlueprintReadOnly, Category = "Golmok|Save")
 	TArray<FString> Photos;
 
-	/** WP-18 roster id (UGolmokCharacterSubsystem::GetCurrentId); empty when unknown. */
+	/**
+	 * WP-18 roster id of an explicit selection (UGolmokCharacterSubsystem::IsExplicitSelection: golmok.character, a
+	 * restored explicit id, or an explicit id that run's restore could not apply, kept); empty when the selection was
+	 * automatic (mode default / fallback) or unknown. See CharacterIdRule.
+	 */
 	UPROPERTY(SaveGame, VisibleAnywhere, BlueprintReadOnly, Category = "Golmok|Save")
 	FString CharacterId;
+
+	/**
+	 * What CharacterId holds (R91-1): CharacterIdRuleExplicit (1, every save that sampled the character) = explicit
+	 * selections only; CharacterIdRuleLegacy (0, the default, so a save without this field reads 0) = any current id,
+	 * automatic picks included. Restore does not pin a legacy roster default (GolmokSaveCharacter::IsLegacyDefault).
+	 */
+	UPROPERTY(SaveGame, VisibleAnywhere, BlueprintReadOnly, Category = "Golmok|Save")
+	int32 CharacterIdRule = CharacterIdRuleLegacy;
 
 	/** Map package the save was made in (PIE prefix removed, e.g. /Game/Golmok/Maps/L_ZoneTest): a save is restored only in that level. */
 	UPROPERTY(SaveGame, VisibleAnywhere, BlueprintReadOnly, Category = "Golmok|Save")

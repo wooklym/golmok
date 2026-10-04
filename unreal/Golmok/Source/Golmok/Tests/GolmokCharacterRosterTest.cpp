@@ -73,6 +73,7 @@ namespace GolmokCharacterRosterTest
 				Test->AddInfo(FString::Printf(TEXT("%s: GASP not installed - asset refusal tested"), Id));
 			const uint32 LoadsBefore = System->GetAssetLoadAttemptsForTest();
 			Test->TestFalse(TEXT("GASP entry cannot replace ordinary pawn"), System->SelectCharacter(Id, Message));
+			Test->TestTrue(TEXT("GASP preflight refusal reason"), Message.Contains(TEXT("compatible GASP pawn")));
 			Test->TestEqual(TEXT("GASP refusal precedes asset load attempts"), System->GetAssetLoadAttemptsForTest(), LoadsBefore);
 			Test->TestEqual(TEXT("GASP refusal preserves selection"), System->GetCurrentId(), FString(TEXT("manny")));
 			CheckDefault(Test, Original);
@@ -108,6 +109,7 @@ namespace GolmokCharacterRosterTest
 		Visual.Id = TEXT("test_visual_missing"); Visual.VisualMeshPath = TEXT("/Game/GolmokTests/Absent.Absent");
 		MutableRoster.Entries.Add(Visual);
 		System->ApplyDefaultForTest(Original); // An automatic ABP selection must not pin the next GASP pawn.
+		Test->TestFalse(TEXT("automatic ABP selection is not explicit"), System->IsExplicitSelection());
 		TGuardValue<TMap<FString, FString>> ModeGuard(MutableRoster.DefaultByAnimMode, MutableRoster.DefaultByAnimMode);
 		MutableRoster.DefaultByAnimMode[TEXT("gasp")] = TEXT("test_visual");
 		FActorSpawnParameters Spawn;
@@ -126,16 +128,20 @@ namespace GolmokCharacterRosterTest
 			PC->UnPossess(); PC->Possess(Pawn); PC->SetViewTarget(Pawn);
 			Test->TestEqual(TEXT("automatic ABP id does not override new GASP mode default"), System->GetCurrentId(), FString(TEXT("test_visual")));
 			Test->TestTrue(TEXT("explicit ordinary selection on capable pawn"), System->SelectCharacter(TEXT("manny"), Message));
+			Test->TestTrue(TEXT("successful selection is explicit"), System->IsExplicitSelection());
 			PC->UnPossess(); PC->Possess(Pawn); PC->SetViewTarget(Pawn);
 			Test->TestEqual(TEXT("explicit selection precedes mode default"), System->GetCurrentId(), FString(TEXT("manny")));
 			PC->UnPossess(); PC->Possess(Pawn); PC->SetViewTarget(Pawn);
 			Test->TestEqual(TEXT("repeated possession preserves explicit choice"), System->GetCurrentId(), FString(TEXT("manny")));
+			Test->TestTrue(TEXT("automatic restoration retains explicit intent"), System->IsExplicitSelection());
 			// Observe the source at the actual visual-apply boundary, using a deliberately stale source mesh.
 			Pawn->GetMesh()->SetSkeletalMesh(nullptr);
+			Pawn->GetMesh()->SetAnimInstanceClass(nullptr);
 			bool bObservedSource = false;
 			System->BeforeVisualApplyForTest = [&](AGolmokCharacter* C) {
 				bObservedSource = true;
-				Test->TestTrue(TEXT("visual application observes updated source mesh"), C->GetMesh()->GetSkeletalMeshAsset() == Original->GetMesh()->GetSkeletalMeshAsset());
+				Test->TestTrue(TEXT("visual application observes updated source animation"), C->GetMesh()->GetAnimClass() && C->GetMesh()->GetAnimClass()->GetPathName() == AnimPath);
+				Test->TestTrue(TEXT("visual application observes updated source mesh"), C->GetMesh()->GetSkeletalMeshAsset() && C->GetMesh()->GetSkeletalMeshAsset()->GetPathName() == MannyPath);
 			};
 			ON_SCOPE_EXIT { System->BeforeVisualApplyForTest = nullptr; };
 			Test->TestTrue(TEXT("apply source and visual transaction"), System->SelectCharacter(TEXT("test_visual"), Message));
@@ -164,9 +170,26 @@ namespace GolmokCharacterRosterTest
 			Test->TestEqual(TEXT("bad mode default falls back"), System->GetCurrentId(), FString(TEXT("manny")));
 			Test->TestTrue(TEXT("fallback retains mode failure diagnostic"), System->DescribeRoster().Contains(TEXT("last_auto_error=test_visual_missing:")));
 			System->ApplyDefaultForTest(Pawn); // Same world: second failure must not warn again.
+			MutableRoster.DefaultByAnimMode[TEXT("gasp")] = TEXT("test_visual");
+			Test->TestTrue(TEXT("explicit visual before failing restoration"), System->SelectCharacter(TEXT("test_visual"), Message));
+			Test->TestTrue(TEXT("visual choice is explicit"), System->IsExplicitSelection());
+			for (auto& Entry : MutableRoster.Entries)
+			{
+				if (Entry.Id != TEXT("test_visual")) continue;
+				TGuardValue<FString> MissingVisual(Entry.VisualMeshPath, TEXT("/Game/GolmokTests/Absent.Absent"));
+				PC->UnPossess(); PC->Possess(Pawn); PC->SetViewTarget(Pawn);
+				Test->TestEqual(TEXT("failed explicit restoration falls back"), System->GetCurrentId(), FString(TEXT("manny")));
+				Test->TestFalse(TEXT("successful fallback clears explicit intent"), System->IsExplicitSelection());
+			}
+			PC->UnPossess(); PC->Possess(Pawn); PC->SetViewTarget(Pawn);
+			Test->TestEqual(TEXT("fallback is not pinned after asset returns"), System->GetCurrentId(), FString(TEXT("test_visual")));
+			Test->TestFalse(TEXT("automatic GASP default is not explicit"), System->IsExplicitSelection());
 			Test->TestTrue(TEXT("reapply visual after fallback check"), System->SelectCharacter(TEXT("test_visual"), Message));
 		}
+		const uint32 VisualOnlyLoads = System->GetAssetLoadAttemptsForTest();
 		Test->TestFalse(TEXT("visual entry rejected with nonGASP source config"), System->SelectCharacter(TEXT("test_visual"), Message));
+		Test->TestTrue(TEXT("visual-only preflight refusal reason"), Message.Contains(TEXT("compatible GASP pawn")));
+		Test->TestEqual(TEXT("visual-only refusal precedes asset loads"), System->GetAssetLoadAttemptsForTest(), VisualOnlyLoads);
 		// Actual ABP config restored; applying ABP on the GASP pawn must clear the override too.
 		Test->TestTrue(TEXT("ABP selection on GASP pawn"), System->SelectCharacter(TEXT("manny"), Message));
 		Test->TestFalse(TEXT("ABP clears visual override"), Pawn->HasVisualOverride());
