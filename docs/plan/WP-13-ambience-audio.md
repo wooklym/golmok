@@ -484,7 +484,7 @@ STATUS/astra-tasks 문안: “T22 R92-1~3·R85-3 완료: 재등록 양성 실행
 - UE5.8.3 빌드: 첫 main 동기화 포함 168.25 s, 최종 증분 9.89 s 성공. 엔진 `Character.h`의 C4996만 관찰했고 프로젝트 컴파일 오류 없음.
 - 실제 UE 헤드리스 WAV 임포트/재임포트 **8+8**, loop/volume 8개 단언, `T24_IMPORT_VERIFIED_8_REIMPORT_8`(로컬 `Saved/Logs/Golmok-backup-2026.10.04-15.20.59.log`), commandlet **0 errors / 0 warnings**.
 - UE 전체 **39 Success (succeeded 26 + succeededWithWarnings 13), failed 0 / notRun 0, 195.57 s**. Audio 2개 모두 Success이며 새 rain·save·photo EXECUTED Info를 확인했다(로컬 `tools/.venv/t24-full-index.json`). 기존 Audio StateMachine에 null/disabled 경로·강수 상승/하강·clear·늦은 공급자/실내 바인딩·기존 베드 보존·실제 독립 GUID 세이브 슬롯 복원·master/mute·Photo maintain 두 pause 모드·GamePause mute 페이드 검사를 추가했다. 등록은 **39 유지**(WP-16a가 +3). 컴포넌트 논리 검증과 `-nosound` 결과를 청취로 기록하지 않는다.
-- **미실행**: 실제 오디오 장치 루프백·주관적 밸런스·패키지 쿡/재생. V-16 이후 오디오 PC 카드([wp13 §9](../runbooks/pc-verify-wp13.md))에서 수행한다. 소유자 결정 필요 없음, Opus 코드/품질 가설 리뷰 요청.
+- **미실행**: 실제 오디오 장치 루프백·주관적 밸런스·패키지 쿡/재생. V-16 이후 플레이스홀더 오디오 PC 카드([wp13 §9](../runbooks/pc-verify-wp13.md))는 레벨·타이밍·클릭·mute/Photo·복원만 기록하며 밸런스·마스킹은 판정하지 않는다. 곡선·실내 배율·발소리 headroom은 빗소리다운 소스(CC0 채택 또는 합성 변형) 뒤 C-08 청취에서 평가한다. 소유자 결정 필요 없음, Opus 코드/품질 가설 리뷰 요청.
 - 겹침: 시작 시 열린 #113 `claude/wp16a-followups`는 Weather/Save 및 그 테스트·wp16 런북으로 직접 겹치는 수정 파일이 없다. 핫스팟/공유 문서/등록부 변경 없음.
 
 ### 병합 시 반영 — T24
@@ -500,3 +500,64 @@ DECISIONS D-015 진행 문안: “T24 오디오가 WP-16a 실제 강수를 별�
 **병합 전 리뷰(Opus 5.5 ultracode 적대 검증 + Opus 디자인 리뷰, [R114](https://github.com/wooklym/golmok/pull/114#issuecomment-5981980619))**: (A) 0 · (B) 1 · (C) 9. 게이트(리눅스): ruff, format 117, pytest 1752 passed / 3 skipped(+32), check_repo, `diff --check`, 등록 39, CI 10/10; base `cb221aa`(main merge-tree 충돌 0, #113과 공통 파일 없음). UE 빌드·전체 39 Success·임포트 8+8은 Astra 보고다. 확인(결함 없음): null/꺼짐 0·NaN clamp, 첫 바인딩 즉시·이후 목적 상태 fade, 베드와 같은 master/PhotoGain/mute 식, 볼륨 0 루프 + PlayWhenSilent(재시작 팝 없음)·Deinitialize 정리, 유니티 이름 공간, 원자적 파서와 C++/Python 규칙·KeyCase 7목록 44키 일치, `rain.wav` LFS·seed 1307 재생성 바이트 동일·크레딧 일치, R101-1~3·런북 `$pkg`/−80 dBFS. **디자인**: 곡선·실내 ×0.35·문간 1.0/2.0 s를 초기값으로 채택한다. 예측(V-10b master submix 기준)은 강한 비에서 낮 합 +2.1 dB·밤 +3.8 dB·실내 +1.0 dB, 발소리 피크 여유 18.5 → 16.4 dB다. (B) R114-1: 플레이스홀더가 베드와 같은 저역 노이즈라 밸런스·가림을 판정할 수 없다 → 런북 §9-3·T24 절 문구, 빗소리다운 소스 뒤 C-08. (C) R114-2~10: 검증 규칙 독립 사례(변이 생존 5), 곡선 평가 g++ 교차검증·gain 비감소 규칙, PIE 가설 수치 하드코딩, disabled 단언·null 가드, 매 틱 SetVolumeMultiplier, 런북 §5 참조·문장, 강제 상태 안내, 즉시 경로 평활, C-08 청취 가설.
 
 **병합**: 오케스트레이터 결정(D-019). 이 커밋으로 반영했다(base가 main `cb221aa`라 합칠 것 없음). 위 "병합 시 반영 — T24" 문안은 STATUS 병행 트랙 WP-13 행, `astra-tasks.md` T24, DECISIONS D-015 진행에 옮겼다. V-16 카드(`pc-verify-wp16a.md`)의 "빗소리 없음 정상" 문구는 이 병합으로 맞지 않게 되어 같은 커밋에서 고쳤다. R114-1 (B)와 (C) R114-2~9는 Astra **T25**로 배정한다(R114-10은 C-08 청취 가설). PC 청취·패키지는 V-16 뒤 런북 §9 카드에서 한다.
+
+
+## T25 — 빗소리 합성 변형·R114 후속 (2026-10-05 KST)
+
+배정: [이슈 #30 T25](https://github.com/wooklym/golmok/issues/30#issuecomment-5982046162), [R114](https://github.com/wooklym/golmok/pull/114#issuecomment-5981980619). main `46d07cb`에서 `astra/wp-13-rain-followup`로 시작했다.
+
+- 필수 R114-1: T24/런북 §9-3의 플레이스홀더 카드는 레벨·타이밍·클릭·mute/Photo·복원만 기록한다. 밸런스·마스킹 판정은 제외하고, 곡선·실내 배율·발소리 여유는 빗소리다운 소스 뒤 C-08 청취로 남겼다.
+- 권장 합성 변형: Python 전용 자산 필드 `synthesis`(생략/`default`, `rain`)를 추가했다. `rain`은 자체 생성 루프에만 허용하며 채택 음원에서는 남아 있어도 무시한다. 런타임·등록부 변경 없음. 기존 7개 WAV 바이트 유지, rain만 seed 1307로 재생성(LFS), 크레딧 동기화. 주기적 FFT 1–8 kHz 노이즈에 4초당 12개의 15–40 ms Hann 과도음을 더한다. 재현 가능한 검사용 질감이며 현장 녹음·청취 합격이 아니다.
+- 선택 R114-7/8/9: `$pkg` 정의 §5 참조·과거 실행 문장 정정, 실제 포털로 rain 실내 감쇠 확인(ForceState는 베드만), 세이브/instant/첫 바인딩의 즉시 gain 점프를 기대 동작으로 문서화했다. 선택 R114-2~6은 이번 범위에 포함하지 않았다.
+
+### 검증 — T25
+
+- `audio_analysis rain.wav --check`: 통과, peak −14.0 dBFS, RMS −25.5 dBFS, click z 4.0, clipping/급정지 0. 전력 가중 스펙트럼 중심 4,185.0 Hz(낮 베드 864.8 Hz), 1–8 kHz 전력 비율 >99.99%. 최종 WAV SHA-256 `02c8022adca514b56986bc03fd4f70d9582c0524460393b0953504db959cd9b7`.
+- pytest에 seed 0/13/1307/uint32 최댓값의 결정성·대역 전력 >99%·중심 2.5–6 kHz 및 베드의 3배 초과·3회 반복 루프의 `--check`를 고정했다. 잘못된 합성 필드의 쓰기 전 거부, 채택 음원 보존, 실제 생성 경로의 rain 선택도 검사한다.
+- 로컬 전체 Python **1494 passed / 272 skipped / 208 warnings**(81.66 s), ruff check/format, UE Python 명시 lint, check_repo, diff --check 통과. 플랫폼/의존성 skip은 실행 성공으로 세지 않았다.
+- 실제 UE 헤드리스 임포트/재임포트 **8+8**, loop/volume 검증, `T25_IMPORT_VERIFIED_8_REIMPORT_8`, **0 errors / 0 warnings**. C++ 변경 없음으로 빌드·전체 UE 자동화는 이번에 재실행하지 않았다(등록39 유지). T24의 전체39 통과는 이전 결과다.
+- 미실행: 실제 장치 출력·루프백·패키지 쿡/재생·주관적 빗소리/밸런스/마스킹. C-08 및 V-16 뒤 오디오 카드에서 확인한다. 새 출처 채택/소유자 결정 없음. Opus ultracode 코드 리뷰와 합성 질감/평가 범위의 Opus 품질 리뷰 요청.
+
+### 병합 시 반영 — T25
+
+STATUS/astra-tasks 문안: “T25 R114 후속 완료: 필수 플레이스홀더 검증 범위 정정, Python 전용 합성 선택·1–8 kHz rain 질감/크레딧, seed·대역·반복 루프 파형 회귀, 실제 UE 임포트 8+8(오류0). 기존 7 WAV·런타임·등록39 유지. R114-7/8/9 문서 반영, 선택2~6 미포함. C-08 청취·V-16 뒤 출력/패키지는 대기.”
+
+DECISIONS D-015 진행 문안: “T25는 베드와 구별되는 합성 rain 질감을 검사용으로 추가했다. 스펙트럼/클릭 검사는 음질 합격이 아니며 곡선·실내 ×0.35·발소리 여유의 최종 판단은 C-08 청취다. 플레이스홀더 PC 카드는 레벨·타이밍·클릭·mute/Photo·복원만 기록한다. 새 라이선스/소스 채택 없음.”
+
+## 병합 기록 — T25 PR [#115](https://github.com/wooklym/golmok/pull/115) (2026-10-04, 오케스트레이터 세션)
+
+**병합 전 리뷰(Opus 5.5 ultracode 적대 검증 + Opus 디자인 리뷰, [R115](https://github.com/wooklym/golmok/pull/115#issuecomment-5982789631))**: (A) 0 · (B) 1 · (C) 4.
+- 게이트(리눅스): ruff, format 117, pytest 1763 passed / 3 skipped(+11), check_repo, `diff --check`, 등록 39, CI 10/10; base `46d07cb`(= main, merge-tree 충돌 0).
+- UE 임포트 8+8은 Astra 보고다. C++ 변경이 없어 빌드·자동화는 재실행하지 않았다.
+
+확인(결함 없음):
+- C++ 파서가 `synthesis`를 `seed`·`source`처럼 확장 키로 보존한다(KeyCase 자산 11개 이름과 대소문자 충돌 없음, 패리티 7목록 44키 불변).
+- `changes`의 en dash는 UTF-8로 읽힌다(비 ASCII `characters.json` 선례).
+- 검증기의 타입·값·루프 규칙과 채택 음원 비활성이 맞다.
+- WAV 8개를 재생성한 sha256이 포인터 oid와 같다. 기존 7개는 불변이고, rain은 `02c8022a…` 384,044 bytes이며 LFS 서버 객체와 바이트가 같다.
+- 크레딧이 생성기 출력과 같다.
+- `--check` 통과: z 4.0, 이음매 계단 = 차분 중앙값의 0.11배, DC 0, 루프 안 주기성 없음.
+- 문서 수치(중심 4185.0/864.8 Hz, 1–8 kHz 99.99998%)가 재현된다.
+- R114-1/7/8/9가 반영됐다.
+
+**디자인**: 합성 rain을 베드와 구별되는 층으로 채택한다. 약한 비가 낮 베드 대비 K-가중 −5.0 dB라 따로 들린다.
+- 같은 RMS에서 K-가중 +3.5 dB·A-가중 +4.3 dB 크게 들린다.
+- 그래서 V-10b 기준 강한 비는 RMS로 낮 베드 −1.4 dB지만 체감은 +2.2 dB, 밤은 +5.8 dB다. 실내 강한 비는 룸톤 −1.6 dB다(R114 RMS 예측 −2.1/−5.9).
+- rain 자산 gain을 0.3으로 내리면 곡선·실내 배율을 그대로 둔 채 R114 관계가 돌아온다 → C-08 비교.
+- 발소리 플레이스홀더 에너지의 83%가 rain 대역 밖이라 가림은 여전히 판정하지 않는다.
+
+(B) R115-1: 빗방울 과도음 12개가 배경보다 12–15 dB 낮아 들리지 않는다(제거 변이 생존). 들리게 하거나(지수 포락선 진폭 ~2, `--check` 통과 범위) 문구를 정정한다.
+
+(C) R115-2~5:
+- R115-2: Python 전용 키 별칭(`Synthesis`가 조용히 기본 생성)
+- R115-3: 생성 WAV를 LFS 포인터 oid에 고정(생존 변이 5)
+- R115-4: 실제 빗소리의 클릭 판정 범위
+- R115-5: C-08 청취 가설
+
+R114-2~6은 선택 이월.
+
+**병합**: 오케스트레이터 결정(D-019). 이 커밋으로 반영했다(base가 main `46d07cb`라 합칠 것 없음).
+- 위 "병합 시 반영 — T25" 문안은 STATUS 병행 트랙 WP-13 행, `astra-tasks.md` T25, DECISIONS D-015 진행에 옮겼다.
+- STATUS C-08의 빗소리 가설은 R115-5로 갱신했다.
+- R115-1은 **들리는 과도음(a)**으로 정했다(퀄리티 우선). gain은 K-가중으로 맞춘다. 이것과 (C) R115-2~4, R114-2~6 이월은 Astra **T26**으로 배정한다.
+- PC 청취·패키지는 V-16 뒤 런북 §9 카드에서 한다.

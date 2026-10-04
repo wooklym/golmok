@@ -12,11 +12,28 @@ sys.path.insert(0, str(PYTHON))
 from golmok.audio_pure import AUDIO, CONFIG, load_config, source_path, write_credits  # noqa: E402
 
 
-def samples(seed, loop, rate=48000):
+def samples(seed, loop, rate=48000, synthesis="default"):
+    if synthesis not in ("default", "rain") or (synthesis == "rain" and not loop):
+        raise ValueError("synthesis: expected default, or rain for a loop")
     count = rate * 4 if loop else rate // 3
     rng = np.random.default_rng(seed)
     noise = rng.uniform(-1, 1, count)
-    if loop:
+    if synthesis == "rain":
+        # Periodic FFT filtering keeps both the noise and droplets continuous at the seam.
+        frequencies = np.fft.rfftfreq(count, 1 / rate)
+        band = np.minimum(
+            np.clip((frequencies - 1000) / 500, 0, 1), np.clip((8000 - frequencies) / 1500, 0, 1)
+        )
+        noise = np.fft.irfft(np.fft.rfft(noise) * band, n=count)
+        for _ in range(12):
+            length = int(rate * rng.uniform(0.015, 0.04))
+            offset = int(rng.integers(count))
+            droplet = rng.uniform(-1, 1, length) * np.hanning(length)
+            burst = np.zeros(count)
+            burst[(offset + np.arange(length)) % count] = droplet
+            noise += 0.35 * np.fft.irfft(np.fft.rfft(burst) * band, n=count)
+        envelope = np.ones(count)
+    elif loop:
         # Circular low-pass avoids an artificial filter startup transient at the seam.
         noise = sum(np.roll(noise, i) for i in range(32)) / 32
         envelope = np.ones(count)
@@ -42,7 +59,7 @@ def generate(config=CONFIG, root=AUDIO):
             wav.setnchannels(1)
             wav.setsampwidth(2)
             wav.setframerate(48000)
-            wav.writeframes(samples(item["seed"], item["loop"]))
+            wav.writeframes(samples(item["seed"], item["loop"], synthesis=item.get("synthesis", "default")))
     write_credits(data, root)
     return [str(path) for path, _ in pending]
 

@@ -122,12 +122,13 @@
       "license": "project-generated",
       "license_url": "",
       "source_url": "https://github.com/wooklym/golmok/blob/main/tools/scripts/make_placeholder_audio.py",
-      "changes": "Deterministic filtered noise/tone; not a field recording.",
+      "changes": "Deterministic periodic 1–8 kHz filtered noise with sparse soft raindrop transients; synthetic test texture, not a field recording.",
       "placeholder": true,
       "loop": true,
       "gain": 0.5,
       "seed": 1307,
-      "verified": "2026-10-05"
+      "verified": "2026-10-05",
+      "synthesis": "rain"
     }
   },
   "ambience": {
