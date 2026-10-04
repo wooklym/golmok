@@ -51,6 +51,7 @@ def parse_config(data):
             "ambience",
             "preset_states",
             "footsteps",
+            "rain",
         ),
     )
     if type(data.get("schema_version")) is not int or data["schema_version"] != 1:
@@ -150,6 +151,29 @@ def parse_config(data):
         except ValueError as exc:
             raise ValueError(f"{prefix}.verified: expected valid calendar date") from exc
         number(item.get("gain"), 0, 1, f"{prefix}.gain")
+    if "rain" in data:
+        rain = data["rain"]
+        if not isinstance(rain, dict):
+            raise ValueError("rain: expected object")
+        key_case(rain, ("asset", "gain_curve", "interior_gain"), "rain")
+        asset = text(rain.get("asset"), "rain.asset")
+        if asset not in assets or not assets[asset]["loop"]:
+            raise ValueError("rain.asset: expected looping asset id")
+        number(rain.get("interior_gain"), 0, 1, "rain.interior_gain")
+        curve = rain.get("gain_curve")
+        if not isinstance(curve, list) or not 2 <= len(curve) <= 32:
+            raise ValueError("rain.gain_curve: expected 2..32 [intensity, gain] points")
+        previous = -1
+        for point in curve:
+            if not isinstance(point, list) or len(point) != 2:
+                raise ValueError("rain.gain_curve: expected [intensity, gain]")
+            x = number(point[0], 0, 1, "rain.gain_curve.intensity")
+            number(point[1], 0, 1, "rain.gain_curve.gain")
+            if x <= previous:
+                raise ValueError("rain.gain_curve: expected strictly increasing intensities")
+            previous = x
+        if curve[0] != [0, 0] or curve[-1][0] != 1:
+            raise ValueError("rain.gain_curve: expected first point [0, 0] and final intensity 1")
     if isinstance(data.get("ambience"), dict):
         key_case(data["ambience"], ("outdoor_day", "outdoor_night", "interior"), "ambience")
     if not isinstance(data.get("ambience"), dict) or set(data["ambience"]) != {
@@ -196,7 +220,7 @@ def parse_config(data):
         "teleport_threshold_cm",
     ):
         number(steps.get(field), 1, 10000, f"footsteps.{field}")
-    if "stride_scale_by_mesh" in steps:
+    if any(key.lower() == "stride_scale_by_mesh" for key in steps):
         raise ValueError(
             "footsteps.stride_scale_by_mesh: expected absent; superseded by stride_cm_by_character"
         )

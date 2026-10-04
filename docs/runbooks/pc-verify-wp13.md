@@ -4,10 +4,10 @@
 
 ## 1. 데이터와 임포트
 
-먼저 `.\tools\ue\build.ps1` → `.\tools\ue\open-editor.ps1` 순서로 실행한다. GUI 잠금 규칙을 확인한다. **PIE/자동화 전에 음원7개를 임포트**해야 LoadObject 누락 경고를 피할 수 있다.
+먼저 `.\tools\ue\build.ps1` → `.\tools\ue\open-editor.ps1` 순서로 실행한다. GUI 잠금 규칙을 확인한다. **PIE/자동화 전에 음원8개(빗소리 포함)를 임포트**해야 LoadObject 누락 경고를 피할 수 있다.
 
 
-`Config/Golmok/audio.json`이 소스·에셋 경로·출처·루프·gain의 단일 소스다. 현재 7개 WAV는 결정적 합성 플레이스홀더이고 서울 녹음이나 채택 후보 원본이 아니다. 기본값과 소리의 적절성은 품질 가설이며 Fable/V-10 검토 대상이다.
+`Config/Golmok/audio.json`이 소스·에셋 경로·출처·루프·gain의 단일 소스다. 현재 8개 WAV는 결정적 합성 플레이스홀더이고 서울 녹음이나 채택 후보 원본이 아니다. 새 빗소리 기본값과 소리의 적절성은 품질 가설이며 Opus/PC 청취 검토 대상이다.
 
 ```powershell
 $env:PYTHONUTF8 = '1'
@@ -32,12 +32,12 @@ import unreal
 from golmok import audio_import, audio_pure
 first = audio_import.run()
 second = audio_import.run()
-assert first == second and len(first) == 7
+assert first == second and len(first) == len(audio_pure.load_config()["assets"])
 for item in audio_pure.load_config()["assets"].values():
     sound = unreal.load_asset(item["asset"])
     assert sound.get_editor_property("looping") == item["loop"]
     assert abs(sound.get_editor_property("volume") - item["gain"]) < 1e-6
-unreal.log("WP13_IMPORT_VERIFIED_7_REIMPORT_7")
+unreal.log(f"WP13_IMPORT_VERIFIED_{len(first)}_REIMPORT_{len(second)}")
 ```
 
 저장소 루트 PowerShell:
@@ -99,7 +99,7 @@ T8은 슬롯 진폭 g를 전력 영역에서 보간한다: `u = (1 - cos(pi * al
 
 T8 품질 정책은 [Fable 배정](https://github.com/wooklym/golmok/issues/30#issuecomment-5879528015)에 따른다. 아래 §6·§7은 **5f6c810의 V-10 실행 이력**이며 새 equal-power·Photo 페이드·2D 발소리·볼륨·보폭의 PC 합격 결과로 재사용하지 않는다. 새 정책의 청취·패키지 발소리는 C-07 해소 뒤 PC, 최종 밸런스는 소유자 C-08이다.
 
-패키징 확인(V-10 실행, §6·§7): 임포트 후 `.\tools\ue\package.ps1` 실행 → `build/Windows`의 패키징 로그/컨테이너 목록에서 Audio의 SoundWave 7개와 `Config/Golmok/audio.json`을 확인 → 패키지 실행에서 세 상태 전환과 `golmok.audio credits` 출처 출력 확인. pak은 엔진 `UnrealPak.exe <pak 경로> -List`로 조사한다. IoStore를 사용한 출력이면 해당 컨테이너 목록과 cook/stage manifest도 함께 확인한다. 패키지 HUD/`golmok.audio` 출력에 **`error: missing SoundWave`가 없음**도 확인한다. 파일 존재와 실제 재생/크레딧 출력을 각각 기록하고 미실행을 성공으로 표시하지 않는다.
+현재 패키징 재현 절차(T24 포함; V-10 당시 실행은 §6·§7): 임포트 후 `.\tools\ue\package.ps1` 실행 → `$pkg`([pc-setup §2a](pc-setup.md)의 출력 경로)의 패키징 로그/컨테이너 목록에서 Audio의 SoundWave 8개와 `Config/Golmok/audio.json`을 확인 → 패키지 실행에서 세 상태 전환과 `golmok.audio credits` 출처 출력 확인. pak은 엔진 `UnrealPak.exe <pak 경로> -List`로 조사한다. IoStore를 사용한 출력이면 해당 컨테이너 목록과 cook/stage manifest도 함께 확인한다. 패키지 HUD/`golmok.audio` 출력에 **`error: missing SoundWave`가 없음**도 확인한다. 파일 존재와 실제 재생/크레딧 출력을 각각 기록하고 미실행을 성공으로 표시하지 않는다.
 
 
 ### 런타임 불확실 API
@@ -119,20 +119,22 @@ T8 품질 정책은 [Fable 배정](https://github.com/wooklym/golmok/issues/30#i
 | A9 | HasCalledBeginPlay | 초기/재시작 Tick 순서 | 월드 시작 후 초기화 | PIE 재시작3회 | 헤드리스 통과. **V-10 GUI**: 한 에디터 세션에서 PIE 재시작 3회 모두 시작 2 s 뒤 `outdoor_day`, `SW_outdoor_day` 보이스 재생(0.17), 경고 없음 |
 | A10 | UAudioComponent::FadeOut(D, 0, SCurve), UI sound/GamePause | 실제 원샷 종료 곡선/정지 타이밍 | submix 녹음·보이스 로그 비교 | C-07 뒤 Photo 진입 중 원샷 | T8 리뷰 보완: 컴파일·헤드리스 envelope만 확인, 실제 출력 미검증 |
 
-패키징 후 cook 파일 수 확인(7개 기대). UE 5.8.3은 Zen 스토어(`Saved/Cooked/Windows/ue.projectstore`)로 cook하므로 `Saved\Cooked\Windows\Golmok\Content\...`에 낱개 `.uasset`이 **없다**(V-10). stage manifest와 컨테이너 목록으로 확인한다:
+패키징 후 cook 파일 수 확인(현재 8개 기대). UE 5.8.3은 Zen 스토어(`Saved/Cooked/Windows/ue.projectstore`)로 cook하므로 `Saved\Cooked\Windows\Golmok\Content\...`에 낱개 `.uasset`이 **없다**(V-10). stage manifest와 컨테이너 목록으로 확인한다:
 
 ```powershell
 .\tools\ue\package.ps1
-Select-String .\build\Windows\Manifest_UFSFiles_Win64.txt -Pattern 'Golmok/Content/Golmok/Audio/.*SW_.*\.uasset|Config/Golmok/audio.json'
+$pkg = if (-not [string]::IsNullOrWhiteSpace($env:GOLMOK_PKG_DIR)) { $env:GOLMOK_PKG_DIR.Trim().TrimEnd('\') } else { ".\build\Windows" }
+# -OutDir를 지정했다면 $pkg에도 그 실제 절대 경로를 쓴다. Package output 줄을 대조한다.
+Select-String "$pkg\Manifest_UFSFiles_Win64.txt" -Pattern 'Golmok/Content/Golmok/Audio/.*SW_.*\.uasset|Config/Golmok/audio.json'
 $pak = 'C:\Program Files\Epic Games\UE_5.8\Engine\Binaries\Win64\UnrealPak.exe'
-& $pak "-ListContainer=$((Resolve-Path .\build\Windows\Golmok\Content\Paks\Golmok-Windows.utoc).Path)" "-csv=$env:TEMP\utoc.csv"
+& $pak "-ListContainer=$((Resolve-Path "$pkg\Golmok\Content\Paks\Golmok-Windows.utoc").Path)" "-csv=$env:TEMP\utoc.csv"
 Select-String "$env:TEMP\utoc.csv" -Pattern 'Golmok/Audio/.*SW_'
-& $pak (Resolve-Path .\build\Windows\Golmok\Content\Paks\Golmok-Windows.pak).Path -List | Select-String 'audio.json'
+& $pak (Resolve-Path "$pkg\Golmok\Content\Paks\Golmok-Windows.pak").Path -List | Select-String 'audio.json'
 ```
 
 `package.ps1`은 V-10부터 `-ubtargs=-NoHotReloadFromIDE`를 넘긴다. 같은 엔진 설치의 다른 에디터나 `-game`이 Live Coding을 켜 둔 상태이면, 이 인자가 없을 때 BuildCookRun이 "Unable to build while Live Coding is active"로 멈춘다(`build.ps1`과 같은 처리). 이 인자는 Live Coding 검사만 피한다. 같은 워크트리의 에디터가 `UnrealEditor-Golmok.dll`을 잡고 있고 코드가 바뀌었으면 에디터 타깃 링크는 여전히 실패하므로, 같은 워크트리의 에디터는 닫는다(GUI 잠금 규칙).
 
-cook 파일만으로 합격시키지 않는다. 컨테이너/stage manifest의 SoundWave7개·audio.json과 패키지 실행의 재생·크레딧도 확인한다. 에디터 Packaging 저장은 중복 ini 섹션을 재작성할 수 있으므로 Audio cook 훅 보존을 diff로 확인한다. PhysicalSurfaces1/2/3 이름은 Zone 에셋 단계에서 정의한다. T8은 audio.json 번호에 대응하는 Physics 표면 이름이 세트 id와 대소문자 무관하게 같아야 매핑하며, 아니면 default + HUD error + 월드별 표면 번호당 1회 Warning을 남긴다(명시 Course/Stairs 태그 우선). CC-BY 원본 채택 시 Shipping에서 도달 가능한 크레딧 UI/배포 표기를 확인한다(현 콘솔 노출은 Development 검사용).
+cook 파일만으로 합격시키지 않는다. 컨테이너/stage manifest의 SoundWave8개·audio.json과 패키지 실행의 재생·크레딧도 확인한다. 에디터 Packaging 저장은 중복 ini 섹션을 재작성할 수 있으므로 Audio cook 훅 보존을 diff로 확인한다. PhysicalSurfaces1/2/3 이름은 Zone 에셋 단계에서 정의한다. T8은 audio.json 번호에 대응하는 Physics 표면 이름이 세트 id와 대소문자 무관하게 같아야 매핑하며, 아니면 default + HUD error + 월드별 표면 번호당 1회 Warning을 남긴다(명시 Course/Stairs 태그 우선). CC-BY 원본 채택 시 Shipping에서 도달 가능한 크레딧 UI/배포 표기를 확인한다(현 콘솔 노출은 Development 검사용).
 
 ## 6. 결과 기록
 
@@ -175,7 +177,7 @@ C-10: Packaging 설정을 에디터에서 저장한 뒤 DefaultGame.ini의 중�
 - 녹음: PIE 월드에서 `unreal.AudioMixerLibrary.start_recording_output(world, s)` → `stop_recording_output(world, AudioRecordingExportType.WAV_FILE, name, dir)`(Python 이름은 `AudioMixerLibrary`, `ScriptName` 메타데이터). master submix 출력이라 OS 볼륨 전 신호다.
 - 분석: 100 ms RMS 포락선(안착 = 최종 레벨 ±1 dB 진입 시각), 클릭 = 1차 차분을 국소 강건 σ(MAD, ±100 ms)로 나눈 z(발소리 원샷 구간 제외, 판정 z ≥ 8). 합성 베드가 32탭 이동평균 노이즈라 차분이 백색에 가깝다. 자체 시험에서 의도적 하드컷은 z 160, 2 s/1 s 선형 페이드는 안착 2.09/0.85 s로 검출됐다.
 - 발소리 식별: `ListWaves`(0.1 s 샘플, 재생 위치 되감김 = 새 인스턴스)로 웨이브 이름·동시 보이스 수를 센다. 애니메이션 cadence는 foot_l/foot_r 소켓의 진행 방향 간격을 자기상관해 구한다(주기 = 2보).
-- 패키지: `build\Windows\Golmok.exe`(부트스트랩이 실제 `Golmok\Binaries\Win64\Golmok.exe`를 띄움)를 `-forcelogflush -ExecCmds=…`로 실행하고, 기본 출력 장치의 WASAPI 루프백을 PowerShell+C# interop로 캡처했다(설치 없음, 읽기 전용).
+- 패키지: 현재 재현 명령은 `& "$pkg\Golmok.exe"`(§6/pc-setup §2a, `Package output` 대조)이다. 아래 V-10 녹음 당시에는 `build\Windows\Golmok.exe`를 사용했다(부트스트랩이 실제 `Golmok\Binaries\Win64\Golmok.exe`를 띄움)를 `-forcelogflush -ExecCmds=…`로 실행하고, 기본 출력 장치의 WASAPI 루프백을 PowerShell+C# interop로 캡처했다(설치 없음, 읽기 전용).
 
 ![HUD audio 줄(L_ZoneTest 실내, 실행 A)](pc-verify-wp13-hud.jpg)
 
@@ -188,7 +190,7 @@ C-10: Packaging 설정을 에디터에서 저장한 뒤 DefaultGame.ini의 중�
 - 판정·종료 코드: `--check` 없이 종료 코드 0은 "분석이 끝났다"는 뜻이지 **통과가 아니다**. `--check`를 주면 클릭(z ≥ 8)·급정지(믹스나 어느 채널이든)·clipping·NaN/Inf 표본 가운데 하나라도 있으면 1, 없으면 0이고 마지막 줄에 `check` 결과를 쓴다(JSON은 `check.failed`). 읽을 수 없는 파일은 언제나 2다.
 - 클릭 z 계산: 모든 표본을 자기 ±창으로 재지는 않는다(표본마다 중앙값 계산). 창/4 격자에서 MAD를 구한 뒤 두 단계로 후보를 다시 잰다. 1단계 격자 휴리스틱은 보통 소재에서 전수 계산과 같지만 무음 경계·게이트 소재·몇 LSB 크기의 16-bit 베드에서는 최댓값을 놓칠 수 있다(합성 게이트 소재 67.6 대 전수 99.1). 2단계는 두 격자점 사이 σ의 증명된 하한으로 후보를 고르므로 판정(z ≥ 8 여부)은 전수 계산과 항상 같고, 후보가 1000개 이하이면 최댓값도 전수와 같다. 플레이스홀더 베드처럼 최댓값 근처 표본이 많은 소재에서는 값이 1단계 값이다. 3분 48 kHz 스테레오(믹스와 두 채널)는 약 20 s, 표본 외 메모리 약 0.37 GB다.
 - 무음 처리: |x| < 1e-4(약 −80 dBFS, `--silence-floor`로 바꿈, 0이면 모든 표본을 넣는 V-10 방식)를 무음으로 보고, 클릭 σ(MAD)는 ±100 ms 창 안의 비무음 차분만으로 계산한다. 창의 25 % 미만이 비무음인 샘플은 채점하지 않는다. 그래서 무음으로 가는 페이드와 무음 하드컷이 더 이상 z를 부풀리지 않는다. 플레이스홀더 베드에서 20 ms·250 ms 선형 페이드는 z ≈ 2.5·2.9다(이전 12~16·7~11). 하드컷은 컷 지점의 계단을 베드 자신의 σ로 채점해 z ≈ 3.7 × |컷 직전 표본| / 베드 RMS, 곧 2.4~6.5다(이전 수천, PC 자체 시험 160). 큰 표본에서 끊기면(무작위 컷의 약 3 %) 8을 넘을 수 있는데 이는 실제 계단이다. 소리 구간 안의 클릭(0.3 스파이크 z ≈ 22)은 무음 바로 옆에서도 그대로 잡힌다. −80 dBFS보다 조용한 소재는 무음으로 취급되고, 그에 가까운 베드는 영점 부근 표본도 빠진다(베드 −65 dBFS RMS: 표본 14 %, z 6~8 % 상승).
-- 급정지(`abrupt_stop`, 기본 20 dB·10 ms·5 ms 창): 5 ms RMS 레벨이 기준보다 20 dB 이상 떨어지는 하강 중 10 ms 안에 끝난 것을 목록에 올린다. 하드컷, 무음이나 훨씬 조용한 베드로의 컷, 약 5 ms 이상의 끊김이 해당한다. '10 ms 안'은 등가 선형 램프로 판정한다. 무음 시작 직전 10 ms가 기준 전력(그 앞 100 ms 에너지 평균)의 1/3 이상을 유지하면 급정지다. 1/3은 정확히 10 ms인 선형 램프가 남기는 값이다. 보고하는 ms는 같은 전력비를 남기는 선형 램프 길이다(하드컷 ≈ 0). 플레이스홀더 베드 경계(시드 300개): 하드컷 300/300(0~9.4 ms), 5 ms 램프 95 %, 10 ms 43 %, 12 ms 13 %, 15 ms 1 %, 20·40·250 ms 0 %. 하강 dB는 5 ms 창 하나로 읽어 ±2 dB 흔들린다. 떨어지는 쪽만 찾고 무음에서의 급시작은 찾지 않는다. V-10의 Photo mute 진입(20~40 ms 램프)은 선형 램프라면 목록에 오르지 않는다. T8의 0.25 s 페이드 뒤에는 급정지 0이 기대값이다.
+- 급정지(`abrupt_stop`, 기본 20 dB·10 ms·5 ms 창): 하강 전 기준 레벨이 무음 바닥(기본 −80 dBFS, `--silence-floor 0.0001`) 위일 때만 판정한다. 수 LSB 잔류와 0 사이 깜빡임은 무음으로 본다. `--silence-floor 0`이면 이전 방식(바닥 게이트 없음)으로 돌아간다. 5 ms RMS 레벨이 기준보다 20 dB 이상 떨어지는 하강 중 10 ms 안에 끝난 것을 목록에 올린다. 하드컷, 무음이나 훨씬 조용한 베드로의 컷, 약 5 ms 이상의 끊김이 해당한다. '10 ms 안'은 등가 선형 램프로 판정한다. 무음 시작 직전 10 ms가 기준 전력(그 앞 100 ms 에너지 평균)의 1/3 이상을 유지하면 급정지다. 1/3은 정확히 10 ms인 선형 램프가 남기는 값이다. 보고하는 ms는 같은 전력비를 남기는 선형 램프 길이다(하드컷 ≈ 0). 플레이스홀더 베드 경계(시드 300개): 하드컷 300/300(0~9.4 ms), 5 ms 램프 95 %, 10 ms 43 %, 12 ms 13 %, 15 ms 1 %, 20·40·250 ms 0 %. 하강 dB는 5 ms 창 하나로 읽어 ±2 dB 흔들린다. 떨어지는 쪽만 찾고 무음에서의 급시작은 찾지 않는다. V-10의 Photo mute 진입(20~40 ms 램프)은 선형 램프라면 목록에 오르지 않는다. T8의 0.25 s 페이드 뒤에는 급정지 0이 기대값이다.
 - 녹음·키 입력·`ListWaves`·WASAPI 루프백을 하는 PC 드라이버(V-09b `pie_driver.py` 오디오 단계)는 여전히 세션 scratchpad에만 있고 저장소에 없다.
 
 ### 7-2. 실행 목록
@@ -211,7 +213,7 @@ C-10: Packaging 설정을 에디터에서 저장한 뒤 DefaultGame.ini의 중�
 
 ### 7-4. 막힌 것·환경
 
-- **Windows 보안 대화상자**: 05:46쯤부터 `PickerHost.exe`의 `Shell_SystemDialog`(제목 "Windows 보안")와 전체 화면 `Shell_SystemDim` 오버레이(최상위)가 떠 있다. 이 때문에 다른 창을 포그라운드로 만들 수 없고 SendInput 키가 게임에 들어가지 않는다. 패키지 `Golmok.exe`를 처음 실행할 때 뜬 방화벽 허용 프롬프트로 보인다. 보안 설정이라 세션은 누르지 않았다. 소유자가 처리한 뒤 패키지에서 W 걷기 발소리를 1회 확인한다(수동: `build\Windows\Golmok.exe` 실행 → L_Dev에서 W로 걷기 → 발소리 확인. 세션 드라이버는 저장소에 없다).
+- **Windows 보안 대화상자**: 05:46쯤부터 `PickerHost.exe`의 `Shell_SystemDialog`(제목 "Windows 보안")와 전체 화면 `Shell_SystemDim` 오버레이(최상위)가 떠 있다. 이 때문에 다른 창을 포그라운드로 만들 수 없고 SendInput 키가 게임에 들어가지 않는다. 패키지 `Golmok.exe`를 처음 실행할 때 뜬 방화벽 허용 프롬프트로 보인다. 보안 설정이라 세션은 누르지 않았다. 소유자가 처리한 뒤 패키지에서 W 걷기 발소리를 1회 확인한다(수동: `& "$pkg\Golmok.exe"` 실행($pkg는 §6/pc-setup §2a의 실제 출력 경로) → L_Dev에서 W로 걷기 → 발소리 확인. 세션 드라이버는 저장소에 없다).
 - `-log`로 패키지를 띄우면 로그 콘솔 창이 포그라운드를 가져간다. `-forcelogflush`만 쓴다. 부트스트랩 `Golmok.exe`를 종료해도 실제 게임 프로세스는 남는다.
 
 ### 7-5. 재현 메모
@@ -286,3 +288,17 @@ notify 모드는 첫 이벤트 전부터 거리 스테퍼를 멈춘다. 이벤�
 - 일반 폰에 같은 GASP 계약 애님을 넣어도 auto는 distance다. pause에서 버려진 Step도 ev는 증가하지만 재생 요청은 증가하지 않는다. 양성 ABP 시험을 건너뛰면 해당 cache/class/generation/HUD Info는 NOT EXECUTED다.
 - C++는 루트·에셋 메타데이터·고정 ambience 상태·footsteps·개별 보폭 객체의 알려진 필드 이름을 읽기 전에 대소문자를 검사한다. 예: MASTER_VOLUME, gain의 GAIN, walk의 WALK는 필드 경로 오류다. 알려지지 않은 확장 키를 새로 금지하지 않으며 동적 에셋 id/세트 id/프리셋 이름을 소문자로 강제하지 않는다. 이 보완이 C++/Python의 모든 검증을 같게 만들었다는 뜻은 아니다.
 - 실제 GASP 원본 발 폴리 차단·발 접지·청취/패키지 출력은 계속 19b/V-15 검증이다.
+
+
+## 9. T24 빗소리 레이어 — PC 청취 대기
+
+WP-16a 병합 뒤 추가한 오디오 레인이다. 기존 낮/밤/실내 두 슬롯 위에 별도 `SW_rain` 루프를 둔다. `audio.json`의 선택 필드 `rain`이 없으면 종전대로 동작한다. `rain.asset`은 `assets`의 루프 ID, `gain_curve`는 2~32개 `[강수량, gain]`(강수량 엄격 증가, 처음 `[0,0]`, 마지막 강수량 1), `interior_gain`은 0~1이다. 두 점 사이 선형 보간이며 초기 가설은 `[[0,0],[0.3,0.35],[1,0.8]]`, 실내 ×0.35다. 실내 감쇠/복귀는 기존 목적 상태의 크로스페이드 시간으로 S-curve 전환한다. 원본 파일 gain은 SoundWave 임포트 볼륨에, rain 곡선·실내·master·PhotoGain은 채널 볼륨에 각각 한 번 적용한다.
+
+1. 위 §1 생성·임포트를 다시 실행한다. 기존 7개 + 합성 빗소리 1개 = 8개, 모두 PCM16/48 kHz. 빗소리는 서울 현장 녹음이 아닌 합성 검사용 노이즈다. 음원 교체는 `audio.json`의 기존 자산 출처·경로 필드와 소스 WAV만 교체하고 생성기/임포터/런타임은 그대로 사용한다. `ATTRIBUTION.md`, 배포용 txt, `golmok.audio credits`의 rain 출처를 확인한다.
+2. V-16 날씨 검증 뒤 `golmok.weather rain 1` → 20 s 관찰. HUD `audio:`의 `rain`은 **실제** 강수량이고 `rain_gain`은 원본 SoundWave gain을 곱하기 전 채널 gain이다. 하늘 전환 전반에는 0, 후반에는 증가한다. `golmok.weather clear`에서는 하늘보다 먼저 0이 된다. `rain 0.3 instant`는 실외 master 1에서 rain_gain 0.350, `rain 1 instant`는 0.800이다.
+3. 낮/밤 전환 중에도 빗소리가 끊기거나 낮/밤 베드를 교체하지 않는지 듣는다. 포털 진입은 rain 1에서 0.800 → 0.280, 복귀는 0.800. 빠른 왕복 중 클릭/하드컷을 검사한다. 소리 합산 clipping·비가 발소리/베드를 가리는 정도는 루프백과 청취로 판정한다. 숫자는 합격 볼륨이 아니라 초기 가설이다.
+4. `golmok.audio.mute 1/0`과 Photo mute 진입/해제에서 빗소리도 기존 master·PhotoGain 정책을 따른다. GamePause/TimeDilation 두 모드에서 확인한다. `pause_policy=maintain` 재시작 시 Photo 동안 비 강도는 멈추되 빗소리는 유지된다. Weather의 `fx off`는 빗줄기 성능 A/B이므로 소리를 끄지 않는다.
+5. 비를 저장하고 clear로 바꾼 뒤 로드한다. 다음 Audio 틱에서 복원 강도를 읽는지 확인한다(최대 한 프레임 지연 수용). 에디터 시작 시 처음부터 비·실내인 경우에도 이벤트를 기다리지 않아야 한다.
+6. §6의 `$pkg` 패키지에서 SW_rain 쿡·8개 크레딧·재생을 확인한다. 이전 V-10/10b 기록의 7개는 당시 실행 사실이므로 그대로 둔다. **T24 패키지·청취·오디오 장치 출력은 별도 PC 검증 전 미실행**이다.
+
+헤드리스 `Golmok.Audio.StateMachine`은 null/disabled 날씨 공급자, 강수 상승·하강/clear, 늦은 조회·실내 바인딩, 기존 베드 보존, 독립 GUID 세이브 슬롯 즉시 복원, master/mute, Photo maintain 두 pause 모드와 GamePause mute 페이드를 검사한다. null 공급자는 비가 오는 월드에서도 직접 null을 전달해 검사한다. `-nullrhi -nosound` 결과는 실제 청취 증거가 아니다. 기존 자동화 등록 수를 늘리지 않는다.

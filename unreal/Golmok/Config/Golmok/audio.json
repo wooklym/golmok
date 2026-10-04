@@ -113,6 +113,21 @@
       "gain": 1.0,
       "seed": 1306,
       "verified": "2026-09-28"
+    },
+    "rain": {
+      "source": "src/ambience/rain.wav",
+      "asset": "/Game/Golmok/Audio/ambience/SW_rain.SW_rain",
+      "title": "rain synthetic placeholder",
+      "author": "Golmok procedural generator",
+      "license": "project-generated",
+      "license_url": "",
+      "source_url": "https://github.com/wooklym/golmok/blob/main/tools/scripts/make_placeholder_audio.py",
+      "changes": "Deterministic filtered noise/tone; not a field recording.",
+      "placeholder": true,
+      "loop": true,
+      "gain": 0.5,
+      "seed": 1307,
+      "verified": "2026-10-05"
     }
   },
   "ambience": {
@@ -188,5 +203,23 @@
     },
     "driver": "auto"
   },
-  "photo_mute_fade_seconds": 0.25
+  "photo_mute_fade_seconds": 0.25,
+  "rain": {
+    "asset": "rain",
+    "gain_curve": [
+      [
+        0,
+        0
+      ],
+      [
+        0.3,
+        0.35
+      ],
+      [
+        1,
+        0.8
+      ]
+    ],
+    "interior_gain": 0.35
+  }
 }

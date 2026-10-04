@@ -34,7 +34,7 @@ def test_generation_budget_and_preserve_real_audio(tmp_path):
     config = tmp_path / "audio.json"
     config.write_text(json.dumps(data), encoding="utf-8")
     paths = generator.generate(config, tmp_path)
-    assert len(paths) == 6
+    assert len(paths) == len(data["assets"]) - 1
     assert adopted.read_bytes() == b"preserve adopted source"
     assert sum(Path(p).stat().st_size for p in paths) <= 40_000_000
     for path in paths:
