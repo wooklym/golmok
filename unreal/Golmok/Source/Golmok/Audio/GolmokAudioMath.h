@@ -5,6 +5,19 @@ namespace GolmokAudioMath
 {
 	inline double Clamp01(double Value) { return !std::isfinite(Value) || Value < 0.0 ? 0.0 : (Value > 1.0 ? 1.0 : Value); }
 
+	// Points have X/Y members; parser guarantees [0,0]..[1,y], increasing X.
+	template <typename Point>
+	inline double RainGain(const Point* Points, int Count, double Intensity)
+	{
+		if (!std::isfinite(Intensity) || Intensity <= 0 || Count < 2) return 0;
+		for (int Index = 1; Index < Count; ++Index)
+		{
+			const auto& A = Points[Index - 1]; const auto& B = Points[Index];
+			if (Intensity <= B.X) return A.Y + (B.Y - A.Y) * ((Intensity - A.X) / (B.X - A.X));
+		}
+		return Points[Count - 1].Y;
+	}
+
 	struct Envelope
 	{
 		explicit Envelope(bool bPower = true) : Power(bPower) {}

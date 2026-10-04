@@ -161,3 +161,29 @@ def test_sin_cos_endpoints_at_60fps(driver):
     )
     assert [v[0] for v in incoming] == pytest.approx([0, math.sin(math.pi / 120), 1])
     assert [v[0] for v in outgoing] == pytest.approx([1, math.cos(math.pi / 120), 0])
+
+
+def rain_gain_mirror(curve, intensity):
+    if not math.isfinite(intensity) or intensity <= 0 or len(curve) < 2:
+        return 0
+    for (x0, y0), (x1, y1) in zip(curve, curve[1:], strict=False):
+        if intensity <= x1:
+            return y0 + (y1 - y0) * (intensity - x0) / (x1 - x0)
+    return curve[-1][1]
+
+
+def test_rain_curve_cpp_mirror(driver):
+    rng = random.Random(28)
+    commands, expected = [], []
+    for _ in range(40):
+        size = rng.randint(2, 32)
+        xs = [0, *sorted(rng.uniform(0.001, 0.999) for _ in range(size - 2)), 1]
+        ys = [0, *sorted(rng.random() for _ in range(size - 1))]
+        curve = list(zip(xs, ys, strict=True))
+        points = " ".join(f"{x:.17g} {y:.17g}" for x, y in curve)
+        for intensity in [-1, 0, 1, 2, float("nan"), float("inf"), *xs, rng.random()]:
+            commands.append(f"rain {size} {intensity:.17g} {points}")
+            expected.append(rain_gain_mirror(curve, intensity))
+    commands += ["rain 0 .5", "rain 1 .5 0 0"]
+    expected += [0, 0]
+    assert [row[0] for row in run(driver, commands)] == pytest.approx(expected, abs=1e-12)

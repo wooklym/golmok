@@ -148,6 +148,7 @@ namespace GolmokAudio
 					&& (*Pair)[0]->TryGetNumber(X) && (*Pair)[1]->TryGetNumber(Y) && FMath::IsFinite(X) && FMath::IsFinite(Y)
 					&& X >= 0 && X <= 1 && Y >= 0 && Y <= 1, TEXT("gain_curve"), TEXT("finite [intensity, gain] in [0, 1]"))) return false;
 				if (!Rain.Check(Next.RainGainCurve.IsEmpty() || X > Next.RainGainCurve.Last().X, TEXT("gain_curve"), TEXT("strictly increasing intensities"))) return false;
+				if (!Rain.Check(Next.RainGainCurve.IsEmpty() || Y >= Next.RainGainCurve.Last().Y, TEXT("gain_curve"), TEXT("nondecreasing gains"))) return false;
 				Next.RainGainCurve.Emplace(X, Y);
 			}
 			if (!Rain.Check(Next.RainGainCurve[0] == FVector2D(0, 0) && Next.RainGainCurve.Last().X == 1,

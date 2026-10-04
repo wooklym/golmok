@@ -1,5 +1,6 @@
 #pragma once
 #include "CoreMinimal.h"
+#include "Audio/GolmokAudioMath.h"
 
 struct FGolmokAudioAsset
 {
@@ -19,13 +20,7 @@ struct FGolmokAudioConfig
 	TArray<FVector2D> RainGainCurve;
 	double RainGain(double Intensity) const
 	{
-		if (!FMath::IsFinite(Intensity) || Intensity <= 0 || RainGainCurve.Num() < 2) return 0;
-		for (int32 Index = 1; Index < RainGainCurve.Num(); ++Index)
-		{
-			const FVector2D& A = RainGainCurve[Index - 1]; const FVector2D& B = RainGainCurve[Index];
-			if (Intensity <= B.X) return FMath::Lerp(A.Y, B.Y, (Intensity - A.X) / (B.X - A.X));
-		}
-		return RainGainCurve.Last().Y;
+		return GolmokAudioMath::RainGain(RainGainCurve.GetData(), RainGainCurve.Num(), Intensity);
 	}
 	FString FootstepDriver = TEXT("auto");
 	TMap<FString, FVector2D> StrideByCharacter;

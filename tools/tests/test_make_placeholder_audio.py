@@ -203,3 +203,28 @@ def test_weighting_rate_and_997hz_reference():
     assert levels(tone)["K"] == pytest.approx(-3.01, abs=0.01)
     with pytest.raises(ValueError, match="48000 Hz"):
         levels(tone, 44100)
+
+
+@pytest.mark.parametrize("seed", [0, 13, 1307, 2**32 - 1])
+def test_rain_schedule_properties(seed):
+    count = 24 * 48000
+    events = list(generator.rain_schedule(seed, count))
+    assert len(events) == 24 * 9
+    positions = np.sort([event[0] for event in events])
+    gaps = np.diff(np.r_[positions, positions[0] + count])
+    assert gaps.min() >= 1439
+    assert gaps.std() / gaps.mean() > 0.5
+    amplitudes = [event[1] for event in events]
+    assert 20 * np.log10(max(amplitudes) / min(amplitudes)) >= 10
+    assert all(0.003 <= event[2] <= 0.015 for event in events)
+    with pytest.raises(ValueError, match="seconds"):
+        generator.samples(seed, True, seconds=24)
+
+
+def test_decreasing_rain_gain_rejected(tmp_path):
+    data = generator.load_config()
+    data["rain"]["gain_curve"] = [[0, 0], [0.5, 0.8], [1, 0.7]]
+    config = tmp_path / "audio.json"
+    config.write_text(json.dumps(data), encoding="utf-8")
+    with pytest.raises(ValueError, match="rain.gain_curve: expected nondecreasing gains"):
+        generator.generate(config, tmp_path / "out")
