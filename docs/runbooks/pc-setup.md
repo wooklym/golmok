@@ -83,7 +83,30 @@ pytest
   - L_Dev 생성 + 이동 자동 테스트: `.\tools\ue\test.ps1 -SetupDevLevel` — 창 없이(-nullrhi) 실행, 걷기·뛰기·점프·마우스 시점·벽 카메라 충돌을 실제 키 입력으로 확인한다.
   - 열린 에디터를 원격으로 조작: 에디터를 `-ini:Engine:[/Script/PythonScriptPlugin.PythonScriptPluginSettings]:bRemoteExecution=True`로 실행하면(127.0.0.1 전용), 엔진의 `Engine\Plugins\Experimental\PythonScriptPlugin\Content\Python\remote_execution.py`로 Python을 보낼 수 있다(PIE 시작·스크린샷 `HighResShot` 등).
   - 창 없는 에디터(`UnrealEditor-Cmd … -nullrhi`)에 `-ExecCmds="py <파일>"`로 명령을 줄 때는 끝에 `QUIT_EDITOR`를 붙인다. `Quit`로는 끝나지 않는다. `-ExecCmds`는 쉼표로 명령을 나누므로 Python 코드는 파일로 넘긴다. 엔진 플러그인은 프로젝트를 고치지 않고 `-EnablePlugins=CesiumForUnreal,LCC4Unreal`로 그 실행에서만 켤 수 있다.
+  - PowerShell `Start-Process`로 에디터를 띄울 때는 `-ExecCmds`를 따옴표째 한 인자로 넘긴다(`'-ExecCmds="py <파일>"'`). 저장소의 `.ps1`은 이미 그렇게 한다. 검증 드라이버가 에셋 에디터 창(예: 텍스처 에디터)을 연 채 `quit_editor()`를 부르면 종료 중 `TextureEditor.dll` access violation이 날 수 있다(V-04c 관찰, 엔진 쪽). 눈 확인이 끝나면 창을 닫은 뒤 종료한다.
   - 에디터를 처음 열면 `Config/DefaultEngine.ini`에 AndroidFileServer 토큰이 써지던 문제는 `.uproject`에서 그 플러그인을 꺼서 막았다. 그래도 이 ini에 모르는 변경이 생기면 커밋하지 않는다.
+
+### 2a. 패키징 출력 경로와 방화벽 (C-07, 2026-10-04)
+Development 패키지는 TraceLog 제어 소켓(TCP 1985)을 모든 인터페이스(INADDR_ANY)에 연다. Windows 방화벽은 **새 exe 경로마다** 허용 여부를 묻는다. 워크트리마다 `<워크트리>\build\Windows`에 패키징하면 경로가 매번 달라져 대화상자가 다시 뜬다. 출력 경로를 하나로 고정하면 한 번만 뜬다.
+
+**Claude 작업**(PC마다 한 번)
+```powershell
+setx GOLMOK_PKG_DIR C:\Users\user\golmok-pkg\Windows
+```
+- `setx`는 새로 연 셸부터 적용된다. 셸을 새로 연 뒤 `.\tools\ue\package.ps1`을 실행하고, 첫 줄 `Package output: …`이 이 경로인지 본다.
+- `-OutDir`를 주면 그 값이 우선한다. 환경 변수가 없거나 비어 있으면 예전처럼 `build\Windows`에 만든다.
+- 값은 절대 경로로 쓴다. 상대 경로는 저장소가 아니라 UAT 실행 위치 기준으로 풀린다. 끝의 `\`는 package.ps1이 떼어 낸다.
+- 이 폴더는 모든 워크트리·브랜치가 같이 쓴다. 마지막에 패키징한 것이 남고, `-archive`는 폴더를 비우지 않아 다른 브랜치 패키지의 파일이 남을 수 있다. 검증 전에는 검증할 워크트리에서 `package.ps1`을 다시 돌리고 `Package output: …` 줄을 확인한다. 패키징 두 개를 동시에 돌리지 않는다.
+
+**사용자 작업**
+- 방화벽 대화상자가 뜨면 **취소**를 누른다. 허용하면 다른 PC에서 1985 포트로 접속할 수 있게 된다(공용 네트워크를 체크하면 공용망에서도). 취소하면 이 exe의 인바운드 차단 규칙이 생긴다. 같은 PC 안(loopback) 테스트는 취소해도 영향이 없다.
+
+**패키지 exe를 실행하는 런북**은 경로를 이렇게 정한다.
+```powershell
+$pkg = if (-not [string]::IsNullOrWhiteSpace($env:GOLMOK_PKG_DIR)) { $env:GOLMOK_PKG_DIR.Trim().TrimEnd('\') } else { ".\build\Windows" }
+& "$pkg\Golmok.exe" …
+```
+- [미확인] `-trace=none`이나 `-notrace`로 실행하면 이 리스너가 열리지 않는지는 확인하지 않았다. PC 세션이 엔진 소스로 확인한다.
 
 ### 3. 리허설 사진 점검 (가이드 §4-C)
 - 사용자가 아이폰 리허설 사진 20장과 영상 1분을 PC로 옮긴다(원본 유지).

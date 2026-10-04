@@ -57,6 +57,7 @@ git pull
 - [ ] 잘못된 명령줄 `-GolmokAnim=bogus`로 한 번 띄우면 Output Log에 `anim: -GolmokAnim=bogus is not abp or gasp; ignored (animation.json)` Warning이 **1회** 나오고 ①로 뜬다(선택, R76 C4).
 
 ### A2. 플러그인 (V-08b `.uplugin` 표의 최소 집합, 별도 커밋)
+입력: [V-08b 카드](pc-verify-v08b.md) §4 표(`.uproject` 줄·`ALLOWED_PLUGINS` 추가 요청 포함). BPI 함수 표(§A4-2)·경로 확인 표(§A3·§A7)는 같은 카드 §4-2·§3-1이 미리 채운다.
 - [ ] V-08b가 기록한 표대로 `Golmok.uproject` `Plugins`에 GASP 로코모션 플러그인만 켠다(D-021 허용: PoseSearch·Chooser·AnimationWarping·MotionWarping·AnimationLocomotionLibrary·BlendStack·CurveExpression·DrawDebugLibrary·MovieSceneAnimMixer·Mover). 의존 플러그인이 더 필요하면 목록을 기록하고 `tools/tests/test_ue_wp19_fixture.py` `ALLOWED_PLUGINS`에 근거와 함께 더한다. 불허(GameplayCameras·ChaosMover·MoverExamples·Locomotor·SmartObjects·GameplayInteractions·MetaHuman·LiveLink·RigLogic·HairStrands)는 켜지 않는다.
 - [ ] 커밋 `WP-19: plugins (Golmok.uproject)`(이 파일만). 빌드 → §A1 두 번째 명령 36개 다시 `Success`(플러그인을 켠 ①).
 
@@ -123,7 +124,7 @@ python tools\scripts\check_repo.py
 ### A7. `animation.json`·`expected.json` 확정 (별도 커밋)
 - [ ] `gasp.pawn_interface`·`gasp.preview.source_mesh` 등 [추정] 경로를 실제 경로로 고친다(`content_root` 기준 상대 경로).
 - [ ] `gasp.preview.visual_mesh`·`visual_anim_class`: 매니 리타깃(V-08 `BP_Manny` + `ABP_GenericRetarget` + IK Retargeter). 타깃 스켈레톤이 GASP의 `UE5_Mannequins` 사본이면 시각 메시도 그 사본을 쓴다. `/Game/…` 절대 경로(우리 매니)나 `content_root` 상대 경로 둘 다 받는다.
-- [ ] `movement_profiles.p1`·`p2`에 V-08b 값을 넣고, V-08b 사전 등록 규칙이 고른 프로파일을 `gasp.movement_profile`에 넣는다. **`mode`는 `abp`로 둔다**(기본 전환은 §B8).
+- [ ] `movement_profiles.p1`·`p2`에 V-08b 값을 넣고, V-08b 사전 등록 규칙이 고른 프로파일을 `gasp.movement_profile`에 넣는다([V-08b 카드](pc-verify-v08b.md) §1-3·§1-7, JSON 형식은 §11-1). **`mode`는 `abp`로 둔다**(기본 전환은 §B8).
 - [ ] `tools/ue/gasp/expected.json`(schema 2)에 `Config/Golmok/local/gasp_manifest.json`의 `engine_version`, `source_package_count`(→ `package_count`), `source_digest`를 적는다. `source_digest`는 GASP 프로젝트 원본 파일(원래 `/Game` 경로·크기·sha256)의 digest라 같은 GASP면 PC·재설치·충돌 여부와 무관하게 같다. 재배치 뒤 로컬 `digest`는 적지 않는다(rename이 다시 저장해 매번 다를 수 있음 — §D #14).
 - [ ] **로스터 경로는 PC가 고치지 않는다.** `gasp.content_root`나 `gasp.anim_class`를 바꾸면 `tools/tests/test_ue_config_characters.py`의 로스터 교차 검사(`test_shipped_animation_roster_contract`: GASP 항목 `anim_class` = `content_root` + `gasp.anim_class`)가 실패한다. `characters.json`은 Astra 레인이므로, 확정 경로 **4개**(GASP 항목 `manny_gasp`·`uefn_gasp`의 `mesh`·`anim_class`, `manny_gasp.visual`의 `mesh`·`anim_class`)를 §A9 표에 적고 PR 본문에 "Astra 로스터 경로 갱신 필요"를 쓴다. 오케스트레이터가 이 브랜치 위 스택 Astra 과제로 배정하고 두 PR을 연달아 병합한다(D-021 진행 기록 (6), 리뷰 R84 (C)). 이 커밋 뒤 전체 pytest에서 실패하는 것은 이 교차 검사뿐이어야 한다.
 - [ ] pytest(`test_ue_config_animation.py`)·`check_repo.py` 통과 뒤 커밋 `WP-19: 19b 확정 값`.
@@ -146,7 +147,7 @@ python tools\scripts\check_repo.py
 > V-15 기준: 같은 메시·같은 카메라·블라인드 채점. 합계 ≥ ① + 4, ≥ ②b − 2. S1·S2 미끄러짐 ≤ ①의 1/2. S3은 돌아서기로 측정. 평균 fps 하락 5 % 이하 또는 60 fps 이상.
 
 ### B0. 전제
-- [ ] 19a·19b·19c 병합, D-021 발효, V-08b 드라이버·지표 스크립트가 `tools/`에 커밋됨, `add-gasp.ps1 -Verify` 통과.
+- [ ] 19a·19b·19c 병합, D-021 발효, V-08b 드라이버·지표 스크립트가 `tools/`에 커밋됨([V-08b 카드](pc-verify-v08b.md) §9 — 통일 지표·블라인드 도구), `add-gasp.ps1 -Verify` 통과.
 
 ### B1. 빌드와 자동화
 - [ ] 빌드, `test.ps1 -Filter Golmok. -SetupDevLevel` 전부 `Success`, `GaspSmoke` EXECUTED.

@@ -211,6 +211,63 @@ def test_abrupt_stop_to_quieter_bed_and_dropout():
     assert abrupt_stop(a[:100], SR) == []
 
 
+def residual(seed, seconds, sr=SR):
+    """16-bit residual flicker (V-10b): ±2 LSB on a fifth of the samples, gated on and off in 10 ms
+    blocks, about −97 dBFS RMS; most samples are exactly 0."""
+    rng = np.random.default_rng(seed)
+    n = int(sr * seconds)
+    lsb = rng.integers(-2, 3, n) * (rng.random(n) < 0.2)
+    gate = np.repeat(rng.random(n // 480 + 1) < 0.5, 480)[:n]
+    return lsb * gate / 32768.0
+
+
+def at_level(y, dbfs):
+    return y * 10 ** (dbfs / 20) / float(np.sqrt(np.mean(y**2)))
+
+
+def test_residual_flicker_is_silence_not_abrupt_stops():
+    # V-10b: ±2 LSB flickering to 0 gave 17 false stops, every one a drop from about −97 dBFS. Only
+    # material above the silence floor (1e-4, −80 dBFS) can stop; silence_floor 0 is the old behaviour.
+    for seed in (30, 31):
+        y = residual(seed, 3.0)
+        assert -100.0 < 20 * np.log10(np.sqrt(np.mean(y**2))) < -94.0
+        assert abrupt_stop(y, SR) == []
+        assert len(abrupt_stop(y, SR, silence_floor=0.0)) > 20  # 78 and 73
+    # A bed at −41 dBFS faded out over 0.5 s into the residual: no stop (32 with silence_floor 0).
+    b = at_level(bed(32, 3.0), -41)
+    t = np.arange(len(b)) / SR
+    y = np.rint(b * np.clip(1.0 - (t - 1.0) / 0.5, 0.0, 1.0) * 32768) / 32768 + residual(33, 3.0)
+    assert abrupt_stop(y, SR) == []
+    assert len(abrupt_stop(y, SR, silence_floor=0.0)) > 10
+
+
+@pytest.mark.parametrize(("dbfs", "listed"), [(-26, True), (-65, True), (-78, True), (-82, False)])
+def test_abrupt_stop_needs_a_reference_above_the_silence_floor(dbfs, listed):
+    # A hard cut to silence is a stop while the bed is above the floor: 20 of 20 seeds at −78 dBFS and
+    # 0 of 20 at −81; the 100 ms reference scatters, so −80 itself goes either way.
+    y = cut(at_level(bed(34, 1.0), dbfs), 0.6)
+    stops = abrupt_stop(y, SR)
+    assert len(stops) == (1 if listed else 0)
+    if listed:
+        assert stops[0][0] == pytest.approx(0.6, abs=0.001)
+    assert len(abrupt_stop(y, SR, silence_floor=0.0)) == 1
+
+
+def test_residual_flicker_report_and_check(tmp_path, capsys):
+    y = residual(35, 2.0)
+    report = analyse(y, SR)
+    assert report["abrupt_stops"]["count"] == 0 and report["abrupt_stops"]["ref_floor_dbfs"] == -80.0
+    assert "reference above -80 dBFS)" in format_report(report, "res.wav")
+    wav = str(tmp_path / "res.wav")
+    assert write_pcm(wav, y[:, None], 2)[:, 0] == pytest.approx(y)  # exact 16-bit values
+    assert main([wav, "--check"]) == 0
+    assert (
+        capsys.readouterr().out.splitlines()[-1].endswith("pass (no click, abrupt stop, clipping or NaN/Inf)")
+    )
+    assert main([wav, "--check", "--silence-floor", "0", "--json"]) == 1  # the old behaviour: 53 stops
+    assert "abrupt stop" in json.loads(capsys.readouterr().out)["check"]["failed"]
+
+
 def test_click_spike_and_exclude():
     y = bed(7, 3.0)
     y[int(1.5 * SR)] += 0.3  # a one-sample spike, above the bed's peak of about 0.2
@@ -497,6 +554,7 @@ def test_cli_json_and_text(tmp_path, capsys):
         "drop_db": 20.0,
         "within_ms": STOP_WITHIN_MS,
         "window_ms": 5.0,
+        "ref_floor_dbfs": -80.0,
         "first": [],
         "channels": [{"count": 0, "first": []}, {"count": 0, "first": []}],
     }
@@ -616,5 +674,8 @@ def test_report_lists_abrupt_stop_at_silence_boundary():
     assert report["events"] == [] and report["channels"] == 1
     text = format_report(report, "cut.wav")
     assert "is silence (|x| < 0.0001)" in text
-    assert "abrupt stops 1 (drop >= 20 dB within <= 10 ms, 5 ms RMS): 2.000 s (drop 95 dB, ramp" in text
+    assert (
+        "abrupt stops 1 (drop >= 20 dB within <= 10 ms, 5 ms RMS, reference above -80 dBFS): 2.000 s"
+        " (drop 95 dB, ramp" in text
+    )
     assert not re.search(r"^ +(ch \d|mix )", text, re.M) and "in the mix" not in text  # one channel

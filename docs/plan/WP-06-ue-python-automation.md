@@ -1251,3 +1251,32 @@ PR #87 병합 리뷰 R87의 WP-06 쪽 (C) 3건을 처리했다. 설계·동작 �
 - 위 "(C) 후속 2" 절의 **병합** 줄 끝에 `→ R87-3·4·5는 PR #<번호>에서 해소`.
 
 **병합**: [PR #89](https://github.com/wooklym/golmok/pull/89) → main(오케스트레이터 결정 D-019; 리뷰 [R89](https://github.com/wooklym/golmok/pull/89#issuecomment-5917306038)). 위 "병합 시 반영(문안)"은 STATUS WP-06 행에 옮겼다. ROADMAP·V-04c 카드는 바꿀 것이 없다. 리뷰 (C) R89-4(런북 §12 #4 행의 크기 0 문구를 §2·#40 행과 같게 "(또는 #40으로 판정 불가)"·`WxH`로)는 이 병합 커밋에서 정정했다. 이 절 쪽에 남은 (C)는 없다.
+
+## 결과 — V-04c PC 확인: 후속 V-04b F1~F3 [#69](https://github.com/wooklym/golmok/pull/69) (2026-10-04, Claude PC 세션 Opus 5.5, 워크트리 `adoring-newton-f2023a`, 브랜치 `pc/v04c-verify-wp06-f1f3`, main `8e7cfc5`) — 🟢 통과, 제품 코드 수정 없음
+"병합 기록 — 후속 V-04b F1~F3"의 PC 카드 ①~⑤를 실행했다. 실측과 로그 발췌는 런북 §11 인계 9에, 행별 PC 확인은 §12 #4·#8·#31·#40에 있다.
+
+| 카드 | 결과 | 실측 |
+|---|---|---|
+| ① 헤드리스 스모크(F1) | 통과 | `-nullrhi` `zi.run`은 assert 없이 38 s, exit 0으로 끝났다. `(-nullrhi)` WARNING 1줄, `(merged by importer (size unverifiable without RHI))`, `done … 8 assets, 1 warnings`. `size=256x256`(첫 블록 가설 확인, 태그 `Dimensions` `512x512`), #40 경고 없음. GUI에서 `T_facade`는 512×512·3색·숫자 정방향 |
+| ② 새 에디터 재임포트(F3) | 통과 | 새 GUI 프로세스에서 §6 3단계와 `it.run`을 돌렸다. `done … 0 warnings`, `moved` 4줄, `size=512x512 (merged by importer)`, 텍스처 `deleted`·`renamed` 0, `ERROR replace`·`could not rename` 0, `MI_*` BaseColor 유지, `, vt enabled after import` 없음 |
+| ③ 긴 경로(F2) | 통과 | junction 없이 `LongPathsEnabled=0`에서 §2·§4를 헤드리스와 GUI로 돌렸다. 로그 경로 줄 43줄에 `..` 0. 실내 충돌 GLB 사본은 193자(상대 형식이었다면 265자) |
+| ④ GUI 폴백 PC | 해당 없음 | 이 PC는 GUI에서 importer가 병합한다. 폴백 팩은 PC 미확인 |
+| ⑤ 커맨드릿 | 통과 | `-run=pythonscript`(`-nullrhi` 없음)에서 `(commandlet -run=pythonscript without -AllowCommandletRendering)` WARNING, `done … 1 warnings` |
+
+관찰(제품 코드 무관, 런북 §11 인계 9): 검증 드라이버가 텍스처 에디터 창을 연 채 `quit_editor()`를 부르면 종료 중 `TextureEditor.dll` access violation이 난다(엔진). 실내 충돌의 Interchange 이름 축약 `#29` WARNING은 V-04 때와 같다. 잔존 검사 분기(F3 `ERROR replace`)와 R69-11·R87-5 WARNING은 발동하지 않아 PC에서 관찰되지 않았다.
+
+## 병합 기록 — V-04c [#99](https://github.com/wooklym/golmok/pull/99) (2026-10-04, 오케스트레이터 세션)
+
+**판정**: F1·F2·F3 통과, 선택 (b) 커맨드릿 통과, 선택 (a) 해당 없음 — WP-06 🟢 유지. Opus 읽기 전용 리뷰 [P04c](https://github.com/wooklym/golmok/pull/99#issuecomment-5979578856) 결과는 (A) 0 · (B) 2 · (C) 5다. PC 브랜치는 그대로 두고 클라우드 병합 브랜치 `claude/v04c-merge`(PC head `da89fb0` + main 병합 + `V-04c: 병합 시 반영 (Opus)`)로 병합했다.
+
+- **정합 확인**: 인용된 로그 줄(`(merged by importer (size unverifiable without RHI))`, `(-nullrhi)`·커맨드릿 WARNING, `moved`·`renamed … (runbook #29)`, `interior_setup: done … ->` 절대 경로)이 main `zone_import.py`·`_pure.py`·`interior_setup.py`의 형식·분기와 맞는다. F2 경로 길이(193·183·265자)를 `zone_import.py` 규칙으로 다시 계산해 같았다. 빌드 기준 `8e7cfc5` 이후 `Content/Python`·`tools/` 변경이 없어 결과는 현재 main에 그대로 적용된다.
+- **이름 대응**: 런북 §11 인계 9의 선택 (a)·(b)는 위 카드의 ④·⑤다 — (a)=④ GUI 폴백 PC, (b)=⑤ 커맨드릿 (P04c-6).
+- **(B) P04c-1**: ROADMAP zone_import 줄을 "PC 확인 통과"로 바꿨다(GUI 폴백 팩만 PC 미확인).
+- **(B) P04c-2 → Claude 레인 후속(V-05 전)**: 2라운드 ② Full Precision UV(LOD0 `use_full_precision_u_vs=True`)가 아직 `zone_import.py`에 없다(fake 필드만 있음). `StaticMeshEditorSubsystem` LOD 빌드 설정 경로에 `hasattr` 가드로 넣고, fake·테스트·런북 §12 새 행을 더한다. PC 확인은 V-05 S7에 합친다. STATUS V-05 행에 남은 착수 전 항목으로 적었다.
+- **(C)**
+  - P04c-3: 이 절을 덧붙이며 파일 끝 개행을 되살렸다.
+  - P04c-4: STATUS M2·V-04 행에 V-04c를 적었다.
+  - P04c-5: `quit_editor()` 전 에셋 에디터 닫기와 `Start-Process`의 `-ExecCmds` 따옴표를 `pc-setup.md` 공용 팁에 한 줄로 옮겼다. 저장소 코드는 바꾸지 않는다(저장소에서 `quit_editor()`를 부르는 두 곳은 에셋 에디터를 열지 않고, 생성 `.ps1`은 이미 한 인자로 넘긴다).
+  - P04c-6: 런북 §12 #37에 V-04c 포인터를 달았다.
+  - P04c-7: STATUS V-05 행에 C-01·C-04·EgoBlur 동의를 더했다.
+- **관찰 처리**: TextureEditor 크래시는 PC 드라이버 쪽이라 저장소 조치 없음. 방화벽 알림 창은 V-11 몫이다. GUI 폴백 팩(§12 #4)과 잔존 검사 분기(`ERROR replace`)는 PC에서 발동하지 않아 미확인으로 남긴다.
