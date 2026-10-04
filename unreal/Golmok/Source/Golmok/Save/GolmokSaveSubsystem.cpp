@@ -152,7 +152,29 @@ namespace GolmokSavePrivate
 		const bool bApplied = Tod.ApplyPreset(FName(*Saved.PresetName), /*bInstant*/ true);
 		return FString::Printf(TEXT(", tod %s%s%s"), *Saved.PresetName, bApplied ? TEXT("") : TEXT(" (unknown preset)"), *Note);
 	}
+
+	/** "quinn" (explicit) | "- (automatic)" (rule 1, nothing pinned) | "manny (legacy)" / "-" (rule 0): golmok.save status. */
+	FString DescribeSavedCharacter(const UGolmokSaveGame& Save)
+	{
+		if (Save.CharacterIdRule >= UGolmokSaveGame::CharacterIdRuleExplicit)
+		{
+			return Save.CharacterId.IsEmpty() ? FString(TEXT("- (automatic)")) : Save.CharacterId;
+		}
+		return Save.CharacterId.IsEmpty() ? FString(TEXT("-")) : FString::Printf(TEXT("%s (legacy)"), *Save.CharacterId);
+	}
 } // namespace GolmokSavePrivate
+
+namespace GolmokSaveCharacter
+{
+	bool IsLegacyDefault(int32 Rule, const FString& SavedId, const FGolmokCharacterRoster& Roster)
+	{
+		if (Rule >= UGolmokSaveGame::CharacterIdRuleExplicit || SavedId.IsEmpty())
+		{
+			return false;
+		}
+		return SavedId == Roster.DefaultId || Roster.DefaultByAnimMode.FindKey(SavedId) != nullptr;
+	}
+} // namespace GolmokSaveCharacter
 
 // ---- lifecycle ------------------------------------------------------------------------------------------------
 
@@ -202,6 +224,7 @@ void UGolmokSaveSubsystem::HandleWorldBeginPlay(UWorld& InWorld)
 	bHoldSlotPosition = false;
 	bRestorePending = false;
 	ResetPresentZoneIds.Reset(); // a golmok.save reset in another world: that world's zones say nothing about this one
+	UnappliedCharacterId.Reset(); // a refusal in another world (its pawn / mode): this world's restore decides again
 	LoadIndexFromSlot();
 
 	if (UGolmokTravelSubsystem* Travel = UGolmokTravelSubsystem::Get(&InWorld))
@@ -276,7 +299,10 @@ void UGolmokSaveSubsystem::HoldSlotPosition(const UGolmokSaveGame& Save)
 		Snapshot.TodPreset = Save.TimeOfDay.PresetName;
 		Snapshot.TodMinutes = Save.TimeOfDay.Minutes;
 		Snapshot.TodMode = Save.TimeOfDay.Mode;
+		// The slot's character passes through with its own rule (a legacy automatic id must not become rule 1); the
+		// first pawn snapshot replaces both with the live explicit selection.
 		Snapshot.CharacterId = Save.CharacterId;
+		Snapshot.CharacterIdRule = Save.CharacterIdRule;
 	}
 }
 
@@ -404,9 +430,25 @@ bool UGolmokSaveSubsystem::TakeSnapshot(UWorld& InWorld, bool bForce)
 		S.TodMinutes = GolmokSavePrivate::TodMinutesToSave(*Tod); // WP-14a clock
 		S.TodMode = static_cast<uint8>(Tod->GetClockMode());
 	}
-	if (const UGolmokCharacterSubsystem* Characters = InWorld.GetSubsystem<UGolmokCharacterSubsystem>())
+	// R91-1: only an explicit selection is saved (S.CharacterIdRule 1). An automatic mode default / fallback is not, so
+	// the next run picks its own mode default (manny_gasp on a GASP pawn) instead of pinning this one; while automatic,
+	// an explicit id whose restore this world refused is saved instead (empty when there is none), until a new pick.
+	const UGolmokCharacterSubsystem* Characters = InWorld.GetSubsystem<UGolmokCharacterSubsystem>();
+	if (Characters && Characters->IsExplicitSelection())
 	{
 		S.CharacterId = Characters->GetCurrentId();
+		UnappliedCharacterId.Reset();
+	}
+	else if (bRestorePending && Snapshot.bValid)
+	{
+		// The begin-play restore has not decided yet: keep the slot's character and rule (HoldSlotPosition's pass-through),
+		// so a write in that window (world end, travel arrival, golmok.save) does not drop it.
+		S.CharacterId = Snapshot.CharacterId;
+		S.CharacterIdRule = Snapshot.CharacterIdRule;
+	}
+	else
+	{
+		S.CharacterId = UnappliedCharacterId;
 	}
 	if (bHoldSlotPosition)
 	{
@@ -470,6 +512,7 @@ UGolmokSaveGame* UGolmokSaveSubsystem::BuildSaveObject()
 	Out->Visited = Visited;
 	Out->Photos = Photos;
 	Out->CharacterId = Snapshot.CharacterId;
+	Out->CharacterIdRule = Snapshot.CharacterIdRule;
 	if (const UWorld* World = ActiveWorld.Get())
 	{
 		Out->LevelName = LevelNameOf(*World);
@@ -841,7 +884,13 @@ bool UGolmokSaveSubsystem::Restore(FString& OutMessage)
 	}
 
 	// Time of day (spec §3 / §4: WP-14a {Minutes, Mode} per mode, instant; a save without minutes by its preset) and
-	// character (WP-18 public API; Astra files unchanged).
+	// character (WP-18 public API; Astra files unchanged). Character (R91-1): an empty id (rule 1: the selection was
+	// automatic) restores nothing; a legacy save's roster default is left to the mode default instead of being pinned;
+	// any other id is an explicit choice and comes back as one (SelectCharacter also when the same id is only applied
+	// automatically, so the next save keeps it). A refused explicit id (e.g. a GASP entry on an abp pawn, no character
+	// view yet) stays in UnappliedCharacterId for the next save; an id the roster does not know is dropped. It is cleared
+	// first: a restore that pins nothing (empty id, legacy default) or applies the id leaves none, so an earlier refusal
+	// never leaks into the next save.
 	FString Extras;
 	if (Save->TimeOfDay.Minutes >= 0.f || !Save->TimeOfDay.PresetName.IsEmpty())
 	{
@@ -850,15 +899,29 @@ bool UGolmokSaveSubsystem::Restore(FString& OutMessage)
 			Extras += GolmokSavePrivate::RestoreTimeOfDay(*Tod, Save->TimeOfDay);
 		}
 	}
+	UnappliedCharacterId.Reset();
 	if (!Save->CharacterId.IsEmpty())
 	{
 		if (UGolmokCharacterSubsystem* Characters = World->GetSubsystem<UGolmokCharacterSubsystem>())
 		{
-			if (Characters->GetCurrentId() != Save->CharacterId)
+			if (GolmokSaveCharacter::IsLegacyDefault(Save->CharacterIdRule, Save->CharacterId, Characters->GetRoster()))
+			{
+				Extras += FString::Printf(TEXT(", character %s (legacy default, not pinned)"), *Save->CharacterId);
+			}
+			else if (Characters->GetCurrentId() != Save->CharacterId || !Characters->IsExplicitSelection())
 			{
 				FString CharacterMessage;
 				const bool bSelected = Characters->SelectCharacter(Save->CharacterId, CharacterMessage);
-				Extras += FString::Printf(TEXT(", character %s%s"), *Save->CharacterId, bSelected ? TEXT("") : TEXT(" (not applied)"));
+				// A refused id is kept for the next save when the roster knows it; with a broken roster (load error) a rule-1 id
+				// is still the user's explicit choice and is kept too, while a legacy (rule 0) id is dropped, since its legacy
+				// defaults cannot be told apart and it must not be promoted to rule 1.
+				const bool bKnownId = Characters->GetRoster().Find(Save->CharacterId) != nullptr;
+				const bool bKeepOnBrokenRoster =
+					!Characters->GetLoadError().IsEmpty() && Save->CharacterIdRule >= UGolmokSaveGame::CharacterIdRuleExplicit;
+				UnappliedCharacterId = (!bSelected && (bKnownId || bKeepOnBrokenRoster)) ? Save->CharacterId : FString();
+				const TCHAR* Applied = bSelected ? TEXT("")
+					: (UnappliedCharacterId.IsEmpty() ? TEXT(" (not applied, not in the roster)") : TEXT(" (not applied, kept for the next save)"));
+				Extras += FString::Printf(TEXT(", character %s%s"), *Save->CharacterId, Applied);
 			}
 		}
 	}
@@ -880,6 +943,7 @@ bool UGolmokSaveSubsystem::ResetSlot(FString& OutMessage)
 	const bool bDeleted = !bHad || UGameplayStatics::DeleteGameInSlot(SlotName, GolmokSavePrivate::UserIndex);
 	Visited.Reset();
 	Photos.Reset();
+	UnappliedCharacterId.Reset(); // came from the deleted slot: the next write must not bring it back
 	bDirty = false;
 	bSaveQueued = false;
 	bSyncAfterAsync = false;
@@ -920,7 +984,7 @@ FString UGolmokSaveSubsystem::DescribeStatus() const
 		Out += FString::Printf(TEXT("\n  slot: schema %d, saved %s, zone %s v%d, position %s (lat %.7f lon %.7f h %.2f, yaw %.1f), tod %s, character %s, visited %d, photos %d"),
 			Save->SaveSchemaVersion, *Save->SavedAtUtc, Save->ZoneId.IsEmpty() ? TEXT("-") : *Save->ZoneId, Save->ZoneVersion,
 			Save->bHasPosition ? TEXT("yes") : TEXT("no"), Save->Lat, Save->Lon, Save->HeightEllipsoidal, Save->YawDeg,
-			*GolmokSavePrivate::DescribeSavedTod(Save->TimeOfDay), Save->CharacterId.IsEmpty() ? TEXT("-") : *Save->CharacterId,
+			*GolmokSavePrivate::DescribeSavedTod(Save->TimeOfDay), *GolmokSavePrivate::DescribeSavedCharacter(*Save),
 			Save->Visited.Num(), Save->Photos.Num());
 	}
 	if (!LastMessage.IsEmpty())

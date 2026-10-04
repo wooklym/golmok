@@ -413,7 +413,8 @@ bool UGolmokCharacterSubsystem::ApplyEntry(AGolmokCharacter* InCharacter, const 
 		return false;
 	}
 	TGuardValue<bool> Guard(bApplying, true);
-	GolmokAnimation::FConfig AnimationConfig; FString ConfigError;
+	GolmokAnimation::FConfig AnimationConfig;
+	FString ConfigError;
 	const bool bGaspPath = GolmokAnimation::LoadConfig(AnimationConfig, ConfigError)
 		&& InEntry.AnimPath.Equals(AnimationConfig.AssetPath(AnimationConfig.AnimClass), ESearchCase::CaseSensitive);
 	if ((InEntry.bHasVisual || bGaspPath) && !GolmokAnimation::PawnSupportsGasp(InCharacter))
@@ -475,7 +476,6 @@ bool UGolmokCharacterSubsystem::ApplyEntry(AGolmokCharacter* InCharacter, const 
 		}
 	}
 	// Every fallible load, compatibility check and resize check is complete before touching either mesh.
-
 	{
 		FScopedMovementUpdate Scoped(Capsule, EScopedUpdate::DeferredUpdates);
 		USkeletalMeshComponent* Mesh = InCharacter->GetMesh();
@@ -488,7 +488,8 @@ bool UGolmokCharacterSubsystem::ApplyEntry(AGolmokCharacter* InCharacter, const 
 #endif
 			if (InEntry.bHasVisual)
 			{
-				Gasp->SetVisualOverride(VisualMesh, VisualAnim, OutMessage); // Non-null assets validated above; no fallible step remains.
+				ensureAlwaysMsgf(Gasp->SetVisualOverride(VisualMesh, VisualAnim, OutMessage),
+					TEXT("Prevalidated visual application unexpectedly failed: %s"), *OutMessage);
 				Gasp->GetVisualMesh()->SetRelativeScale3D(GolmokCharacters::ToVector(InEntry.VisualScale));
 			}
 			else
