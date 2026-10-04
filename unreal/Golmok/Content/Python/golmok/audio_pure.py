@@ -24,10 +24,35 @@ def text(value, field):
     return value
 
 
+def key_case(data, names, prefix=""):
+    """Reject aliases of runtime-known keys; extension keys and dynamic IDs stay untouched."""
+    canonical = {name.lower(): name for name in names}
+    for key in data:
+        expected = canonical.get(key.lower()) if isinstance(key, str) else None
+        if expected is not None and key != expected:
+            field = f"{prefix}.{key}" if prefix else key
+            raise ValueError(f"{field}: expected {expected}")
+
+
 def parse_config(data):
     """Reject invalid manifests before generating files or touching editor assets."""
     if not isinstance(data, dict):
         raise ValueError("$: expected object")
+    key_case(
+        data,
+        (
+            "schema_version",
+            "master_volume",
+            "crossfade_seconds",
+            "pause_policy",
+            "photo_mute_fade_seconds",
+            "crossfade_seconds_by_state",
+            "assets",
+            "ambience",
+            "preset_states",
+            "footsteps",
+        ),
+    )
     if type(data.get("schema_version")) is not int or data["schema_version"] != 1:
         raise ValueError("schema_version: expected integer 1")
     number(data.get("master_volume"), 0, 1, "master_volume")
@@ -36,6 +61,7 @@ def parse_config(data):
     durations = data.get("crossfade_seconds_by_state", {})
     if not isinstance(durations, dict):
         raise ValueError("crossfade_seconds_by_state: expected object")
+    key_case(durations, ("outdoor_day", "outdoor_night", "interior"), "crossfade_seconds_by_state")
     for state, duration in durations.items():
         if state not in ("outdoor_day", "outdoor_night", "interior"):
             raise ValueError(f"crossfade_seconds_by_state.{state}: expected known destination state")
@@ -52,6 +78,23 @@ def parse_config(data):
         prefix = f"assets.{key}"
         if not isinstance(item, dict):
             raise ValueError(f"{prefix}: expected object")
+        key_case(
+            item,
+            (
+                "asset",
+                "loop",
+                "gain",
+                "title",
+                "author",
+                "source_url",
+                "verified",
+                "license",
+                "changes",
+                "license_url",
+                "placeholder",
+            ),
+            prefix,
+        )
         source = text(item.get("source"), f"{prefix}.source")
         path = PurePosixPath(source)
         if (
@@ -107,6 +150,8 @@ def parse_config(data):
         except ValueError as exc:
             raise ValueError(f"{prefix}.verified: expected valid calendar date") from exc
         number(item.get("gain"), 0, 1, f"{prefix}.gain")
+    if isinstance(data.get("ambience"), dict):
+        key_case(data["ambience"], ("outdoor_day", "outdoor_night", "interior"), "ambience")
     if not isinstance(data.get("ambience"), dict) or set(data["ambience"]) != {
         "outdoor_day",
         "outdoor_night",
@@ -127,6 +172,23 @@ def parse_config(data):
     steps = data.get("footsteps")
     if not isinstance(steps, dict):
         raise ValueError("footsteps: expected object")
+    key_case(
+        steps,
+        (
+            "driver",
+            "walk_stride_cm",
+            "run_stride_cm",
+            "run_threshold_cm_s",
+            "teleport_threshold_cm",
+            "pitch_range",
+            "volume_range",
+            "landing",
+            "stride_cm_by_character",
+            "sets",
+            "surface_sets",
+        ),
+        "footsteps",
+    )
     for field in (
         "walk_stride_cm",
         "run_stride_cm",
@@ -147,6 +209,8 @@ def parse_config(data):
     for character, pair in strides.items():
         if not re.fullmatch(r"[a-z][a-z0-9_]{0,47}", character):
             raise ValueError(f"footsteps.stride_cm_by_character.{character}: expected lowercase character id")
+        if isinstance(pair, dict):
+            key_case(pair, ("walk", "run"), f"footsteps.stride_cm_by_character.{character}")
         if not isinstance(pair, dict) or set(pair) != {"walk", "run"}:
             raise ValueError(f"footsteps.stride_cm_by_character.{character}: expected walk and run object")
         number(pair["walk"], 1, 10000, f"footsteps.stride_cm_by_character.{character}.walk")
