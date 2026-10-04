@@ -337,13 +337,23 @@ def test_python_retains_both_case_distinct_driver_keys(pairs):
 
 
 @pytest.mark.parametrize(
-    "value", [None, {}, [], {"asset": "asphalt", "gain_curve": [[0, 0], [1, 1]], "interior_gain": 0.35}]
+    "value, expected",
+    [
+        (None, "rain: expected object"),
+        ({}, "rain.asset: expected nonempty single-line text without table separators"),
+        ([], "rain: expected object"),
+        (
+            {"asset": "asphalt", "gain_curve": [[0, 0], [1, 1]], "interior_gain": 0.35},
+            "rain.asset: expected looping asset id",
+        ),
+    ],
 )
-def test_invalid_rain_section(value):
+def test_invalid_rain_section(value, expected):
     data = audio.load_config()
     data["rain"] = value
-    with pytest.raises(ValueError, match="rain"):
+    with pytest.raises(ValueError) as caught:
         audio.parse_config(data)
+    assert str(caught.value) == expected
 
 
 @pytest.mark.parametrize(
