@@ -1,6 +1,6 @@
 # WP-14 — 시간대 폴리시 (D-015 (a)): 14a 연속 시각·시계 모드(클라우드) / 14b 밤 look-dev(PC, D-010 뒤)
 
-상태: 🟡 **14a 코드 완료·PC V-13 대기**(2026-09-28 설계 확정·구현·PR #51 리뷰 반영, 오케스트레이터 결정 D-019) · 담당: 14a **Opus 5.5 ultracode**(설계 Fable 5.1, 검증 Opus), 14b PC 세션 + 소유자 채점 · PC 검증 번호 **V-13**(14a).
+상태: 🟢 **14a 완료**(2026-10-04 V-13 PC 검증 통과, [#97](https://github.com/wooklym/golmok/pull/97) 클라우드 병합; 이력: 2026-09-28 설계 확정·구현·PR #51 리뷰 반영, 오케스트레이터 결정 D-019) · 14b ⚪ D-010 뒤 · 담당: 14a **Opus 5.5 ultracode**(설계 Fable 5.1, 검증 Opus), 14b PC 세션 + 소유자 채점 · PC 검증 번호 **V-13**(14a).
 
 ## 목표
 "같은 골목이 다르게 보인다"(DEVELOPMENT-PLAN §1.2 경험 3)의 시간대 부분. 지금은 프리셋 4개를 키 4개·F5로만 바꾼다(WP-05). 14a는 프리셋 사이를 잇는 **연속 시각(하루 1440분)**과 **시계 모드(fixed/clock/realtime)**를 넣어 어느 시각에서든 조명이 이웃 프리셋 둘의 보간으로 정해지게 하고, 포토 모드 시간대 슬라이더(Phase 2, D-013 확장)·세이브(WP-15, D-017)·환경음 낮/밤(WP-13)·가로등 발광(Zone 에셋)이 **같은 시계**를 쓰게 한다. 14b는 night 프리셋 값(look-dev, [`design/lighting-night-lookdev.md`](../design/lighting-night-lookdev.md))과 발광 에셋 연동 — D-010 뒤 PC.
@@ -112,7 +112,27 @@ night 프리셋 값·look-dev(14b), 가로등·간판 발광 에셋(14b, Zone �
     - 액터: `CycleHolds`/`GetCycleHolds()`, `EvaluateClock`·`NearestKeyframe`이 hold를 쓴다 → `CurrentPreset`·`OnPresetChanged`(램프 중점)·`IsNight`·`OnNightChanged`가 자동으로 따른다. Fixed의 `ApplyPreset`/`NextPreset`는 코드 경로 그대로(프리셋 값), Clock의 `ApplyPreset(night)`도 21:30 = 유지 시작이라 같은 값.
     - 표시: `golmok.tod status`는 유지 중 prev/next 뒤에 ` | night 23:10 hold until 05:30`, `lighting.status()`는 반환 dict에 `"hold"`(유지 밖 `None`)와 로그 `golmok.lighting: status 23:10 clock | night 23:10 hold until 05:30`. HUD `tod:` 줄은 그대로(스펙 범위 밖).
     - 기본 데이터의 결과: 가장 가까운 키프레임 night = 19:45~06:30(WP-13 오디오 밤도 06:30까지), `IsNight` 21:24:45~05:34:48, 태양 숨김(lux ≤ 0.01) 약 21:29~05:30, 볼류메트릭 안개 06:30에 꺼짐, 자정 yaw 0°(유지). 남는 look 항목(14b): 램프 05:30~06:06은 pitch가 아직 0° 위(지평선 아래에서 비춤, lux ≤ 0.75), 저녁 19:13 무렵도 같은 현상.
-19. **시계 틱 비용 — 태양 회전 양자화는 V-13 수치 뒤(리뷰 R51-3, 2026-09-28)**: Clock/Realtime은 매 틱 태양 회전·세기·색온도, SkyLight 세기, 안개, PPV를 다시 쓴다. 매 프레임 도는 movable 태양은 VSM 캐시를 매 프레임 무효화하고 Lumen 갱신 비용을 더하며, 정적 SkyLight의 중점 `RecaptureSky()`는 히치가 될 수 있다. 측정 없이 갱신을 계단식으로 만들면 look(태양 움직임의 연속성)을 해칠 수 있어 **지금은 매 틱 갱신을 유지**하고, 런북 V-13 §3 성능 단계(`stat unit`/`stat gpu` fixed vs clock x0.5, `r.Shadow.Virtual.ShowStats`, 중점 히치)의 수치가 크면 태양 회전 갱신 양자화(변화 약 0.02° 이상일 때만 또는 N Hz)를 후속으로 정한다.
+19. **시계 틱 비용 — 태양 회전 양자화는 V-13 수치 뒤(리뷰 R51-3, 2026-09-28)**: Clock/Realtime은 매 틱 태양 회전·세기·색온도, SkyLight 세기, 안개, PPV를 다시 쓴다. 매 프레임 도는 movable 태양은 VSM 캐시를 매 프레임 무효화하고 Lumen 갱신 비용을 더하며, 정적 SkyLight의 중점 `RecaptureSky()`는 히치가 될 수 있다. 측정 없이 갱신을 계단식으로 만들면 look(태양 움직임의 연속성)을 해칠 수 있어 **지금은 매 틱 갱신을 유지**하고, 런북 V-13 §3 성능 단계(`stat unit`/`stat gpu` fixed vs clock x0.5, `r.Shadow.Virtual.Stats 1`(5.8), 중점 히치)의 수치가 크면 태양 회전 갱신 양자화(변화 약 0.02° 이상일 때만 또는 N Hz)를 후속으로 정한다.
+    - **V-13 결정(2026-10-04, 오케스트레이터 D-019, Opus — 번복 가능): 매 틱 연속 갱신을 유지하고, 양자화는 채택하지 않은 채 재측정 트리거로 보류한다.**
+      - 수치(V-13, L_Dev 1080p·RTX 5060, fixed 15:00 → clock x0.5): GPU 5.18 → 5.58 ms(+0.39), ShadowDepths 0.26 → 0.66 ms(+0.41). Lumen 장면 갱신 차와 Frame 변화(120 fps 상한)는 없고, x10 중점 히치도 없다. 런북 기준(GPU +1 ms) 미만이다.
+      - VSM 전체 무효화(새 할당 611/611)는 측정 이상이 아니라 엔진 규칙이다 — "Any light movement or rotation will invalidate all cached pages for that light"(UE VSM 문서). 그래서 런북 §3의 "VSM 페이지 대량 무효화" 예시는 clock·realtime에서 늘 참이므로 기준이 될 수 없고, 기준은 ms다. clipmap 페이지 재사용은 카메라 이동에만 해당한다.
+      - 양자화는 평균 비용만 줄인다. 갱신하는 프레임마다 전 페이지를 다시 그리므로 최악 프레임은 같다.
+      - 룩 비용(x0.5, 3 m 벽 / 10 m 건물 그림자 끝, 0.02° 계단):
+        - 한낮: 0.1~0.7 cm/step으로 보이지 않는다.
+        - 18:00: 1.5 / 4.9 cm, 18:30: 3.9 / 12.9 cm, 18:50: 13 / 43 cm.
+        - 1 Hz 갱신이면 18:00 17 / 57 cm, 18:30 45 / 151 cm.
+        - 골든아워·새벽은 포토 모드가 노리는 시각이다. 그래서 ROADMAP 그림자 품질 목표와 퀄리티 최우선에 따라 지금은 계단을 들이지 않는다.
+      - L_Dev는 Nanite 클러스터가 0이고, non-Nanite는 clock에서 43개를 그린다(fixed 2개). 비용은 "페이지 수 × 그 안의 지오메트리"에 비례하므로 실제 Zone 비용으로 외삽할 수 없다.
+    - **재측정 트리거**: 대표 콘텐츠에서 런북 V-13 §3 1~2단계(`r.Shadow.Virtual.Stats 1`)를 다시 잰다. 대상은 두 곳이다.
+      - ① 다음 PC 카드 10분 항목: `L_Basemap_Yeonnam`(Nanite 건물)에서 골목 높이·높은 시점 2곳.
+      - ② 첫 실제 Zone(V-05/V-06).
+      - clock x0.5 − fixed의 GPU 또는 ShadowDepths가 RTX 5060 1080p에서 ≥ 1.0 ms이거나, clock 모드에서 품질 목표 fps가 깨지면 아래 순서로 재검토한다.
+    - **재검토 순서**:
+      - ① `r.Shadow.Virtual.ResolutionLodBiasDirectionalMoving`(움직이는 방향광 해상도만 낮춤, 그림자 선명도 룩 확인).
+      - ② `r.Shadow.Virtual.Cache.ForceInvalidateDirectional 1`[2차 자료].
+      - ③ Zone 그림자 캐스터 정리.
+      - ④ 화면 오차 상한 양자화(Δθ ≤ 0.01 m × sin²(고도) / 10 m — 낮은 해에서는 사실상 연속).
+      - cvar·ini는 `DefaultEngine.ini` 핫스팟이라 훅 블록 커밋으로 넣는다.
 
 **적대 검증**(별도 에이전트 1라운드)
 
@@ -136,7 +156,7 @@ night 프리셋 값·look-dev(14b), 가로등·간판 발광 에셋(14b, Zone �
 **리뷰 반영 (PR #51 R51-1~12, 2026-09-28)** — Opus 적대 리뷰(PR #51 코멘트, 판정 병합 가능·(A) 없음)의 (B)/(C) 반영. 대상 62b3a1c.
 - R51-1 (B) STATUS 충돌: origin/main(#50·#52·#54) 병합 — 충돌은 `STATUS.md`뿐, main 줄을 모두 취하고 이 브랜치의 WP-14a 행만 유지(병합 시 반영 문안으로 오케스트레이터가 교체).
 - R51-2 (B) WP-15a 교차: 자동화 총수 32·세이브의 `GetTimeOfDayMinutes()`/`GetClockMode()` 저장·복원은 PR #49 병합 준비(R49-7)에서 처리. 이 브랜치의 `pc-verify-wp12.md` 총수는 29 그대로.
-- R51-3 (B) 성능: 런북 V-13 §3에 성능 단계(fixed vs clock x0.5 `stat unit`/`stat gpu`·`r.Shadow.Virtual.ShowStats`·중점 히치)와 §11 기록 행 추가. 양자화는 판단 #19(V-13 수치 뒤).
+- R51-3 (B) 성능: 런북 V-13 §3에 성능 단계(fixed vs clock x0.5 `stat unit`/`stat gpu`·`r.Shadow.Virtual.Stats 1`(5.8)·중점 히치)와 §11 기록 행 추가. 양자화는 판단 #19(V-13 수치 뒤).
 - R51-4 (C) `NextPreset`: 시계 기준(`bBaseFromClock`)이면 `FindKeyframes(ClockMinutesNow()).Next`(= Prev + 1; 키프레임 시각이면 그 다음, Next 시각 0.01분 안쪽이면 하나 더) — 10:01에서 F5 → clear_noon 12:30(종전 golden_evening). 프리셋 기준(Fixed `ApplyPreset`, WP-05)은 종전 코드 그대로. 자동화 단언·런북 §6 추가.
 - R51-5 (C) 이벤트 순서: `RefreshNight` → `UpdateNight()`(바뀌었는지만 반환). `ApplyPreset`·`JumpTo`·`AdvanceClock`이 night를 먼저 계산 → `OnPresetChanged` → `OnNightChanged`(`AdvanceClock`은 상태 적용 뒤 발화; WP-13 훅 블록 줄은 그대로). 헤더 계약(Fable): `CurrentPreset`·`IsNight()`는 점프 **시작** 순간부터 목표 상태, `OnPresetChanged` 콜백 안의 `IsNight()`는 새 값. 자동화: 19:45 전환·06:30 중점 콜백 안 `IsNight()` false, 18:00 → 23:00 전환 점프 콜백 안 true·`OnNightChanged`는 그 뒤.
 - R51-6 (C) Realtime 공백: `AdvanceClock` Realtime이 `UWorld::GetRealTimeSeconds()`로 틱 사이 공백 > max(`TransitionSeconds`, 2 s)면 첫 틱에 전환 재동기(`LastRealtimeStepSeconds`, 모드 전환·Fixed 폴백·EndPlay에서 초기화; `GolmokClockMath::ResyncGapSeconds`). 판단 #4 보강, 런북 §5·§10 #14.
@@ -162,3 +182,39 @@ night 프리셋 값·look-dev(14b), 가로등·간판 발광 에셋(14b, Zone �
 - **리뷰 요약**: Fixed 모드는 WP-05와 동일, hold 경계·파서 대응·이벤트 계약·Realtime/Clock·유니티 빌드·핫스팟/레인 무변경 확인. (B) R51-1 STATUS 충돌(병합에서 해소)·R51-2 WP-15a 교차(PR #49 병합 준비: 자동화 32·시간대 {Minutes, Mode} 저장/복원)·R51-3 성능 단계(런북 §3, 양자화는 V-13 뒤). (C) R51-4~12 반영("리뷰 반영" 목록).
 - **Fable 결정 기록**: DECISIONS D-015 진행(§2a hold_minutes, IsNight 계약, NextPreset 시계 기준, Realtime 공백 재동기).
 - **(C) 옮긴 것**: STATUS 마지막 갱신·WP-14a 행·세션 로그, ROADMAP 1.3 조명 프리셋 행·1.6, DECISIONS D-015, 이 절. 다음: V-13 PC 카드, 14b는 D-010 뒤.
+
+## 병합 기록 — V-13 (PC [#97](https://github.com/wooklym/golmok/pull/97), 2026-10-04)
+
+대상: `pc/v13-verify-wp14a` `e380dcb`. PC 세션은 Opus 5.5, 검증 기준 main은 `8e7cfc5`이고, WP-14a 코드는 PR #51 head 그대로다. 클라우드 병합 브랜치는 `claude/v13-merge`, 리뷰는 Opus 읽기 전용 [P13](https://github.com/wooklym/golmok/pull/97#issuecomment-5979544850)((A) 0 · (B) 4 · (C) 7), 병합은 오케스트레이터 결정(D-019)이다.
+
+- **판정: 14a 🟢.**
+  - 빌드는 C++ 무수정이고 우리 소스의 경고는 0이다.
+  - 자동화는 `Golmok.Lighting` 3/3, 전체 36/36이다(29 → 36은 WP-15a 3·WP-19a 4).
+  - 런북 §1~§9 ✅, §10은 #10(정적 SkyLight 레벨 없음)·#12(배치 레벨 없음, 미실행)를 빼고 ✅다. PC fix는 없다.
+  - 중점·유지 값·09:00 보간 값·시각 진행은 클라우드에서 다시 계산해 대조했다.
+- **성능**: 판단 #19의 "V-13 결정" 참조.
+  - VSM 이미지 보충(P13-7): fixed는 정적 캐시 606·무효화 0, 동적 캐시 20·**무효화 586**이다. 동적 층은 fixed에서도 매 프레임 다시 그린다(인스턴스 2).
+  - clock x0.5는 새 할당 611/611·캐시 0이고, 그린 non-Nanite가 2 → 43으로 는다. L_Dev에는 Nanite가 없다(클러스터 0).
+- **14b 입력**(V-13 관찰, 판단 #15·#18 보강):
+  1. **노출 범위 키 필수**: look-dev 후보 B를 선택에서 필수로 올린다.
+     - 06:00(램프 α 0.25: pitch +2.5°·lux 0.63·바이어스 1.2)에서 엔진 경고 "Lumen and real-time sky capture lighting is going to be clipped … Exposure: -8.8. Safe exposure range: [-8.0, 12.0]"가 떴다.
+     - 대응: 프리셋에 Min/Max EV100(확장 휘도 범위)을 두고 EV 공간으로 보간해, 실효 노출이 모든 시각에서 안전 범위 안(여유 ≥ 1 EV)에 들게 한다.
+     - [미확인] −8.8 = 확장 범위 기본 하한(−10 [미확인]) + 06:00 바이어스 +1.2라는 가설이 있다. 5.8 PC에서 확인한다.
+  2. **night 유지 노출 고정**: 21:30~05:30은 Min = Max로 둔다. 그래서 05:30 램프가 알려진 적응 상태에서 시작한다.
+  3. **지평선 아래 태양 빛 제거**: 저녁 19:13~21:29(게임 2 h 16 min)와 새벽 05:30~06:06에 pitch > 0인데 lux > 0.01이라 벽·캐릭터 밑면이 주황·빨강으로 비친다. 후보는 셋이다.
+     - (i) lux를 고도에 묶는다.
+     - (ii) 박명 키프레임을 추가한다.
+     - (iii) 박명 하늘·앰비언트를 look-dev C·D로 처리한다.
+     - (i)만 하면 일몰 직후 하늘도 꺼지므로 (iii)과 함께 정한다.
+  4. **램프 곡선**: lux는 EV(로그) 공간 + smoothstep으로 보간한다(#15). lux 0은 로그로 보간할 수 없으므로 night lux 하한(후보 A)과 함께 정한다.
+  5. **화면 밤·오디오 밤 정렬**: 오디오는 19:45부터 밤인데 화면은 20:30에도 밝은 주황이다(`clock-2030.jpg`, HUD `audio: outdoor_night`).
+     - 방법: 일몰·박명 시각을 19:45에 맞추거나, 오디오 낮/밤을 `IsNight`/`OnNightChanged`로 옮긴다(Audio는 Astra 레인 — 채택 시 이슈 #30).
+  6. **판정 조건**: x10은 디버그 배율이다. 룩은 x0.5와 fixed 시각에서 눈 적응이 끝난 뒤(≥ 5 s) 본다.
+  7. **Local Exposure**: Lumen GI를 쓰면 설정한다(UE Auto Exposure 문서). 값은 실제 Zone에서 정한다.
+  8. **`r.EyeAdaptation.CachedLightingPreExposure`**: 기본으로 둔다(의미 [미확인], 핫스팟).
+  9. **14b 런북 수용 기준**:
+     - x0.5 한 바퀴, 그리고 fixed 05:30·06:00·06:30·19:13·20:30·21:30·00:00에서 엔진 노출 경고 0회, 밑면 조명 없음.
+     - 각 시각 스크린샷(06:00 포함)과 `ShowFlag.VisualizeHDR`.
+  10. **D-010 의존**: 1·2·3(i)·4의 코드·스키마는 표현 방식과 무관하다. 그래서 Clock을 기본 모드로 올리거나 포토 시간 슬라이더를 시작하기 전에 클라우드 14b-1로 앞당길 수 있다. 값·발광·Local Exposure는 D-010 뒤 PC에서 정한다.
+- **20:30 주황빛**: 판단 #18의 알려진 모습이다(20:33 pitch +8.8°·lux 1.09). 다만 clock 모드에서 가장 눈에 띄는 룩 문제라 14b 우선순위를 올린다.
+- **(C) 옮긴 것**: STATUS 마지막 갱신·M2·WP-14a·V-13 행·세션 로그, ROADMAP 조명 행·1.6, DECISIONS D-015, 런북 §3 통계 명령·기준 메모·표기(P13-5·P13-6·P13-8), 이 절. P13-9(§5 시각 라벨)·P13-10(06:00 조건)은 14b 런북에서 다룬다.
