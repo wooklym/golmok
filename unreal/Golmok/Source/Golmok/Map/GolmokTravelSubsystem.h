@@ -34,7 +34,7 @@ enum class EGolmokTravelState : uint8
  * IsLoaded() every PollSeconds, at most TravelTimeoutSeconds (failure: pin released, fade in, LastError)
  * ⑤ AGolmokZone::GetSpawnUE (manifest spawn or the spec §1 fallback) ⑥ SetActorLocation without sweep (+ capsule half
  * height) and the controller yaw ⑦ next tick the pin is released (distance rules take over, never RequestUnload)
- * ⑧ fade in, OnTraveled(ZoneId).
+ * ⑧ SnapCameraAfterTeleport (spring-arm lag reference reset + camera cut, P14-2), fade in, OnTraveled(ZoneId).
  *
  * The save subsystem restores through TravelToLocation() (same preload / fade, a saved destination instead of the spawn).
  * Console: golmok.travel <zone_id> | golmok.travel list | golmok.travel status. HUD line "travel: ..." (debug HUD).
@@ -74,7 +74,8 @@ public:
 
 	/**
 	 * Save restore (spec §3 ①): preload ZoneId like TravelToZone, then put the pawn at InDestinationUE (capsule center, cm)
-	 * facing InDestinationYawUE instead of the spawn. Empty ZoneId = no zone to wait for (basemap position): immediate.
+	 * facing InDestinationYawUE instead of the spawn. Empty ZoneId = no zone to wait for (basemap position):
+	 * immediate (camera snap, fade in from black).
 	 */
 	bool TravelToLocation(const FString& ZoneId, const FVector& InDestinationUE, float InDestinationYawUE, FString& OutMessage);
 

@@ -26,7 +26,8 @@ What it does (docs/runbooks/pc-verify-wp06.md §2; WP-06 design §3-2):
    could not be made VT; one MI_<material> per MTL material.
 5. Chunks: every visual/<chunk>.obj is rewritten into <Saved>/Golmok/zone_import/<id>/v<n>/visual/ with the
    inverse importer mapping baked into positions, normals and winding, imported as SM_<chunk_id>, its
-   bounds checked against bbox_enu in UE cm, Nanite on, MI_* assigned by slot name.
+   bounds checked against bbox_enu in UE cm, LOD0 full precision UVs on (one WARNING when the editor
+   cannot), Nanite on, MI_* assigned by slot name.
 6. Collision: collision/<chunk>.glb (or collision.glb) pre-transformed the same way, imported as
    SM_<zone_id>_collision[_<chunk_id>], complex-as-simple, Nanite off.
 7. Exactly manifest.json and blockers.json are copied to <Content>/Golmok/Zones/<id>/v<n>/ (what the C++
@@ -74,6 +75,7 @@ MASTER_DEFAULT_PX = 256  # >= the virtual texture tile size
 NULLRHI_FLAG = "-nullrhi"  # headless editor: texture sizes are not measurable (V-04b F1, runbook #4)
 HOW_NO_RHI = "merged by importer (size unverifiable without RHI)"
 HOW_SIZE_ZERO = "merged by importer (size {w}x{h})"  # with RHI, before the texture has data (R81-7)
+FULL_PRECISION_UVS_ROW = 41  # runbook §12 row of the LOD0 build settings calls (WP-06 round 2 item 2)
 
 _warnings: list[str] = []  # messages of the zi.warn lines of the current import_assets() call
 _warned_once: set[str] = set()  # once-per-call warnings already given in the current import_assets() call
@@ -924,8 +926,59 @@ def _check_bounds(step: str, mesh, want) -> float:
     return err
 
 
+def _full_precision_uvs_missing(why: str) -> None:
+    """One WARNING per import_assets() call for every way the LOD0 build settings call can fail."""
+    if "full_precision_uvs" not in _warned_once:
+        _warned_once.add("full_precision_uvs")
+        _warn(
+            f"{why}: chunk meshes keep half-float UVs - set Use Full Precision UVs in the Static Mesh editor "
+            f"(LOD0 Build Settings) by hand (runbook #{FULL_PRECISION_UVS_ROW})"
+        )
+
+
+def _full_precision_uvs(mesh) -> str | None:
+    """WP-06 round 2 item 2 (before V-05): LOD0 Build Settings > Use Full Precision UVs on a chunk mesh.
+
+    Half-float UVs (the importer default) step by 2^-7 at u, v in [8, 16) - 64 texels of an 8K UDIM tile, 8 at
+    [1, 2) - which the Nanite fallback mesh, ray tracing and Lumen hit lighting read. Returns "set" (changed;
+    set_lod_build_settings rebuilds the mesh), "on" (already on: no call, no rebuild) or None (API or field
+    missing, or the value did not stick: one WARNING per import, the import goes on; runbook #41). A re-run
+    imports a new mesh, so it is set again there. Collision meshes are left alone: collision reads positions
+    only and they are never drawn with a zone texture."""
+    sub = None
+    if hasattr(unreal, "StaticMeshEditorSubsystem"):
+        sub = unreal.get_editor_subsystem(unreal.StaticMeshEditorSubsystem)
+    if not (hasattr(sub, "get_lod_build_settings") and hasattr(sub, "set_lod_build_settings")):
+        _full_precision_uvs_missing(
+            "StaticMeshEditorSubsystem.get_lod_build_settings/set_lod_build_settings unavailable"
+        )
+        return None
+
+    def lod0():
+        got = sub.get_lod_build_settings(mesh, 0)
+        if isinstance(got, tuple):  # an out-parameter binding may return (bool, settings) (runbook #41)
+            got = next((v for v in got if hasattr(v, "get_editor_property")), None)
+        return got
+
+    try:
+        settings = lod0()
+        if settings.get_editor_property("use_full_precision_u_vs"):
+            return "on"
+        settings.set_editor_property("use_full_precision_u_vs", True)
+        sub.set_lod_build_settings(mesh, 0, settings)
+        stuck = bool(lod0().get_editor_property("use_full_precision_u_vs"))
+    except Exception as e:
+        _full_precision_uvs_missing(f"MeshBuildSettings.use_full_precision_u_vs not settable ({e})")
+        return None
+    if not stuck:
+        _full_precision_uvs_missing("set_lod_build_settings did not keep use_full_precision_u_vs=True")
+        return None
+    return "set"
+
+
 def _import_chunk(chunk: dict, plan: dict, work: str, a_obj, instances: dict, factory, options) -> dict:
-    """SM_<chunk_id>: pre-transformed OBJ copy -> import -> bounds check -> Nanite -> slots -> save."""
+    """SM_<chunk_id>: pre-transformed OBJ copy -> import -> bounds check -> full precision UVs -> Nanite ->
+    slots -> save."""
     copy = os.path.join(work, "visual", f"{chunk['name']}.obj")
     obj = os.path.normpath(chunk["obj"])
     _pure.pretransform_obj_file(obj, copy, a_obj, mtllib=" ".join(chunk["mtllib"]))
@@ -944,6 +997,7 @@ def _import_chunk(chunk: dict, plan: dict, work: str, a_obj, instances: dict, fa
         copy, plan["asset_folder"], chunk["name"], chunk["asset"], unreal.StaticMesh, 8, options, factory
     )
     err = _check_bounds(f"chunk {chunk['id']}", mesh, chunk["expected_ue_bounds_cm"])
+    uvs = _full_precision_uvs(mesh)  # before Nanite, so the Nanite build already sees full precision UVs
     bm._set_nanite(mesh, True)
     slots, unmatched = _assign_slots(mesh, chunk, instances)
     unreal.EditorAssetLibrary.save_loaded_asset(mesh)
@@ -954,7 +1008,13 @@ def _import_chunk(chunk: dict, plan: dict, work: str, a_obj, instances: dict, fa
         err=err,
         slots=",".join(f"{k}={v}" for k, v in sorted(slots.items())),
     )
-    detail = {"tris": chunk["tris"], "bounds_error_cm": round(err, 3), "slots": slots, "unmatched": unmatched}
+    detail = {
+        "tris": chunk["tris"],
+        "bounds_error_cm": round(err, 3),
+        "slots": slots,
+        "unmatched": unmatched,
+        "full_precision_uvs": uvs,
+    }
     return {"kind": "chunk", "asset": chunk["asset"], "ok": True, "detail": detail}
 
 
@@ -1067,6 +1127,10 @@ def import_assets(plan: dict, work_dir: str, remeasure=False, reimport_textures=
             task.enter_progress_frame(1, chunk["name"])
             with _step(f"chunk {chunk['id']}"):
                 assets.append(_import_chunk(chunk, plan, work, a_obj, instances, factory, options))
+    if plan["chunks"]:
+        uvs = [a["detail"]["full_precision_uvs"] for a in assets if a["kind"] == "chunk"]
+        changed, kept = uvs.count("set"), uvs.count("on")
+        _log("zi.uv", on=changed + kept, chunks=len(uvs), changed=changed, kept=kept)
     for col in plan["collision"]:
         with _step(f"collision {col['id'] or 'single'}"):
             assets.append(_import_collision(col, asset_folder, work, a_glb))

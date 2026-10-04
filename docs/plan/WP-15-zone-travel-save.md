@@ -243,6 +243,7 @@ PC 세션(Claude Opus 5.5, 워크트리 `goofy-maxwell-3aee56`, 브랜치 `pc/v1
   - hot-spot·훅·등록 수(36)는 바꾸지 않는다.
   - 테스트: `Golmok.Travel.Teleport` case 2에서 도착 시점 암 소켓–폰 거리가 암 길이 + |SocketOffset| + 50 cm 이하인지 단언한다.
   - PC 확인: 다음 L_ZoneTest 카드에서 60 fps로 다시 녹화한다.
+  - → [#107](https://github.com/wooklym/golmok/pull/107) 반영(2026-10-04, 리뷰 R107 (A) 0): 단언은 충돌 전 암 끝과 소켓 둘 다(상한 = 암 길이 + |SocketOffset| + |TargetOffset| + 부착 오프셋 + 50 cm), zone 없는 저장 위치 배치에 페이드 인 추가. PC 확인은 `pc-verify-wp15a.md` §11.
 - **(C)**
   - P14-4: STATUS 마지막 갱신 충돌은 §7.6대로 풀었다.
   - P14-5: `(sync, pre-exit)`는 V-14에서 나오지 않았다. 런북 §6·§9 #3 문구를 이 커밋에서 고쳤고, Save 헤더 주석은 P14-2 PR에서 고친다. 핸들러는 무해한 대비책으로 남긴다.
