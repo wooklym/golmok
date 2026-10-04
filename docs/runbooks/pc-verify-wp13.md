@@ -228,6 +228,30 @@ C-10: Packaging 설정을 에디터에서 저장한 뒤 DefaultGame.ini의 중�
 - §7-5의 `V10Asphalt` 등은 이전 시험에서만 사용한 이름이다. T8 시험에는 §3의 정확한 세트 이름을 쓴다. 생성 `Audio/*/SW_*.uasset`은 PR #54부터 ignore되며 소스/JSON/임포터로 재생성한다.
 - R50-3: T6 전체 자동화의 경고 테스트 수 7→8은 `Audio.StateMachine`이 ToD 파괴/재생성을 검사할 때 기록된 `No AGolmokGeoOrigin in L_Dev: zones are placed with their own origin at the level origin (dev level mode). Place one AGolmokGeoOrigin at (0,0,0) with the basemap area origin for geo-referenced placement.`다. L_Dev 배치 경고이며 오디오 누락 경고가 아니다. ExpectedMessage로 감추지 않고 보고서에 남긴다.
 
+### 8-1. V-10b PC 스모크 결과 (V-11 카드, 2026-10-04)
+
+PC 세션(Opus 5.5, 워크트리 `sharp-wright-5b1e4a`, 브랜치 `pc/v11-verify-wp18` ← main `8e7cfc5`, Audio 코드 = T8~T19 반영본). 판정 근거는 §7-1과 같은 master submix 녹음(`AudioMixerLibrary`, 48 kHz 스테레오, OS 볼륨 전)과 `ListWaves` 0.1 s 샘플이며 **사람 귀 청취가 아니다**. 수치 분석은 저장소 도구 `python -m golmok_tools.audio_analysis`(§7-1a)로 했다. 출력 장치는 V-10과 같은 기본 장치다. 녹음 WAV·보고서는 PC 로컬 `C:\Users\user\golmok-pc-recordings\v11-2026-10-04\wav\`에 있다(커밋 안 함). 임포트는 헤드리스 `WP13_IMPORT_VERIFIED_7_REIMPORT_7`(크레딧 diff 없음).
+
+![HUD audio 줄: L_ZoneTest 실내(위), L_Dev 미정의 SurfaceType1 바닥(아래)](pc-verify-wp13-v10b-hud.jpg)
+
+| 항목 | 기대 | 결과 |
+|---|---|---|
+| T6 HUD `audio:` 줄(핸들 API) | HUD에 줄 표시 | ✅ `audio: interior [outdoor_day / interior] vol 1.00 steps=default drv=distance(auto) ev=0 photo_gain=1.00`(위 그림). 낮·밤·실내 HUD 스크린샷 3장 로컬 |
+| T6/T8 `golmok.audio` | `steps=`·`photo_gain=` | ✅ 모든 출력에 `steps=<세트> drv=distance(auto) ev=0 photo_gain=<값>`. Photo 중 `photo_gain=0.00 muted`. `golmok.audio credits` 7항목 |
+| 낮/밤 전환(키 4·2 각 3회, L_ZoneTest 정지 상태) | 2.0 s 크로스페이드·끊김 없음 | ✅ 낮 −41.0 ↔ 밤 −44.7 dBFS. 키 입력부터 안착(300 ms 평균) 1.24~1.61 s(조명 전환 중점에서 상태 이벤트가 나므로 키 기준). 중간 dip 0.3~1.2 dB(V-10 선형 보간 1.6~2.1 dB). 급정지 0 |
+| T8 실내 진입 ≈ 1 s(발소리 끈 run v11f, 포털 3왕복) | 실내 1.0 s·실외 2.0 s | ✅ 실내 진입 안착 0.82~0.92 s(dip 0.3 dB), 실외 복귀 1.22~1.54 s(dip 0.6~1.4 dB). 실외 −41.1 / 실내 −46.3 dBFS. 문 평면 통과 시각 기준 |
+| T8 Photo 진입/해제 0.25 s 페이드(무클릭) | mute 0.25 s S-curve | ✅ 정지 상태 2회: P 뒤 0.28~0.37 s에 무음(−120 dB), 해제 뒤 0.28~0.34 s 안착, 급정지 0·클릭 없음(클릭 z ≥ 8은 전부 발소리 원샷 시작점). 걷기 직후 P 3회(v11f): 재생 중이던 발소리 원샷이 `ListWaves` 볼륨 0.99 → 0.93 → 0.34 → 소멸(≈ 0.3 s)로 FadeOut, 앰비언스는 0.26~0.29 s에 무음 |
+| 이름 없는 SurfaceType → default(T6 C-11) | default + HUD error + 표면 번호당 Warning 1회 | ✅ L_Dev Floor에 PIE 한정 PhysicalMaterial(SurfaceType1)을 두고 런타임에 `PhysicsSettings` CDO 배열에서 SurfaceType1 항목을 뺐다 → `steps=default` + `error: surface 1 needs Physics name 'asphalt' (actual 'undefined'); physical mapping ignored`, Warning 1회. 이름이 다른 경우(SurfaceType2 = `V11Mismatch`) → `steps=default` + `actual 'V11Mismatch'` Warning 1회. 원래 이름으로 되돌리면 `steps=tile`. 이름이 맞는 0/1/2/3 → `default`(SW_asphalt)/`asphalt`(SW_asphalt)/`tile`(SW_tile)/`stairs`(SW_stairs). 시험용 `DefaultEngine.ini` `PhysicalSurfaces` 3줄(1=asphalt, 2=tile, 3=stairs)은 run 뒤 `git checkout`(diff 없음) |
+| T8 캐릭터별 보폭(L_Dev 평지, 걷기 6 s·달리기 4 s) | proxy110 걷기 간격 < manny(45 vs 67 cm) | ✅ 발소리당 이동 거리 — manny 67.1/149.4, quinn 67.1/149.4, proxy135 54.1/135.1, **proxy110 47.8/110.8 cm**(걷기/달리기; 짧은 구간이라 개수 내림 오차 포함, 설정 67/146·54/142·45/115). 걷기 발소리 시간 간격은 4종 모두 ≈ 0.37 s(보폭 ÷ 속도가 같음). 동시 발소리 보이스 최대 2 |
+| T8 2D 자체 발소리(붐 길이 무관) | 캐릭터 간 피크 차 없음 | ✅ 발소리 피크 중앙값 manny −22.4, quinn −22.5, proxy135 −22.7, proxy110 −22.6 dBFS(붐 320/320/260/227 cm; 범위 −24.4~−20.2, 볼륨 0.9~1.0 무작위 폭 안). V-10의 3D 감쇠·이전 gain에서는 −35.8/−34.5/−34.2였다. 착지 3회 −22.0~−23.6 dBFS, 공중 발소리 0 |
+| clipping·`error: missing SoundWave` | 없음 | ✅ clipping 0, 최고 피크 −20.2 dBFS. PIE 6회 로그에 `missing SoundWave`·`error:` 없음(표면 시험의 의도된 `error: surface` 제외) |
+| 패키지 W 걷기 발소리 1회·`error: missing SoundWave` 없음(T6 R50-6) | 패키지 실행 | ⏳ 패키지 빌드는 성공(BuildCookRun 287 s, stage manifest에 SW 7개·`Config/Golmok/audio.json`). 실행은 다른 PC 세션 GUI 단계 뒤 마지막(새 exe 경로의 방화벽 창 대비) |
+
+관찰(판정 아님):
+- 드라이버가 포털 앞으로 300 cm보다 짧게 순간이동하면 발소리 1회가 났다(`teleport_threshold_cm` 300 설계대로 이동 거리로 셈).
+- Photo 3회차 mute 동안 출력에 ±2 LSB(−97 dBFS RMS) 잔여 신호가 있었다(1·2회차는 디지털 무음). 들리지 않는 크기지만 `audio_analysis`가 이 잔여와 0 사이 깜박임을 급정지 17건으로 셌다: 급정지 판정이 하강 전 5 ms 레벨을 무음 기준(−80 dBFS)과 비교하지 않기 때문이다(도구 후속 후보). 이 구간을 빼면 급정지는 0이다.
+- 볼륨 밸런스 최종값은 C-08 소유자 항목이다. 위 레벨은 T8 후보 gain(master 1.0·낮 0.5·밤 0.36·실내 0.30·발소리/착지 1.0)의 측정치다.
+
 
 ## T13 — WP-19c 노티파이 발소리 계약 (2026-09-30)
 
