@@ -32,6 +32,14 @@
 // an id not in the roster is dropped; a later legacy-default restore, golmok.save reset, or an explicit pick (also
 // once the selection is automatic again) leaves no trace of it. GolmokSaveCharacter::IsLegacyDefault is also checked on
 // a literal roster before the map check (runs without the map or assets), including a DefaultId that no mode uses.
+// Weather (WP-16a design section 12; skipped with an Info line without UGolmokWeatherSubsystem or with weather.json
+// off): rain 0.60 fixed with wetness 0.42 / puddle 0.10 is saved as rule 1 with those five values and shown on the
+// golmok.save status slot line; a weather change marks the save dirty, the restore's own change does not. Restores of a
+// slot without position / zone / home (rule 3): rule 1 brings the five values back instantly; a rule 0 slot keeps the
+// current weather ("weather - (not in save)"); an unknown state name restores as clear with "(unknown weather 'snow')";
+// an intensity of 3 is clamped to 1 and a mode of 7 restores as fixed. With an AGolmokTimeOfDay with keyframes, a saved
+// Schedule mode is applied after the saved time of day: the slot of the restored time (not of the time before the
+// restore) becomes the target, by a transition from the saved weather, and marks the save dirty.
 //
 // Headless: .\tools\ue\test.ps1 -Filter Golmok.Travel   /   -Filter Golmok.Save
 
@@ -65,6 +73,7 @@
 #include "Save/GolmokSaveGame.h"
 #include "Save/GolmokSaveSubsystem.h"
 #include "Tests/AutomationEditorCommon.h"
+#include "Weather/GolmokWeatherSubsystem.h"
 #include "Zones/GolmokZone.h"
 #include "Zones/GolmokZoneSubsystem.h"
 
@@ -86,6 +95,7 @@ namespace GolmokTravelSaveTest
 	constexpr float TodClockMinutes = 787.f;   // 13:07, saved in Clock mode
 	constexpr float TodFixedMinutes = 1000.f;  // 16:40, saved in Fixed mode
 	constexpr float TodMinutesTolerance = 0.01f;
+	constexpr float WeatherTolerance = 1e-4f; // WP-16a saved floats (rain intensity, wetness, puddle)
 
 	/** "id 'quinn' rule 1": a slot's character as one string, so one TestEqual shows both fields (R91-1 follow-up). */
 	FString SlotCharacter(const FString& Id, int32 Rule)
@@ -714,6 +724,7 @@ namespace GolmokTravelSaveTest
 				Test->TestEqual(TEXT("home restore arrived at z_synthetic_002"), Travel->GetLastArrivedZoneId(), FString(SecondZoneId));
 				CheckArrival(Travel, Zones->FindZone(SecondZoneId), Pawn, TEXT("home spawn"));
 				CheckCharacterRule(World, Save, Pawn);
+				CheckWeatherRule(World, Save);
 				return Next(4);
 			}
 
@@ -940,6 +951,167 @@ namespace GolmokTravelSaveTest
 			Characters->ApplyDefaultForTest(Pawn);
 			Test->TestEqual(TEXT("automatic again after that pick: the refused id does not come back"), SaveAndRead(TEXT("test automatic after pick")),
 				AutomaticInSlot);
+		}
+
+		/** "rain 0.60 wet 0.42 puddle 0.10 fixed": the weather now as one string, so one TestEqual shows every field. */
+		static FString LiveWeather(const UGolmokWeatherSubsystem& Weather)
+		{
+			return FString::Printf(TEXT("%s %.2f wet %.2f puddle %.2f %s"), UGolmokWeatherSubsystem::WeatherName(Weather.GetTargetWeather()),
+				Weather.GetTargetIntensity(), Weather.GetWetness(), Weather.GetPuddleAmount(), UGolmokWeatherSubsystem::ModeName(Weather.GetMode()));
+		}
+
+		/**
+		 * WP-16a design section 12, synchronous (no weather tick in between). The restores use a slot without position / zone,
+		 * time of day and character and no HomeZoneId (rule 3: no travel), so only Restore's weather step acts, except the
+		 * Schedule step, which also restores a time of day.
+		 */
+		void CheckWeatherRule(UWorld* World, UGolmokSaveSubsystem* Save)
+		{
+			UGolmokWeatherSubsystem* Weather = UGolmokWeatherSubsystem::Get(World);
+			if (!Weather || !Weather->IsEnabled())
+			{
+				const FString Why = Weather ? FString::Printf(TEXT("weather off - %s"), *Weather->GetConfigError()) : FString(TEXT("no UGolmokWeatherSubsystem in the PIE world"));
+				Test->AddInfo(FString::Printf(TEXT("weather steps skipped: %s"), *Why));
+				return;
+			}
+			FString Message;
+			const bool bSetUp = Weather->SetMode(EGolmokWeatherMode::Fixed, Message) && Weather->SetWeather(EGolmokWeather::Rain, 0.6f, /*bInstant*/ true, Message)
+				&& Weather->SetSurface(0.42f, 0.10f, Message);
+			if (!Test->TestTrue(TEXT("weather: rain 0.60 fixed, wet 0.42 puddle 0.10 (setup)"), bSetUp))
+			{
+				Test->AddError(Message);
+				return;
+			}
+			Test->TestTrue(TEXT("weather: SaveNow(sync)"), Save->SaveNow(/*bSync*/ true, TEXT("test weather"), &Message));
+			UGolmokSaveGame* Slot = Save->LoadSlot();
+			if (!Test->TestNotNull(TEXT("weather: LoadSlot"), Slot))
+			{
+				return;
+			}
+			Test->TestEqual(TEXT("weather saved: rule 1"), Slot->Weather.Rule, UGolmokSaveGame::WeatherRuleV1);
+			Test->TestEqual(TEXT("weather saved: state rain"), Slot->Weather.State, FString(TEXT("rain")));
+			Test->TestTrue(FString::Printf(TEXT("weather saved: intensity %.4f = 0.60"), Slot->Weather.Intensity), FMath::IsNearlyEqual(Slot->Weather.Intensity, 0.6f, WeatherTolerance));
+			Test->TestEqual(TEXT("weather saved: mode fixed (0)"), static_cast<int32>(Slot->Weather.Mode), 0);
+			Test->TestTrue(FString::Printf(TEXT("weather saved: wetness %.4f = 0.42"), Slot->Weather.Wetness), FMath::IsNearlyEqual(Slot->Weather.Wetness, 0.42f, WeatherTolerance));
+			Test->TestTrue(FString::Printf(TEXT("weather saved: puddle %.4f = 0.10"), Slot->Weather.Puddle), FMath::IsNearlyEqual(Slot->Weather.Puddle, 0.10f, WeatherTolerance));
+			Test->TestTrue(TEXT("golmok.save status: slot line carries the weather"),
+				Save->DescribeStatus().Contains(TEXT("weather rain 0.60 wet 0.42 puddle 0.10 fixed")));
+			Test->TestTrue(TEXT("weather: a fresh save is not dirty (precondition)"), Save->DescribeStatus().Contains(TEXT("dirty no")));
+
+			// The live weather changes (OnWeatherChanged marks the save dirty); the restore brings the five values back instantly.
+			Weather->SetWeather(EGolmokWeather::Clear, 0.f, /*bInstant*/ true, Message);
+			Weather->SetSurface(0.f, 0.f, Message);
+			Test->TestTrue(TEXT("weather: a weather change marks the save dirty"), Save->DescribeStatus().Contains(TEXT("dirty yes")));
+			TGuardValue<FString> NoHome(Save->HomeZoneId, FString());
+			Slot->bHasPosition = false;
+			Slot->ZoneId.Reset();
+			Slot->ZoneVersion = 0;
+			Slot->TimeOfDay = FGolmokSaveTimeOfDay();
+			Slot->CharacterId.Reset();
+			Slot->CharacterIdRule = UGolmokSaveGame::CharacterIdRuleExplicit;
+			// SaveNow first clears the dirty flag (it writes the live state), then the edited slot replaces that write.
+			auto RestoreSlot = [this, Save, Slot](const TCHAR* What) -> FString
+			{
+				Save->SaveNow(/*bSync*/ true, TEXT("test weather baseline"));
+				UGameplayStatics::SaveGameToSlot(Slot, Save->SlotName, 0);
+				FString RestoreMessage;
+				Save->Restore(RestoreMessage);
+				Test->AddInfo(FString::Printf(TEXT("%s: %s"), What, *RestoreMessage));
+				return RestoreMessage;
+			};
+			FString Restored = RestoreSlot(TEXT("weather rule 1"));
+			Test->TestTrue(TEXT("weather rule 1: restore message"), Restored.Contains(TEXT(", weather rain 0.60 wet 0.42 puddle 0.10 fixed")));
+			Test->TestEqual(TEXT("weather rule 1: five values restored"), LiveWeather(*Weather), FString(TEXT("rain 0.60 wet 0.42 puddle 0.10 fixed")));
+			Test->TestFalse(TEXT("weather rule 1: instant (no transition)"), Weather->IsTransitioning());
+			Test->TestTrue(FString::Printf(TEXT("weather rule 1: rain now %.3f = 0.60 (instant)"), Weather->GetRainIntensity()),
+				FMath::IsNearlyEqual(Weather->GetRainIntensity(), 0.6f, WeatherTolerance));
+			Test->TestTrue(TEXT("weather rule 1: the restore's own change is not dirty"), Save->DescribeStatus().Contains(TEXT("dirty no")));
+
+			// Rule 0 (a save from before WP-16a): the current weather stays.
+			Weather->SetWeather(EGolmokWeather::Overcast, 0.f, /*bInstant*/ true, Message);
+			const FGolmokSaveWeather Saved = Slot->Weather;
+			Slot->Weather = FGolmokSaveWeather();
+			Restored = RestoreSlot(TEXT("weather rule 0"));
+			Test->TestTrue(TEXT("weather rule 0: message 'weather - (not in save)'"), Restored.Contains(TEXT(", weather - (not in save)")));
+			Test->TestEqual(TEXT("weather rule 0: current weather kept (overcast)"), static_cast<int32>(Weather->GetTargetWeather()), static_cast<int32>(EGolmokWeather::Overcast));
+			Test->TestTrue(TEXT("golmok.save status: rule 0 slot line 'weather - (not in save)'"), Save->DescribeStatus().Contains(TEXT("weather - (not in save)")));
+
+			// An unknown state name restores as clear (surface and mode still applied).
+			Weather->SetWeather(EGolmokWeather::Rain, 1.f, /*bInstant*/ true, Message);
+			Slot->Weather = Saved;
+			Slot->Weather.State = TEXT("snow");
+			Slot->Weather.Wetness = 0.2f;
+			Slot->Weather.Puddle = 0.05f;
+			Restored = RestoreSlot(TEXT("weather unknown state"));
+			Test->TestTrue(TEXT("weather unknown state: message"), Restored.Contains(TEXT("(unknown weather 'snow')")));
+			Test->TestEqual(TEXT("weather unknown state: clear"), LiveWeather(*Weather), FString(TEXT("clear 0.00 wet 0.20 puddle 0.05 fixed")));
+
+			// Out-of-range values of a damaged save: intensity clamped into [0.05, 1], an unknown mode is fixed.
+			Slot->Weather = Saved;
+			Slot->Weather.Intensity = 3.f;
+			Slot->Weather.Mode = 7;
+			Restored = RestoreSlot(TEXT("weather clamp"));
+			Test->TestEqual(TEXT("weather clamp: intensity 3 -> 1, mode 7 -> fixed"), LiveWeather(*Weather), FString(TEXT("rain 1.00 wet 0.42 puddle 0.10 fixed")));
+
+			CheckWeatherSchedule(World, Save, *Weather, *Slot, RestoreSlot);
+			Weather->SetMode(EGolmokWeatherMode::Fixed, Message);
+			Weather->SetWeather(EGolmokWeather::Clear, 0.f, /*bInstant*/ true, Message);
+			Weather->SetSurface(0.f, 0.f, Message);
+		}
+
+		/**
+		 * A saved Schedule mode is applied after the saved time of day (design section 12): two schedule slots with different
+		 * states, the clock set to the first before the restore and saved at the second; the restored target must be the
+		 * second's (a weather restore before the time of day would pick the first), reached by a transition from the saved
+		 * weather (a state other than that slot's), and that change marks the save dirty.
+		 */
+		template <typename FRestoreSlot>
+		void CheckWeatherSchedule(UWorld* World, UGolmokSaveSubsystem* Save, UGolmokWeatherSubsystem& Weather, UGolmokSaveGame& Slot, FRestoreSlot& RestoreSlot)
+		{
+			AGolmokTimeOfDay* Tod = bTodReady ? AGolmokTimeOfDay::Find(World) : nullptr;
+			const TArray<GolmokWeather::FScheduleSlot>& Schedule = Weather.GetConfig().Schedule;
+			int32 Before = INDEX_NONE;
+			int32 After = INDEX_NONE;
+			for (int32 i = 0; i + 1 < Schedule.Num() && After == INDEX_NONE; ++i)
+			{
+				if (Schedule[i].State != Schedule[i + 1].State)
+				{
+					Before = i;
+					After = i + 1;
+				}
+			}
+			if (!Tod || After == INDEX_NONE)
+			{
+				Test->AddInfo(TEXT("weather schedule step skipped: no AGolmokTimeOfDay with keyframes, or no two schedule slots with different states"));
+				return;
+			}
+			const EGolmokWeather AfterState = static_cast<EGolmokWeather>(static_cast<uint8>(Schedule[After].State));
+			// The saved target differs from the slot of the saved time: clear unless that slot is clear, then overcast.
+			const EGolmokWeather SavedState = AfterState == EGolmokWeather::Clear ? EGolmokWeather::Overcast : EGolmokWeather::Clear;
+			const float SavedMinutes = static_cast<float>(Schedule[After].Minutes) + 1.f;
+			Tod->SetClockMode(EGolmokClockMode::Fixed);
+			Tod->SetTimeOfDay(static_cast<float>(Schedule[Before].Minutes) + 1.f, /*bInstant*/ true);
+			Slot.TimeOfDay = FGolmokSaveTimeOfDay();
+			Slot.TimeOfDay.Minutes = SavedMinutes;
+			Slot.TimeOfDay.Mode = static_cast<uint8>(EGolmokClockMode::Fixed);
+			Slot.Weather.Rule = UGolmokSaveGame::WeatherRuleV1;
+			Slot.Weather.State = UGolmokWeatherSubsystem::WeatherName(SavedState);
+			Slot.Weather.Intensity = 0.f;
+			Slot.Weather.Mode = static_cast<uint8>(EGolmokWeatherMode::Schedule);
+			const FString Restored = RestoreSlot(TEXT("weather schedule"));
+			Test->TestTrue(FString::Printf(TEXT("weather schedule: tod restored first (%.3f min)"), Tod->GetTimeOfDayMinutes()),
+				FMath::IsNearlyEqual(Tod->GetTimeOfDayMinutes(), SavedMinutes, TodMinutesTolerance));
+			Test->TestEqual(TEXT("weather schedule: mode schedule"), static_cast<int32>(Weather.GetMode()), static_cast<int32>(EGolmokWeatherMode::Schedule));
+			Test->TestEqual(TEXT("weather schedule: slot of the restored time"), Weather.GetScheduleIndexNow(), After);
+			Test->TestEqual(TEXT("weather schedule: target = that slot's state"), static_cast<int32>(Weather.GetTargetWeather()), static_cast<int32>(AfterState));
+			Test->TestTrue(FString::Printf(TEXT("weather schedule: target intensity %.3f = the slot's"), Weather.GetTargetIntensity()),
+				FMath::IsNearlyEqual(Weather.GetTargetIntensity(), static_cast<float>(Schedule[After].Intensity), WeatherTolerance));
+			if (Weather.GetConfig().TransitionSeconds > 0.0)
+			{
+				Test->TestTrue(TEXT("weather schedule: a transition from the saved weather"), Weather.IsTransitioning());
+			}
+			Test->TestTrue(TEXT("weather schedule: restore message names the schedule mode"), Restored.Contains(TEXT(" schedule")));
+			Test->TestTrue(TEXT("weather schedule: the slot change is dirty"), Save->DescribeStatus().Contains(TEXT("dirty yes")));
 		}
 
 		bool Cleanup(UGolmokSaveSubsystem* Save)

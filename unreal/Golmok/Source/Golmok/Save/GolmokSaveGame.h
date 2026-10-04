@@ -46,6 +46,42 @@ struct GOLMOK_API FGolmokSaveTimeOfDay
 };
 
 /**
+ * Weather (WP-16a design section 12). Rule says whether the fields below are there: WeatherRuleNone (0, the default, so
+ * a save from before WP-16a reads 0) = no weather saved, the restore keeps the current weather; WeatherRuleV1 (1) = the
+ * fields hold the weather target, its mode and the surface. State is a name ("clear" | "overcast" | "rain"), not the
+ * enum value, so the save format does not depend on EGolmokWeather's order; an unknown name restores as clear. Added
+ * fields default when missing: save schema stays 1.
+ */
+USTRUCT(BlueprintType)
+struct GOLMOK_API FGolmokSaveWeather
+{
+	GENERATED_BODY()
+
+	/** UGolmokSaveGame::WeatherRuleNone / WeatherRuleV1 (CharacterIdRule precedent). */
+	UPROPERTY(SaveGame, VisibleAnywhere, BlueprintReadOnly, Category = "Golmok|Save")
+	int32 Rule = 0;
+
+	/** UGolmokWeatherSubsystem::WeatherName of the target. */
+	UPROPERTY(SaveGame, VisibleAnywhere, BlueprintReadOnly, Category = "Golmok|Save")
+	FString State;
+
+	/** Rain intensity [0.05, 1] (clamped on restore); 0 for clear / overcast. */
+	UPROPERTY(SaveGame, VisibleAnywhere, BlueprintReadOnly, Category = "Golmok|Save")
+	float Intensity = 0.f;
+
+	/** EGolmokWeatherMode as uint8: 0 Fixed (default), 1 Schedule; anything else restores as Fixed. */
+	UPROPERTY(SaveGame, VisibleAnywhere, BlueprintReadOnly, Category = "Golmok|Save")
+	uint8 Mode = 0;
+
+	/** Surface wetness / puddle amount 0..1 (MPC_GolmokWeather), restored as they were (puddle <= wetness). */
+	UPROPERTY(SaveGame, VisibleAnywhere, BlueprintReadOnly, Category = "Golmok|Save")
+	float Wetness = 0.f;
+
+	UPROPERTY(SaveGame, VisibleAnywhere, BlueprintReadOnly, Category = "Golmok|Save")
+	float Puddle = 0.f;
+};
+
+/**
  * The one automatic save (WP-15a, D-017; docs/plan/WP-15-zone-travel-save.md §3), slot "golmok_auto", user index 0.
  * Game coordinates only: the position is WGS84 lat / lon / ellipsoidal height of the player in the game world plus
  * an ENU heading. No UE coordinates (they change with the level origin), no real-world location, no personal data.
@@ -61,6 +97,9 @@ public:
 	/** CharacterIdRule values (R91-1): 0 = written before the rule (any current id), 1 = explicit selections only. */
 	static constexpr int32 CharacterIdRuleLegacy = 0;
 	static constexpr int32 CharacterIdRuleExplicit = 1;
+	/** FGolmokSaveWeather::Rule values (WP-16a): 0 = no weather in the save (before WP-16a, or the weather was off), 1 = saved. */
+	static constexpr int32 WeatherRuleNone = 0;
+	static constexpr int32 WeatherRuleV1 = 1;
 
 	UPROPERTY(SaveGame, VisibleAnywhere, BlueprintReadOnly, Category = "Golmok|Save")
 	int32 SaveSchemaVersion = CurrentSchemaVersion;
@@ -92,6 +131,10 @@ public:
 
 	UPROPERTY(SaveGame, VisibleAnywhere, BlueprintReadOnly, Category = "Golmok|Save")
 	FGolmokSaveTimeOfDay TimeOfDay;
+
+	/** WP-16a weather; restored after the time of day (a Schedule mode reads the restored clock). */
+	UPROPERTY(SaveGame, VisibleAnywhere, BlueprintReadOnly, Category = "Golmok|Save")
+	FGolmokSaveWeather Weather;
 
 	UPROPERTY(SaveGame, VisibleAnywhere, BlueprintReadOnly, Category = "Golmok|Save")
 	TArray<FGolmokSaveVisit> Visited;

@@ -75,7 +75,7 @@ git pull
                            [Info] the clock rolled over between the marker and the second shot; _2 suffix not asserted   (초 경계에 걸리면 1회 — 무해)
   ```
   EnterExit의 로그에는 사전 정지 종료 뒤 `photo: world still paused; camera-moveable-when-paused flag kept true until the unpause`와 정지 해제 뒤 `photo: camera-moveable-when-paused flag restored after the unpause (false)`가 한 번씩 찍힌다(§12 #67). MetaJson의 로그에는 `photo: screenshot requested via HighResShot -> <Saved>/Screenshots/Golmok/photo/<stamp>00000.png (no viewport size; written on the next frame)`와 `photo: capture window closed (<stamp>.png timeout 3.0 s, png absent)`가 찍힌다(nullrhi 폴백 — 정상). 테스트가 만든 `<stamp>.json`·`_2.json`은 소멸자가 지운다(남아 있으면 §13에).
-- [ ] 두 번째 명령: **36개** 전부 `Success` = WP-09까지 16개(`Golmok.Player.Movement`, `Lighting.PresetsFile/PresetApply`, `Debug.StatsMath/PathFormat/PathRoundTrip/HudStats`, `Portal.SpawnFromManifest/RoundTrip/PawnSwap/SharedInterior`, `Zone.IndexParse/IndexDiscover/AsyncLoad/AsyncCancel/InteriorNotBlocked`) + WP-18 병합분 7개(`Golmok.Character.Config/Runtime/PortalRoundTrip` — `Tests/GolmokCharacterRosterTest.cpp`·`GolmokCharacterRosterPortalTest.cpp`; PR #24 `Character.PathRoundTrip/Locomotion/PhotoIntegration/RenderEvidence` — `GolmokCharacterRoster{Path,Movement,Photo,Render}Test.cpp`. `PhotoIntegration`은 Photo가 있는 이 빌드에서 실제 6조합(proxy135/proxy110/Quinn × GamePause/TimeDilation)을 돌리고, `RenderEvidence`는 명시적 실행 옵션 없이는 설계상 `NOT EXECUTED` Warning 1개로 끝난다 — 둘 다 상태 열은 `Success`) + WP-13 2개(`Audio.StateMachine/Footstep` — `Tests/GolmokAudioTest.cpp`) + WP-14a 1개(`Lighting.Clock` — `Tests/GolmokLightingTest.cpp`, 런북 `pc-verify-wp14a.md`) + WP-15a 3개(`Zone.ManifestV2` — `Tests/GolmokZoneManifestV2Test.cpp`; `Travel.Teleport`, `Save.RoundTrip` — `Tests/GolmokTravelSaveTest.cpp`, L_ZoneTest가 없으면 skip Info) + WP-19a 4개(`Animation.Config/StateProvider/Fallback/GaspSmoke` — `Tests/GolmokAnimationTest.cpp`, 런북 `pc-verify-wp19.md`; GASP가 없으면 `GaspSmoke`는 Info `GASP not installed — skipped`로 `Success`) + 위 3개. 현재 코드 기준 헤드리스 자동화 36개(Photo 3 + 기존 33); 아래 §13의 26개는 V-09 PC 실행 당시 이력이다. `test.ps1` 요약 줄 `Succeeded:`는 Warning이 있는 테스트를 따로 세므로(V-03) 상태 열이 전부 `Success`인지로 본다.
+- [ ] 두 번째 명령: **39개** 전부 `Success` = WP-09까지 16개(`Golmok.Player.Movement`, `Lighting.PresetsFile/PresetApply`, `Debug.StatsMath/PathFormat/PathRoundTrip/HudStats`, `Portal.SpawnFromManifest/RoundTrip/PawnSwap/SharedInterior`, `Zone.IndexParse/IndexDiscover/AsyncLoad/AsyncCancel/InteriorNotBlocked`) + WP-18 병합분 7개(`Golmok.Character.Config/Runtime/PortalRoundTrip` — `Tests/GolmokCharacterRosterTest.cpp`·`GolmokCharacterRosterPortalTest.cpp`; PR #24 `Character.PathRoundTrip/Locomotion/PhotoIntegration/RenderEvidence` — `GolmokCharacterRoster{Path,Movement,Photo,Render}Test.cpp`. `PhotoIntegration`은 Photo가 있는 이 빌드에서 실제 6조합(proxy135/proxy110/Quinn × GamePause/TimeDilation)을 돌리고, `RenderEvidence`는 명시적 실행 옵션 없이는 설계상 `NOT EXECUTED` Warning 1개로 끝난다 — 둘 다 상태 열은 `Success`) + WP-13 2개(`Audio.StateMachine/Footstep` — `Tests/GolmokAudioTest.cpp`) + WP-14a 1개(`Lighting.Clock` — `Tests/GolmokLightingTest.cpp`, 런북 `pc-verify-wp14a.md`) + WP-15a 3개(`Zone.ManifestV2` — `Tests/GolmokZoneManifestV2Test.cpp`; `Travel.Teleport`, `Save.RoundTrip` — `Tests/GolmokTravelSaveTest.cpp`, L_ZoneTest가 없으면 skip Info) + WP-19a 4개(`Animation.Config/StateProvider/Fallback/GaspSmoke` — `Tests/GolmokAnimationTest.cpp`, 런북 `pc-verify-wp19.md`; GASP가 없으면 `GaspSmoke`는 Info `GASP not installed — skipped`로 `Success`) + WP-16a 3개(`Weather.Config/Lighting/Runtime` — `Tests/GolmokWeatherTest.cpp`, 런북 `pc-verify-wp16a.md`; MPC·NS 에셋이 없으면 해당 단계만 skip Info) + 위 3개. 현재 코드 기준 헤드리스 자동화 39개(Photo 3 + 기존 36); 아래 §13의 26개는 V-09 PC 실행 당시 이력이다. `test.ps1` 요약 줄 `Succeeded:`는 Warning이 있는 테스트를 따로 세므로(V-03) 상태 열이 전부 `Success`인지로 본다.
 - [ ] `Golmok.log`에 `photo:` 접두 `[Error]` 0건(`photo: ERROR cannot write meta …`·`photo: ERROR screenshot request failed: …`·`photo: config not loaded from …`가 없어야 한다). 실패한 테스트는 `unreal\Golmok\Saved\Logs\Golmok.log`의 `[Error]` 줄을 §13에 옮겨 적는다.
 
 ## 2. 진입/복원(`L_ZoneTest`, zone 안)
@@ -225,12 +225,13 @@ Space(또는 Enter, 콘솔 `golmok.photo.shoot`). 순서: 같은 틱 `State = Sh
   ```
   saved <stamp>.png (2x)
   ```
-- [ ] `<stamp>.json` — 키 15개, 순서·형식은 `FormatPhotoMetaJson`(한 필드 한 줄, 2칸 들여쓰기, 끝 `\n`; `Golmok.Photo.MetaJson`이 바이트 대조하는 예):
+- [ ] `<stamp>.json` — 키 16개(WP-16a부터 `preset` 다음 `weather`), 순서·형식은 `FormatPhotoMetaJson`(한 필드 한 줄, 2칸 들여쓰기, 끝 `\n`; `Golmok.Photo.MetaJson`이 바이트 대조하는 예):
   ```
   {
     "version": 1,
     "time_utc": "2026-09-25T10:11:12Z",
     "preset": "overcast_morning",
+    "weather": {"state": "clear", "intensity": 0.00},
     "zone_id": "z_synthetic_001",
     "zone_version": 1,
     "lon": 126.9250123,
@@ -245,7 +246,7 @@ Space(또는 Enter, 콘솔 `golmok.photo.shoot`). 순서: 같은 틱 `State = Sh
     "character_hidden": false
   }
   ```
-  대조: `time_utc` = 촬영 UTC(`FDateTime::UtcNow()`), `preset` = HUD `tod:`의 현재 프리셋(`None`이면 `null`), `zone_id`/`zone_version` = 오버레이 1행(없으면 둘 다 `null`), `lon`/`lat` ≈ HUD `pos … lat … lon …`(캐릭터가 아니라 **카메라 폰** 위치라 반경 3 m 안에서 다름; GeoOrigin 없으면 셋 다 `null`), `ue_location` = 폰 위치 2자리, `rotation` = 카메라 컴포넌트 월드 회전(`[pitch, yaw, roll]`, 롤을 줬으면 세 번째 값 — §12 #44), `fov` 1자리, `exposure_ev` 2자리(상대 EV), `dof.enabled` = F 상태, `multiplier` = **실효 배율**, `character_hidden` = H 상태.
+  대조: `time_utc` = 촬영 UTC(`FDateTime::UtcNow()`), `preset` = HUD `tod:`의 현재 프리셋(`None`이면 `null`), `weather` = `golmok.weather status`의 목표(날씨 꺼짐이면 `null`; WP-16a), `zone_id`/`zone_version` = 오버레이 1행(없으면 둘 다 `null`), `lon`/`lat` ≈ HUD `pos … lat … lon …`(캐릭터가 아니라 **카메라 폰** 위치라 반경 3 m 안에서 다름; GeoOrigin 없으면 셋 다 `null`), `ue_location` = 폰 위치 2자리, `rotation` = 카메라 컴포넌트 월드 회전(`[pitch, yaw, roll]`, 롤을 줬으면 세 번째 값 — §12 #44), `fov` 1자리, `exposure_ev` 2자리(상대 EV), `dof.enabled` = F 상태, `multiplier` = **실효 배율**, `character_hidden` = H 상태.
 - [ ] 같은 초에 두 번(Space 연타는 `capture in progress`로 막히므로 창이 닫히자마자 다시): 두 번째 스템 `<stamp>_2`(`.json`/`.png` 존재 검사).
 - [ ] 캡처 창 중 거부(콘솔만 메시지, 키는 조용히):
   ```

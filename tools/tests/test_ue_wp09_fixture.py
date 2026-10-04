@@ -97,11 +97,13 @@ CONSOLE_COMMANDS = {
     "golmok.save",  # [WP-15 hook]
     "golmok.load",  # [WP-15 hook]
     "golmok.anim",  # [WP-19 hook]
+    "golmok.weather",  # [WP-16 hook]
 }
 
 # Golmok.Build.cs as WP-05 left it (PC fix e446504): no new module for WP-09 (StreamableManager is in Engine).
 BUILD_CS_PUBLIC = {"Core", "CoreUObject", "Engine", "InputCore", "EnhancedInput", "Json", "JsonUtilities"}
 BUILD_CS_PRIVATE = {"RHI", "RenderCore"}
+BUILD_CS_PRIVATE |= {"Niagara"}  # [WP-16 hook] rain particles
 BUILD_CS_EDITOR = {"UnrealEd"}
 
 

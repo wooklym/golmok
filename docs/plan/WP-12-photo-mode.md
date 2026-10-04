@@ -144,6 +144,7 @@
   "version": 1,
   "time_utc": "2026-09-25T10:11:12Z",
   "preset": "overcast_morning",
+  "weather": {"state": "rain", "intensity": 0.60},
   "zone_id": "z_synthetic_001",
   "zone_version": 1,
   "lon": 126.9250123,
@@ -158,7 +159,7 @@
   "character_hidden": false
 }
 ```
-null 예: `"preset": null,` · `"zone_id": null,\n  "zone_version": null,` · `"lon": null,\n  "lat": null,\n  "height_m": null,`. Python 왕복 계약은 WP-05 경로 JSON과 같이 두 단계: 이 예제는 **바이트 동일**, 임의 입력은 `json.loads` 뒤 값 동일(1e-6)·키 순서 동일(`list(d)`).
+WP-16a(2026-10-04)부터 `preset` 다음에 `weather`(목표 상태·강도, 날씨 꺼짐이면 `null`)가 들어가 키는 16개다(`version` 1 유지). null 예: `"preset": null,` · `"zone_id": null,\n  "zone_version": null,` · `"lon": null,\n  "lat": null,\n  "height_m": null,`. Python 왕복 계약은 WP-05 경로 JSON과 같이 두 단계: 이 예제는 **바이트 동일**, 임의 입력은 `json.loads` 뒤 값 동일(1e-6)·키 순서 동일(`list(d)`).
 
 #### 2-3 상태 문자열
 `golmok.photo`(전이 때마다·인자 없이 토글) 로그 `golmok.photo: <메시지>`, 오류는 `ERROR ` 접두(Debug 규약). 메시지(런북이 대조): `photo mode on (fov 80.0, zone z_synthetic_001 v1, paused)` / `photo mode on (fov 80.0, no zone, already paused)` / `photo mode off (restored, unpaused, tod shift 0.000 s)` / `ERROR cannot enter: not in a game world` · `already active` · `cannot enter while a path is playing (golmok.path stopplay first)` · `cannot enter while recording '<name>'` · `photo.json: <error>` · `no player controller / pawn` · `pause refused` / `ERROR not active` / `ERROR capture in progress` / `ERROR cannot write meta <path>`. `golmok.photo.shoot` 성공: `shooting -> <dir>/<stem>.png (2x, meta <stem>.json)`; 캡처 종료 로그 `photo: capture window closed (<stem>.png present after 0.31 s)` / `(… timeout 3.0 s, png absent)`. `Describe()`가 오버레이 1~2줄과 같은 문자열을 만든다.

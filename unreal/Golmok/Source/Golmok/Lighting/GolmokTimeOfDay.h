@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
+#include "Weather/GolmokWeatherMath.h"
 #include "GolmokTimeOfDay.generated.h"
 
 class APostProcessVolume;
@@ -267,6 +268,19 @@ public:
 	static const TCHAR* ClockModeName(EGolmokClockMode Mode);
 	static bool ParseClockMode(const FString& Text, EGolmokClockMode& Out);
 
+	// ---- WP-16a weather -------------------------------------------------------------------------------------
+
+	/**
+	 * Design 5-4: the weather's lighting modifier, applied after the base and before the interior overlay
+	 * (ComposeTarget). Before BeginPlay it is only stored; a running transition heads for the new target; a running
+	 * clock picks it up on its next tick; otherwise it is written at once. bSettled = last write of a weather change
+	 * (visibility / volumetric / sky recapture happen then); false while the weather is still moving.
+	 */
+	void SetWeatherModifier(const GolmokWeatherMath::Modifier& M, bool bSettled);
+
+	/** Identity (clear) until UGolmokWeatherSubsystem sets one. */
+	const GolmokWeatherMath::Modifier& GetWeatherModifier() const { return WeatherModifier; }
+
 	virtual void Tick(float DeltaSeconds) override;
 
 protected:
@@ -298,6 +312,8 @@ private:
 	void StoreMinutes(double Minutes);
 	/** SetTimeOfDay without the Realtime -> Fixed fallback (the clock's own jumps: mode switch, re-sync, BeginPlay). */
 	bool JumpTo(double Minutes, bool bInstant);
+	/** WP-16a: S with WeatherModifier applied (GolmokWeatherMath::Apply on the fields it has); S unchanged for the identity. */
+	FGolmokLightingState ApplyWeather(const FGolmokLightingState& S) const;
 
 	TArray<FGolmokLightingPreset> Presets;
 	TArray<FName> Cycle;
@@ -333,6 +349,8 @@ private:
 	TWeakObjectPtr<USkyLightComponent> Sky;
 	TWeakObjectPtr<UExponentialHeightFogComponent> Fog;
 	TWeakObjectPtr<APostProcessVolume> PostProcess;
+	/** WP-16a: weather lighting modifier (identity = clear, the WP-05 / WP-14a behavior). */
+	GolmokWeatherMath::Modifier WeatherModifier;
 	// [WP-13 hook] Public subscription API; no subscriber means no behavior change.
 public:
 	FGolmokOnPresetChanged OnPresetChanged;

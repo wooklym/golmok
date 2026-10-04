@@ -159,6 +159,7 @@ private:
 		uint8 TodMode = 0;       // EGolmokClockMode as uint8
 		FString CharacterId;     // explicit WP-18 selection or UnappliedCharacterId (R91-1); empty = automatic / unknown
 		int32 CharacterIdRule = UGolmokSaveGame::CharacterIdRuleExplicit; // the slot's own rule only while HoldSlotPosition passes its id through
+		FGolmokSaveWeather Weather; // WP-16a: rule 1 from UGolmokWeatherSubsystem; rule 0 = weather off / none (the slot's own while held)
 		FVector LocationUE = FVector::ZeroVector;
 		double YawUE = 0.0;
 	};
@@ -180,6 +181,10 @@ private:
 	void UnbindViewportClose();
 	void OnAsyncSaved(const FString& InSlotName, const int32 InUserIndex, bool bSuccess);
 	void MarkDirty() { bDirty = true; }
+	/** WP-16a: a weather target change makes the next periodic autosave write (not while Restore applies the saved weather). */
+	void OnWeatherChanged();
+	/** Applies the slot's weather (WP-16a design section 12) after the time of day; returns ", weather ..." for the restore message. */
+	FString RestoreWeather(const FGolmokSaveWeather& Saved);
 
 	TWeakObjectPtr<UWorld> ActiveWorld;
 	FTimerHandle VisitTimer;
@@ -190,6 +195,8 @@ private:
 	FDelegateHandle TearDownHandle;
 	TWeakObjectPtr<UGameViewportClient> CloseViewport; // the active world's game viewport (OnCloseRequested bound)
 	FDelegateHandle ViewportCloseHandle;
+	FDelegateHandle WeatherHandle; // UGolmokWeatherSubsystem::OnWeatherChanged of ActiveWorld (WP-16a)
+	bool bRestoringWeather = false; // Restore is applying the saved weather: its own OnWeatherChanged is no change to save
 
 	TArray<FGolmokSaveVisit> Visited;
 	TArray<FString> Photos;

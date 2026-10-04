@@ -34,6 +34,7 @@
 #include "Player/GolmokPlayerController.h"
 #include "Serialization/JsonReader.h"
 #include "Serialization/JsonSerializer.h"
+#include "Weather/GolmokWeatherSubsystem.h"
 #include "Zones/GolmokZone.h"
 #include "Zones/GolmokZoneSubsystem.h"
 
@@ -1613,6 +1614,15 @@ GolmokPhotoMath::PhotoMeta UGolmokPhotoModeSubsystem::BuildMeta(int32 InMultipli
 	if (M.bHasPreset)
 	{
 		M.Preset = PhotoToUtf8(Tod->CurrentPreset.ToString());
+	}
+
+	// WP-16a design section 10: the weather target (frozen while photo mode is active); null without the subsystem / weather off.
+	const UGolmokWeatherSubsystem* Weather = UGolmokWeatherSubsystem::Get(GetWorld());
+	M.bHasWeather = Weather && Weather->IsEnabled();
+	if (M.bHasWeather)
+	{
+		M.WeatherState = PhotoToUtf8(FString(UGolmokWeatherSubsystem::WeatherName(Weather->GetTargetWeather())));
+		M.WeatherIntensity = Weather->GetTargetIntensity();
 	}
 
 	M.bHasZone = !FootprintZoneId.IsEmpty();

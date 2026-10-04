@@ -30,7 +30,8 @@
 //   kslide     minh m sx sy sz nx ny nz ..               one "flag x y z" line per case (KeepHeightSlide(slide, normal,
 //                                                        minh); flag 1 = the into part was removed, 0 = flattened only)
 //   meta       key=value lines                           FormatPhotoMetaJson text as is. Keys: version time_utc
-//                                                        preset (or "preset=-" -> null) zone_id zone_version
+//                                                        preset (or "preset=-" -> null) weather_state
+//                                                        weather_intensity ("weather=-" -> null) zone_id zone_version
 //                                                        ("zone=-" -> both null) lon lat height_m ("geo=-" -> all
 //                                                        null) ue_location ("x y z") rotation ("p y r") fov
 //                                                        exposure_ev dof_enabled (0/1) focal_m fstop multiplier
@@ -241,6 +242,21 @@ namespace
 			{
 				M.bHasPreset = (Value != "-");
 				M.Preset = M.bHasPreset ? Value : std::string();
+			}
+			else if (Key == "weather")
+			{
+				bOk = (Value == "-");
+				M.bHasWeather = false;
+			}
+			else if (Key == "weather_state")
+			{
+				M.bHasWeather = true;
+				M.WeatherState = Value;
+			}
+			else if (Key == "weather_intensity")
+			{
+				bOk = ParseDouble(Value, M.WeatherIntensity);
+				M.bHasWeather = true;
 			}
 			else if (Key == "zone")
 			{

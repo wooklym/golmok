@@ -67,6 +67,7 @@ META_KEYS = [
     "version",
     "time_utc",
     "preset",
+    "weather",  # WP-16a design §10 (version stays 1)
     "zone_id",
     "zone_version",
     "lon",
@@ -81,11 +82,13 @@ META_KEYS = [
     "character_hidden",
 ]
 DOF_KEYS = ["enabled", "focal_m", "fstop"]
+WEATHER_KEYS = ["state", "intensity"]
 # design §2-2: the exact file layout
 EXAMPLE_META = {
     "version": 1,
     "time_utc": "2026-09-25T10:11:12Z",
     "preset": "overcast_morning",
+    "weather": {"state": "rain", "intensity": 0.6},
     "zone_id": "z_synthetic_001",
     "zone_version": 1,
     "lon": 126.9250123,
@@ -104,6 +107,7 @@ EXAMPLE_JSON = (
     '  "version": 1,\n'
     '  "time_utc": "2026-09-25T10:11:12Z",\n'
     '  "preset": "overcast_morning",\n'
+    '  "weather": {"state": "rain", "intensity": 0.60},\n'
     '  "zone_id": "z_synthetic_001",\n'
     '  "zone_version": 1,\n'
     '  "lon": 126.9250123,\n'
@@ -1146,6 +1150,11 @@ def test_constrain_combines_sphere_and_polygon(driver):
 def meta_lines(m: dict) -> str:
     lines = [f"version={m['version']}", f"time_utc={m['time_utc']}"]
     lines.append("preset=-" if m["preset"] is None else f"preset={m['preset']}")
+    if m["weather"] is None:
+        lines.append("weather=-")
+    else:
+        weather = m["weather"]
+        lines += [f"weather_state={weather['state']}", f"weather_intensity={weather['intensity']!r}"]
     if m["zone_id"] is None:
         lines.append("zone=-")
     else:
@@ -1182,6 +1191,9 @@ def assert_meta_layout(text: str) -> dict:
     assert re.search(r"-0\.0+(?![0-9])", text) is None, text  # never "-0.00": FormatFixed drops the sign
     d = json.loads(text)
     assert list(d) == META_KEYS and list(d["dof"]) == DOF_KEYS
+    assert d["weather"] is None or list(d["weather"]) == WEATHER_KEYS
+    weather_line = r'^  "weather": (null|\{"state": "(?:[^"\\]|\\.)*", "intensity": -?\d+\.\d\d\}),$'
+    assert re.search(weather_line, text, re.M), text
     assert re.search(r'^  "fov": -?\d+\.\d,$', text, re.M), text
     assert re.search(r'^  "exposure_ev": -?\d+\.\d\d,$', text, re.M), text
     assert re.search(
@@ -1199,12 +1211,14 @@ def test_meta_reproduces_the_design_example_byte_for_byte(driver):
 
 
 def test_meta_null_groups(driver):
-    for has_preset in (False, True):
+    for has_preset, has_weather in ((False, False), (False, True), (True, False), (True, True)):
         for has_zone in (False, True):
             for has_geo in (False, True):
                 m = dict(EXAMPLE_META)
                 if not has_preset:
                     m["preset"] = None
+                if not has_weather:
+                    m["weather"] = None
                 if not has_zone:
                     m["zone_id"] = None
                     m["zone_version"] = None
@@ -1212,13 +1226,42 @@ def test_meta_null_groups(driver):
                     m["lon"] = m["lat"] = m["height_m"] = None
                 text = meta(driver, m)
                 d = assert_meta_layout(text)
-                assert d == m, (has_preset, has_zone, has_geo)
+                assert d == m, (has_preset, has_weather, has_zone, has_geo)
                 if not has_preset:
                     assert '\n  "preset": null,\n' in text
+                if not has_weather:
+                    assert '\n  "weather": null,\n' in text
                 if not has_zone:
                     assert '\n  "zone_id": null,\n  "zone_version": null,\n' in text
                 if not has_geo:
                     assert '\n  "lon": null,\n  "lat": null,\n  "height_m": null,\n' in text
+
+
+def test_meta_weather_object(driver):
+    # WP-16a design §10: {"state", "intensity"} on one line right after "preset", intensity with 2 decimals
+    # (the HUD / save "rain 0.60" convention); clear / overcast carry 0.00; null without weather.
+    cases = [
+        ({"state": "rain", "intensity": 1.0}, '{"state": "rain", "intensity": 1.00}'),
+        ({"state": "rain", "intensity": 0.05}, '{"state": "rain", "intensity": 0.05}'),
+        ({"state": "rain", "intensity": 0.425}, '{"state": "rain", "intensity": 0.43}'),
+        ({"state": "clear", "intensity": 0.0}, '{"state": "clear", "intensity": 0.00}'),
+        ({"state": "overcast", "intensity": -0.0}, '{"state": "overcast", "intensity": 0.00}'),
+        ({"state": 'sn"ow\\', "intensity": 0.0}, '{"state": "sn\\"ow\\\\", "intensity": 0.00}'),
+        (None, "null"),
+    ]
+    for weather, expected in cases:
+        m = dict(EXAMPLE_META)
+        m["weather"] = weather
+        text = meta(driver, m)
+        d = assert_meta_layout(text)
+        lines = text.split("\n")
+        assert lines[3] == '  "preset": "overcast_morning",', lines[3]
+        assert lines[4] == f'  "weather": {expected},', lines[4]
+        if weather is not None:
+            assert d["weather"]["state"] == weather["state"]
+            expected_intensity = round(weather["intensity"] + 1e-12, 2)  # half away from zero (FormatFixed)
+            assert d["weather"]["intensity"] == pytest.approx(expected_intensity, abs=1e-9)
+        assert d["version"] == 1
 
 
 def test_meta_escapes_strings_like_the_path_json(driver):
@@ -1236,11 +1279,21 @@ def test_meta_escapes_strings_like_the_path_json(driver):
     assert "골목 z_한글" in text and "\\u001f" in text
 
 
+def random_weather(rng: np.random.Generator) -> dict | None:
+    roll = rng.random()
+    if roll < 0.25:
+        return None
+    if roll < 0.5:
+        return {"state": str(rng.choice(["clear", "overcast"])), "intensity": 0.0}
+    return {"state": "rain", "intensity": float(np.round(rng.uniform(0.05, 1.0), 2))}
+
+
 def random_meta(rng: np.random.Generator) -> dict:
     return {
         "version": 1,
         "time_utc": f"2026-{int(rng.integers(1, 13)):02d}-{int(rng.integers(1, 29)):02d}T10:11:12Z",
         "preset": None if rng.random() < 0.3 else str(rng.choice(["overcast_morning", "clear_noon", "dusk"])),
+        "weather": random_weather(rng),
         "zone_id": "z_synthetic_001",
         "zone_version": int(rng.integers(1, 40)),
         "lon": float(np.round(rng.uniform(-180, 180), 7)),
@@ -1266,7 +1319,10 @@ def test_meta_round_trips_random_values(driver):
         m = random_meta(rng)
         d = assert_meta_layout(meta(driver, m))
         for key in META_KEYS:
-            if key == "dof":
+            if key == "weather" and m["weather"] is not None:
+                assert d["weather"]["state"] == m["weather"]["state"]
+                assert d["weather"]["intensity"] == pytest.approx(m["weather"]["intensity"], abs=1e-6)
+            elif key == "dof":
                 assert d["dof"]["enabled"] is m["dof"]["enabled"]
                 assert d["dof"]["focal_m"] == pytest.approx(m["dof"]["focal_m"], abs=1e-6)
                 assert d["dof"]["fstop"] == pytest.approx(m["dof"]["fstop"], abs=1e-6)

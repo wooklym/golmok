@@ -506,6 +506,12 @@ void AGolmokTimeOfDay::BeginPlay()
 	}
 	UpdateNight(); // no broadcast: nothing has subscribed yet
 	UpdateTickEnabled();
+	// WP-16a design 5-4: a modifier set before BeginPlay reaches the level's own lighting too (the preset / clock
+	// paths above already composed it); written once, settled.
+	if (!GolmokWeatherMath::IsIdentity(WeatherModifier))
+	{
+		ApplyState(ComposeTarget(), /*bFinal*/ true);
+	}
 }
 
 void AGolmokTimeOfDay::EndPlay(const EEndPlayReason::Type Reason)
@@ -961,7 +967,8 @@ FGolmokLightingState AGolmokTimeOfDay::ComposeBase() const
 
 FGolmokLightingState AGolmokTimeOfDay::ComposeTarget() const
 {
-	FGolmokLightingState Base = ComposeBase();
+	// WP-16a design 5-3: base -> weather -> interior overlay (IsNight / CurrentPreset look at the base only).
+	FGolmokLightingState Base = ApplyWeather(ComposeBase());
 	if (IsInterior())
 	{
 		FGolmokLightingPreset Overlay;
@@ -971,6 +978,63 @@ FGolmokLightingState AGolmokTimeOfDay::ComposeTarget() const
 		}
 	}
 	return Base;
+}
+
+FGolmokLightingState AGolmokTimeOfDay::ApplyWeather(const FGolmokLightingState& S) const
+{
+	if (GolmokWeatherMath::IsIdentity(WeatherModifier))
+	{
+		return S;
+	}
+	// Field-by-field doubles both ways (no float step), so only what Apply changes differs; sun rotation and
+	// volumetric are not part of GolmokWeatherMath::Light and stay as they are.
+	GolmokWeatherMath::Light In;
+	In.Lux = S.Lux;
+	In.bUseTemperature = S.bUseTemperature;
+	In.Kelvin = S.Kelvin;
+	In.Sky = S.Sky;
+	In.Fog = S.Fog;
+	In.FogHeightFalloff = S.FogHeightFalloff;
+	In.bExposureOverridden = S.bExposureOverridden;
+	In.ExposureBias = S.ExposureBias;
+	const GolmokWeatherMath::Light Out = GolmokWeatherMath::Apply(In, WeatherModifier);
+	FGolmokLightingState R = S;
+	R.Lux = Out.Lux;
+	R.bUseTemperature = Out.bUseTemperature;
+	R.Kelvin = Out.Kelvin;
+	R.Sky = Out.Sky;
+	R.Fog = Out.Fog;
+	R.FogHeightFalloff = Out.FogHeightFalloff;
+	R.bExposureOverridden = Out.bExposureOverridden;
+	R.ExposureBias = Out.ExposureBias;
+	return R;
+}
+
+void AGolmokTimeOfDay::SetWeatherModifier(const GolmokWeatherMath::Modifier& M, bool bSettled)
+{
+	WeatherModifier = M;
+	// Before BeginPlay there is no Initial to compose on; BeginPlay applies the stored modifier at its end.
+	if (!HasActorBegunPlay())
+	{
+		return;
+	}
+	if (bTransitioning)
+	{
+		// The rest of the running transition heads for the new target; its end is the settled write.
+		To = ComposeTarget();
+		return;
+	}
+	if (ClockMode != EGolmokClockMode::Fixed && bBaseFromClock && IsActorTickEnabled())
+	{
+		// The next clock tick writes ApplyClockState(ComposeTarget()); a settled change recaptures a static sky there.
+		if (bSettled)
+		{
+			bRecapturePending = true;
+		}
+		return;
+	}
+	ResolveTargets();
+	ApplyState(ComposeTarget(), /*bFinal*/ bSettled);
 }
 
 FGolmokLightingState AGolmokTimeOfDay::Lerp(const FGolmokLightingState& A, const FGolmokLightingState& B, float Alpha)

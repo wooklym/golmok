@@ -52,6 +52,10 @@ RECORDS (fake.calls, design §5-0; "spawn" gets its label when set_actor_label i
     ("set_current_level", package) (LevelEditorSubsystem.set_current_level_by_name)
     WP-19 (gasp_import): ("migrate", (package, ...), destination_dir) ("rename_directory", old, new)
     ("fixup_referencers", count) ("get_dependencies", package)
+    WP-16a (weather_setup): create_asset(name, folder, unreal.MaterialParameterCollection,
+    MaterialParameterCollectionFactoryNew()) makes a FakeMaterialParameterCollection whose
+    scalar_parameters are unreal.CollectionScalarParameter structs (parameter_name, default_value);
+    get_editor_property returns a copy of that list (a TArray read): only set_editor_property changes it.
 
 KNOBS (install(**cfg) keywords = Fake attributes): obj_mapping=(100.0, M_OBJ) glb_mapping=(100.0, M_GLB)
     obj_routes_ok={"fbx","interchange","legacy_flag"} udim_merge=True texture_vt_default=True
@@ -478,6 +482,9 @@ AssetImportTask = _options("AssetImportTask", {
     "replace_existing_settings": False, "result": list, "save": True,
 })  # fmt: skip
 AssetImportTask.get_objects = lambda self: list(self.result)
+CollectionScalarParameter = _options(  # WP-16a: FCollectionScalarParameter (MPC_GolmokWeather)
+    "CollectionScalarParameter", {"parameter_name": "None", "default_value": 0.0}
+)
 
 
 class FakePlaySettings(FakeOptions):
@@ -641,6 +648,20 @@ class FakeMaterialInstanceConstant(FakeAsset):
 
 class FakeLevel(FakeAsset):
     unreal_name = "World"
+
+
+class FakeMaterialParameterCollection(FakeAsset):
+    """WP-16a: UMaterialParameterCollection; scalar_parameters / vector_parameters read as copies (TArray)."""
+
+    unreal_name = "MaterialParameterCollection"
+
+    def __init__(self, fake, path):
+        super().__init__(fake, path)
+        self.props.update({"scalar_parameters": [], "vector_parameters": []})
+
+    def get_editor_property(self, name):
+        value = super().get_editor_property(name)
+        return [copy.copy(p) for p in value] if name in ("scalar_parameters", "vector_parameters") else value
 
 
 class FakeExpression:
@@ -1848,6 +1869,7 @@ COMPONENT_CLASSES = ("PointLightComponent", "StaticMeshComponent", "DirectionalL
 FbxFactory = _marker("FbxFactory")
 MaterialFactoryNew = _marker("MaterialFactoryNew")
 MaterialInstanceConstantFactoryNew = _marker("MaterialInstanceConstantFactoryNew")
+MaterialParameterCollectionFactoryNew = _marker("MaterialParameterCollectionFactoryNew")  # WP-16a
 
 
 def _static_library(name: str, instance) -> type:
@@ -1891,6 +1913,9 @@ def _names(fake: Fake) -> dict:
         "Material": FakeMaterial, "MaterialInstanceConstant": FakeMaterialInstanceConstant,
         "World": FakeLevel, "MaterialFactoryNew": MaterialFactoryNew, "FbxFactory": FbxFactory,
         "MaterialInstanceConstantFactoryNew": MaterialInstanceConstantFactoryNew,
+        "MaterialParameterCollection": FakeMaterialParameterCollection,  # WP-16a
+        "MaterialParameterCollectionFactoryNew": MaterialParameterCollectionFactoryNew,
+        "CollectionScalarParameter": CollectionScalarParameter,
         "AssetImportTask": AssetImportTask, "FbxImportUI": FbxImportUI, "FBXImportType": FBXImportType,
         "FbxStaticMeshImportData": FbxStaticMeshImportData,
         "InterchangeGenericAssetsPipeline": InterchangeGenericAssetsPipeline,

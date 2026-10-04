@@ -30,6 +30,10 @@ public class Golmok : ModuleRules
 			"RenderCore"
 		});
 
+		// [WP-16 hook] Niagara: rain particles (Weather/GolmokWeatherRainFx.cpp only)
+		PrivateDependencyModuleNames.Add("Niagara");
+		// [/WP-16 hook]
+
 		// Editor-only automation tests (Tests/) start PIE through UnrealEd.
 		if (Target.bBuildEditor)
 		{

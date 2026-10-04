@@ -25,6 +25,8 @@
 #include "Photo/GolmokPhotoModeSubsystem.h"
 #include "TimerManager.h"
 #include "UObject/Package.h"
+#include "Weather/GolmokWeatherMath.h"
+#include "Weather/GolmokWeatherSubsystem.h"
 #include "EngineUtils.h"
 #include "Zones/GolmokZone.h"
 #include "Zones/GolmokZoneSubsystem.h"
@@ -162,6 +164,60 @@ namespace GolmokSavePrivate
 		}
 		return Save.CharacterId.IsEmpty() ? FString(TEXT("-")) : FString::Printf(TEXT("%s (legacy)"), *Save.CharacterId);
 	}
+
+	// ---- weather (WP-16a design section 12; only UGolmokWeatherSubsystem's public API) ----
+
+	/** The saved uint8 back to EGolmokWeatherMode; anything but 1 (Schedule) restores as Fixed. */
+	EGolmokWeatherMode SavedWeatherMode(uint8 Raw)
+	{
+		return Raw == static_cast<uint8>(EGolmokWeatherMode::Schedule) ? EGolmokWeatherMode::Schedule : EGolmokWeatherMode::Fixed;
+	}
+
+	/** "rain 0.60" | "clear" (the weather subsystem's target text). */
+	FString WeatherTargetText(const FString& State, double Intensity)
+	{
+		return State == UGolmokWeatherSubsystem::WeatherName(EGolmokWeather::Rain) ? FString::Printf(TEXT("%s %.2f"), *State, Intensity) : State;
+	}
+
+	/**
+	 * The live weather to save: rule 1 with the target (name + intensity), the mode and the surface; rule 0 (= "keep the
+	 * current weather" on restore) without a weather subsystem or with the weather off (no weather.json).
+	 */
+	FGolmokSaveWeather WeatherToSave(const UWorld& World)
+	{
+		FGolmokSaveWeather Out;
+		const UGolmokWeatherSubsystem* Weather = UGolmokWeatherSubsystem::Get(&World);
+		if (!Weather || !Weather->IsEnabled())
+		{
+			return Out;
+		}
+		Out.Rule = UGolmokSaveGame::WeatherRuleV1;
+		Out.State = UGolmokWeatherSubsystem::WeatherName(Weather->GetTargetWeather());
+		Out.Intensity = Weather->GetTargetIntensity();
+		Out.Mode = static_cast<uint8>(Weather->GetMode());
+		Out.Wetness = Weather->GetWetness();
+		Out.Puddle = Weather->GetPuddleAmount();
+		return Out;
+	}
+
+	/** "rain 0.60 wet 0.42 puddle 0.10 fixed" | "- (not in save)" (rule 0): save log and golmok.save status. */
+	FString DescribeSavedWeather(const FGolmokSaveWeather& Saved)
+	{
+		if (Saved.Rule < UGolmokSaveGame::WeatherRuleV1)
+		{
+			return TEXT("- (not in save)");
+		}
+		return FString::Printf(TEXT("%s wet %.2f puddle %.2f %s"), *WeatherTargetText(Saved.State.IsEmpty() ? FString(TEXT("-")) : Saved.State, Saved.Intensity),
+			Saved.Wetness, Saved.Puddle, UGolmokWeatherSubsystem::ModeName(SavedWeatherMode(Saved.Mode)));
+	}
+
+	/** The weather now, in the DescribeSavedWeather format (+ " (transition)" when a Schedule slot started one). */
+	FString DescribeLiveWeather(const UGolmokWeatherSubsystem& Weather)
+	{
+		return FString::Printf(TEXT("%s wet %.2f puddle %.2f %s%s"),
+			*WeatherTargetText(UGolmokWeatherSubsystem::WeatherName(Weather.GetTargetWeather()), Weather.GetTargetIntensity()), Weather.GetWetness(),
+			Weather.GetPuddleAmount(), UGolmokWeatherSubsystem::ModeName(Weather.GetMode()), Weather.IsTransitioning() ? TEXT(" (transition)") : TEXT(""));
+	}
 } // namespace GolmokSavePrivate
 
 namespace GolmokSaveCharacter
@@ -235,6 +291,10 @@ void UGolmokSaveSubsystem::HandleWorldBeginPlay(UWorld& InWorld)
 	{
 		PhotoHandle = Photo->OnPhotoSaved.AddUObject(this, &UGolmokSaveSubsystem::OnPhotoSaved);
 	}
+	if (UGolmokWeatherSubsystem* Weather = UGolmokWeatherSubsystem::Get(&InWorld))
+	{
+		WeatherHandle = Weather->OnWeatherChanged.AddWeakLambda(this, [this](EGolmokWeather, float, bool) { OnWeatherChanged(); });
+	}
 	UnbindViewportClose();
 	if (UGameViewportClient* Viewport = InWorld.GetGameViewport())
 	{
@@ -303,6 +363,8 @@ void UGolmokSaveSubsystem::HoldSlotPosition(const UGolmokSaveGame& Save)
 		// first pawn snapshot replaces both with the live explicit selection.
 		Snapshot.CharacterId = Save.CharacterId;
 		Snapshot.CharacterIdRule = Save.CharacterIdRule;
+		// The slot's weather passes through with its rule too (a legacy rule 0 stays 0, nothing is invented for it).
+		Snapshot.Weather = Save.Weather;
 	}
 }
 
@@ -341,8 +403,13 @@ void UGolmokSaveSubsystem::HandleWorldEnd(UWorld* InWorld)
 	{
 		Photo->OnPhotoSaved.Remove(PhotoHandle);
 	}
+	if (UGolmokWeatherSubsystem* Weather = UGolmokWeatherSubsystem::Get(InWorld))
+	{
+		Weather->OnWeatherChanged.Remove(WeatherHandle);
+	}
 	TraveledHandle.Reset();
 	PhotoHandle.Reset();
+	WeatherHandle.Reset();
 	UnbindViewportClose();
 	ActiveWorld.Reset();
 }
@@ -450,6 +517,26 @@ bool UGolmokSaveSubsystem::TakeSnapshot(UWorld& InWorld, bool bForce)
 	{
 		S.CharacterId = UnappliedCharacterId;
 	}
+	// WP-16a weather (design section 12): while the begin-play restore is pending the slot's weather is kept, as the character
+	// above (the live weather is still weather.json's initial one); with the weather off the last snapshot's weather is kept
+	// (the slot's when it was held, else rule 0), so a run without weather.json does not overwrite a saved weather with none.
+	if (bRestorePending && Snapshot.bValid)
+	{
+		S.Weather = Snapshot.Weather;
+	}
+	else
+	{
+		S.Weather = GolmokSavePrivate::WeatherToSave(InWorld);
+		if (S.Weather.Rule < UGolmokSaveGame::WeatherRuleV1)
+		{
+			S.Weather = Snapshot.Weather;
+		}
+		else if (Snapshot.bValid && Snapshot.Weather.Rule >= UGolmokSaveGame::WeatherRuleV1 && Snapshot.Weather.Mode != S.Weather.Mode && !bRestoringWeather)
+		{
+			// golmok.weather mode fixed|schedule without a target change fires no OnWeatherChanged; the mode is a saved field.
+			MarkDirty();
+		}
+	}
 	if (bHoldSlotPosition)
 	{
 		if (!bHoldAnchorSet)
@@ -513,6 +600,7 @@ UGolmokSaveGame* UGolmokSaveSubsystem::BuildSaveObject()
 	Out->Photos = Photos;
 	Out->CharacterId = Snapshot.CharacterId;
 	Out->CharacterIdRule = Snapshot.CharacterIdRule;
+	Out->Weather = Snapshot.Weather;
 	if (const UWorld* World = ActiveWorld.Get())
 	{
 		Out->LevelName = LevelNameOf(*World);
@@ -600,9 +688,9 @@ bool UGolmokSaveSubsystem::SaveNow(bool bSync, const TCHAR* Reason, FString* Out
 			FAsyncSaveGameToSlotDelegate::CreateUObject(this, &UGolmokSaveSubsystem::OnAsyncSaved));
 		Message = FString::Printf(TEXT("saving %s (async, %s)"), *SlotName, Reason);
 	}
-	UE_LOG(LogGolmok, Log, TEXT("GolmokSave: %s: zone %s, visited %d, photos %d, position %s, tod %s"), *Message,
+	UE_LOG(LogGolmok, Log, TEXT("GolmokSave: %s: zone %s, visited %d, photos %d, position %s, tod %s, weather %s"), *Message,
 		Save->ZoneId.IsEmpty() ? TEXT("-") : *Save->ZoneId, Save->Visited.Num(), Save->Photos.Num(), Save->bHasPosition ? TEXT("yes") : TEXT("no"),
-		*GolmokSavePrivate::DescribeSavedTod(Save->TimeOfDay));
+		*GolmokSavePrivate::DescribeSavedTod(Save->TimeOfDay), *GolmokSavePrivate::DescribeSavedWeather(Save->Weather));
 	LastMessage = Message;
 	if (OutMessage)
 	{
@@ -711,6 +799,16 @@ void UGolmokSaveSubsystem::OnTraveled(const FString& ZoneId)
 void UGolmokSaveSubsystem::OnPhotoSaved(const FString& RelativePath)
 {
 	NotePhoto(RelativePath);
+}
+
+void UGolmokSaveSubsystem::OnWeatherChanged()
+{
+	// WP-16a design section 12: no save trigger of its own; the periodic autosave carries the new target. Wetness / puddle
+	// drifting alone is no change (it rides along with the next write).
+	if (!bRestoringWeather)
+	{
+		MarkDirty();
+	}
 }
 
 void UGolmokSaveSubsystem::OnVisitPoll()
@@ -899,6 +997,7 @@ bool UGolmokSaveSubsystem::Restore(FString& OutMessage)
 			Extras += GolmokSavePrivate::RestoreTimeOfDay(*Tod, Save->TimeOfDay);
 		}
 	}
+	Extras += RestoreWeather(Save->Weather); // after the time of day: a Schedule mode reads the restored clock
 	UnappliedCharacterId.Reset();
 	if (!Save->CharacterId.IsEmpty())
 	{
@@ -935,6 +1034,63 @@ bool UGolmokSaveSubsystem::Restore(FString& OutMessage)
 		MarkDirty();
 	}
 	return bOk;
+}
+
+FString UGolmokSaveSubsystem::RestoreWeather(const FGolmokSaveWeather& Saved)
+{
+	// WP-16a design section 12. Rule 0 (a save from before WP-16a, or written with the weather off): the current weather
+	// (weather.json initial) stays. Rule 1: SetMode(Fixed) first (a Schedule mode would pick its own slot), the saved target
+	// instantly, the saved surface, then a saved Schedule mode, whose next tick starts a normal transition when the restored
+	// clock is in another slot ("the weather changed while you were away"). An unknown state name restores as clear, a mode
+	// other than 0 / 1 as Fixed, a rain intensity outside [0.05, 1] (a hand-edited or damaged save) is clamped into it and a
+	// non-finite one becomes weather.json's moderate level; non-finite surface values become 0. The saved target is no change
+	// to save (bRestoringWeather); a Schedule slot that differs is (OnWeatherChanged marks dirty as usual).
+	if (Saved.Rule < UGolmokSaveGame::WeatherRuleV1)
+	{
+		return TEXT(", weather - (not in save)");
+	}
+	UGolmokWeatherSubsystem* Weather = UGolmokWeatherSubsystem::Get(ActiveWorld.Get());
+	if (!Weather || !Weather->IsEnabled())
+	{
+		const FString Why = Weather ? FString::Printf(TEXT("weather off - %s"), *Weather->GetConfigError()) : FString(TEXT("no weather subsystem"));
+		return FString::Printf(TEXT(", weather %s (not applied: %s)"), *GolmokSavePrivate::DescribeSavedWeather(Saved), *Why);
+	}
+	FString Note;
+	EGolmokWeather State = EGolmokWeather::Clear;
+	if (!UGolmokWeatherSubsystem::ParseWeather(Saved.State, State))
+	{
+		State = EGolmokWeather::Clear;
+		Note += FString::Printf(TEXT(" (unknown weather '%s')"), *Saved.State);
+	}
+	float Intensity = 0.f;
+	if (State == EGolmokWeather::Rain)
+	{
+		const float Min = static_cast<float>(GolmokWeatherMath::MinRainIntensity);
+		const float Max = static_cast<float>(GolmokWeatherMath::MaxRainIntensity);
+		Intensity = FMath::IsFinite(Saved.Intensity) ? FMath::Clamp(Saved.Intensity, Min, Max) : static_cast<float>(Weather->GetConfig().RainModerate);
+		if (Intensity != Saved.Intensity)
+		{
+			Note += FString::Printf(TEXT(" (saved intensity %g -> %.2f)"), Saved.Intensity, Intensity);
+		}
+	}
+	const float Wetness = FMath::IsFinite(Saved.Wetness) ? Saved.Wetness : 0.f;
+	const float Puddle = FMath::IsFinite(Saved.Puddle) ? Saved.Puddle : 0.f;
+	FString Message;
+	bRestoringWeather = true;
+	bool bOk = Weather->SetMode(EGolmokWeatherMode::Fixed, Message) && Weather->SetWeather(State, Intensity, /*bInstant*/ true, Message) &&
+		Weather->SetSurface(Wetness, Puddle, Message);
+	bRestoringWeather = false;
+	if (bOk && GolmokSavePrivate::SavedWeatherMode(Saved.Mode) == EGolmokWeatherMode::Schedule)
+	{
+		bOk = Weather->SetMode(EGolmokWeatherMode::Schedule, Message);
+	}
+	if (!bOk)
+	{
+		// Refused (photo mode active): the message says why; the slot keeps its weather for the next golmok.load.
+		return FString::Printf(TEXT(", weather %s (not applied: %s)"), *GolmokSavePrivate::DescribeSavedWeather(Saved), *Message);
+	}
+	Weather->ResetRainFx(); // no streaks left from the weather before the restore
+	return FString::Printf(TEXT(", weather %s%s"), *GolmokSavePrivate::DescribeLiveWeather(*Weather), *Note);
 }
 
 bool UGolmokSaveSubsystem::ResetSlot(FString& OutMessage)
@@ -981,11 +1137,11 @@ FString UGolmokSaveSubsystem::DescribeStatus() const
 	}
 	if (const UGolmokSaveGame* Save = LoadSlot())
 	{
-		Out += FString::Printf(TEXT("\n  slot: schema %d, saved %s, zone %s v%d, position %s (lat %.7f lon %.7f h %.2f, yaw %.1f), tod %s, character %s, visited %d, photos %d"),
+		Out += FString::Printf(TEXT("\n  slot: schema %d, saved %s, zone %s v%d, position %s (lat %.7f lon %.7f h %.2f, yaw %.1f), tod %s, character %s, visited %d, photos %d, weather %s"),
 			Save->SaveSchemaVersion, *Save->SavedAtUtc, Save->ZoneId.IsEmpty() ? TEXT("-") : *Save->ZoneId, Save->ZoneVersion,
 			Save->bHasPosition ? TEXT("yes") : TEXT("no"), Save->Lat, Save->Lon, Save->HeightEllipsoidal, Save->YawDeg,
 			*GolmokSavePrivate::DescribeSavedTod(Save->TimeOfDay), *GolmokSavePrivate::DescribeSavedCharacter(*Save),
-			Save->Visited.Num(), Save->Photos.Num());
+			Save->Visited.Num(), Save->Photos.Num(), *GolmokSavePrivate::DescribeSavedWeather(Save->Weather));
 	}
 	if (!LastMessage.IsEmpty())
 	{
