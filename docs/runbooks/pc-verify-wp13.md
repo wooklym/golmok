@@ -273,7 +273,7 @@ notify 모드는 첫 이벤트 전부터 거리 스테퍼를 멈춘다. 이벤�
 ## T15 — auto 판정·HUD 재검증 (2026-09-30)
 
 - `golmok.audio`/HUD의 `drv=notify(auto)`·`drv=distance(auto)`는 실제 선택(설정값)이다. 플레이어 발소리 컴포넌트가 없으면 `drv=none(...)`이다. `ev=N`은 현재 컴포넌트가 게임 스레드에서 받은 유효 Step/Land 누적 수이며 driver/pause/photo/possess 필터로 재생하지 않은 이벤트도 포함한다. 재등록으로 초기화하지 않으며 재생 성공/샘플 출력 수가 아니다.
-- 헤드리스 Audio.Footstep은 L_Dev 기본 폰 대신 일반 폰을 직접 생성해 100cm 거리 스텝을 검사한다. GASP native+비GASP ABP의 auto distance, 설치된 테스트 ABP를 scoped animation 계약에 넣은 auto notify 양성·클래스 교체 캐시 갱신·HUD를 검사한다. 테스트 ABP가 없으면 양성만 Info NOT EXECUTED다. 이는 실제 GASP ABP/노티파이 검증이 아니다. 기존 합성 Step/Land는 명시 notify를 사용하며 TimeDilation Photo에서 GamePause 없이도 요청이 억제됨을 검사한다.
+- 헤드리스 Audio.Footstep은 L_Dev 기본 폰 대신 일반 폰을 직접 생성해 100cm 거리 스텝을 검사한다. GASP native+비GASP ABP의 auto distance, 설치된 테스트 ABP를 scoped animation 계약에 넣은 auto notify 양성·클래스 교체 캐시 갱신·재등록 뒤 재평가 1회·HUD를 검사한다. 테스트 ABP가 없으면 양성만 Info NOT EXECUTED다. 이는 실제 GASP ABP/노티파이 검증이 아니다. 기존 합성 Step/Land는 명시 notify를 사용하며 TimeDilation Photo에서 GamePause 없이도 요청이 억제됨을 검사한다.
 - 텔레포트·애니메이션 재초기화 직후 원본이 가짜 Step/Land를 보내면 아직 정상 이벤트와 구별하지 못한다. 게임 스레드 가드는 추가했지만 이 시점 필터는 19b 실제 경로 확인 뒤 판단한다. OnUnregister 거리 스테퍼 초기화(R79-8)는 이번 변경 범위가 아니다.
 - 실제 원본 폴리 차단·발 접지 시점·청취·패키지 출력은 NOT EXECUTED, 19b/V-15 대기다. 전체 UE 게이트 결과는 WP-13 T15 결과 및 PR 코멘트에 기록한다.
 

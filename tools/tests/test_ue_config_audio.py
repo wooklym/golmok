@@ -272,3 +272,60 @@ def test_footstep_driver_keeps_credit_pipeline(value):
     assert audio.attribution(data) == baseline
     del data["footsteps"]["driver"]
     audio.parse_config(data)  # Legacy manifests use auto at runtime.
+
+
+@pytest.mark.parametrize(
+    "path,key",
+    [
+        ((), "photo_mute_fade_seconds"),
+        ((), "footsteps"),
+        (("assets", "asphalt"), "placeholder"),
+        (("assets", "asphalt"), "license_url"),
+        (("ambience",), "outdoor_day"),
+        (("crossfade_seconds_by_state",), "interior"),
+        (("footsteps",), "driver"),
+        (("footsteps",), "stride_cm_by_character"),
+        (("footsteps", "stride_cm_by_character", "manny"), "walk"),
+    ],
+)
+@pytest.mark.parametrize("keep_canonical", [False, True])
+def test_runtime_known_key_alias_rejected(path, key, keep_canonical):
+    data = audio.load_config()
+    data.setdefault("crossfade_seconds_by_state", {})["interior"] = 1
+    data["footsteps"].setdefault("stride_cm_by_character", {})["manny"] = {"walk": 100, "run": 150}
+    obj = data
+    for part in path:
+        obj = obj[part]
+    value = obj.get(key, "auto")
+    if not keep_canonical:
+        obj.pop(key, None)
+    obj[key.upper()] = value
+    field = ".".join((*path, key.upper()))
+    with pytest.raises(ValueError) as error:
+        audio.parse_config(data)
+    assert str(error.value) == f"{field}: expected {key}"
+
+
+def test_alias_validation_preserves_extensions_and_dynamic_ids():
+    data = audio.load_config()
+    data["Extension"] = {"DRIVER": "extension data"}
+    data["assets"]["asphalt"]["Extension"] = True
+    data["footsteps"]["Extension"] = True
+    data["preset_states"]["DRIVER"] = "outdoor_day"
+    data["footsteps"]["sets"]["DRIVER"] = data["footsteps"]["sets"]["default"]
+    data["footsteps"]["stride_cm_by_character"] = {"driver": {"walk": 100, "run": 150}}
+    assert audio.parse_config(data) is data
+
+
+@pytest.mark.parametrize(
+    "pairs",
+    [
+        '"driver":"auto","Driver":"notify"',
+        '"Driver":"notify","driver":"auto"',
+    ],
+)
+def test_python_retains_both_case_distinct_driver_keys(pairs):
+    data = audio.load_config()
+    data["footsteps"].update(json.loads("{" + pairs + "}"))
+    with pytest.raises(ValueError, match=r"footsteps\.Driver: expected driver"):
+        audio.parse_config(data)

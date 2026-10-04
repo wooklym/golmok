@@ -159,7 +159,7 @@ namespace GolmokAudioTest
 			PC->Possess(Original); PC->SetViewTarget(Original);
 			Provider->NotifyFootEvent(EGolmokFootEvent::Step, false);
 			Test->TestEqual(TEXT("old pawn events ignored after possession"), Audio->GetFootstepRequests(), Count);
-			Test->AddInfo(bAutoPositiveExecuted ? TEXT("EXECUTED auto positive cache/class/generation/HUD and ordinary-pawn conjunction") : TEXT("NOT EXECUTED auto-positive cache/class/generation/HUD fixture"));
+			Test->AddInfo(bAutoPositiveExecuted ? TEXT("EXECUTED auto positive cache/class/generation/reregister/HUD and ordinary-pawn conjunction") : TEXT("NOT EXECUTED auto-positive cache/class/generation/HUD fixture"));
 			Test->AddInfo(TEXT("EXECUTED ordinary distance + auto negative; synthetic Step/Land -> one playback request each; no distance duplicate; pause/unregister/possession guards. Audible output and original GASP foley not tested."));
 			return true;
 		}
@@ -437,7 +437,7 @@ bool FGolmokAudioFootstepTest::RunTest(const FString& Parameters)
 		FString Mutated; FJsonSerializer::Serialize(Root.ToSharedRef(), TJsonWriterFactory<>::Create(&Mutated));
 		FGolmokAudioConfig Parsed = Config;
 		TestFalse(FString::Printf(TEXT("isolated %s key alias rejected"), ObjectName), GolmokAudio::ParseConfig(Mutated, Parsed, Error));
-		TestTrue(TEXT("isolated alias names exact object"), Error.Contains(FString(ObjectName) + TEXT(".OUTDOOR_DAY"), ESearchCase::CaseSensitive));
+		TestTrue(FString::Printf(TEXT("isolated %s alias names exact object"), ObjectName), Error.Contains(FString(ObjectName) + TEXT(".OUTDOOR_DAY"), ESearchCase::CaseSensitive));
 	}
 	{
 		TSharedPtr<FJsonObject> Root;
@@ -447,6 +447,11 @@ bool FGolmokAudioFootstepTest::RunTest(const FString& Parameters)
 		TestTrue(TEXT("duplicate driver fixture inserted"), Mutated.ReplaceInline(TEXT("\"walk_stride_cm\":"), TEXT("\"driver\":\"auto\",\"Driver\":\"notify\",\"walk_stride_cm\":"), ESearchCase::CaseSensitive) == 1);
 		FGolmokAudioConfig Parsed = Config;
 		TestFalse(TEXT("case-only duplicate driver keys rejected"), GolmokAudio::ParseConfig(Mutated, Parsed, Error));
+		TestEqual(TEXT("duplicate driver diagnosis"), Error, FString(TEXT("audio.json footsteps.Driver: expected driver")));
+		TestTrue(TEXT("reverse duplicate fixture inserted"), Mutated.ReplaceInline(TEXT("\"driver\":\"auto\",\"Driver\":\"notify\""), TEXT("\"Driver\":\"notify\",\"driver\":\"auto\""), ESearchCase::CaseSensitive) == 1);
+		TestTrue(TEXT("reverse case-only duplicate accepted by UE map"), GolmokAudio::ParseConfig(Mutated, Parsed, Error));
+		TestEqual(TEXT("reverse duplicate retains auto"), Parsed.FootstepDriver, FString(TEXT("auto")));
+
 	}
 	{
 		TSharedPtr<FJsonObject> Root;
