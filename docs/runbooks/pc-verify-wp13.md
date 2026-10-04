@@ -157,7 +157,7 @@ cook 파일만으로 합격시키지 않는다. 컨테이너/stage manifest의 S
 | 소유자 밸런스 | 장치·OS 볼륨·master/상태/발소리 gain JSON 값 | ⏳ **C-08 소유자 청취·최종값 대기**. T8([PR #55](https://github.com/wooklym/golmok/pull/55), 2026-09-29) 임시 적용: master 1.0 / 낮 0.5·밤 0.36·실내 0.30 / 발소리·착지 1.0, 자체 발소리·착지 거리 감쇠 제거(2D). V-10의 이전 측정(master 0.7, 상태 0.25/0.18/0.15, 발소리 0.5·착지 0.6)은 낮 RMS −50.3·밤 −53.9·실내 −55.6, 발소리 피크 −35.8·착지 −34.7 dBFS, OS 52 % 루프백 낮 −60.5 dBFS였다. gain 변경만 계산하면 앰비언스·발소리 약 +9.1 dB(master +3.1, gain ×2 +6.0), 착지 +7.5 dB(×1.67), 착지/발소리 상대 −1.6 dB. 자체 발소리의 감쇠 제거 영향은 별도(붐 간 실측 차 1.6 dB; 선형 falloff 추정 +2.5~4.8 dB, Manny 피크 ≈ −22 dBFS 예상)이므로 새 출력 레벨·clipping 없음은 측정 전 단정하지 않는다. C-07 뒤 같은 장치·OS 볼륨으로 재녹음(§7-1a 도구)·청취한다 |
 | 패키징 | SW7개·audio.json 포함·재생/크레딧 | ✅(발소리 제외) BuildCookRun 성공. 첫 실행은 "Live Coding active"로 실패 → `package.ps1` PC fix 뒤 통과. stage manifest와 `.utoc`에 SW 7개(.uasset+.ubulk), `.pak`에 `Config/Golmok/audio.json`. 패키지 실행: `golmok.audio`·`credits` 출력, `-ExecCmds`로 night·interior 전환, 루프백 낮/밤/실내 −60.5/−64.2/−65.6 dBFS. **패키지 발소리 청취는 미확인**: 05:46부터 떠 있는 Windows 보안 시스템 대화상자가 포커스를 막아 키 입력 불가(§7-4). **V-10b 재시도(2026-10-04, §8-1)**: 새 패키지에서 `golmok.audio`·크레딧·`missing SoundWave` 없음·루프백 재생은 확인, W 발소리 1회는 새 exe 경로의 방화벽 알림 창이 다시 떠 미실행 |
 | 고친 API | 위 번호·변경/재검증 근거 | A1~A9 코드 수정 없음. PC fix는 `tools/ue/package.ps1` 1건(`-ubtargs=-NoHotReloadFromIDE`, Astra 레인 아님)과 이 런북의 cook 확인 명령 정정. Astra 레인 코드·설정·에셋(`Source/Golmok/Audio/`·`audio.json`·`Content/Golmok/Audio/`)은 수정하지 않음. 레인 문서인 이 런북은 PC 세션이 결과 칸(§4·§6)·cook 확인 명령(§5)·§7을 수정(D-019 규칙 2026-09-28: PC 검증 세션은 레인 런북의 결과·확인 절을 고칠 수 있고, 병합 때 양쪽을 살린다) |
-| STATUS 판정 | 통과/부분/차단·남은 항목 | **WP-13 🟢**, V-10 🟢. WP-13 코드 결함 0(도구·런북 결함 2건은 PC fix)이고 기능·전환·클릭·재질·착지·Photo·패키징(앰비언스·크레딧)이 통과. 비차단으로 남은 항목: ① 소유자 볼륨 청취·최종 gain(후보 위), ② 패키지 발소리 1회 청취(보안 대화상자를 소유자가 처리한 뒤), ③ 크로스페이드 1.0/2.0 체감, ④ 실제 음원 교체(결정 필요 ③) 뒤 재청취, ⑤ 미실행(비차단): A1 600 cm 경계·A7 경로 재생 빙의 교체·복수 포털 소스 GUI·Photo 안 사용자 mute+maintain 겹침·StopOldest 실동작(보이스가 8 한도에 닿지 않음), ⑥ T6 #50 런타임 변경(HUD 핸들·ToD 초기화·DoesPackageExist·이름 없는 표면 default)은 헤드리스만 — 다음 PC 카드에서 스모크 |
+| STATUS 판정 | 통과/부분/차단·남은 항목 | **WP-13 🟢**, V-10 🟢. WP-13 코드 결함 0(도구·런북 결함 2건은 PC fix)이고 기능·전환·클릭·재질·착지·Photo·패키징(앰비언스·크레딧)이 통과. 비차단으로 남은 항목: ① 소유자 볼륨 청취·최종 gain(후보 위), ② 패키지 발소리 1회 청취(보안 대화상자를 소유자가 처리한 뒤), ③ 크로스페이드 1.0/2.0 체감, ④ 실제 음원 교체(결정 필요 ③) 뒤 재청취, ⑤ 미실행(비차단): A1 600 cm 경계·A7 경로 재생 빙의 교체·복수 포털 소스 GUI·Photo 안 사용자 mute+maintain 겹침·StopOldest 실동작(보이스가 8 한도에 닿지 않음), ⑥ T6 #50·T8 런타임 변경은 **V-10b PC 스모크 🟢**(2026-10-04, §8-1: HUD 핸들·전환·이름 없는 표면 default·보폭·2D 발소리·Photo 페이드, 패키지 `missing SoundWave` 없음; ToD 파괴 뒤 초기화는 헤드리스만) — 패키지 W 발소리는 ②와 함께 재실행 묶음(C-07 취소 뒤) |
 
 ### T6(13c) 후속 확인 범위
 
@@ -253,6 +253,8 @@ PC 세션(Opus 5.5, 워크트리 `sharp-wright-5b1e4a`, 브랜치 `pc/v11-verify
 - 드라이버가 포털 앞으로 300 cm보다 짧게 순간이동하면 발소리 1회가 났다(`teleport_threshold_cm` 300 설계대로 이동 거리로 셈).
 - Photo 3회차 mute 동안 출력에 ±2 LSB(−97 dBFS RMS) 잔여 신호가 있었다(1·2회차는 디지털 무음). 들리지 않는 크기지만 `audio_analysis`가 이 잔여와 0 사이 깜박임을 급정지 17건으로 셌다: 급정지 판정이 하강 전 5 ms 레벨을 무음 기준(−80 dBFS)과 비교하지 않기 때문이다(도구 후속 후보). 이 구간을 빼면 급정지는 0이다.
 - 볼륨 밸런스 최종값은 C-08 소유자 항목이다. 위 레벨은 T8 후보 gain(master 1.0·낮 0.5·밤 0.36·실내 0.30·발소리/착지 1.0)의 측정치다.
+
+**병합 시 판정(오케스트레이터 Opus, 2026-10-04, [#100](https://github.com/wooklym/golmok/pull/100) 리뷰 [P11](https://github.com/wooklym/golmok/pull/100#issuecomment-5979649367))**: V-10b 🟢(PIE 스모크 전 항목·패키지 로드 경로). 패키지 W 발소리 1회는 소유자가 방화벽 창을 **취소**한 뒤 패키지 재실행 묶음([wp18a 런북 §14-6](pc-verify-wp18a.md))에서 한다. 위 `audio_analysis` 급정지 오탐(P11-4)은 Claude 레인 후속에서 고친다: 하강 전 기준 레벨이 `silence_floor`를 넘을 때만 급정지로 판정하고 테스트를 더한다.
 
 
 ## T13 — WP-19c 노티파이 발소리 계약 (2026-09-30)
