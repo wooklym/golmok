@@ -6,9 +6,10 @@
 // z_synthetic_001_interior is redirected to its parent z_synthetic_001 and arrives at the manifest spawn (feet + capsule
 // half height + clearance, UE Yaw from yaw_deg) with the pin released a tick later and OnTraveled fired once; a portal
 // that is not Idle refuses; a second request while traveling is refused; z_synthetic_002 (spawned from the index when
-// not discovered yet) arrives at its spawn; without a spawn GetSpawnUE falls back to the zone origin's XY with the
-// zone's +x heading; with bSimulateLoadStall and a 0.3 s timeout the travel fails with "timeout", the pin released and
-// no arrival counted.
+// not discovered yet) arrives at its spawn with the camera already there (the spring arm socket within the arm's reach
+// of the pawn at OnTraveled time, P14-2: no lag sweep from the previous zone); without a spawn GetSpawnUE falls back
+// to the zone origin's XY with the zone's +x heading; with bSimulateLoadStall and a 0.3 s timeout the travel fails with
+// "timeout", the pin released and no arrival counted.
 // Golmok.Save.RoundTrip: on the test slot golmok_test_wp15a (automatic saves off) an empty slot restores nothing (rule
 // 3); a synchronous save -> LoadSlot keeps lat / lon of the pawn exactly (1 mm after LonLatToLevelUE), the ENU yaw
 // (= -UE Yaw), the visit and both photo entries; Restore puts the pawn back within 1 mm / 0.01 deg and drops the photo
@@ -55,6 +56,7 @@
 #include "GameFramework/Character.h"
 #include "GameFramework/Pawn.h"
 #include "GameFramework/PlayerController.h"
+#include "GameFramework/SpringArmComponent.h"
 #include "Geo/GolmokGeo.h"
 #include "Geo/GolmokGeoSubsystem.h"
 #include "HAL/FileManager.h"
@@ -336,6 +338,7 @@ namespace GolmokTravelSaveTest
 				Test->TestFalse(TEXT("z_synthetic_002 pin released"), Zones->IsZonePinned(SecondZoneId));
 				AGolmokZone* Second = Zones->FindZone(SecondZoneId);
 				CheckArrival(Travel, Second, Pawn, TEXT("z_synthetic_002"));
+				CheckCameraSnapped(Pawn);
 				if (Second && Second->HasManifest() && Second->Manifest.bHasSpawn)
 				{
 					// A root turned by 30 deg (the synthetic roots are almost unrotated, so a transposed matrix would hide):
@@ -409,6 +412,40 @@ namespace GolmokTravelSaveTest
 		}
 
 	private:
+		/**
+		 * P14-2: the arm end (the camera socket) is at the pawn right after the arrival. This runs on the first update
+		 * that sees the travel finished, i.e. at OnTraveled time (FinishArrival, one tick after Arrive), so the arm has
+		 * ticked at least once since the teleport. Without SnapCameraAfterTeleport the arm's lag reference stays at
+		 * z_synthetic_001's spawn, 192 m away, and one lagged tick (CameraLagSpeed 12, ~1/60 s) moves it only ~20 % of
+		 * the way: the socket would still be ~150 m behind. The bound is the arm's own reach plus where the arm sits on the
+		 * pawn plus 50 cm. The lagged point is checked before collision (GetUnfixedCameraPosition): the CameraBoom probes
+		 * (bDoCollisionTest), and a probe from the pawn back toward 001 that hits zone geometry would pull the socket in and
+		 * hide a regression. The socket is checked too. One frame cannot hide a regression: with the default lag
+		 * substepping the arm is still >= ~30 m behind even at the 0.4 s world delta cap. The runbook's 60 fps recording
+		 * is the visual check.
+		 */
+		void CheckCameraSnapped(APawn* Pawn)
+		{
+			USpringArmComponent* Arm = Pawn ? Pawn->FindComponentByClass<USpringArmComponent>() : nullptr;
+			if (!Arm)
+			{
+				Test->AddInfo(TEXT("camera snap not checked: the player pawn has no USpringArmComponent"));
+				return;
+			}
+			const FVector PawnLocation = Pawn->GetActorLocation();
+			const double Reach = Arm->TargetArmLength + Arm->SocketOffset.Size() + Arm->TargetOffset.Size()
+								 + FVector::Dist(Arm->GetComponentLocation(), PawnLocation) + 50.0;
+			const double Unfixed = FVector::Dist(Arm->GetUnfixedCameraPosition(), PawnLocation);
+			const double Distance = FVector::Dist(Arm->GetSocketLocation(USpringArmComponent::SocketName), PawnLocation);
+			Test->AddInfo(FString::Printf(TEXT("camera at arrival: unfixed %.1f cm, socket %.1f cm, reach %.1f cm"), Unfixed, Distance, Reach));
+			Test->TestTrue(
+				FString::Printf(TEXT("camera snapped at arrival: pre-collision arm end %.1f cm from the pawn <= %.1f cm"), Unfixed, Reach),
+				Unfixed <= Reach);
+			Test->TestTrue(
+				FString::Printf(TEXT("camera snapped at arrival: arm socket %.1f cm from the pawn <= %.1f cm"), Distance, Reach),
+				Distance <= Reach);
+		}
+
 		void Restore(UGolmokTravelSubsystem* Travel)
 		{
 			Travel->bSimulateLoadStall = false;

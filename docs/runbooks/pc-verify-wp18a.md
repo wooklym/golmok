@@ -1,10 +1,10 @@
 # V-11 — WP-18a 캐릭터 로스터 PC 검증
 
 2026-09-27 갱신 · 작성/헤드리스·standalone GUI 기초 검증 ChatGPT Astra · 지속 보행/품질 후속 Fable PC. 이번 #22/#23은 사용자 지시로 Astra 자체 리뷰·병합.
-**코드·UE 헤드리스/4종 지속 이동·지형 통과, GUI 교체·점프 확인. WP-12 통합 T1 직접 실행 완료(EXECUTED 6/6, 경고 0). T2(#39): 엔진 입력 드라이버 렌더 근거·PIE 재시작·콘솔 선택 확인(§11); 잔여 실제 키보드 지속 입력 영상·사람 눈 검수는 PC 카드, 시트 판정은 Fable.** D-018 ①은 승인됐으며 설계 PR → 구현 PR 병합 뒤 아래 남은 항목을 진행한다. V-12 채점과 대조군/야간 실패의 판정은 [WP-18](../plan/WP-18-characters.md)의 최신 절차를 따른다.
+**코드·UE 헤드리스/4종 지속 이동·지형 통과, GUI 교체·점프 확인. WP-12 통합 T1 직접 실행 완료(EXECUTED 6/6, 경고 0). T2(#39): 엔진 입력 드라이버 렌더 근거·PIE 재시작·콘솔 선택 확인(§11); V-11 🟢([#100](https://github.com/wooklym/golmok/pull/100), §14-7: 실제 키보드 지속 입력 영상·Opus 채점); 카메라 구도는 T23 [#108](https://github.com/wooklym/golmok/pull/108)(§15), 실제 키 입력 재검수는 다음 PC 카드.** D-018 ①은 승인됐으며 설계 PR → 구현 PR 병합 뒤 아래 남은 항목을 진행한다. V-12 채점과 대조군/야간 실패의 판정은 [WP-18](../plan/WP-18-characters.md)의 최신 절차를 따른다.
 계약과 D-018은 [WP-18](../plan/WP-18-characters.md), 아트 판단은 [컨셉](../design/character-concept.md), 예산은 [제작 사양](../research/11-character-pipeline.md).
 
-병합 후 최신 진행: [WP-18 후속 기록](../plan/WP-18-followup.md). **2026-09-28 T1 기준 WP-12는 main에 병합돼 컴파일 차단이 해소됐고 PhotoIntegration 6조합을 T1에서 직접 실행 완료했다(EXECUTED 6/6, 경고 0). T2(#39): 엔진 입력 드라이버 렌더 근거·PIE 재시작·콘솔 선택 확인(§11); 잔여 실제 키보드 지속 입력 영상·사람 눈 검수는 PC 카드, 시트 판정은 Fable.** 아래 초기 결과표는 당시 기록이며 후속 기록을 우선한다. [V-09 PR #27](https://github.com/wooklym/golmok/pull/27)의 26/26·6조합 통과 보고는 [2차]이며 Astra T1 직접 검증 결과는 후속 기록의 T1 절에 있다.
+병합 후 최신 진행: [WP-18 후속 기록](../plan/WP-18-followup.md). **2026-09-28 T1 기준 WP-12는 main에 병합돼 컴파일 차단이 해소됐고 PhotoIntegration 6조합을 T1에서 직접 실행 완료했다(EXECUTED 6/6, 경고 0). T2(#39): 엔진 입력 드라이버 렌더 근거·PIE 재시작·콘솔 선택 확인(§11); V-11 🟢([#100](https://github.com/wooklym/golmok/pull/100), §14-7: 실제 키보드 지속 입력 영상·Opus 채점); 카메라 구도는 T23 [#108](https://github.com/wooklym/golmok/pull/108)(§15), 실제 키 입력 재검수는 다음 PC 카드.** 아래 초기 결과표는 당시 기록이며 후속 기록을 우선한다. [V-09 PR #27](https://github.com/wooklym/golmok/pull/27)의 26/26·6조합 통과 보고는 [2차]이며 Astra T1 직접 검증 결과는 후속 기록의 T1 절에 있다.
 
 ## 1. 안전한 별도 PC 작업 폴더
 
@@ -45,7 +45,7 @@ Set-Location tools
 .venv\Scripts\python scripts\check_repo.py
 ```
 
-`Golmok.Character.Config`는 실제 JSON과 오류 원자성을, `.Runtime`은 자동 default·Quinn·프록시·기본 복귀·실패 시 보존을 검사한다. Runtime의 Manny 검증은 현재 값을 서로 비교하는 방식 대신 경로와 수치를 리터럴로 단언한다. 캡슐42/92, 메시Z−92/Yaw−90/scale1, 붐320/소켓(0,45,55)/FOV80, 속도180/500을 검사한다.
+`Golmok.Character.Config`는 실제 JSON과 오류 원자성을, `.Runtime`은 자동 default·Quinn·프록시·기본 복귀·실패 시 보존을 검사한다. Runtime의 Manny 검증은 현재 값을 서로 비교하는 방식 대신 경로와 수치를 리터럴로 단언한다. 캡슐42/92, 메시Z−92/Yaw−90/scale1, 붐320/소켓(0,45,2)/FOV80, 속도180/500을 검사한다.
 
 `.PortalRoundTrip`은 `L_ZoneTest`와 합성 실내 서브레벨을 사용한다. 누락된 환경에서는 `NOT EXECUTED` 경고를 내므로 완료 수만 보고 통합 통과로 기록하지 않는다. 새 C++ 파일을 추가했는데 빌드가 `Target is up to date`로 끝나면 UBT 소스 목록 캐시가 이전 상태일 수 있다. 프로젝트 파일을 다시 생성하거나 `Build.bat GolmokEditor Win64 Development -Project=<이 worktree의 Golmok.uproject> -WaitMutex -NoHotReloadFromIDE -gather`로 재수집하고 새 파일의 컴파일 로그를 확인한다. 이 실행에서는 실제 `GolmokCharacterRosterPortalTest.cpp` 컴파일을 확인했다.
 
@@ -405,3 +405,11 @@ v11a의 D 코스는 큐브를 `transient=True`로 스폰해 PIE 월드에 복제
 | 입력 구간 29~33 ms 틱 3회 | 에디터 PIE 잡음, 성능은 V-15 패키지에서 판정(P11-9) |
 | 지표 스크립트가 PC 로컬, `PlantedSlip`과 정의 차이 | V-08b 드라이버·지표 `tools/` 커밋에서 통일(P11-10) |
 | 시트 6·7번 타일 역순(알림 토스트) | 기록만, 다음 녹화는 Windows 집중 모드(P11-7) |
+
+## 15. T23 카메라 구도 재현 (2026-10-04)
+
+§11 명령에 `-GolmokCharacterFraming`을 추가한다. 기존 Sequence의 진단 붐1.5배를 쓰지 않고 로스터 붐·소켓·FOV와 피치 −15°로 4종×3코스를 캡처한다. course0은 카메라 쪽 S 걷기6초, course1은 계단 왕복, course2는 포털 왕복이다. GUI 잠금을 잡고 실행하며 PC 키보드 최종 검수를 대신하지 않는다.
+
+시트는 course0 전체, course1 X속도<−1인 하강, course2 exited=1 이후를 각각 한 행으로 두고 각 구간의 처음~끝에서 균등4장을 고른다. 원본 PNG 종횡비를 유지한 1600×780 JPG, ≤300KB. 실제 PIE 캡처 해상도는 manifest 후처리 기록을 확인한다(ResX/ResY와 다를 수 있음). 수식의 16:9 기준과 다른 뷰포트 비율의 시각 근거를 혼동하지 않는다. 다음 PC 카드에서 실제 키 입력으로 후면 걷기·계단 하강·포털 복귀와 착지를 재검수한다.
+
+**병합(2026-10-04, 오케스트레이터)**: T23 [#108](https://github.com/wooklym/golmok/pull/108), 리뷰 [R108](https://github.com/wooklym/golmok/pull/108#issuecomment-5980182522) (A) 0 · (B) 4 · (C) 6. 다음 PC 카드 확인 항목(R108-4): (a) 카메라 쪽 계단 하강 전체 클립의 최저 발 여백(식: proxy 1.9~2.0 %), (b) 착지(0°에서 proxy110 1.0 %), (c) 올려다보기 붐 바닥 접촉 +14.5/+12.7/+10.8°, (d) 도착 피치 0° 첫 화면(카메라 94/71/56 cm). 기준: 걷기 중 발 화면 밖 0프레임, 머리 잘림 0.

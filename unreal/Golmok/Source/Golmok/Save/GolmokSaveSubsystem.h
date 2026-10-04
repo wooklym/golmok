@@ -31,8 +31,10 @@ namespace GolmokSaveCharacter
  *
  * Triggers: travel arrival (UGolmokTravelSubsystem::OnTraveled), first visit (a loaded zone's footprint contains the
  * player for the first time; polled every VisitPollSeconds, never per frame), photo saved (WP-12 OnPhotoSaved hook),
- * every AutosaveIntervalSeconds when something changed, world end and FCoreDelegates::OnPreExit (synchronous). The
- * synchronous end saves write a snapshot refreshed when the game viewport is asked to close (PIE stop / exit, game window
+ * every AutosaveIntervalSeconds when something changed, and world end (synchronous). The world end save is the one that
+ * writes the slot on exit: the FCoreDelegates::OnPreExit handler is only a harmless fallback, never seen in V-14 (PIE does
+ * not broadcast it, and GEngine->PreExit() shuts the game instance down, unbinding it, before the broadcast). The
+ * synchronous end save writes a snapshot refreshed when the game viewport is asked to close (PIE stop / exit, game window
  * closed: the engine then removes the local player, destroying its controller, before the world tears down) and at
  * FWorldDelegates::OnWorldBeginTearDown (-game quit / map change: actors still valid there), not the last poll.
  *

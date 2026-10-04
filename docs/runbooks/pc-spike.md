@@ -108,6 +108,7 @@ r = zi.run(r"D:\golmok_zones\zones\z_yeonnam_alley_001", level="/Game/Golmok/Map
 - 기대 로그 형식과 확인 항목은 [pc-verify-wp06.md](pc-verify-wp06.md) §2와 같다(합성 zone 대신 실 zone 이름·수치). `geo_origin=<베이스맵 폴더>`는 베이스맵 manifest의 `origin`(타원체고 = DEM 정표고 + `--geoid-offset`)을 `GeoOrigin`에 쓴다.
 - 시간: OBJ 사본 쓰기(2천만 tri ≈ 1.5 GB 텍스트, 1~2분) + Nanite 빌드(청크당 수 분) + 8K UDIM VT 빌드. 디스크는 원본 OBJ 크기의 2배.
 - 실패: `zone_import: ERROR chunk …` bounds → `zi.run(..., remeasure=True)`; 텍스처 `vt=off` → `M_ZoneScan_NoVT`가 자동 생성되며 8K 여러 장이 VRAM에 통째로 올라오므로 fps가 떨어진다(기록); `tile 1001 only (WARNING)` → [pc-verify-wp06.md](pc-verify-wp06.md) §12 #4.
+- Full Precision UV(WP-06 2라운드 ②): 로그에 `zone_import: full precision UVs (LOD0) on N/N chunks (N set, 0 already on)`(N = 청크 수)가 있고, 청크 하나를 열어 LOD0 Build Settings › Use Full Precision UVs ✔. `on 0/N`과 `WARNING … (runbook #41)`이면 [pc-verify-wp06.md](pc-verify-wp06.md) §12 #41 손 폴백(청크마다)을 S8 전에 한다 — half-float UV는 UDIM u·v ≥ 8에서 8K 타일 64 texel 계단이 생긴다. 켜는 데 든 추가 빌드 시간도 기록.
 - 8K UDIM 6장 이상이면 `r.VT.MaxUploadsPerFrame`·VT 풀 크기(`r.VT.PoolSizeScale`) 튜닝이 필요할 수 있다[추정] → 텍스처가 흐리게 남으면 콘솔 `stat virtualtexturing`.
 
 ### S8. (b) Cesium for Unreal splat
@@ -201,7 +202,7 @@ research/08 "결론 → D-010"에 후보별 장단점을 적고 사용자가 승
 | S4 Postshot 설정·시간·splat 수·VRAM 상한 위반 여부 | |
 | S5 splat 좌표계가 메시와 같았는가 [미확인] | |
 | S5 splat clean 옵션·결과 JSON의 `floaters`·`low_opacity`·`too_large`·`removed`/`input`(floaters 5% 초과 시 `--std` 조정값) | |
-| S7 route·매핑(`import_result.json`), UDIM 병합 표기, VT 켜짐, 임포트 시간 | |
+| S7 route·매핑(`import_result.json`), UDIM 병합 표기, VT 켜짐, Full Precision UV(`full precision UVs` 줄·§12 #41), 임포트 시간 | |
 | S8/S9 성공 여부·플러그인 버전 | |
 | S11 캡처 수(saved/missing), 해상도 | |
 | S12 CSV 프레임 수·`golmok-perf` 표 | |
