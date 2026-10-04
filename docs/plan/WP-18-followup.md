@@ -503,3 +503,11 @@ STATUS/astra-tasks 문안: “선택 T18 R77-6/7/8 구현: 일반 폰 GASP 항�
 ### 병합 시 반영 — T20
 
 STATUS/astra-tasks 문안: “T20 캐릭터 레인 완료: `IsExplicitSelection() const` 공개 조회 API, 자동 선택/명시 성공/반복 명시 복원/복원 실패 후 폴백의 플래그 회귀, 일반 GASP·visual-only 로드 전 거절 및 소스 메시·애님 적용 시점 검사, visual 적용 불변식 진단. 등록36 유지. Save의 명시 선택만 저장·레거시 처리는 Claude 후속이며 이번 변경만으로 세이브 결함 해결을 선언하지 않는다. 실제 GASP 검증은 19b/V-15 대기.”
+
+## 병합 기록 — T20 PR [#94](https://github.com/wooklym/golmok/pull/94) (2026-10-04, 오케스트레이터 세션)
+
+**내용**: 위 "T20" 절과 같다. (B) R91-1 캐릭터 몫 — 공개 조회 API `bool IsExplicitSelection() const`(`bExplicitSelection` 반환, `WITH_DEV_AUTOMATION_TESTS` 밖이라 Shipping에서도 컴파일). 플래그 회귀: 자동 적용 뒤 거짓, `SelectCharacter` 성공 뒤 참, 명시 id 자동 복원 뒤 참 유지(T18 해석 고정), 명시 복원 실패 → 폴백 성공 뒤 거짓·복구 뒤 모드 기본값 복귀(R91-2). (C) R91-3(거절 사유 단언·visual 절 전용 로드 계수), R91-4(관찰자가 소스 애님 클래스·리터럴 메시 확인), R91-5(`SetVisualOverride`를 `ensureAlwaysMsgf`로 감싼 진단, 선언 분리). 등록 수는 36으로 같고, Astra 전체 UE 36 Success다.
+
+**병합 전 리뷰(Opus 5.5 ultracode 적대 검증, [R94](https://github.com/wooklym/golmok/pull/94#issuecomment-5978554246))**: (A) 0 · (B) 0 · (C) 2. 게이트(리눅스): ruff, format 112, pytest 1501 passed / 3 skipped, check_repo, `diff --check`, 등록 36, CI 10/10; base `8e7cfc5` = 당시 main. UE 빌드·전체 36 Success는 Astra 보고다. 확인(결함 없음): 플래그 전이 4가지와 (C) 수정마다 제품 줄을 되돌리는 변이를 테스트가 잡는다, 제품 동작 변화는 진단용 `ensureAlwaysMsgf`뿐(Shipping에서도 식은 평가됨, 정상 경로에서 발화하지 않음), 하류 #93과 `merge-tree` 충돌 0·API 서명 일치. (C → 다음 캐릭터 레인 push): R94-1 헤더에 `IsExplicitSelection()` 전이 계약 주석, 클래스 주석 "no saved selection" 갱신. R94-2(병합 세션 몫)는 이 커밋에서 처리. R91-5의 "문서 빈 줄" 지적은 파일 관례라 철회했다. 설계 리뷰 불필요(선택 우선순위·품질 가설·D-018·D-021 조건 불변).
+
+**병합**: 오케스트레이터 결정(D-019). 위 "병합 시 반영 — T20" 문안을 STATUS 병행 트랙 WP-18 행과 `astra-tasks.md` T20에 옮겼다. 세이브 결함(R91-1)의 해결은 이 PR이 아니라 바로 뒤 Claude 레인 #93(명시 선택만 저장·레거시 기본 id 복원 생략) 병합으로 선언한다. 19b 경로 확정 뒤 4개 경로 갱신 스택(R84 (C)·R94-1 포함)이 다음 캐릭터 레인 과제다.
