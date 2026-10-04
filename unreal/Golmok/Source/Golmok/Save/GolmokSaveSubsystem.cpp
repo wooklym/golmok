@@ -998,6 +998,14 @@ bool UGolmokSaveSubsystem::Restore(FString& OutMessage)
 		}
 	}
 	Extras += RestoreWeather(Save->Weather); // after the time of day: a Schedule mode reads the restored clock
+	// R112-U8: one rain fx reset after the position and weather steps, whatever the weather rule (a rule 0 slot placed at
+	// a basemap position teleports the pawn at once and fires no OnTraveled). A zone travel still running resets on its
+	// arrival (OnTraveled, after its teleport), so it is skipped here: one reset per restore either way. Photo mode keeps
+	// its frozen frame (the travel and the weather were refused anyway).
+	if (UGolmokWeatherSubsystem* Weather = UGolmokWeatherSubsystem::Get(World); Weather && !Travel->IsTraveling() && !Weather->IsFrozen())
+	{
+		Weather->ResetRainFx();
+	}
 	UnappliedCharacterId.Reset();
 	if (!Save->CharacterId.IsEmpty())
 	{
@@ -1089,7 +1097,7 @@ FString UGolmokSaveSubsystem::RestoreWeather(const FGolmokSaveWeather& Saved)
 		// Refused (photo mode active): the message says why; the slot keeps its weather for the next golmok.load.
 		return FString::Printf(TEXT(", weather %s (not applied: %s)"), *GolmokSavePrivate::DescribeSavedWeather(Saved), *Message);
 	}
-	Weather->ResetRainFx(); // no streaks left from the weather before the restore
+	// The rain fx reset (no streaks left from the weather before the restore) is Restore's, after the position step.
 	return FString::Printf(TEXT(", weather %s%s"), *GolmokSavePrivate::DescribeLiveWeather(*Weather), *Note);
 }
 

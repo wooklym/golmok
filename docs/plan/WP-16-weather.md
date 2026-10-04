@@ -448,7 +448,7 @@ PYTHONUTF8=1 PYTHONPATH=$PWD python -m pytest -q -p no:cacheprovider && python s
 7. 이벤트 `bInstant`는 `instant`일 때와 `transition_seconds` 0일 때 true. 이벤트마다 `weather: OnWeatherChanged <목표> (transition|instant)` 로그 1줄(런북 §6 칸마다 1회 확인용).
 8. `SetWeatherModifier`는 ToD의 현재 수정자와 같으면 부르지 않는다(불필요한 하늘 재캡처 방지). `bSettled` true는 착지마다 1회.
 9. MPC·Niagara 값은 0.001 넘게 바뀌거나 정확히 0·1에 닿을 때 쓴다(가라앉은 clear가 정확히 0). Niagara User 파라미터는 비활성 중에도 `RainNow`를 따른다.
-10. ToD 탐색은 캐시가 없을 때 0.5 s 간격(명령·BeginPlay는 즉시). 정상 상태 틱 할당 없음.
+10. ToD 탐색은 캐시가 없을 때 0.5 s 간격(명령·BeginPlay는 즉시). **R112-U9 후속(#113)**: 강제 탐색이 빗나가면 쿨다운이 0으로 남아 다음 틱에 한 번 더 찾고, 그 실패부터 0.5 s 간격이다. 정상 상태 틱 할당 없음.
 11. `ResetRainFx`: 활성이면 카메라로 옮겨 `ResetSystem()`, 아니면 `DeactivateImmediate()`.
 12. HUD: clear·overcast는 강도 숫자 없음(`weather: clear | now 0.00 wet … | fixed | fx idle`), 전환 중 `(from <이전 목표> NN%)`, 일정 모드는 모드 칸 `schedule` + ` | schedule next HH:MM …` 또는 ` | schedule no clock`, 날씨 꺼짐은 `weather: off - <오류>`.
 13. `surface <w>`만 주면 웅덩이는 현재 값을 새 젖음 이하로 자른다. [0, 1] 밖은 오류.
@@ -462,7 +462,7 @@ PYTHONUTF8=1 PYTHONPATH=$PWD python -m pytest -q -p no:cacheprovider && python s
 21. 세이브 서브시스템 헤더에 UENUM 전방 선언을 두지 않고 `AddWeakLambda`로 구독(UHT 위험 회피 — 검증 반영).
 22. `weather_setup`: 앞 세 개가 계약 이름·순서·기본 0이면 통과하고 뒤에 더 있는 파라미터는 16b 추가로 로그만. NS 없음은 Warning. Python이 `scalar_parameters`를 못 쓰면 빈 MPC를 저장하고 Error로 §2a 수동 절차를 안내.
 23. `test_ue_wp19_fixture.py`의 "WP-19 블록이 DefaultGame.ini 끝" 단언에 새 훅 줄 1개(`tail = tail.split("; [WP-16 hook]")[0]…`)를 더했다(기존 줄 무수정). `test_ue_wp05_fixture.py` 쿡 개수 줄은 WP-19 선례대로 제자리 수정(4 → 5, 줄 끝 `[WP-16 hook]`).
-24. 자동화의 알파 민감 구간은 한 latent `Update()` 안에서 `StepWeather`로 손으로 구동한다. `OnTraveled`는 L_Dev에 이동 존이 없어 직접 Broadcast. 포토 진입은 알파 0.6(비가 이미 내림)에서.
+24. 자동화의 알파 민감 구간은 한 latent `Update()` 안에서 `StepWeather`로 손으로 구동한다. `OnTraveled`는 L_Dev에 이동 존이 없어 직접 Broadcast. **R112-U7 후속(#113)**: 이제 Broadcast하지 않는다(세이브 서브시스템의 방문 기록·저장까지 돌았기 때문). 바인딩(`IsBoundToObject`)과 `ResetRainFx()` 횟수를 따로 단언하고, `Traveled` → `ResetRainFx` 연결과 바인딩 대상은 픽스처가 정적으로 본다. 포토 진입은 알파 0.6(비가 이미 내림)에서.
 25. 자동화의 NS 단계는 컴포넌트 override 저장소(`ReadUserParameters`, 값 비교)와 **에셋 노출 파라미터**(`HasUserParameters`)를 따로 본다 — `SetVariable*`가 override에 없는 항목을 만들어 버리므로(검증 반영).
 26. 런북: 룩 매트릭스 20장은 로컬에 두고 5×4 접촉 시트 1장 + HDR 1장만 커밋. `max_spawn_rate`를 낮추면 그 값을 고정한 테스트 2곳도 같이 고친다. 패키지 경로는 `$pkg`(`GOLMOK_PKG_DIR`) 규칙.
 27. V-14 런북(`pc-verify-wp15a.md`)의 복원·저장 로그 예시는 날씨가 켜지면 `tod …` 뒤에 `, weather …`가 붙는다. 그 런북은 열린 PR #107도 고치므로 여기서 수정하지 않고 V-16 §9와 아래 "병합 시 반영"에 둔다. `pc-verify-wp19.md`·`pc-verify-wp15a.md`의 "36개" 총수 줄도 실행 당시 기록이라 두고, 강제되는 `pc-verify-wp12.md`만 39로 고쳤다.
@@ -497,3 +497,26 @@ PYTHONUTF8=1 PYTHONPATH=$PWD python -m pytest -q -p no:cacheprovider && python s
 - **pc-verify-wp15a.md(V-14)** §2·68행 부근: "WP-16a부터 `tod …` 뒤에 `, weather <목표> wet x puddle y <모드>`(또는 `, weather - (not in save)`)가 붙는다" 한 줄(PR #107 병합 뒤 그 브랜치 기준으로).
 - **WP-12 문서 §2-2 메타 예시**: `"weather": {"state": "rain", "intensity": 0.60}` 줄(preset 다음).
 - **이슈 #30**: 16a 병합 알림 + Astra 빗소리 과제 배정(계약 §9, 답이 오면 그 방식).
+
+### R112 (C) 후속 병합 — [#113](https://github.com/wooklym/golmok/pull/113) (2026-10-04, 오케스트레이터 세션)
+
+**내용**: R112 (C) U6·U7·U8·U9·U11(Claude 레인, 세션 session_015hb8GYCeFDJ7UA37GwNkdR, 브랜치 `claude/wp16a-followups`).
+- U6: wp16 픽스처를 견고하게 했다(ini 훅은 WP-19 뒤 연속 블록, `.uproject`는 JSON 파싱, `Debug/` 금지어 `GolmokWeather`·`WP-16`).
+- U7: 날씨 Runtime 테스트의 `OnTraveled` 브로드캐스트를 없앴다.
+- U8: `Restore`가 위치·시간대·날씨 단계 뒤에 날씨 규칙과 무관하게 빗줄기를 1회 리셋한다(존 이동은 도착 `OnTraveled`, 포토 모드 제외).
+- U9: 강제 시간대 탐색이 비면 다음 틱에 다시 찾는다.
+- U11: `NightUnaffected` 시각을 프리셋에서 찾는다(기본 05:35).
+- 등록 39 불변. U4·U5는 V-16 결과 뒤.
+
+**병합 전 리뷰(Opus 5.5 적대 리뷰, [R113](https://github.com/wooklym/golmok/pull/113#issuecomment-5982025179))**: (A) 0 · (B) 2 · (C) 5. U6 픽스처 변이 약 30개를 돌려 의도한 완화만 통과했다. 생존한 바인딩·`Restore` 리셋 제거는 R113-5 needle로 막았다. 반영 커밋 `608234a`의 내용은 다음과 같다.
+- R113-1: 런북 §3 U7 줄은 `GolmokSave: first visit weather_test`가 없는지로 판정한다. `weather_test`는 실내 단계 로그에 정상으로 나온다.
+- R113-2: `NightUnaffected at …` Info 줄과 기대값 `05:35 (base lux 0.104167)`.
+- R113-3: §9 U8·§12 #20에 "1 s쯤 성기게 시작" 증상.
+- R113-5: 정적 needle 2개.
+- R113-7: 주석.
+- R113-4: 위 결과 #10·#24를 이 커밋에서 갱신했다.
+- R113-6(건너뛸 때 이벤트 0 단언도 빠짐)은 선택으로 이월했다.
+
+게이트(리눅스, Astra T24 #114 병합 뒤 main과 합친 트리): ruff, format, pytest 1752 passed / 3 skipped, check_repo, `diff --check`, 등록 39.
+
+**병합**: 오케스트레이터 결정(D-019). 최신 main을 합친 뒤 이 커밋으로 반영했다. PC 확인은 V-16 `pc-verify-wp16a.md` §3·§4·§9·§12 #17~#20이다.

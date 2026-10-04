@@ -42,6 +42,8 @@
 | `Content/Python/golmok/weather_pure.py`·`weather_setup.py` (새) | 순수 Python 규칙·파서, 에디터 MPC 생성기 |
 | 훅(별도 커밋) | `Golmok.uproject` Niagara, `Golmok.Build.cs` `[WP-16 hook]` `PrivateDependencyModuleNames.Add("Niagara");`, `Config/DefaultGame.ini` `[WP-16 hook]` `+DirectoriesToAlwaysCook=(Path="/Game/Golmok/Weather")`, 등록부 테스트 |
 
+R112 후속(`claude/wp16a-followups`, 리뷰 R112 (C)): `GolmokWeatherSubsystem.{h,cpp}`(U9 첫 시간대 탐색, `GetRainFxResetCount`), `GolmokSaveSubsystem.cpp`(U8 복원 뒤 빗줄기 리셋 1회), `GolmokWeatherTest.cpp`(U7 `OnTraveled` 브로드캐스트 제거, U11 `NightUnaffected` 분을 프리셋에서 찾음), `GolmokTravelSaveTest.cpp`(U8 리셋 횟수 단언), `tools/tests/test_ue_wp16_fixture.py`(U6). 자동화 등록 수 39 불변. 확인 줄은 §3·§4·§9·§12 #17~#20.
+
 PC가 만드는 것: `Content/Golmok/Weather/MPC_GolmokWeather.uasset`, `Content/Golmok/Weather/NS_GolmokRain.uasset`(§2). `DefaultEngine.ini`·`DefaultInput.ini`·Player·GameMode·`Debug/`·Astra 레인은 **바뀌지 않았다**.
 
 ## 1. 빌드
@@ -123,7 +125,9 @@ git lfs lock unreal/Golmok/Content/Golmok/Weather/NS_GolmokRain.uasset
 ```
 - [ ] 첫 명령: 3개(`Golmok.Weather.Config`·`Golmok.Weather.Lighting`·`Golmok.Weather.Runtime`) 전부 `Success`(`-nullrhi`).
 - [ ] **MPC·NS 단계가 EXECUTED**: `Golmok.Weather.Runtime`의 `[Info]`에 `MPC_GolmokWeather missing - skipped`나 NS 없음 skip 줄이 **없다**(§2 전에는 그 Info로 Success — 설계 §19). MPC 인스턴스 값 == 조회 값(±1e-3), 컴포넌트·User 파라미터 3개 존재·활성 규칙 단언이 실제로 돈다. `-nullrhi`에서 GPU 이미터 활성 조회가 막혀 다른 Info·Warning이 나오면 그대로 §12 #5에 적는다.
-- [ ] `Golmok.Save.RoundTrip` `Success`(날씨 단계 포함: Rule 1 왕복 다섯 값, Rule 0 슬롯 → 날씨 유지, 모르는 상태 `snow` → clear, Schedule 모드는 시간대 뒤 복원). 날씨 단계가 Info로 건너뛰어졌으면(`weather` 서브시스템 없음·꺼짐) 실패로 본다.
+- [ ] `Golmok.Save.RoundTrip` `Success`(날씨 단계 포함: Rule 1 왕복 다섯 값, Rule 0 슬롯 → 날씨 유지, 두 복원 모두 `rain fx reset once`(R112-U8), 모르는 상태 `snow` → clear, Schedule 모드는 시간대 뒤 복원). 날씨 단계가 Info로 건너뛰어졌으면(`weather` 서브시스템 없음·꺼짐) 실패로 본다.
+- [ ] `Golmok.Weather.Lighting`의 `NightUnaffected` 단계(R112-U11)가 **건너뛰지 않았다**: `[Info]`에 `no minute with base lux in … - NightUnaffected skipped`가 없고 `NightUnaffected at hh:mm (base lux …)` 줄이 있다(통과한 단언의 문구는 보고서에 나오지 않으므로 이 Info 줄로 본다). 그 시각을 §13에 적는다(0~1439분 중 처음 맞는 분 — 오늘 프리셋이면 `05:35 (base lux 0.104167)`, night 유지가 끝난 05:30 뒤 새벽 램프 초입). 14b가 night lux를 바꾼 뒤에도 같은 확인.
+- [ ] `Golmok.Weather.Runtime`의 이동 리셋 단계(R112-U7, NS 있을 때): `the weather subsystem is bound to OnTraveled`·`ResetRainFx counted once` 실패 줄이 없다. 실행 로그에 `GolmokSave: first visit weather_test`가 **없다**(브로드캐스트를 하지 않으므로 세이브 서브시스템의 방문 기록·저장이 돌지 않는다. `TimeOfDay: interior overlay on (source weather_test, …)`는 실내 단계의 정상 줄이다).
 - [ ] 세 번째 명령: **39개** 전부 `Success`(WP-12 런북 `pc-verify-wp12.md` "두 번째 명령" 줄의 목록 = 기존 36 + `Weather.*` 3). `test.ps1`의 `Succeeded:`는 Warning 있는 테스트를 따로 세므로 상태 열로 판정(V-03). 기존 `Golmok.Lighting.*`·`Photo.*`·`Audio.*`·`Portal.*`가 무수정 통과하는 것이 "clear 항등 비트 동일"(설계 §5-1)의 근거다.
 
 ## 4. PIE — 상태 머신·전환(L_Dev)
@@ -133,6 +137,7 @@ git lfs lock unreal/Golmok/Content/Golmok/Weather/NS_GolmokRain.uasset
   weather: clear | now 0.00 wet 0.00 puddle 0.00 | fixed | fx idle
   ```
   키 **2** → 2 s 뒤 `tod: clear_noon 12:30 fixed`. 날씨 줄은 그대로.
+- [ ] **늦게 생기는 시간대의 첫 프레임(R112-U9)**: `Config/Golmok/weather.json` `initial`을 로컬에서만 `{"state": "rain", "intensity": 1.0, "mode": "fixed"}`로 바꾸고(커밋하지 않음) 레벨에 `AGolmokTimeOfDay`가 **배치되지 않은** 레벨(플레이어 컨트롤러가 `FindOrSpawn`으로 만드는 경우 — `L_ZoneTest`에 배치돼 있으면 World Outliner에서 지운 임시 사본 레벨)로 PIE 시작 → 시작 화면이 처음부터 비 조명이다(맑은 조명이 0.5 s 번쩍인 뒤 어두워지지 않음). 의심되면 `-game` + `stat unit`/화면 녹화로 첫 30프레임을 본다. 끝나면 `weather.json`을 되돌린다(`git checkout -- unreal/Golmok/Config/Golmok/weather.json`). [추정] `OnWorldBeginPlay`가 액터 BeginPlay 앞이고 첫 날씨 틱이 컨트롤러 BeginPlay 뒤라는 엔진 순서(§12 #19).
 - [ ] `golmok.weather` (= `status`) →
   ```
   LogGolmok: weather: target clear | current settled
@@ -260,6 +265,7 @@ L_Dev(또는 L_ZoneTest) PIE. `golmok.weather rain heavy instant`.
   ```
   (흐림에서는 젖음이 초당 1/600씩 마르므로 `wet 0.41`일 수 있다.) `golmok.save status`의 `slot:` 줄 끝 `…, weather overcast wet 0.4x puddle 0.10 fixed`.
 - [ ] `golmok.weather rain heavy instant` → `golmok.load` → 메시지 끝 `…, weather overcast wet 0.4x puddle 0.10 fixed` → HUD가 **전환 없이** 곧바로 `weather: overcast | now 0.00 wet 0.4x puddle 0.10 | fixed | fx idle`, 빗줄기 잔상 없음(`ResetRainFx`). 로그에 `weather: OnWeatherChanged overcast (instant)` 1줄.
+- [ ] **basemap 위치 복원의 빗줄기 리셋(R112-U8)**: 존 밖 basemap 위치(존 발판 밖, `golmok.save status`의 `slot:` 줄 `zone -`)에서 `golmok.weather rain heavy instant` → `golmok.save` → 100 m 이상 걸어간 뒤 `golmok.load` → 메시지 `restore saved position …: placed at the saved position (no zone) …`이고 그 자리에서 빗줄기가 곧바로 내리며 **줄무늬·늘어진 입자가 없다**. 빗줄기가 1 s쯤 성기게 시작해 차오르는지도 본다(리셋 웜업이 옛 자리에서 돈 증상, R113-3 — 보이면 §12 #20). 이 리셋은 이제 날씨 규칙과 무관하게 `Restore`가 1회 한다(Rule 0 슬롯도 같은 줄이고 자동화 `weather rule 0: rain fx reset once`가 근거). 존 이동 복원은 도착 `OnTraveled`가 1회 리셋한다(앞 줄의 이동 리셋과 같다).
 - [ ] **Schedule 복원**: `golmok.tod mode fixed` → `golmok.tod time 15:30` → `golmok.weather mode schedule` → 20 s 뒤 `golmok.save`(로그 끝 `weather rain 0.60 wet x.xx puddle x.xx schedule`) → `golmok.weather mode fixed` → `golmok.weather clear instant` → `golmok.load` → 메시지 `…, tod 15:30 fixed…, weather rain 0.60 wet x.xx puddle x.xx schedule`(시간대가 먼저 복원돼 같은 칸이라 `(transition)` 없음), HUD 모드 칸 `schedule`.
 - [ ] **재시작 복원(standalone `-game`)**: 에디터를 닫고
   ```powershell
@@ -324,6 +330,10 @@ Select-String "$env:TEMP\utoc.csv" -Pattern 'Golmok/Weather/(MPC_GolmokWeather|N
 | 14 | 룩 | 비 + 새벽·저녁 램프에서 엔진 노출 경고(V-13 06:00 −8.8)가 심해지는지 | 값 | 기록만 → 14b 노출 범위 키(§5) | |
 | 15 | `GolmokWeatherRainFx.cpp` | `DeactivateImmediate()`·`ResetSystem()`·`FActorSpawnParameters::NameMode = Requested` + `RF_Transient` | 5.8 서명·텔레포트 뒤 줄무늬 제거 | `ResetSystem` 대신 `DeactivateImmediate` → `Activate(true)`. NameMode가 없으면 이름 지정 생략 | |
 | 16 | Save·Weather 순서 | 시작 복원(다음 틱)이 날씨 `OnWorldBeginPlay`의 초기값 뒤에 오는지 | 재시작 복원이 clear로 덮이는지(§9) | 날씨 초기값을 복원 대기 중에는 건너뛰기(Save/·Weather/ PC fix) | |
+| 17 | `GolmokWeatherTest.cpp` | `TMulticastDelegate::IsBoundToObject(const void*)`(R112-U7) | 5.8에서 공개 멤버인지 | 컴파일 오류면 `W->GetRainFxResetCount()` 단언만 두고 바인딩은 `UGolmokWeatherSubsystem`에 `bool IsTravelResetBound() const { return Travel.IsValid() && TraveledHandle.IsValid(); }`를 더해 단언 | |
+| 18 | `GolmokSaveSubsystem.cpp` `Restore` | 존 이동이 진행 중이면(`IsTraveling()`) 리셋을 도착 `OnTraveled`에 맡김(R112-U8) | 이동이 실패하면 리셋이 없다(위치가 안 바뀌어 줄무늬 원인도 없다고 봄) | 실패 뒤 줄무늬가 보이면 `Fail` 경로에서도 리셋(Map/ 수정은 Claude 레인) | |
+| 19 | `GolmokWeatherSubsystem.cpp` | `OnWorldBeginPlay` → 액터 BeginPlay(컨트롤러 `FindOrSpawn`) → 첫 서브시스템 틱 순서(R112-U9) | 첫 틱이 컨트롤러 BeginPlay 뒤인지 | §4 첫 프레임 줄이 실패하면 `OnWorldBeginPlay` 끝에서 `World->OnActorSpawned` 1회 구독으로 시간대 액터를 잡는다 | |
+| 20 | `GolmokSaveSubsystem.cpp` `Restore` → `ResetRainFx` | basemap 위치 복원은 같은 호출 안에서 순간 이동한 뒤 곧바로 리셋한다. 이때 `APlayerCameraManager::GetCameraLocation()`이 아직 지난 프레임의 POV(옛 자리)일 수 있다[추정, 리뷰 후속 검증] | 빗줄기가 옛 자리에서 다시 시작해 다음 틱에 100 m 넘게 이동할 수 있다. 화면은 페이드 인 중이라 보이지 않을 가능성이 크다. R112 전 Rule 1 리셋도 같았다 | §9 basemap 줄에서 줄무늬나 성기게 시작하는 빗줄기(R113-3)가 보이면 `Restore`의 리셋을 `SetTimerForNextTick`으로 한 틱 미룬다(RoundTrip 횟수 단언도 한 틱 뒤로) | |
 
 ## 13. 결과 기록
 
