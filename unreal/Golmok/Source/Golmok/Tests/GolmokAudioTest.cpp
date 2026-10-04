@@ -4,6 +4,8 @@
 #if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
 #include "Audio/GolmokAmbienceSubsystem.h"
 #include "Audio/GolmokFootstepComponent.h"
+#include "Weather/GolmokWeatherSubsystem.h"
+#include "Save/GolmokSaveSubsystem.h"
 #include "Animation/GolmokGaspCharacter.h"
 #include "Animation/GolmokAnimationConfig.h"
 #include "Animation/AnimInstance.h"
@@ -250,6 +252,116 @@ namespace GolmokAudioTest
 		FAutomationTestBase* Test;
 		double Started;
 	};
+	class FRainScenario : public IAutomationLatentCommand
+	{
+	public:
+		explicit FRainScenario(FAutomationTestBase* InTest) : Test(InTest) {}
+		bool Update() override
+		{
+			UWorld* World = GEditor ? GEditor->PlayWorld.Get() : nullptr;
+			auto* Audio = World ? World->GetSubsystem<UGolmokAmbienceSubsystem>() : nullptr;
+			auto* Weather = UGolmokWeatherSubsystem::Get(World);
+			if (!Test->TestNotNull(TEXT("rain audio"), Audio) || !Test->TestNotNull(TEXT("rain weather"), Weather)) return true;
+			FString Message;
+			auto* Tod = AGolmokTimeOfDay::FindOrSpawn(World);
+			Audio->RefreshBindings();
+			Tod->ApplyPreset(TEXT("night"), true);
+			const FString Before = Audio->GetState();
+			const int32 Steps = Audio->GetFootstepRequests();
+			Weather->SetWeather(EGolmokWeather::Rain, 1, true, Message);
+			Audio->UpdateRainForTest(nullptr, 0); // The exact production null-provider path, despite a live rainy world.
+			Test->TestEqual(TEXT("missing weather provider silences rain"), Audio->GetRainVolumeForTest(), 0.0);
+			Test->TestEqual(TEXT("missing weather leaves bed state"), Audio->GetState(), Before);
+			Test->TestEqual(TEXT("missing weather leaves footsteps"), Audio->GetFootstepRequests(), Steps);
+			Test->TestTrue(TEXT("missing weather HUD reads actual zero"), Audio->Describe().Contains(TEXT("rain 0.00")));
+			// A newly constructed, uninitialized provider is disabled (no parsed config).
+			auto* Disabled = NewObject<UGolmokWeatherSubsystem>(World);
+			Audio->UpdateRainForTest(Disabled, 0);
+			Test->TestEqual(TEXT("disabled weather silences rain"), Audio->GetRainVolumeForTest(), 0.0);
+			Audio->UpdateRainForTest(Weather, 0);
+			Test->TestTrue(TEXT("late provider sees ongoing rain without event"), FMath::IsNearlyEqual(Audio->GetRainVolumeForTest(), .8, 1e-6));
+			Test->TestEqual(TEXT("rain cannot replace night bed"), Audio->GetState(), Before);
+			Weather->SetWeather(EGolmokWeather::Clear, 0, true, Message);
+			Weather->SetWeather(EGolmokWeather::Rain, 1, false, Message);
+			const double Duration = Weather->GetConfig().TransitionSeconds;
+			Weather->StepWeather(Duration * .5); Audio->Tick(0);
+			Test->TestEqual(TEXT("sky first half has silent rain"), Audio->GetRainVolumeForTest(), 0.0);
+			Weather->StepWeather(Duration * .25); Audio->Tick(0);
+			const double Rising = Audio->GetRainVolumeForTest();
+			Test->TestTrue(TEXT("actual rain ramps after sky"), Rising > 0 && Rising < .8);
+			Weather->StepWeather(Duration); Audio->Tick(0);
+			Test->TestTrue(TEXT("full rain gain from curve"), FMath::IsNearlyEqual(Audio->GetRainVolumeForTest(), .8, 1e-6));
+			Tod->EnterInterior(TEXT("rain_test")); Audio->UpdateRainForTest(Weather, 30);
+			Test->TestTrue(TEXT("indoor rain attenuated"), FMath::IsNearlyEqual(Audio->GetRainVolumeForTest(), .28, 1e-6));
+			Test->TestEqual(TEXT("indoor bed still selected"), Audio->GetState(), FString(TEXT("interior")));
+			Tod->ExitInterior(TEXT("rain_test")); Audio->UpdateRainForTest(Weather, 30);
+			Test->TestTrue(TEXT("outdoor gain restored"), FMath::IsNearlyEqual(Audio->GetRainVolumeForTest(), .8, 1e-6));
+			// Binding after an interior actor appeared must read the existing state, not await an event.
+			Tod->Destroy(); Audio->RefreshBindings();
+			Tod = AGolmokTimeOfDay::FindOrSpawn(World); Tod->EnterInterior(TEXT("rain_late")); Audio->RefreshBindings();
+			Audio->UpdateRainForTest(Weather, 30);
+			Test->TestTrue(TEXT("late interior binding attenuates"), FMath::IsNearlyEqual(Audio->GetRainVolumeForTest(), .28, 1e-6));
+			Tod->ExitInterior(TEXT("rain_late")); Audio->UpdateRainForTest(Weather, 30);
+			Weather->SetWeather(EGolmokWeather::Clear, 0, false, Message);
+			Weather->StepWeather(Duration * .25); Audio->Tick(0);
+			Test->TestTrue(TEXT("falling rain intermediate gain"), Audio->GetRainVolumeForTest() > 0 && Audio->GetRainVolumeForTest() < .8);
+			Weather->StepWeather(Duration * .25); Audio->Tick(0);
+			Test->TestEqual(TEXT("rain silent before sky settles"), Audio->GetRainVolumeForTest(), 0.0);
+			Weather->StepWeather(Duration);
+			// Real save restore, isolated GUID slot; never overwrite a developer save.
+			if (auto* Save = UGolmokSaveSubsystem::Get(World))
+			{
+				TGuardValue<FString> SlotGuard(Save->SlotName, TEXT("GolmokAudioRain_") + FGuid::NewGuid().ToString(EGuidFormats::Digits));
+				TGuardValue<FString> HomeGuard(Save->HomeZoneId, FString());
+				ON_SCOPE_EXIT { UGameplayStatics::DeleteGameInSlot(Save->SlotName, 0); };
+				auto* Slot = NewObject<UGolmokSaveGame>();
+				Slot->Weather.Rule = UGolmokSaveGame::WeatherRuleV1;
+				Slot->Weather.State = TEXT("rain"); Slot->Weather.Intensity = .3f;
+				Test->TestTrue(TEXT("rain fixture slot written"), UGameplayStatics::SaveGameToSlot(Slot, Save->SlotName, 0));
+				Save->Restore(Message); Audio->Tick(0);
+				Test->TestTrue(TEXT("save restores rain instantly"), !Weather->IsTransitioning() && FMath::IsNearlyEqual(Audio->GetRainVolumeForTest(), .35, 1e-6));
+			}
+			else Test->AddError(TEXT("save subsystem missing for rain restore"));
+			Audio->SetMuted(true); Audio->Tick(0);
+			Test->TestEqual(TEXT("manual mute includes rain"), Audio->GetRainVolumeForTest(), 0.0);
+			Audio->SetMuted(false); Audio->Tick(0);
+			Test->TestTrue(TEXT("unmute restores rain gain"), FMath::IsNearlyEqual(Audio->GetRainVolumeForTest(), .35, 1e-6));
+			Weather->SetWeather(EGolmokWeather::Rain, 1, true, Message); Audio->Tick(0); // Photo scenario runs in full rain.
+			{
+				auto& Config = const_cast<FGolmokAudioConfig&>(Audio->GetConfig());
+				TGuardValue<double> MasterGuard(Config.MasterVolume, .4);
+				Audio->Tick(0);
+				Test->TestTrue(TEXT("master volume scales rain"), FMath::IsNearlyEqual(Audio->GetRainVolumeForTest(), .32, 1e-6));
+			}
+			{
+				auto& Config = const_cast<FGolmokAudioConfig&>(Audio->GetConfig());
+				TGuardValue<FString> AssetGuard(Config.RainAsset, FString());
+				Audio->Tick(0);
+				Test->TestEqual(TEXT("legacy config has no rain even in rainy world"), Audio->GetRainVolumeForTest(), 0.0);
+			}
+			if (auto* Photo = World->GetSubsystem<UGolmokPhotoModeSubsystem>())
+			{
+				auto& Config = const_cast<FGolmokAudioConfig&>(Audio->GetConfig());
+				TGuardValue<bool> PolicyGuard(Config.bMuteInPhoto, false);
+				for (const auto Pause : {EGolmokPhotoPauseMode::GamePause, EGolmokPhotoPauseMode::TimeDilation})
+				{
+					TGuardValue<EGolmokPhotoPauseMode> PauseGuard(Photo->PauseMode, Pause);
+					if (Test->TestTrue(TEXT("maintain photo enter"), Photo->Enter(Message)))
+					{
+						Audio->Tick(0);
+						Test->TestTrue(TEXT("maintain photo keeps rainy audio gain"), FMath::IsNearlyEqual(Audio->GetRainVolumeForTest(), .8, 1e-6));
+						Photo->Exit(TEXT("rain maintain test"));
+					}
+				}
+			}
+			Audio->Tick(0);
+			Test->AddInfo(TEXT("EXECUTED rain null/disabled provider, late lookup/interior, rise/fall, bed preservation, save instant restore and mute; audible output remains PC verification."));
+			return true;
+		}
+	private:
+		FAutomationTestBase* Test;
+	};
+
 	class FPhotoFadeScenario : public IAutomationLatentCommand
 	{
 	public:
@@ -274,12 +386,15 @@ namespace GolmokAudioTest
 			// Poll the target rather than assuming wall time equals clamped audio Tick time.
 			if (Phase == 1 && Audio->GetPhotoGain() < .0001)
 			{
+				Test->TestEqual(TEXT("photo fade also silences rain"), Audio->GetRainVolumeForTest(), 0.0);
+				Test->TestTrue(TEXT("photo freezes weather but keeps audio envelope ticking"), UGolmokWeatherSubsystem::Get(World)->GetRainIntensity() == 1.f);
 				Test->AddInfo(TEXT("EXECUTED GamePause photo gain reached zero"));
 				Photo->Exit(TEXT("audio fade test")); At = Now; Phase = 2;
 			}
 			if (Phase == 2 && Audio->GetPhotoGain() > .9999)
 			{
-				Test->AddInfo(TEXT("EXECUTED photo gain restored"));
+				Test->TestTrue(TEXT("photo exit restores rain"), FMath::IsNearlyEqual(Audio->GetRainVolumeForTest(), .8, 1e-4));
+				Test->AddInfo(TEXT("EXECUTED photo gain restored, including rain"));
 				Photo->PauseMode = PreviousPause; return true;
 			}
 			return false;
@@ -297,6 +412,7 @@ bool FGolmokAudioStateMachineTest::RunTest(const FString& Parameters)
 	ADD_LATENT_AUTOMATION_COMMAND(FEditorLoadMap(TEXT("/Game/Golmok/Maps/L_Dev")));
 	ADD_LATENT_AUTOMATION_COMMAND(FStartPIECommand(false));
 	ADD_LATENT_AUTOMATION_COMMAND(GolmokAudioTest::FStateScenario(this));
+	ADD_LATENT_AUTOMATION_COMMAND(GolmokAudioTest::FRainScenario(this));
 	ADD_LATENT_AUTOMATION_COMMAND(GolmokAudioTest::FPhotoFadeScenario(this));
 	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
 	return true;
@@ -479,9 +595,29 @@ bool FGolmokAudioFootstepTest::RunTest(const FString& Parameters)
 			TestEqual(TEXT("bad driver retains previous"), Parsed.FootstepDriver, Config.FootstepDriver);
 		}
 	}
+	TestTrue(TEXT("rain curve zero"), Config.RainGain(0) == 0);
+	TestTrue(TEXT("rain curve interpolation"), FMath::IsNearlyEqual(Config.RainGain(.15), .175, 1e-6));
+	TestTrue(TEXT("rain upper segment interpolation"), FMath::IsNearlyEqual(Config.RainGain(.65), .575, 1e-6));
+	for (const TCHAR* Invalid : {TEXT("null"), TEXT("{}"), TEXT("{\"asset\":\"asphalt\",\"gain_curve\":[[0,0],[1,1]],\"interior_gain\":0.35}"),
+		TEXT("{\"asset\":\"rain\",\"gain_curve\":[[0,0],[0,1]],\"interior_gain\":0.35}"),
+		TEXT("{\"asset\":\"rain\",\"gain_curve\":[[0,0.1],[1,1]],\"interior_gain\":0.35}"),
+		TEXT("{\"asset\":\"rain\",\"gain_curve\":[[0,0],[1,true]],\"interior_gain\":0.35}"),
+		TEXT("{\"asset\":\"rain\",\"gain_curve\":[[0,0],[1,1]],\"interior_gain\":2}")})
+	{
+		TSharedPtr<FJsonObject> Root;
+		FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Manifest), Root);
+		Root->RemoveField(TEXT("rain"));
+		FString Mutated; FJsonSerializer::Serialize(Root.ToSharedRef(), TJsonWriterFactory<TCHAR, TCondensedJsonPrintPolicy<TCHAR>>::Create(&Mutated));
+		Mutated.InsertAt(1, FString::Printf(TEXT("\"rain\":%s,"), Invalid));
+		FGolmokAudioConfig Parsed = Config;
+		TestFalse(TEXT("invalid rain config rejected"), GolmokAudio::ParseConfig(Mutated, Parsed, Error));
+		TestTrue(TEXT("rain error names section"), Error.Contains(TEXT("rain")));
+		TestEqual(TEXT("rain failure atomic"), Parsed.RainAsset, Config.RainAsset);
+	}
 	FGolmokAudioConfig LegacyConfig;
-	const FString Legacy = Manifest.Replace(TEXT("\"driver\""), TEXT("\"unused_driver_fixture\"")).Replace(TEXT("\"stride_cm_by_character\""), TEXT("\"unused_stride_fixture\"")).Replace(TEXT("\"photo_mute_fade_seconds\""), TEXT("\"unused_photo_fixture\""));
+	const FString Legacy = Manifest.Replace(TEXT("\"rain\":"), TEXT("\"unused_rain_fixture\":")).Replace(TEXT("\"driver\""), TEXT("\"unused_driver_fixture\"")).Replace(TEXT("\"stride_cm_by_character\""), TEXT("\"unused_stride_fixture\"")).Replace(TEXT("\"photo_mute_fade_seconds\""), TEXT("\"unused_photo_fixture\""));
 	TestTrue(TEXT("optional fields support legacy manifest"), GolmokAudio::ParseConfig(Legacy, LegacyConfig, Error));
+	TestTrue(TEXT("legacy has no rain layer"), LegacyConfig.RainAsset.IsEmpty() && LegacyConfig.RainGain(.5) == 0);
 	TestEqual(TEXT("missing driver defaults auto"), LegacyConfig.FootstepDriver, FString(TEXT("auto")));
 	TestEqual(TEXT("legacy roster uses global stride"), LegacyConfig.StrideFor(TEXT("proxy110"), false), 70.0);
 	TestEqual(TEXT("legacy photo fade defaults to quarter second"), LegacyConfig.PhotoMuteFadeSeconds, .25);

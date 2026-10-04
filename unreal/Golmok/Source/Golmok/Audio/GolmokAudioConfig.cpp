@@ -80,7 +80,7 @@ namespace GolmokAudio
 		if (!FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Json), RootObject) || !RootObject.IsValid())
 		{ Error = TEXT("audio.json $: expected valid JSON object"); return false; }
 		const FConfigReader Root{RootObject, TEXT(""), Error};
-		if (!Root.KeyCase({TEXT("schema_version"), TEXT("master_volume"), TEXT("crossfade_seconds"), TEXT("pause_policy"), TEXT("photo_mute_fade_seconds"), TEXT("crossfade_seconds_by_state"), TEXT("assets"), TEXT("ambience"), TEXT("preset_states"), TEXT("footsteps")})) return false;
+		if (!Root.KeyCase({TEXT("schema_version"), TEXT("master_volume"), TEXT("crossfade_seconds"), TEXT("pause_policy"), TEXT("photo_mute_fade_seconds"), TEXT("crossfade_seconds_by_state"), TEXT("assets"), TEXT("ambience"), TEXT("preset_states"), TEXT("footsteps"), TEXT("rain")})) return false;
 		FGolmokAudioConfig Next;
 		double Version = 0; FString Pause;
 		if (!Root.Number(TEXT("schema_version"), Version, 1, 1)
@@ -129,6 +129,29 @@ namespace GolmokAudio
 			if (License == TEXT("CC-BY-4.0") && !Item.Check(LicenseUrl == TEXT("https://creativecommons.org/licenses/by/4.0/"), TEXT("license_url"), TEXT("CC-BY-4.0 license URL"))) return false;
 			Paths.Add(Asset.Path.ToLower()); Next.Assets.Add(FString(*Pair.Key), Asset);
 			Next.Credits += FString::Printf(TEXT("%s — %s\n%s\n%s %s\nVerified: %s\n%s\n\n"), *Title, *Author, *Source, *License, *LicenseUrl, *Verified, *Changes);
+		}
+		if (Root.Data->HasField(TEXT("rain")))
+		{
+			const auto Rain = Root.Child(TEXT("rain"));
+			if (!Rain.KeyCase({TEXT("asset"), TEXT("gain_curve"), TEXT("interior_gain")})) return false;
+			if (!Rain.String(TEXT("asset"), Next.RainAsset)
+				|| !Rain.Check(Next.Assets.Contains(Next.RainAsset) && Next.Assets[Next.RainAsset].bLoop, TEXT("asset"), TEXT("looping asset id"))
+				|| !Rain.Number(TEXT("interior_gain"), Next.RainInteriorGain, 0, 1)) return false;
+			const TArray<TSharedPtr<FJsonValue>>* Points = nullptr;
+			if (!Rain.Check(Rain.Data->TryGetArrayField(TEXT("gain_curve"), Points) && Points->Num() >= 2 && Points->Num() <= 32,
+				TEXT("gain_curve"), TEXT("2..32 [intensity, gain] points"))) return false;
+			for (const auto& Value : *Points)
+			{
+				const TArray<TSharedPtr<FJsonValue>>* Pair = nullptr;
+				double X = 0, Y = 0;
+				if (!Rain.Check(Value->TryGetArray(Pair) && Pair->Num() == 2 && (*Pair)[0]->Type == EJson::Number && (*Pair)[1]->Type == EJson::Number
+					&& (*Pair)[0]->TryGetNumber(X) && (*Pair)[1]->TryGetNumber(Y) && FMath::IsFinite(X) && FMath::IsFinite(Y)
+					&& X >= 0 && X <= 1 && Y >= 0 && Y <= 1, TEXT("gain_curve"), TEXT("finite [intensity, gain] in [0, 1]"))) return false;
+				if (!Rain.Check(Next.RainGainCurve.IsEmpty() || X > Next.RainGainCurve.Last().X, TEXT("gain_curve"), TEXT("strictly increasing intensities"))) return false;
+				Next.RainGainCurve.Emplace(X, Y);
+			}
+			if (!Rain.Check(Next.RainGainCurve[0] == FVector2D(0, 0) && Next.RainGainCurve.Last().X == 1,
+				TEXT("gain_curve"), TEXT("first point [0, 0] and final intensity 1"))) return false;
 		}
 		const auto Ambience = Root.Child(TEXT("ambience"));
 		const auto Presets = Root.Child(TEXT("preset_states"));

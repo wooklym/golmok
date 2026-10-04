@@ -13,6 +13,20 @@ struct FGolmokAudioConfig
 	double WalkStride = 70.0, RunStride = 110.0, RunThreshold = 250.0, TeleportLimit = 300.0;
 	double PitchMin = 0.95, PitchMax = 1.05, VolumeMin = 0.9, VolumeMax = 1.0;
 	bool bMuteInPhoto = true;
+	// Optional rain layer: absent in legacy manifests, independent of the two bed slots.
+	FString RainAsset;
+	double RainInteriorGain = .35;
+	TArray<FVector2D> RainGainCurve;
+	double RainGain(double Intensity) const
+	{
+		if (!FMath::IsFinite(Intensity) || Intensity <= 0 || RainGainCurve.Num() < 2) return 0;
+		for (int32 Index = 1; Index < RainGainCurve.Num(); ++Index)
+		{
+			const FVector2D& A = RainGainCurve[Index - 1]; const FVector2D& B = RainGainCurve[Index];
+			if (Intensity <= B.X) return FMath::Lerp(A.Y, B.Y, (Intensity - A.X) / (B.X - A.X));
+		}
+		return RainGainCurve.Last().Y;
+	}
 	FString FootstepDriver = TEXT("auto");
 	TMap<FString, FVector2D> StrideByCharacter;
 	double StrideFor(const FString& Id, bool bRunning) const

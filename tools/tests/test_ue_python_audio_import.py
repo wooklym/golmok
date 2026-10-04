@@ -66,7 +66,7 @@ def setup(tmp_path, monkeypatch):
 
 def test_import_and_credit_source_swap(setup, tmp_path):
     module, _, config, data, sounds, seen = setup
-    assert len(module.run(config, tmp_path)) == 7
+    assert len(module.run(config, tmp_path)) == len(data["assets"])
     tile = sounds[data["assets"]["tile"]["asset"]]
     assert tile.properties == {"looping": False, "volume": data["assets"]["tile"]["gain"]}
     assert any(t.properties["filename"].endswith("other.wav") for t in seen)

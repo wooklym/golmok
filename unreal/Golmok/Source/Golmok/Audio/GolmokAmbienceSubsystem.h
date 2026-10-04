@@ -6,6 +6,7 @@
 #include "GolmokAmbienceSubsystem.generated.h"
 
 class AGolmokTimeOfDay;
+class UGolmokWeatherSubsystem;
 class APlayerController;
 class APawn;
 class UAudioComponent;
@@ -37,12 +38,15 @@ public:
 	void PlayFootstep(const FString& Set, bool bLanding);
 	void RefreshBindings();
 #if WITH_DEV_AUTOMATION_TESTS
+	void UpdateRainForTest(const UGolmokWeatherSubsystem* Weather, double Dt) { UpdateRain(Weather, Dt); }
+	double GetRainVolumeForTest() const { return RainVolume; }
 	int32 GetFootstepRequests() const { return FootstepRequests; }
 	int32 GetLandingRequests() const { return LandingRequests; }
 #endif
 	double GetPhotoGain() const { return PhotoGain.Value; }
 	void SetSurfaceDiagnostic(int32 Surface, const FString& Message);
 private:
+	void UpdateRain(const UGolmokWeatherSubsystem* Weather, double Dt);
 	void PresetChanged(FName Name, bool bInstant);
 	void InteriorChanged(bool bValue);
 	void ResolveState(bool bInstant = false);
@@ -60,7 +64,11 @@ private:
 	double LastRealTime = 0.0, NextBindingTime = 0.0;
 	FString SlotIds[2];
 	GolmokAudioMath::Envelope Gains[2];
-	GolmokAudioMath::Envelope PhotoGain{false};
+	GolmokAudioMath::Envelope PhotoGain{false}, RainInterior{false};
+	double RainIntensity = 0, RainVolume = 0;
+	bool bRainInteriorInitialized = false;
+	UPROPERTY(Transient)
+	TObjectPtr<UAudioComponent> RainChannel;
 	TSet<int32> WarnedSurfaces;
 	TWeakObjectPtr<AGolmokTimeOfDay> Lighting;
 	TWeakObjectPtr<APlayerController> Controller;

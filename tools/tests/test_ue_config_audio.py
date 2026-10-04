@@ -279,6 +279,9 @@ def test_footstep_driver_keeps_credit_pipeline(value):
     [
         ((), "photo_mute_fade_seconds"),
         ((), "footsteps"),
+        ((), "rain"),
+        (("rain",), "gain_curve"),
+        (("rain",), "interior_gain"),
         (("assets", "asphalt"), "placeholder"),
         (("assets", "asphalt"), "license_url"),
         (("ambience",), "outdoor_day"),
@@ -326,6 +329,86 @@ def test_alias_validation_preserves_extensions_and_dynamic_ids():
 )
 def test_python_retains_both_case_distinct_driver_keys(pairs):
     data = audio.load_config()
+    data["footsteps"].pop("driver", None)
     data["footsteps"].update(json.loads("{" + pairs + "}"))
+    assert list(data["footsteps"])[-2:] == list(json.loads("{" + pairs + "}"))
     with pytest.raises(ValueError, match=r"footsteps\.Driver: expected driver"):
         audio.parse_config(data)
+
+
+@pytest.mark.parametrize(
+    "value", [None, {}, [], {"asset": "asphalt", "gain_curve": [[0, 0], [1, 1]], "interior_gain": 0.35}]
+)
+def test_invalid_rain_section(value):
+    data = audio.load_config()
+    data["rain"] = value
+    with pytest.raises(ValueError, match="rain"):
+        audio.parse_config(data)
+
+
+@pytest.mark.parametrize(
+    "curve",
+    [
+        [],
+        [[0, 0]],
+        [[0, 0], [0, 1]],
+        [[0.1, 0], [1, 1]],
+        [[0, 0.1], [1, 1]],
+        [[0, 0], [0.9, 1]],
+        [[0, 0], [1, True]],
+        [[0, 0], [1, float("nan")]],
+        [[0, 0], [1, 1.01]],
+        [[0, 0], [1]],
+        [[0, 0], "bad"],
+        [[0, 0]] * 33,
+    ],
+)
+def test_invalid_rain_curve(curve):
+    data = audio.load_config()
+    data["rain"]["gain_curve"] = curve
+    with pytest.raises(ValueError, match="rain.gain_curve"):
+        audio.parse_config(data)
+
+
+@pytest.mark.parametrize("gain", [None, True, -1, 1.01, float("inf")])
+def test_invalid_rain_indoor_gain(gain):
+    data = audio.load_config()
+    data["rain"]["interior_gain"] = gain
+    with pytest.raises(ValueError, match="rain.interior_gain"):
+        audio.parse_config(data)
+
+
+def test_rain_optional_and_asset_replacement_is_data_only():
+    data = audio.load_config()
+    data["rain"]["asset"] = "outdoor_night"
+    assert audio.parse_config(data) is data
+    del data["rain"]
+    assert audio.parse_config(data) is data
+
+
+@pytest.mark.parametrize("key", ["stride_scale_by_mesh", "STRIDE_SCALE_BY_MESH", "Stride_Scale_By_Mesh"])
+def test_obsolete_stride_key_case_rejected(key):
+    data = audio.load_config()
+    data["footsteps"][key] = True
+    with pytest.raises(ValueError, match="superseded by stride_cm_by_character"):
+        audio.parse_config(data)
+
+
+def test_runtime_python_known_key_names_match():
+    # Compare the real key lists, including optional sections, not a duplicated expected registry.
+    import ast
+    import re
+    from collections import Counter
+
+    tree = ast.parse(Path(audio.__file__).read_text(encoding="utf-8"))
+    python_lists = Counter(
+        tuple(sorted(ast.literal_eval(node.args[1])))
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == "key_case"
+    )
+    cpp = (audio.PROJECT / "Source/Golmok/Audio/GolmokAudioConfig.cpp").read_text(encoding="utf-8")
+    cpp_lists = Counter(
+        tuple(sorted(re.findall(r'TEXT\("([^"\n]+)"\)', body)))
+        for body in re.findall(r"\.KeyCase\(\{(.*?)\}\)", cpp, re.S)
+    )
+    assert python_lists == cpp_lists

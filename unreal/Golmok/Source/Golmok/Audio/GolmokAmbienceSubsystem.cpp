@@ -15,6 +15,7 @@
 #include "Sound/SoundAttenuation.h"
 #include "Sound/SoundConcurrency.h"
 #include "Sound/SoundWave.h"
+#include "Weather/GolmokWeatherSubsystem.h"
 
 bool UGolmokAmbienceSubsystem::DoesSupportWorldType(const EWorldType::Type WorldType) const
 {
@@ -63,6 +64,10 @@ void UGolmokAmbienceSubsystem::OnWorldBeginPlay(UWorld& InWorld)
 	}
 	RefreshBindings();
 	ResolveState(true);
+	if (USoundWave* Sound = Sounds.FindRef(Config.RainAsset))
+		RainChannel = UGameplayStatics::SpawnSound2D(this, Sound, 0.f, 1.f, 0.f, nullptr, false, false);
+	// No event subscription: begin-play ordering and late weather availability use the same lookup.
+	UpdateRain(UGolmokWeatherSubsystem::Get(GetWorld()), 0);
 }
 
 void UGolmokAmbienceSubsystem::Deinitialize()
@@ -77,6 +82,8 @@ void UGolmokAmbienceSubsystem::Deinitialize()
 	HudHandle.Reset();
 	for (UAudioComponent* Channel : Channels) if (IsValid(Channel)) { Channel->Stop(); Channel->DestroyComponent(); }
 	for (UAudioComponent* Shot : OneShots) if (IsValid(Shot)) Shot->Stop();
+	if (IsValid(RainChannel)) { RainChannel->Stop(); RainChannel->DestroyComponent(); }
+	RainChannel = nullptr;
 	OneShots.Empty();
 	Channels.Empty(); Sounds.Empty(); bReady = false;
 	Super::Deinitialize();
@@ -225,8 +232,24 @@ void UGolmokAmbienceSubsystem::Tick(float DeltaTime)
 	{
 		if (IsValid(Channels[Slot])) Channels[Slot]->SetVolumeMultiplier(static_cast<float>((bMuted ? 0 : Config.MasterVolume * PhotoGain.Value) * Gains[Slot].Value));
 	}
+	UpdateRain(UGolmokWeatherSubsystem::Get(GetWorld()), Dt);
 	if (bMuted) for (UAudioComponent* Shot : OneShots) if (IsValid(Shot)) Shot->Stop();
 	OneShots.RemoveAll([](const TObjectPtr<UAudioComponent>& Shot) { return !IsValid(Shot) || !Shot->IsPlaying(); });
+}
+
+void UGolmokAmbienceSubsystem::UpdateRain(const UGolmokWeatherSubsystem* Weather, double Dt)
+{
+	RainIntensity = Weather && Weather->IsEnabled() ? GolmokAudioMath::Clamp01(Weather->GetRainIntensity()) : 0;
+	const double InteriorTarget = bInterior ? Config.RainInteriorGain : 1;
+	if (!bRainInteriorInitialized || RainInterior.To != InteriorTarget)
+	{
+		const FString Destination = bInterior ? TEXT("interior") : (Config.Presets.FindRef(Preset) == TEXT("outdoor_night") ? TEXT("outdoor_night") : TEXT("outdoor_day"));
+		RainInterior.Set(InteriorTarget, bRainInteriorInitialized ? Config.FadeSeconds(Destination) : 0);
+		bRainInteriorInitialized = true;
+	}
+	RainInterior.Advance(Dt);
+	RainVolume = Config.RainAsset.IsEmpty() || bMuted ? 0 : Config.MasterVolume * PhotoGain.Value * RainInterior.Value * Config.RainGain(RainIntensity);
+	if (IsValid(RainChannel)) RainChannel->SetVolumeMultiplier(static_cast<float>(RainVolume));
 }
 
 void UGolmokAmbienceSubsystem::PlayFootstep(const FString& Set, bool bLanding)
@@ -267,8 +290,8 @@ FString UGolmokAmbienceSubsystem::Describe() const
 	const auto* Steps = Pawn ? Pawn->FindComponentByClass<UGolmokFootstepComponent>() : nullptr;
 	const TCHAR* Driver = Steps ? (Steps->UsesNotifyDriver() ? TEXT("notify") : TEXT("distance")) : TEXT("none");
 	const uint64 Events = Steps ? Steps->GetFootEventCount() : 0;
-	return FString::Printf(TEXT("audio: %s [%s / %s] vol %.2f steps=%s drv=%s(%s) ev=%llu photo_gain=%.2f%s%s%s"), *State, *SlotIds[0], *SlotIds[1],
-		Config.MasterVolume, *LastFootstepSet, Driver, *Config.FootstepDriver, static_cast<unsigned long long>(Events), PhotoGain.Value, IsMuted() ? TEXT(" muted") : TEXT(""), LoadError.IsEmpty() ? TEXT("") : *FString(TEXT(" error: ") + LoadError), SurfaceError.IsEmpty() ? TEXT("") : *FString(TEXT(" error: ") + SurfaceError));
+	return FString::Printf(TEXT("audio: %s [%s / %s] vol %.2f steps=%s drv=%s(%s) ev=%llu photo_gain=%.2f rain %.2f rain_gain=%.3f%s%s%s"), *State, *SlotIds[0], *SlotIds[1],
+		Config.MasterVolume, *LastFootstepSet, Driver, *Config.FootstepDriver, static_cast<unsigned long long>(Events), PhotoGain.Value, RainIntensity, RainVolume, IsMuted() ? TEXT(" muted") : TEXT(""), LoadError.IsEmpty() ? TEXT("") : *FString(TEXT(" error: ") + LoadError), SurfaceError.IsEmpty() ? TEXT("") : *FString(TEXT(" error: ") + SurfaceError));
 }
 
 namespace GolmokAudioConsole
