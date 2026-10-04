@@ -73,5 +73,5 @@ Author: Golmok procedural generator
 Source: https://github.com/wooklym/golmok/blob/main/tools/scripts/make_placeholder_audio.py
 License: project-generated
 Verified: 2026-10-05
-Changes: Deterministic periodic 1–8 kHz noise with 36 exponential raindrop transients per 4 s (1 ms attack, 6 ms decay, amplitude 2.1); synthetic test texture, not a field recording.
+Changes: Deterministic 24 s periodic 1–8 kHz noise with 216 raindrops (log-uniform amplitude 0.6–3.3, 3–15 ms decay, 1–4 kHz, minimum circular gap 30 ms); synthetic test texture, not a field recording.
 Placeholder: True
