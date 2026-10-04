@@ -218,3 +218,10 @@ WP-14a(PR #51)가 main에 들어온 뒤 오케스트레이터 결정(R49-7 / R51
 - **적대적 검증 반영**(2026-10-04, (A) 0 · (B) 0 · (C) 6): V1 판단 2·복원·테스트, V2 테스트(a 순수 단언 추가, b `HoldSlotPosition` 통과는 미검증으로 표기), V3 판단 1 정정, V4 판단 4·`pc-verify-wp19.md` §A8, V5 `pc-verify-wp15a.md` 자동화 수 32 → 36(§2·§10), V6 `pc-verify-wp15a.md` §6 레거시 확인을 1회차 앞 선택 단계로·`pc-verify-wp19.md` §B7 옛 세이브 만드는 법(선택).
 - **적대적 검증 2라운드**(2026-10-04, V1~V6 델타·T20 병합 트리, (A) 0 · (B) 0 · (C) 3, 모두 반영): W1 복원 보류 중 폰 스냅숏이 슬롯의 캐릭터를 지우던 한 프레임 창 → 슬롯 id·규칙 유지, W2 로스터 로드 실패 때 규칙 1 id도 버리던 것 → 규칙 1은 남김(판단 2 문장 정정), W3 `pc-verify-wp15a.md` §6 단서에 0회차 비기본 id 경우 추가. 컴파일(병합 트리 식별자·const·유니티 빌드)·변이 대응표·거절 경로(로그 없이 거절)·레인을 다시 확인했다.
 - **게이트**(리눅스): ruff 통과, format 112, pytest 1501 passed / 3 skipped(기준과 같음), check_repo OK, `git diff --check` 통과, 자동화 등록 36.
+
+## PC 검증 V-14 (2026-10-04)
+
+PC 세션(Claude Opus 5.5, 워크트리 `goofy-maxwell-3aee56`, 브랜치 `pc/v14-verify-wp15a`, main `f1535ac` 병합 포함). 결과 표는 `runbooks/pc-verify-wp15a.md` §10, API별 결과는 §9.
+- **판정 🟢**: 빌드 무수정, 자동화 36/36, §3~§8 통과(R49-1·R49-8·시간대 {분, 모드}·R91-1 명시 캐릭터 포함).
+- **PC fix 1건(설계 의도 그대로, 메커니즘만 바뀜)**: R49-2 "종료 순간 위치"가 PIE 종료·`-game` 창 닫기에서 실패했다(마지막 1 s 폴링 위치 저장). UE 5.8은 이 두 경로에서 `BeginTearingDown` 전에 로컬 플레이어를 지워(`EndPlayMap`: `CloseRequested` → `CleanupGameViewport` → `RemoveLocalPlayer`) `OnWorldBeginTearDown` 안에서 폰이 없다. 종료 스냅샷을 `UGameViewportClient::OnCloseRequested`에서도 갱신하도록 고쳤다(복원 보류 중·첫 스냅샷 전 제외; teardown 핸들러는 `-game` quit·맵 전환용으로 유지). 위 "리뷰 반영" R49-2의 "`OnWorldBeginTearDown`(EndPlay 전, 액터 유효)" 기록은 이력으로 둔다.
+- **관찰(룩, 후속 제안)**: 도착 페이드 인 동안 카메라가 스프링암 랙(`CameraLagSpeed 12`)으로 192 m를 날아와 캐릭터가 +0.33 s에 블러와 함께 들어온다. 도착 틱의 랙 1틱 해제 + 카메라 컷을 제안한다.
