@@ -301,3 +301,10 @@ T11 실행(2026-09-30): 정상 6코스 1 Success·경고0·단언25 PASS·PNG37�
 Locomotion의 Block 판정 직전에 X·Y·Feet·Speed2D·MovementMode·해당 Block 단계 최대 월드 프레임 dt를 Info로 출력한다. 최초 T12 실패의 정확한 라벨·실행 순서는 WP-18-followup T14 절을 참조한다. 콜드 반복 실험은 이번에 하지 않았고 간헐 실패 원인/해결을 주장하지 않는다.
 
 GASP 보폭 67/146 cm는 **[추정] 기존 ① 값 복사**다. notify가 실제 발 타이밍을 공급하며 distance 진단 값은 V-15에서 재측정한다. 패키지 스모크에서는 `golmok.character proxy135`로 LoadObjectIfPresent의 패키지 조회·전환도 확인한다(이번 헤드리스 실행과 별개).
+
+
+### T23 카메라 구도 재현
+
+§11 명령에 `-GolmokCharacterFraming`을 추가한다. 기존 Sequence의 진단 붐1.5배를 쓰지 않고 로스터 붐·소켓·FOV와 피치 −15°로 4종×3코스를 캡처한다. course0은 카메라 쪽 S 걷기6초, course1은 계단 왕복, course2는 포털 왕복이다. GUI 잠금을 잡고 실행하며 PC 키보드 최종 검수를 대신하지 않는다.
+
+시트는 course0 전체, course1 X속도<−1인 하강, course2 exited=1 이후를 각각 한 행으로 두고 각 구간의 처음~끝에서 균등4장을 고른다. 원본 PNG 종횡비를 유지한 1600×780 JPG, ≤300KB. 실제 PIE 캡처 해상도는 manifest 후처리 기록을 확인한다(ResX/ResY와 다를 수 있음). 수식의 16:9 기준과 다른 뷰포트 비율의 시각 근거를 혼동하지 않는다. 다음 PC 카드에서 실제 키 입력으로 후면 걷기·계단 하강·포털 복귀와 착지를 재검수한다.

@@ -531,3 +531,34 @@ STATUS/astra-tasks 문안: “T21 R94-1 완료: 명시 선택 플래그 전이 �
 **병합 전 리뷰([R96](https://github.com/wooklym/golmok/pull/96#issuecomment-5979382620))**: (A) 0 · (B) 0 · (C) 0. 주석만 바뀐 PR이라 오케스트레이터(Opus 5.5)가 직접 대조했다. 계약 문구가 `cpp:351`·`:360-363`·`:401`의 전이와 일치하고, 클래스 주석이 #93 `TakeSnapshot`과 일치하며, 레인을 지켰다. CI 10/10.
 
 **병합**: 오케스트레이터 결정(D-019). main(`f1535ac`, 문서 #95)을 병합한 뒤 이 커밋으로 반영했다. 위 "병합 시 반영 — T21" 문안은 STATUS 병행 트랙 WP-18 행과 `astra-tasks.md` T21에 옮겼다. 19b 경로 확정 뒤 4개 경로 갱신 스택(R84 (C))이 다음 캐릭터 레인 과제다.
+
+## T23 — 카메라 구도 (2026-10-04 KST)
+
+배정: [이슈 #30 T23](https://github.com/wooklym/golmok/issues/30#issuecomment-5979679271), [V-11 P11-1](https://github.com/wooklym/golmok/pull/100#issuecomment-5979649367). main `9cd46fc`에서 `astra/wp-18-camera-framing`. 소켓 Z만 성인4항목(Manny/Quinn/GASP2)2, proxy135 2, proxy110 0으로 낮췄다. 붐 길이·FOV·랙·hotspot은 그대로다. UE Runtime의 기존 카메라 리터럴 기대값도 새 로스터에 맞췄다.
+
+순수 검사: 수평 FOV, 16:9, 피치 p=−15°, 캡슐 중심 높이 h, 붐 L, 소켓 s를 사용한다. 점(x,z)의 카메라 깊이는 `L + x*cos(p) + (z-h)*sin(p) - s.x`, 세로는 `-x*sin(p) + (z-h)*cos(p) - s.z`이고, 아래부터 정규화 Y는 `0.5 + up/(2*depth*tan(FOV/2)/(16/9))`다. 소켓은 카메라 회전 좌표다. 기준은 정지 발 ≥12%, 걷기 반 보폭+랙 발 ≥3%, 머리 ≤80%. 반 보폭은 audio.json의 각 walk stride/2, 랙은 walk speed/12로 계산했다. 달리기·계단 높이차·붐 충돌까지 보장하는 식은 아니다. 기존 소켓 값이 정지 발 기준을 실패하는 음성 회귀도 포함했다.
+
+| 항목 | Socket Z cm | 정지 발 | 걷기 반 보폭+랙 발 | 머리 |
+|---|---:|---:|---:|---:|
+| manny | 2 | 22.00% | 13.11% | 79.58% |
+| quinn | 2 | 22.00% | 13.11% | 79.58% |
+| proxy135 | 2 | 21.38% | 12.00% | 79.45% |
+| proxy110 | 0 | 22.57% | 13.58% | 79.75% |
+| manny_gasp | 2 | 22.00% | 13.11% | 79.58% |
+| uefn_gasp | 2 | 22.00% | 13.11% | 79.58% |
+
+렌더 근거: 기존 §11 Sequence에 `-GolmokCharacterFraming`을 함께 주면 붐 확대 없이 로스터 카메라·피치 −15°를 사용한다. 4종(Manny 포함)×3코스, course0은 S 걷기6초(달리기 없음), course1 계단 왕복, course2 포털 왕복이다. 옛 Sequence 옵션만 주면 기존 3종·진단 붐1.5배 동작을 유지한다. 엔진 InputKey 근거이며 실제 키 입력 최종 판정은 다음 PC 카드다.
+
+최초 후보20/10/10은 순수 세 기준을 통과했지만 첫 렌더 시트의 계단 하강에서 발이 하단에 걸렸다. 머리80% 상한 안에서 소켓을 추가로 낮춘 최종2/2/0를 선택했다.
+
+최종 GPU 실행: RenderEvidence **1 Success/경고0/failed0/notRun0,109.98s**, 12코스 단언 PASS, 원본 PNG 757장 전부 디코딩·1014×550·인접 sim 0.1초±0.002 검증. GUI 잠금 획득·갱신·반납. JPG 4장1600×780, 각183~203KB. 4×3 시트는 행별 걷기/계단 하강/포털 복귀, 4프레임 균등 선택이며 경로·선택 파일은 각 capture.txt의 후처리 기록에 있다. 시트 육안 확인에서 선택 프레임의 머리/발은 화면 안이며 계단 중간 여백은 좁다. 전체 원본의 모든 보행 위상·다른 화면비·착지·실제 키 입력의 합격을 뜻하지 않는다.
+
+[매니 시트](../images/wp18-t23/manny.jpg) · [퀸 시트](../images/wp18-t23/quinn.jpg) · [135 시트](../images/wp18-t23/proxy135.jpg) · [110 시트](../images/wp18-t23/proxy110.jpg)
+
+중간 −2cm proxy110 시도는 머리80.90%로 pytest가 실패(1 failed/1315 passed)하여 촬영을 중단했다. 최종0cm의 구도55개 통과를 확인한 뒤 모든 코스를 새로 촬영했다. 이 중단 결과를 성공 집계에 포함하지 않는다.
+
+최종 게이트: UE5.8.3 build5.76s 성공, 전체 **36 Success(24+경고12)/failed0/notRun0,192.54s**. Python **1316 passed/218 skipped/208 warnings,96.08s**, ruff check/format114·check_repo·diff 통과. 등록36 유지. 실제 GASP 원본/리타깃·V-15 실제 입력 판정은 미실행. 근거: tools/.venv/t23-build-final.txt, t23-pytest-final2.txt, t23-full-index.json 및 Saved/Automation/T23RenderReportFinal2/index.json.
+
+### 병합 시 반영 — T23
+
+STATUS/astra-tasks 문안: “T23 카메라 구도: 로스터 Socket Z를 성인/proxy135 2·proxy110 0으로 낮추고 −15°/16:9 걷기 구도 순수 회귀와 엔진 입력 드라이버 렌더 근거를 추가. 붐/FOV/랙 정책 불변. V-15 전 실제 키 입력 최종 재검수 필요.”

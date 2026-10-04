@@ -1,0 +1,142 @@
+ENGINE INPUT DRIVER RENDER EVIDENCE; not real keyboard/video; no hitch/fps verdict
+fixed simulation dt=1/60; screenshot requests at 0.1s sim intervals; image resolved on render frame
+id=proxy135 course=2 (0=walk3s/run3s,1=L_Dev stairs,2=portal roundtrip) camera=roster boom pitch-15
+T23: course0 overrides legacy description: S walking toward camera for 6s, no run; roster boom, pitch -15.
+input sim=0.6029 key=W up
+input sim=0.6029 key=S up
+input sim=0.6029 key=LeftShift up
+environment rhi=D3D12 preset=clear_noon applied=true arm_length=260.000 command_line=-ExecCmds="Automation RunTests Golmok.Character.RenderEvidence;Quit" -ReportExportPath=C:/Users/user/golmok-astra/wp-13a-sources/unreal/Golmok/Saved/Automation/T23RenderReportFinal2 -GolmokCharacterRenderEvidence -GolmokCharacterSequence -GolmokCharacterFraming -d3d12 -RenderOffscreen -unattended -nosplash -nopause -nosound -ResX=1280 -ResY=720 -ini:Engine:[/Script/Engine.InputSettings]:bShouldFlushPressedKeysOnViewportFocusLost=False -ini:EditorPerProjectUserSettings:[/Script/UnrealEd.EditorPerformanceSettings]:bThrottleCPUWhenNotForeground=False
+setup teleport sim=0.6196 position=X=18170.577 Y=-23008.010 Z=1071.326; no teleports during traversal
+input sim=3.6196 key=W down
+frame sim=3.7196 elapsed=0.1000 id=proxy135 course=2 position=X=18170.577 Y=-23018.533 Z=1070.476 velocity=X=-0.003 Y=-145.000 Z=0.000 file=proxy135_course2_sim0000.100.png
+state sim=3.7196 feet=1001.476 portal_present=1 inside=0 entered=0 exited=0
+frame sim=3.8196 elapsed=0.2000 id=proxy135 course=2 position=X=18170.577 Y=-23033.033 Z=1070.476 velocity=X=-0.003 Y=-145.000 Z=0.000 file=proxy135_course2_sim0000.200.png
+state sim=3.8196 feet=1001.476 portal_present=1 inside=0 entered=0 exited=0
+frame sim=3.9196 elapsed=0.3000 id=proxy135 course=2 position=X=18170.576 Y=-23047.533 Z=1070.476 velocity=X=-0.003 Y=-145.000 Z=0.000 file=proxy135_course2_sim0000.300.png
+state sim=3.9196 feet=1001.476 portal_present=1 inside=0 entered=0 exited=0
+frame sim=4.0196 elapsed=0.4000 id=proxy135 course=2 position=X=18170.576 Y=-23062.033 Z=1070.476 velocity=X=-0.003 Y=-145.000 Z=0.000 file=proxy135_course2_sim0000.400.png
+state sim=4.0196 feet=1001.476 portal_present=1 inside=0 entered=0 exited=0
+frame sim=4.1196 elapsed=0.5000 id=proxy135 course=2 position=X=18170.576 Y=-23076.533 Z=1070.476 velocity=X=-0.003 Y=-145.000 Z=0.000 file=proxy135_course2_sim0000.500.png
+state sim=4.1196 feet=1001.476 portal_present=1 inside=0 entered=0 exited=0
+frame sim=4.2196 elapsed=0.6000 id=proxy135 course=2 position=X=18170.575 Y=-23091.033 Z=1070.476 velocity=X=-0.003 Y=-145.000 Z=0.000 file=proxy135_course2_sim0000.600.png
+state sim=4.2196 feet=1001.476 portal_present=1 inside=0 entered=0 exited=0
+frame sim=4.3196 elapsed=0.7000 id=proxy135 course=2 position=X=18170.575 Y=-23105.533 Z=1070.476 velocity=X=-0.003 Y=-145.000 Z=0.000 file=proxy135_course2_sim0000.700.png
+state sim=4.3196 feet=1001.476 portal_present=1 inside=0 entered=0 exited=0
+frame sim=4.4196 elapsed=0.8000 id=proxy135 course=2 position=X=18170.575 Y=-23120.033 Z=1070.476 velocity=X=-0.003 Y=-145.000 Z=0.000 file=proxy135_course2_sim0000.800.png
+state sim=4.4196 feet=1001.476 portal_present=1 inside=0 entered=0 exited=0
+frame sim=4.5196 elapsed=0.9000 id=proxy135 course=2 position=X=18170.574 Y=-23134.533 Z=1070.476 velocity=X=-0.003 Y=-145.000 Z=0.000 file=proxy135_course2_sim0000.900.png
+state sim=4.5196 feet=1001.476 portal_present=1 inside=0 entered=0 exited=0
+frame sim=4.6196 elapsed=1.0000 id=proxy135 course=2 position=X=18170.574 Y=-23149.033 Z=1070.476 velocity=X=-0.003 Y=-145.000 Z=0.000 file=proxy135_course2_sim0001.000.png
+state sim=4.6196 feet=1001.476 portal_present=1 inside=0 entered=0 exited=0
+frame sim=4.7196 elapsed=1.1000 id=proxy135 course=2 position=X=18170.574 Y=-23163.533 Z=1070.476 velocity=X=-0.003 Y=-145.000 Z=0.000 file=proxy135_course2_sim0001.100.png
+state sim=4.7196 feet=1001.476 portal_present=1 inside=1 entered=1 exited=0
+frame sim=4.8196 elapsed=1.2000 id=proxy135 course=2 position=X=18170.574 Y=-23178.033 Z=1070.476 velocity=X=-0.003 Y=-145.000 Z=0.000 file=proxy135_course2_sim0001.200.png
+state sim=4.8196 feet=1001.476 portal_present=1 inside=1 entered=1 exited=0
+frame sim=4.9196 elapsed=1.3000 id=proxy135 course=2 position=X=18170.573 Y=-23192.533 Z=1070.476 velocity=X=-0.003 Y=-145.000 Z=0.000 file=proxy135_course2_sim0001.300.png
+state sim=4.9196 feet=1001.476 portal_present=1 inside=1 entered=1 exited=0
+frame sim=5.0196 elapsed=1.4000 id=proxy135 course=2 position=X=18170.573 Y=-23207.033 Z=1070.476 velocity=X=-0.003 Y=-145.000 Z=0.000 file=proxy135_course2_sim0001.400.png
+state sim=5.0196 feet=1001.476 portal_present=1 inside=1 entered=1 exited=0
+frame sim=5.1196 elapsed=1.5000 id=proxy135 course=2 position=X=18170.573 Y=-23221.533 Z=1070.476 velocity=X=-0.003 Y=-145.000 Z=0.000 file=proxy135_course2_sim0001.500.png
+state sim=5.1196 feet=1001.476 portal_present=1 inside=1 entered=1 exited=0
+input sim=5.2196 key=W up
+input sim=5.2196 key=S down
+frame sim=5.2196 elapsed=1.6000 id=proxy135 course=2 position=X=18170.572 Y=-23236.033 Z=1070.476 velocity=X=-0.003 Y=-145.000 Z=0.000 file=proxy135_course2_sim0001.600.png
+state sim=5.2196 feet=1001.476 portal_present=1 inside=1 entered=1 exited=0
+frame sim=5.3196 elapsed=1.7000 id=proxy135 course=2 position=X=18170.572 Y=-23232.780 Z=1070.476 velocity=X=0.003 Y=122.737 Z=0.000 file=proxy135_course2_sim0001.700.png
+state sim=5.3196 feet=1001.476 portal_present=1 inside=1 entered=1 exited=0
+frame sim=5.4196 elapsed=1.8000 id=proxy135 course=2 position=X=18170.573 Y=-23218.280 Z=1070.476 velocity=X=0.003 Y=145.000 Z=0.000 file=proxy135_course2_sim0001.800.png
+state sim=5.4196 feet=1001.476 portal_present=1 inside=1 entered=1 exited=0
+frame sim=5.5196 elapsed=1.9000 id=proxy135 course=2 position=X=18170.573 Y=-23203.780 Z=1070.476 velocity=X=0.003 Y=145.000 Z=0.000 file=proxy135_course2_sim0001.900.png
+state sim=5.5196 feet=1001.476 portal_present=1 inside=1 entered=1 exited=0
+frame sim=5.6196 elapsed=2.0000 id=proxy135 course=2 position=X=18170.573 Y=-23189.280 Z=1070.476 velocity=X=0.003 Y=145.000 Z=0.000 file=proxy135_course2_sim0002.000.png
+state sim=5.6196 feet=1001.476 portal_present=1 inside=1 entered=1 exited=0
+frame sim=5.7196 elapsed=2.1000 id=proxy135 course=2 position=X=18170.574 Y=-23174.780 Z=1070.476 velocity=X=0.003 Y=145.000 Z=0.000 file=proxy135_course2_sim0002.100.png
+state sim=5.7196 feet=1001.476 portal_present=1 inside=1 entered=1 exited=0
+frame sim=5.8196 elapsed=2.2000 id=proxy135 course=2 position=X=18170.574 Y=-23160.280 Z=1070.476 velocity=X=0.003 Y=145.000 Z=0.000 file=proxy135_course2_sim0002.200.png
+state sim=5.8196 feet=1001.476 portal_present=1 inside=1 entered=1 exited=0
+frame sim=5.9196 elapsed=2.3000 id=proxy135 course=2 position=X=18170.574 Y=-23145.780 Z=1070.476 velocity=X=0.003 Y=145.000 Z=0.000 file=proxy135_course2_sim0002.300.png
+state sim=5.9196 feet=1001.476 portal_present=1 inside=1 entered=1 exited=0
+frame sim=6.0196 elapsed=2.4000 id=proxy135 course=2 position=X=18170.575 Y=-23131.280 Z=1070.476 velocity=X=0.003 Y=145.000 Z=0.000 file=proxy135_course2_sim0002.400.png
+state sim=6.0196 feet=1001.476 portal_present=1 inside=0 entered=1 exited=1
+frame sim=6.1196 elapsed=2.5000 id=proxy135 course=2 position=X=18170.575 Y=-23116.780 Z=1070.476 velocity=X=0.003 Y=145.000 Z=0.000 file=proxy135_course2_sim0002.500.png
+state sim=6.1196 feet=1001.476 portal_present=1 inside=0 entered=1 exited=1
+frame sim=6.2196 elapsed=2.6000 id=proxy135 course=2 position=X=18170.575 Y=-23102.280 Z=1070.476 velocity=X=0.003 Y=145.000 Z=0.000 file=proxy135_course2_sim0002.600.png
+state sim=6.2196 feet=1001.476 portal_present=1 inside=0 entered=1 exited=1
+frame sim=6.3196 elapsed=2.7000 id=proxy135 course=2 position=X=18170.575 Y=-23087.780 Z=1070.476 velocity=X=0.003 Y=145.000 Z=0.000 file=proxy135_course2_sim0002.700.png
+state sim=6.3196 feet=1001.476 portal_present=1 inside=0 entered=1 exited=1
+frame sim=6.4196 elapsed=2.8000 id=proxy135 course=2 position=X=18170.576 Y=-23073.280 Z=1070.476 velocity=X=0.003 Y=145.000 Z=0.000 file=proxy135_course2_sim0002.800.png
+state sim=6.4196 feet=1001.476 portal_present=1 inside=0 entered=1 exited=1
+frame sim=6.5196 elapsed=2.9000 id=proxy135 course=2 position=X=18170.576 Y=-23058.780 Z=1070.476 velocity=X=0.003 Y=145.000 Z=0.000 file=proxy135_course2_sim0002.900.png
+state sim=6.5196 feet=1001.476 portal_present=1 inside=0 entered=1 exited=1
+frame sim=6.6196 elapsed=3.0000 id=proxy135 course=2 position=X=18170.576 Y=-23044.280 Z=1070.476 velocity=X=0.003 Y=145.000 Z=0.000 file=proxy135_course2_sim0003.000.png
+state sim=6.6196 feet=1001.476 portal_present=1 inside=0 entered=1 exited=1
+frame sim=6.7196 elapsed=3.1000 id=proxy135 course=2 position=X=18170.577 Y=-23029.780 Z=1070.476 velocity=X=0.003 Y=145.000 Z=0.000 file=proxy135_course2_sim0003.100.png
+state sim=6.7196 feet=1001.476 portal_present=1 inside=0 entered=1 exited=1
+frame sim=6.8196 elapsed=3.2000 id=proxy135 course=2 position=X=18170.577 Y=-23015.280 Z=1070.476 velocity=X=0.003 Y=145.000 Z=0.000 file=proxy135_course2_sim0003.200.png
+state sim=6.8196 feet=1001.476 portal_present=1 inside=0 entered=1 exited=1
+frame sim=6.9196 elapsed=3.3000 id=proxy135 course=2 position=X=18170.577 Y=-23000.780 Z=1070.476 velocity=X=0.003 Y=145.000 Z=0.000 file=proxy135_course2_sim0003.300.png
+state sim=6.9196 feet=1001.476 portal_present=1 inside=0 entered=1 exited=1
+frame sim=7.0196 elapsed=3.4000 id=proxy135 course=2 position=X=18170.578 Y=-22986.280 Z=1070.476 velocity=X=0.003 Y=145.000 Z=0.000 file=proxy135_course2_sim0003.400.png
+state sim=7.0196 feet=1001.476 portal_present=1 inside=0 entered=1 exited=1
+frame sim=7.1196 elapsed=3.5000 id=proxy135 course=2 position=X=18170.578 Y=-22971.780 Z=1070.476 velocity=X=0.003 Y=145.000 Z=0.000 file=proxy135_course2_sim0003.500.png
+state sim=7.1196 feet=1001.476 portal_present=1 inside=0 entered=1 exited=1
+frame sim=7.2196 elapsed=3.6000 id=proxy135 course=2 position=X=18170.578 Y=-22957.280 Z=1070.476 velocity=X=0.003 Y=145.000 Z=0.000 file=proxy135_course2_sim0003.600.png
+state sim=7.2196 feet=1001.476 portal_present=1 inside=0 entered=1 exited=1
+frame sim=7.3196 elapsed=3.7000 id=proxy135 course=2 position=X=18170.579 Y=-22942.780 Z=1070.476 velocity=X=0.003 Y=145.000 Z=0.000 file=proxy135_course2_sim0003.700.png
+state sim=7.3196 feet=1001.476 portal_present=1 inside=0 entered=1 exited=1
+frame sim=7.4196 elapsed=3.8000 id=proxy135 course=2 position=X=18170.579 Y=-22928.280 Z=1070.476 velocity=X=0.003 Y=145.000 Z=0.000 file=proxy135_course2_sim0003.800.png
+state sim=7.4196 feet=1001.476 portal_present=1 inside=0 entered=1 exited=1
+frame sim=7.5196 elapsed=3.9000 id=proxy135 course=2 position=X=18170.579 Y=-22913.780 Z=1070.476 velocity=X=0.003 Y=145.000 Z=0.000 file=proxy135_course2_sim0003.900.png
+state sim=7.5196 feet=1001.476 portal_present=1 inside=0 entered=1 exited=1
+frame sim=7.6196 elapsed=4.0000 id=proxy135 course=2 position=X=18170.579 Y=-22899.280 Z=1070.476 velocity=X=0.003 Y=145.000 Z=0.000 file=proxy135_course2_sim0004.000.png
+state sim=7.6196 feet=1001.476 portal_present=1 inside=0 entered=1 exited=1
+frame sim=7.7196 elapsed=4.1000 id=proxy135 course=2 position=X=18170.580 Y=-22884.780 Z=1070.476 velocity=X=0.003 Y=145.000 Z=0.000 file=proxy135_course2_sim0004.100.png
+state sim=7.7196 feet=1001.476 portal_present=1 inside=0 entered=1 exited=1
+frame sim=7.8196 elapsed=4.2000 id=proxy135 course=2 position=X=18170.580 Y=-22870.280 Z=1070.476 velocity=X=0.003 Y=145.000 Z=0.000 file=proxy135_course2_sim0004.200.png
+state sim=7.8196 feet=1001.476 portal_present=1 inside=0 entered=1 exited=1
+frame sim=7.9196 elapsed=4.3000 id=proxy135 course=2 position=X=18170.580 Y=-22855.780 Z=1070.476 velocity=X=0.003 Y=145.000 Z=0.000 file=proxy135_course2_sim0004.300.png
+state sim=7.9196 feet=1001.476 portal_present=1 inside=0 entered=1 exited=1
+frame sim=8.0196 elapsed=4.4000 id=proxy135 course=2 position=X=18170.581 Y=-22841.280 Z=1070.476 velocity=X=0.003 Y=145.000 Z=0.000 file=proxy135_course2_sim0004.400.png
+state sim=8.0196 feet=1001.476 portal_present=1 inside=0 entered=1 exited=1
+frame sim=8.1196 elapsed=4.5000 id=proxy135 course=2 position=X=18170.581 Y=-22826.780 Z=1070.476 velocity=X=0.003 Y=145.000 Z=0.000 file=proxy135_course2_sim0004.500.png
+state sim=8.1196 feet=1001.476 portal_present=1 inside=0 entered=1 exited=1
+frame sim=8.2196 elapsed=4.6000 id=proxy135 course=2 position=X=18170.581 Y=-22812.280 Z=1070.476 velocity=X=0.003 Y=145.000 Z=0.000 file=proxy135_course2_sim0004.600.png
+state sim=8.2196 feet=1001.476 portal_present=1 inside=0 entered=1 exited=1
+frame sim=8.3196 elapsed=4.7000 id=proxy135 course=2 position=X=18170.582 Y=-22797.780 Z=1070.476 velocity=X=0.003 Y=145.000 Z=0.000 file=proxy135_course2_sim0004.700.png
+state sim=8.3196 feet=1001.476 portal_present=1 inside=0 entered=1 exited=1
+input sim=8.4196 key=S up
+frame sim=8.4196 elapsed=4.8000 id=proxy135 course=2 position=X=18170.582 Y=-22783.280 Z=1070.476 velocity=X=0.003 Y=145.000 Z=0.000 file=proxy135_course2_sim0004.800.png
+state sim=8.4196 feet=1001.476 portal_present=1 inside=0 entered=1 exited=1
+frame sim=8.5196 elapsed=4.9000 id=proxy135 course=2 position=X=18170.582 Y=-22781.727 Z=1070.476 velocity=X=0.000 Y=0.000 Z=0.000 file=proxy135_course2_sim0004.900.png
+state sim=8.5196 feet=1001.476 portal_present=1 inside=0 entered=1 exited=1
+frame sim=8.6196 elapsed=5.0000 id=proxy135 course=2 position=X=18170.582 Y=-22781.727 Z=1070.476 velocity=X=0.000 Y=0.000 Z=0.000 file=proxy135_course2_sim0005.000.png
+state sim=8.6196 feet=1001.476 portal_present=1 inside=0 entered=1 exited=1
+frame sim=8.7196 elapsed=5.1000 id=proxy135 course=2 position=X=18170.582 Y=-22781.727 Z=1070.476 velocity=X=0.000 Y=0.000 Z=0.000 file=proxy135_course2_sim0005.100.png
+state sim=8.7196 feet=1001.476 portal_present=1 inside=0 entered=1 exited=1
+frame sim=8.8196 elapsed=5.2000 id=proxy135 course=2 position=X=18170.582 Y=-22781.727 Z=1070.476 velocity=X=0.000 Y=0.000 Z=0.000 file=proxy135_course2_sim0005.200.png
+state sim=8.8196 feet=1001.476 portal_present=1 inside=0 entered=1 exited=1
+frame sim=8.9196 elapsed=5.3000 id=proxy135 course=2 position=X=18170.582 Y=-22781.727 Z=1070.476 velocity=X=0.000 Y=0.000 Z=0.000 file=proxy135_course2_sim0005.300.png
+state sim=8.9196 feet=1001.476 portal_present=1 inside=0 entered=1 exited=1
+frame sim=9.0196 elapsed=5.4000 id=proxy135 course=2 position=X=18170.582 Y=-22781.727 Z=1070.476 velocity=X=0.000 Y=0.000 Z=0.000 file=proxy135_course2_sim0005.400.png
+state sim=9.0196 feet=1001.476 portal_present=1 inside=0 entered=1 exited=1
+frame sim=9.1196 elapsed=5.5000 id=proxy135 course=2 position=X=18170.582 Y=-22781.727 Z=1070.476 velocity=X=0.000 Y=0.000 Z=0.000 file=proxy135_course2_sim0005.500.png
+state sim=9.1196 feet=1001.476 portal_present=1 inside=0 entered=1 exited=1
+frame sim=9.2196 elapsed=5.6000 id=proxy135 course=2 position=X=18170.582 Y=-22781.727 Z=1070.476 velocity=X=0.000 Y=0.000 Z=0.000 file=proxy135_course2_sim0005.600.png
+state sim=9.2196 feet=1001.476 portal_present=1 inside=0 entered=1 exited=1
+frame sim=9.3196 elapsed=5.7000 id=proxy135 course=2 position=X=18170.582 Y=-22781.727 Z=1070.476 velocity=X=0.000 Y=0.000 Z=0.000 file=proxy135_course2_sim0005.700.png
+state sim=9.3196 feet=1001.476 portal_present=1 inside=0 entered=1 exited=1
+frame sim=9.4196 elapsed=5.8000 id=proxy135 course=2 position=X=18170.582 Y=-22781.727 Z=1070.476 velocity=X=0.000 Y=0.000 Z=0.000 file=proxy135_course2_sim0005.800.png
+state sim=9.4196 feet=1001.476 portal_present=1 inside=0 entered=1 exited=1
+frame sim=9.5196 elapsed=5.9000 id=proxy135 course=2 position=X=18170.582 Y=-22781.727 Z=1070.476 velocity=X=0.000 Y=0.000 Z=0.000 file=proxy135_course2_sim0005.900.png
+state sim=9.5196 feet=1001.476 portal_present=1 inside=0 entered=1 exited=1
+frame sim=9.6196 elapsed=6.0000 id=proxy135 course=2 position=X=18170.582 Y=-22781.727 Z=1070.476 velocity=X=0.000 Y=0.000 Z=0.000 file=proxy135_course2_sim0006.000.png
+state sim=9.6196 feet=1001.476 portal_present=1 inside=0 entered=1 exited=1
+assert sim=9.6196 result=PASS label=portal inward on foot value=1.000
+assert sim=9.6196 result=PASS label=portal outward on foot value=1.000
+input sim=9.6196 key=W up
+input sim=9.6196 key=S up
+input sim=9.6196 key=LeftShift up
+COMPLETE frames=60 duration=6.0000 assertions=PASS
+
+T23 sheet selection: {"id": "proxy135", "course": 2, "folder": "unreal\\Golmok\\Saved\\Automation\\WP18T2Sequence\\proxy135_course2_3C0F9CAD4A40CC4B634DEEABEF57BB1A", "frames": 60, "dimensions": [1014, 550], "selected": ["proxy135_course2_sim0002.400.png", "proxy135_course2_sim0003.600.png", "proxy135_course2_sim0004.800.png", "proxy135_course2_sim0006.000.png"]}
+post-processed final roster sha256=f625135ec560b4ad1a69a9418df0ae2c17d6f0c6e8027acb95bc4d96f300d278 camera={"boom_cm": 260, "socket_cm": [0, 35, 2], "fov_deg": 75}

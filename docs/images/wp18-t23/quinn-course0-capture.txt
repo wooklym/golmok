@@ -1,0 +1,137 @@
+ENGINE INPUT DRIVER RENDER EVIDENCE; not real keyboard/video; no hitch/fps verdict
+fixed simulation dt=1/60; screenshot requests at 0.1s sim intervals; image resolved on render frame
+id=quinn course=0 (0=walk3s/run3s,1=L_Dev stairs,2=portal roundtrip) camera=roster boom pitch-15
+T23: course0 overrides legacy description: S walking toward camera for 6s, no run; roster boom, pitch -15.
+input sim=0.6030 key=W up
+input sim=0.6030 key=S up
+input sim=0.6030 key=LeftShift up
+environment rhi=D3D12 preset=clear_noon applied=true arm_length=320.000 command_line=-ExecCmds="Automation RunTests Golmok.Character.RenderEvidence;Quit" -ReportExportPath=C:/Users/user/golmok-astra/wp-13a-sources/unreal/Golmok/Saved/Automation/T23RenderReportFinal2 -GolmokCharacterRenderEvidence -GolmokCharacterSequence -GolmokCharacterFraming -d3d12 -RenderOffscreen -unattended -nosplash -nopause -nosound -ResX=1280 -ResY=720 -ini:Engine:[/Script/Engine.InputSettings]:bShouldFlushPressedKeysOnViewportFocusLost=False -ini:EditorPerProjectUserSettings:[/Script/UnrealEd.EditorPerformanceSettings]:bThrottleCPUWhenNotForeground=False
+setup teleport sim=0.6197 position=X=-6500.000 Y=-3000.000 Z=95.000; no teleports during traversal
+input sim=3.6197 key=S down
+frame sim=3.7197 elapsed=0.1000 id=quinn course=0 position=X=-6511.533 Y=-3000.000 Z=94.150 velocity=X=-180.000 Y=0.000 Z=0.000 file=quinn_course0_sim0000.100.png
+state sim=3.7197 feet=2.150 portal_present=0 inside=0 entered=0 exited=0
+frame sim=3.8197 elapsed=0.2000 id=quinn course=0 position=X=-6529.533 Y=-3000.000 Z=94.150 velocity=X=-180.000 Y=0.000 Z=0.000 file=quinn_course0_sim0000.200.png
+state sim=3.8197 feet=2.150 portal_present=0 inside=0 entered=0 exited=0
+frame sim=3.9197 elapsed=0.3000 id=quinn course=0 position=X=-6547.533 Y=-3000.000 Z=94.150 velocity=X=-180.000 Y=0.000 Z=0.000 file=quinn_course0_sim0000.300.png
+state sim=3.9197 feet=2.150 portal_present=0 inside=0 entered=0 exited=0
+frame sim=4.0197 elapsed=0.4000 id=quinn course=0 position=X=-6565.533 Y=-3000.000 Z=94.150 velocity=X=-180.000 Y=0.000 Z=0.000 file=quinn_course0_sim0000.400.png
+state sim=4.0197 feet=2.150 portal_present=0 inside=0 entered=0 exited=0
+frame sim=4.1197 elapsed=0.5000 id=quinn course=0 position=X=-6583.533 Y=-3000.000 Z=94.150 velocity=X=-180.000 Y=0.000 Z=0.000 file=quinn_course0_sim0000.500.png
+state sim=4.1197 feet=2.150 portal_present=0 inside=0 entered=0 exited=0
+frame sim=4.2197 elapsed=0.6000 id=quinn course=0 position=X=-6601.533 Y=-3000.000 Z=94.150 velocity=X=-180.000 Y=0.000 Z=0.000 file=quinn_course0_sim0000.600.png
+state sim=4.2197 feet=2.150 portal_present=0 inside=0 entered=0 exited=0
+frame sim=4.3197 elapsed=0.7000 id=quinn course=0 position=X=-6619.533 Y=-3000.000 Z=94.150 velocity=X=-180.000 Y=0.000 Z=0.000 file=quinn_course0_sim0000.700.png
+state sim=4.3197 feet=2.150 portal_present=0 inside=0 entered=0 exited=0
+frame sim=4.4197 elapsed=0.8000 id=quinn course=0 position=X=-6637.533 Y=-3000.000 Z=94.150 velocity=X=-180.000 Y=0.000 Z=0.000 file=quinn_course0_sim0000.800.png
+state sim=4.4197 feet=2.150 portal_present=0 inside=0 entered=0 exited=0
+frame sim=4.5197 elapsed=0.9000 id=quinn course=0 position=X=-6655.533 Y=-3000.000 Z=94.150 velocity=X=-180.000 Y=0.000 Z=0.000 file=quinn_course0_sim0000.900.png
+state sim=4.5197 feet=2.150 portal_present=0 inside=0 entered=0 exited=0
+frame sim=4.6197 elapsed=1.0000 id=quinn course=0 position=X=-6673.533 Y=-3000.000 Z=94.150 velocity=X=-180.000 Y=0.000 Z=0.000 file=quinn_course0_sim0001.000.png
+state sim=4.6197 feet=2.150 portal_present=0 inside=0 entered=0 exited=0
+frame sim=4.7197 elapsed=1.1000 id=quinn course=0 position=X=-6691.533 Y=-3000.000 Z=94.150 velocity=X=-180.000 Y=0.000 Z=0.000 file=quinn_course0_sim0001.100.png
+state sim=4.7197 feet=2.150 portal_present=0 inside=0 entered=0 exited=0
+frame sim=4.8197 elapsed=1.2000 id=quinn course=0 position=X=-6709.533 Y=-3000.000 Z=94.150 velocity=X=-180.000 Y=0.000 Z=0.000 file=quinn_course0_sim0001.200.png
+state sim=4.8197 feet=2.150 portal_present=0 inside=0 entered=0 exited=0
+frame sim=4.9197 elapsed=1.3000 id=quinn course=0 position=X=-6727.533 Y=-3000.000 Z=94.150 velocity=X=-180.000 Y=0.000 Z=0.000 file=quinn_course0_sim0001.300.png
+state sim=4.9197 feet=2.150 portal_present=0 inside=0 entered=0 exited=0
+frame sim=5.0197 elapsed=1.4000 id=quinn course=0 position=X=-6745.533 Y=-3000.000 Z=94.150 velocity=X=-180.000 Y=0.000 Z=0.000 file=quinn_course0_sim0001.400.png
+state sim=5.0197 feet=2.150 portal_present=0 inside=0 entered=0 exited=0
+frame sim=5.1197 elapsed=1.5000 id=quinn course=0 position=X=-6763.533 Y=-3000.000 Z=94.150 velocity=X=-180.000 Y=0.000 Z=0.000 file=quinn_course0_sim0001.500.png
+state sim=5.1197 feet=2.150 portal_present=0 inside=0 entered=0 exited=0
+frame sim=5.2197 elapsed=1.6000 id=quinn course=0 position=X=-6781.533 Y=-3000.000 Z=94.150 velocity=X=-180.000 Y=0.000 Z=0.000 file=quinn_course0_sim0001.600.png
+state sim=5.2197 feet=2.150 portal_present=0 inside=0 entered=0 exited=0
+frame sim=5.3197 elapsed=1.7000 id=quinn course=0 position=X=-6799.533 Y=-3000.000 Z=94.150 velocity=X=-180.000 Y=0.000 Z=0.000 file=quinn_course0_sim0001.700.png
+state sim=5.3197 feet=2.150 portal_present=0 inside=0 entered=0 exited=0
+frame sim=5.4197 elapsed=1.8000 id=quinn course=0 position=X=-6817.533 Y=-3000.000 Z=94.150 velocity=X=-180.000 Y=0.000 Z=0.000 file=quinn_course0_sim0001.800.png
+state sim=5.4197 feet=2.150 portal_present=0 inside=0 entered=0 exited=0
+frame sim=5.5197 elapsed=1.9000 id=quinn course=0 position=X=-6835.533 Y=-3000.000 Z=94.150 velocity=X=-180.000 Y=0.000 Z=0.000 file=quinn_course0_sim0001.900.png
+state sim=5.5197 feet=2.150 portal_present=0 inside=0 entered=0 exited=0
+frame sim=5.6197 elapsed=2.0000 id=quinn course=0 position=X=-6853.533 Y=-3000.000 Z=94.150 velocity=X=-180.000 Y=0.000 Z=0.000 file=quinn_course0_sim0002.000.png
+state sim=5.6197 feet=2.150 portal_present=0 inside=0 entered=0 exited=0
+frame sim=5.7197 elapsed=2.1000 id=quinn course=0 position=X=-6871.533 Y=-3000.000 Z=94.150 velocity=X=-180.000 Y=0.000 Z=0.000 file=quinn_course0_sim0002.100.png
+state sim=5.7197 feet=2.150 portal_present=0 inside=0 entered=0 exited=0
+frame sim=5.8197 elapsed=2.2000 id=quinn course=0 position=X=-6889.533 Y=-3000.000 Z=94.150 velocity=X=-180.000 Y=0.000 Z=0.000 file=quinn_course0_sim0002.200.png
+state sim=5.8197 feet=2.150 portal_present=0 inside=0 entered=0 exited=0
+frame sim=5.9197 elapsed=2.3000 id=quinn course=0 position=X=-6907.533 Y=-3000.000 Z=94.150 velocity=X=-180.000 Y=0.000 Z=0.000 file=quinn_course0_sim0002.300.png
+state sim=5.9197 feet=2.150 portal_present=0 inside=0 entered=0 exited=0
+frame sim=6.0197 elapsed=2.4000 id=quinn course=0 position=X=-6925.533 Y=-3000.000 Z=94.150 velocity=X=-180.000 Y=0.000 Z=0.000 file=quinn_course0_sim0002.400.png
+state sim=6.0197 feet=2.150 portal_present=0 inside=0 entered=0 exited=0
+frame sim=6.1197 elapsed=2.5000 id=quinn course=0 position=X=-6943.533 Y=-3000.000 Z=94.150 velocity=X=-180.000 Y=0.000 Z=0.000 file=quinn_course0_sim0002.500.png
+state sim=6.1197 feet=2.150 portal_present=0 inside=0 entered=0 exited=0
+frame sim=6.2197 elapsed=2.6000 id=quinn course=0 position=X=-6961.533 Y=-3000.000 Z=94.150 velocity=X=-180.000 Y=0.000 Z=0.000 file=quinn_course0_sim0002.600.png
+state sim=6.2197 feet=2.150 portal_present=0 inside=0 entered=0 exited=0
+frame sim=6.3197 elapsed=2.7000 id=quinn course=0 position=X=-6979.533 Y=-3000.000 Z=94.150 velocity=X=-180.000 Y=0.000 Z=0.000 file=quinn_course0_sim0002.700.png
+state sim=6.3197 feet=2.150 portal_present=0 inside=0 entered=0 exited=0
+frame sim=6.4197 elapsed=2.8000 id=quinn course=0 position=X=-6997.533 Y=-3000.000 Z=94.150 velocity=X=-180.000 Y=0.000 Z=0.000 file=quinn_course0_sim0002.800.png
+state sim=6.4197 feet=2.150 portal_present=0 inside=0 entered=0 exited=0
+frame sim=6.5197 elapsed=2.9000 id=quinn course=0 position=X=-7015.533 Y=-3000.000 Z=94.150 velocity=X=-180.000 Y=0.000 Z=0.000 file=quinn_course0_sim0002.900.png
+state sim=6.5197 feet=2.150 portal_present=0 inside=0 entered=0 exited=0
+frame sim=6.6197 elapsed=3.0000 id=quinn course=0 position=X=-7033.533 Y=-3000.000 Z=94.150 velocity=X=-180.000 Y=0.000 Z=0.000 file=quinn_course0_sim0003.000.png
+state sim=6.6197 feet=2.150 portal_present=0 inside=0 entered=0 exited=0
+frame sim=6.7197 elapsed=3.1000 id=quinn course=0 position=X=-7051.533 Y=-3000.000 Z=94.150 velocity=X=-180.000 Y=0.000 Z=0.000 file=quinn_course0_sim0003.100.png
+state sim=6.7197 feet=2.150 portal_present=0 inside=0 entered=0 exited=0
+frame sim=6.8197 elapsed=3.2000 id=quinn course=0 position=X=-7069.533 Y=-3000.000 Z=94.150 velocity=X=-180.000 Y=0.000 Z=0.000 file=quinn_course0_sim0003.200.png
+state sim=6.8197 feet=2.150 portal_present=0 inside=0 entered=0 exited=0
+frame sim=6.9197 elapsed=3.3000 id=quinn course=0 position=X=-7087.533 Y=-3000.000 Z=94.150 velocity=X=-180.000 Y=0.000 Z=0.000 file=quinn_course0_sim0003.300.png
+state sim=6.9197 feet=2.150 portal_present=0 inside=0 entered=0 exited=0
+frame sim=7.0197 elapsed=3.4000 id=quinn course=0 position=X=-7105.533 Y=-3000.000 Z=94.150 velocity=X=-180.000 Y=0.000 Z=0.000 file=quinn_course0_sim0003.400.png
+state sim=7.0197 feet=2.150 portal_present=0 inside=0 entered=0 exited=0
+frame sim=7.1197 elapsed=3.5000 id=quinn course=0 position=X=-7123.533 Y=-3000.000 Z=94.150 velocity=X=-180.000 Y=0.000 Z=0.000 file=quinn_course0_sim0003.500.png
+state sim=7.1197 feet=2.150 portal_present=0 inside=0 entered=0 exited=0
+frame sim=7.2197 elapsed=3.6000 id=quinn course=0 position=X=-7141.533 Y=-3000.000 Z=94.150 velocity=X=-180.000 Y=0.000 Z=0.000 file=quinn_course0_sim0003.600.png
+state sim=7.2197 feet=2.150 portal_present=0 inside=0 entered=0 exited=0
+frame sim=7.3197 elapsed=3.7000 id=quinn course=0 position=X=-7159.533 Y=-3000.000 Z=94.150 velocity=X=-180.000 Y=0.000 Z=0.000 file=quinn_course0_sim0003.700.png
+state sim=7.3197 feet=2.150 portal_present=0 inside=0 entered=0 exited=0
+frame sim=7.4197 elapsed=3.8000 id=quinn course=0 position=X=-7177.533 Y=-3000.000 Z=94.150 velocity=X=-180.000 Y=0.000 Z=0.000 file=quinn_course0_sim0003.800.png
+state sim=7.4197 feet=2.150 portal_present=0 inside=0 entered=0 exited=0
+frame sim=7.5197 elapsed=3.9000 id=quinn course=0 position=X=-7195.533 Y=-3000.000 Z=94.150 velocity=X=-180.000 Y=0.000 Z=0.000 file=quinn_course0_sim0003.900.png
+state sim=7.5197 feet=2.150 portal_present=0 inside=0 entered=0 exited=0
+frame sim=7.6197 elapsed=4.0000 id=quinn course=0 position=X=-7213.533 Y=-3000.000 Z=94.150 velocity=X=-180.000 Y=0.000 Z=0.000 file=quinn_course0_sim0004.000.png
+state sim=7.6197 feet=2.150 portal_present=0 inside=0 entered=0 exited=0
+frame sim=7.7197 elapsed=4.1000 id=quinn course=0 position=X=-7231.533 Y=-3000.000 Z=94.150 velocity=X=-180.000 Y=0.000 Z=0.000 file=quinn_course0_sim0004.100.png
+state sim=7.7197 feet=2.150 portal_present=0 inside=0 entered=0 exited=0
+frame sim=7.8197 elapsed=4.2000 id=quinn course=0 position=X=-7249.533 Y=-3000.000 Z=94.150 velocity=X=-180.000 Y=0.000 Z=0.000 file=quinn_course0_sim0004.200.png
+state sim=7.8197 feet=2.150 portal_present=0 inside=0 entered=0 exited=0
+frame sim=7.9197 elapsed=4.3000 id=quinn course=0 position=X=-7267.533 Y=-3000.000 Z=94.150 velocity=X=-180.000 Y=0.000 Z=0.000 file=quinn_course0_sim0004.300.png
+state sim=7.9197 feet=2.150 portal_present=0 inside=0 entered=0 exited=0
+frame sim=8.0197 elapsed=4.4000 id=quinn course=0 position=X=-7285.533 Y=-3000.000 Z=94.150 velocity=X=-180.000 Y=0.000 Z=0.000 file=quinn_course0_sim0004.400.png
+state sim=8.0197 feet=2.150 portal_present=0 inside=0 entered=0 exited=0
+frame sim=8.1197 elapsed=4.5000 id=quinn course=0 position=X=-7303.533 Y=-3000.000 Z=94.150 velocity=X=-180.000 Y=0.000 Z=0.000 file=quinn_course0_sim0004.500.png
+state sim=8.1197 feet=2.150 portal_present=0 inside=0 entered=0 exited=0
+frame sim=8.2197 elapsed=4.6000 id=quinn course=0 position=X=-7321.533 Y=-3000.000 Z=94.150 velocity=X=-180.000 Y=0.000 Z=0.000 file=quinn_course0_sim0004.600.png
+state sim=8.2197 feet=2.150 portal_present=0 inside=0 entered=0 exited=0
+frame sim=8.3197 elapsed=4.7000 id=quinn course=0 position=X=-7339.533 Y=-3000.000 Z=94.150 velocity=X=-180.000 Y=0.000 Z=0.000 file=quinn_course0_sim0004.700.png
+state sim=8.3197 feet=2.150 portal_present=0 inside=0 entered=0 exited=0
+frame sim=8.4197 elapsed=4.8000 id=quinn course=0 position=X=-7357.533 Y=-3000.000 Z=94.150 velocity=X=-180.000 Y=0.000 Z=0.000 file=quinn_course0_sim0004.800.png
+state sim=8.4197 feet=2.150 portal_present=0 inside=0 entered=0 exited=0
+frame sim=8.5197 elapsed=4.9000 id=quinn course=0 position=X=-7375.533 Y=-3000.000 Z=94.150 velocity=X=-180.000 Y=0.000 Z=0.000 file=quinn_course0_sim0004.900.png
+state sim=8.5197 feet=2.150 portal_present=0 inside=0 entered=0 exited=0
+frame sim=8.6197 elapsed=5.0000 id=quinn course=0 position=X=-7393.533 Y=-3000.000 Z=94.150 velocity=X=-180.000 Y=0.000 Z=0.000 file=quinn_course0_sim0005.000.png
+state sim=8.6197 feet=2.150 portal_present=0 inside=0 entered=0 exited=0
+frame sim=8.7197 elapsed=5.1000 id=quinn course=0 position=X=-7411.533 Y=-3000.000 Z=94.150 velocity=X=-180.000 Y=0.000 Z=0.000 file=quinn_course0_sim0005.100.png
+state sim=8.7197 feet=2.150 portal_present=0 inside=0 entered=0 exited=0
+frame sim=8.8197 elapsed=5.2000 id=quinn course=0 position=X=-7429.533 Y=-3000.000 Z=94.150 velocity=X=-180.000 Y=0.000 Z=0.000 file=quinn_course0_sim0005.200.png
+state sim=8.8197 feet=2.150 portal_present=0 inside=0 entered=0 exited=0
+frame sim=8.9197 elapsed=5.3000 id=quinn course=0 position=X=-7447.533 Y=-3000.000 Z=94.150 velocity=X=-180.000 Y=0.000 Z=0.000 file=quinn_course0_sim0005.300.png
+state sim=8.9197 feet=2.150 portal_present=0 inside=0 entered=0 exited=0
+frame sim=9.0197 elapsed=5.4000 id=quinn course=0 position=X=-7465.533 Y=-3000.000 Z=94.150 velocity=X=-180.000 Y=0.000 Z=0.000 file=quinn_course0_sim0005.400.png
+state sim=9.0197 feet=2.150 portal_present=0 inside=0 entered=0 exited=0
+frame sim=9.1197 elapsed=5.5000 id=quinn course=0 position=X=-7483.533 Y=-3000.000 Z=94.150 velocity=X=-180.000 Y=0.000 Z=0.000 file=quinn_course0_sim0005.500.png
+state sim=9.1197 feet=2.150 portal_present=0 inside=0 entered=0 exited=0
+frame sim=9.2197 elapsed=5.6000 id=quinn course=0 position=X=-7501.533 Y=-3000.000 Z=94.150 velocity=X=-180.000 Y=0.000 Z=0.000 file=quinn_course0_sim0005.600.png
+state sim=9.2197 feet=2.150 portal_present=0 inside=0 entered=0 exited=0
+frame sim=9.3197 elapsed=5.7000 id=quinn course=0 position=X=-7519.533 Y=-3000.000 Z=94.150 velocity=X=-180.000 Y=0.000 Z=0.000 file=quinn_course0_sim0005.700.png
+state sim=9.3197 feet=2.150 portal_present=0 inside=0 entered=0 exited=0
+frame sim=9.4197 elapsed=5.8000 id=quinn course=0 position=X=-7537.533 Y=-3000.000 Z=94.150 velocity=X=-180.000 Y=0.000 Z=0.000 file=quinn_course0_sim0005.800.png
+state sim=9.4197 feet=2.150 portal_present=0 inside=0 entered=0 exited=0
+frame sim=9.5197 elapsed=5.9000 id=quinn course=0 position=X=-7555.533 Y=-3000.000 Z=94.150 velocity=X=-180.000 Y=0.000 Z=0.000 file=quinn_course0_sim0005.900.png
+state sim=9.5197 feet=2.150 portal_present=0 inside=0 entered=0 exited=0
+frame sim=9.6197 elapsed=6.0000 id=quinn course=0 position=X=-7573.533 Y=-3000.000 Z=94.150 velocity=X=-180.000 Y=0.000 Z=0.000 file=quinn_course0_sim0006.000.png
+state sim=9.6197 feet=2.150 portal_present=0 inside=0 entered=0 exited=0
+input sim=9.6197 key=W up
+input sim=9.6197 key=S up
+input sim=9.6197 key=LeftShift up
+COMPLETE frames=60 duration=6.0000 assertions=PASS
+
+T23 sheet selection: {"id": "quinn", "course": 0, "folder": "unreal\\Golmok\\Saved\\Automation\\WP18T2Sequence\\quinn_course0_0C2C69EE4B3405129960C7ADEA2BEE62", "frames": 60, "dimensions": [1014, 550], "selected": ["quinn_course0_sim0000.100.png", "quinn_course0_sim0002.100.png", "quinn_course0_sim0004.000.png", "quinn_course0_sim0006.000.png"]}
+post-processed final roster sha256=f625135ec560b4ad1a69a9418df0ae2c17d6f0c6e8027acb95bc4d96f300d278 camera={"boom_cm": 320, "socket_cm": [0, 45, 2], "fov_deg": 80}

@@ -1,6 +1,6 @@
 # WP-18 — 플레이어 캐릭터
 
-상태: **🟡 설계 자체 리뷰·18a 코드/헤드리스 완료·D-018 ① 승인, PC GUI 검증 대기** · 담당/이번 리뷰·병합: **ChatGPT Astra(2026-09-27 사용자 지시)**. 최종 엔진 품질 검증은 Fable PC 후속.
+상태: **🟢 18a 완료 — V-11 PC 실제 키 입력 검증·Opus 채점 통과([#100](https://github.com/wooklym/golmok/pull/100#issuecomment-5979649367), 2026-10-04)**. 18b는 V-12·D-018 ② 뒤이며 카메라 구도는 T23 후속이다.
 의존: WP-01 캐릭터, WP-04/05/09 포털·Zone·디버그, WP-12 포토 모드(통합 검증), WP-13 오디오 키 계약(18b), V-08(최종 애니메이션).
 검증: Python/CI, V-11(18a PC), V-12(룩 가설, Fable 실행·소유자 채점). 2026-09-26.
 
@@ -94,6 +94,8 @@ OnWorldBeginPlay에서 첫 PC에 AddDynamic. 즉시 이미 빙의된 폰을 처�
 
 ### 18b 개요
 
+P11-8: Phase 2 선택 UI를 열 때 메시·애님을 비동기로 미리 로드한다. V-11의 Quinn 첫 교체 98.8 ms 동기 로드 히치는 18a 콘솔에서 수용했으며 UI에서는 숨기지 않는다.
+
 ①/V-11 이후 V-12와 V-08을 거쳐 ② 승인 → 인간 최종 원화·에셋 1종 발주 → 스킨/IK Retargeter·가산 포즈 → 아이들/포토 포즈 → 의상/헤어 확장 순서. Mutable은 옷/체형 조합이 많아져 단순 모듈 조합보다 이득이 확인될 때만 도입한다.
 
 선택 화면: Slate C++(바이너리 최소·D-003 일치)와 UMG 레이아웃+전부 C++ 로직(디자이너 검수 편의)을 비교해, Phase2 초반에는 **UMG 레이아웃·C++ 로직**을 권장한다. 18a에는 선택 화면 없음. WP-15 세이브에 character_id+스키마 버전, 없는 id는 default 복구를 추가한다. 입력 키는 현 F1~F10/1~4, WP-12 P·WASD/EQ·Space/Enter·괄호·쉼표·N/M·Z/C·F/H/O/R·Shift를 피하고 UI 액션으로 배치, 최종 키는 입력 충돌표 작성 후 승인. `Tab` 후보이나 예약하지 않는다. Photo 메타 JSON에 character_id를 추가할 때 Photo 소유자가 스키마/테스트를 함께 바꾼다.
@@ -132,7 +134,7 @@ Fable PC 세션이 실 Zone(없으면 L_Basemap_Yeonnam)에서 회색 콘크리�
 | Python 게이트 | 설계: ruff/check_repo 성공, format93개, pytest590 passed/39 skipped. 구현: ruff/check_repo 성공, format95개, pytest608 passed/42 skipped. 양쪽208 warnings, 로컬 g++ skip 포함 |
 | CI 코드 검증 | b8105f2의 [Actions](https://github.com/wooklym/golmok/actions/runs/36248981836) 전체5 jobs success. Linux3.11/3.12·Windows3.12+MinGW 각각647 passed/3 skipped. 최신 head checks도 PR에서 확인 |
 | UE5.8.3 | add-mannequin·build 성공. Character 필터2 Success. 합성 실내 준비 후 전체 **18 Success(13+경고5), failed0/notRun0**, 39.11s. Movement180/500cm/s·점프90cm, 기존 테스트 수정 없음 |
-| V-11/V-12 | [PC 런북](../runbooks/pc-verify-wp18a.md) 완료. **GUI 포털과 교체 조합·실내 교체·WP-12 실제 사진·최초 로드 hitch/VRAM·V-12 채점 미실행**. V-11 전체 완료로 표시하지 않음 |
+| V-11/V-12 | **V-11 🟢**: [PC #100·Opus 채점](https://github.com/wooklym/golmok/pull/100#issuecomment-5979649367), 실제 키 입력 4종 이동·계단·포털·교체·캡슐 복구·hitch/VRAM 검증 통과. 카메라 구도 T23 후속, 애니메이션 품질은 V-15, V-12·18b는 대기 |
 
 UE 실행에서 `FScopedMovementUpdate` include 경로와 부모 캡슐의 지연 이동 후 메시 offset이−92로 남는 문제를 발견했다. 메시 상대변환을 먼저 적용하는 순서로 수정한 뒤−69/고정 발밑 단언과 전체 회귀 테스트가 통과했다. 전체 UE 경고5건은 L_Dev GeoOrigin/의도된 누락 Zone 자산·버전 fixture 경고이며 개별 state는 전부 Success다. nullrhi의 HUD fps는 성능 결과로 사용하지 않았다.
 
