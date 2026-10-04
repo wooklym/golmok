@@ -442,3 +442,18 @@ STATUS/astra-tasks 문안: “선택 T19 R85-1a/b/c·2 완료: 객체별 DOM cas
 **병합 전 리뷰(Opus 5.5 ultracode 적대 검증, [R92](https://github.com/wooklym/golmok/pull/92#issuecomment-5977301171))**: (A) 0 · (B) 0 · (C) 3. 게이트(리눅스): ruff, format 112, pytest 1501 passed / 3 skipped, check_repo, `diff --check`, 등록 36, CI 10/10; base `c3f6541` = 당시 main(충돌 0). UE 빌드·전체 36 Success는 Astra 보고다. 확인(결함 없음): R85-1a/b/c·2 모두 해결 — 파서 KeyCase 구조 모델(CRLF 실제 `audio.json`)의 변이 6개(각 KeyCase 삭제, driver KeyCase 제외, FindOrAdd식 엔진, `OnRegister` 리셋 삭제, R85-2 되돌림)를 모두 검출, 상태·순서 독립, 레인 준수, 런북 `pc-verify-wp13.md` :234·:257 문구와 일치. (C → 선택): R92-1 R85-1c 양성 블록 실행 증거(EXECUTED Info에 `reregister`, 결과 절 한 줄, 런북 헤드리스 범위), R92-2 중복 driver 거절 경로를 정확한 오류 문구로 고정하고 메커니즘 기록, R92-3 반복 라벨에 객체 이름. 설계 리뷰 불필요(품질 가설·D-021 (2) 불변).
 
 **병합**: 오케스트레이터 결정(D-019). 위 "병합 시 반영 — T19" 문안은 STATUS 병행 트랙 WP-13 행과 `astra-tasks.md` T19에 옮겼다. R85-3(Python alias 검사)과 R92-1~3은 선택으로 이월해 다음 오디오 레인 push(19b 뒤 원본 폴리·청취 후속 등)에 함께 싣는다. 19b를 막지 않는다. PC는 main에서 UE 전체 36을 재실행할 때 Footstep 로그의 양성 fixture `EXECUTED` Info를 확인한다(R85-4, R92-1).
+
+## T22 — 오디오 키 별칭 검사·실행 증거 (2026-10-04 KST)
+
+배정: [이슈 #30 T22](https://github.com/wooklym/golmok/issues/30#issuecomment-5978814306). main `f1535ac`(#95 큐 문서 포함)에서 새 `astra/wp-19c-footstep-followup4`로 진행했다.
+
+- R85-3: `audio_pure.py`는 C++ KeyCase와 같은 알려진 키를 root/asset/ambience/crossfade durations/footsteps/캐릭터 보폭 쌍에서 검사한다. 오류는 실제 별칭 경로와 기대 철자를 가리킨다. 무관한 확장 키·동적 id 및 기존 검증 규칙은 유지한다. 필수/선택 키의 단독 별칭·정상 키와 공존한 별칭, 확장 키/동적 id 보존, 중복 driver 양쪽 순서를 pytest로 검사한다.
+- R92-1: 양성 fixture Info에 `reregister`를 넣고 런북 헤드리스 범위에 재등록 뒤 재평가 1회를 명시했다. 최종 index의 실행 증거는 아래 기록한다.
+- R92-2: `"driver":"auto","Driver":"notify"` 거절 사유를 `audio.json footsteps.Driver: expected driver`로 고정했다. 역순 `"Driver":"notify","driver":"auto"`는 성공하며 최종 driver=auto다. 로컬 UE5.8.3의 JsonObject.cpp SetField는 Values.Add를 사용하고, SharedString.h의 키 동등 비교는 IgnoreCase다. TMap에서 뒤 키/값이 앞 항목을 교체하여 DOM에는 뒤 철자가 남는다. Python json/dict는 두 철자를 모두 보존하므로 양쪽 순서 모두 별칭을 거절한다. UE의 파싱 전 중복 키 검출 기능을 추가한 것은 아니다.
+- R92-3: 격리 변이의 경로 단언 라벨에 객체 이름을 추가했다.
+
+검증: UE5.8.3 build54.85s 성공, 전체 **36 Success(24+경고12)/failed0/notRun0,192.94s**, Audio2 포함. Python **1307 passed/218 skipped/208 warnings,85.65s**(+21), ruff check/format114 및 audio_pure 개별 format/check·check_repo·diff 통과. index의 Footstep Info: `EXECUTED auto positive cache/class/generation/reregister/HUD and ordinary-pawn conjunction`. 실제 GASP 원본/청취·GUI·RenderEvidence는 NOT EXECUTED. 로컬 근거: tools/.venv/t22-build.txt, t22-pytest.txt, t22-full-index.json.
+
+### 병합 시 반영 — T22
+
+STATUS/astra-tasks 문안: “T22 R92-1~3·R85-3 완료: 재등록 양성 실행 증거·런북, 중복 driver 정확한 거절 사유와 UE 역순 auto 수락 회귀, 객체별 진단 라벨, Python 알려진 키 별칭 검사(확장/동적 키 기존 규칙 유지). 등록36 유지. 실제 GASP 원본 폴리·청취는 19b/V-15 대기.”
