@@ -225,3 +225,26 @@ PC 세션(Claude Opus 5.5, 워크트리 `goofy-maxwell-3aee56`, 브랜치 `pc/v1
 - **판정 🟢**: 빌드 무수정, 자동화 36/36, §3~§8 통과(R49-1·R49-8·시간대 {분, 모드}·R91-1 명시 캐릭터 포함).
 - **PC fix 1건(설계 의도 그대로, 메커니즘만 바뀜)**: R49-2 "종료 순간 위치"가 PIE 종료·`-game` 창 닫기에서 실패했다(마지막 1 s 폴링 위치 저장). UE 5.8은 이 두 경로에서 `BeginTearingDown` 전에 로컬 플레이어를 지워(`EndPlayMap`: `CloseRequested` → `CleanupGameViewport` → `RemoveLocalPlayer`) `OnWorldBeginTearDown` 안에서 폰이 없다. 종료 스냅샷을 `UGameViewportClient::OnCloseRequested`에서도 갱신하도록 고쳤다(복원 보류 중·첫 스냅샷 전 제외; teardown 핸들러는 `-game` quit·맵 전환용으로 유지). 위 "리뷰 반영" R49-2의 "`OnWorldBeginTearDown`(EndPlay 전, 액터 유효)" 기록은 이력으로 둔다.
 - **관찰(룩, 후속 제안)**: 도착 페이드 인 동안 카메라가 스프링암 랙(`CameraLagSpeed 12`)으로 192 m를 날아와 캐릭터가 +0.33 s에 블러와 함께 들어온다. 도착 틱의 랙 1틱 해제 + 카메라 컷을 제안한다.
+
+## 병합 기록 — V-14 PC 결과 [#98](https://github.com/wooklym/golmok/pull/98) (2026-10-04, 오케스트레이터 세션)
+
+**판정**: WP-15a 🟢 · V-14 🟢. Opus 읽기 전용 리뷰 [P14](https://github.com/wooklym/golmok/pull/98#issuecomment-5979513801) 결과는 (A) 0 · (B) 3 · (C) 4다. PC 브랜치는 그대로 두고 클라우드 병합 브랜치 `claude/v14-merge`(PC head `3230eef` + main 병합 + `V-14: 병합 시 반영 (Opus)`)로 병합했다.
+
+- **PC fix `d2eb06f`(R49-2) 적대 리뷰 — 차단 0**
+  - 바인딩·해제: `HandleWorldBeginPlay`에서 바인딩하고, `HandleWorldEnd`·`Deinitialize`·재바인딩 전에 해제한다. `AddUObject`, `TWeakObjectPtr` 뷰포트.
+  - 뷰포트가 없는 실행(서버·커맨드릿·자동화)은 종전 teardown 경로를 탄다.
+  - #93(R91-1)과 맞는다: 복원 보류 중이거나 첫 스냅샷 전이면 건너뛰고, 그 뒤에는 `OnVisitPoll`과 같은 규칙이다.
+  - 개발자 슬롯 쓰기 조건은 바뀌지 않았다.
+- **(B) P14-1**: 런북 §9 #1~#13의 `||`(6열 표에 7셀) → 이 커밋에서 고쳤다.
+- **(B) P14-3**: STATUS M2·WP-15a·V-14 행과 ROADMAP 15a를 갱신했고, 이 절을 추가했다.
+- **(B) P14-2 도착 카메라 스윕 → Claude 레인 후속.** 스프링암은 텔레포트 뒤에도 랙 기준점을 유지하고, 카메라 컷도 없다. zone 없는 저장 위치 복원에는 페이드도 없다.
+  - 수정: `Map/GolmokTravelSubsystem.cpp`에 `GolmokTravelPrivate::SnapCameraAfterTeleport(Pawn, PC)`를 두고 `Arrive`와 zone 없는 배치에서 부른다.
+  - 동작: 폰의 모든 `USpringArmComponent`에서 랙을 잠깐 끄고 `TickComponent(0)`을 부른 뒤 랙을 복원한다. 이어서 `SetGameCameraCutThisFrame()`을 부른다.
+  - hot-spot·훅·등록 수(36)는 바꾸지 않는다.
+  - 테스트: `Golmok.Travel.Teleport` case 2에서 도착 시점 암 소켓–폰 거리가 암 길이 + |SocketOffset| + 50 cm 이하인지 단언한다.
+  - PC 확인: 다음 L_ZoneTest 카드에서 60 fps로 다시 녹화한다.
+- **(C)**
+  - P14-4: STATUS 마지막 갱신 충돌은 §7.6대로 풀었다.
+  - P14-5: `(sync, pre-exit)`는 V-14에서 나오지 않았다. 런북 §6·§9 #3 문구를 이 커밋에서 고쳤고, Save 헤더 주석은 P14-2 PR에서 고친다. 핸들러는 무해한 대비책으로 남긴다.
+  - P14-6: close 경로 자동 회귀(선택: RoundTrip 종단 단계, 등록 36 유지).
+  - P14-7: 수치 표기 차이로, 조치하지 않는다.
