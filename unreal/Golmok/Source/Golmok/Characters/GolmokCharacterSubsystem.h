@@ -60,8 +60,10 @@ public:
 	const FString& GetLoadError() const { return LoadError; }
 
 #if WITH_DEV_AUTOMATION_TESTS
+	uint32 GetAssetLoadAttemptsForTest() const { return AssetLoadAttempts; }
+	TFunction<void(AGolmokCharacter*)> BeforeVisualApplyForTest;
 	FGolmokCharacterRoster& MutableRosterForTest() { return Roster; }
-	void ApplyDefaultForTest(APawn* Pawn) { CurrentId.Reset(); OnPlayerPawnChanged(nullptr, Pawn); }
+	void ApplyDefaultForTest(APawn* Pawn) { CurrentId.Reset(); bExplicitSelection = false; OnPlayerPawnChanged(nullptr, Pawn); }
 #endif
 
 private:
@@ -78,4 +80,8 @@ private:
 	TWeakObjectPtr<APlayerController> BoundController;
 	FTimerHandle BindingTimer;
 	bool bApplying = false;
+	bool bExplicitSelection = false;
+#if WITH_DEV_AUTOMATION_TESTS
+	uint32 AssetLoadAttempts = 0;
+#endif
 };

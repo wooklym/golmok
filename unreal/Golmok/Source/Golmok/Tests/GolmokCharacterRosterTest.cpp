@@ -1,4 +1,5 @@
 #include "CoreMinimal.h"
+#include "Misc/ScopeExit.h"
 #include "Misc/AutomationTest.h"
 
 #if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
@@ -70,7 +71,9 @@ namespace GolmokCharacterRosterTest
 			if (!Entry) { Test->AddError(TEXT("GASP roster entry absent")); continue; }
 			if (!FPackageName::DoesPackageExist(FSoftObjectPath(Entry->MeshPath).GetLongPackageName()))
 				Test->AddInfo(FString::Printf(TEXT("%s: GASP not installed - asset refusal tested"), Id));
+			const uint32 LoadsBefore = System->GetAssetLoadAttemptsForTest();
 			Test->TestFalse(TEXT("GASP entry cannot replace ordinary pawn"), System->SelectCharacter(Id, Message));
+			Test->TestEqual(TEXT("GASP refusal precedes asset load attempts"), System->GetAssetLoadAttemptsForTest(), LoadsBefore);
 			Test->TestEqual(TEXT("GASP refusal preserves selection"), System->GetCurrentId(), FString(TEXT("manny")));
 			CheckDefault(Test, Original);
 		}
@@ -104,6 +107,9 @@ namespace GolmokCharacterRosterTest
 		Visual.Values = MutableRoster.Find(TEXT("proxy135"))->Values;
 		Visual.Id = TEXT("test_visual_missing"); Visual.VisualMeshPath = TEXT("/Game/GolmokTests/Absent.Absent");
 		MutableRoster.Entries.Add(Visual);
+		System->ApplyDefaultForTest(Original); // An automatic ABP selection must not pin the next GASP pawn.
+		TGuardValue<TMap<FString, FString>> ModeGuard(MutableRoster.DefaultByAnimMode, MutableRoster.DefaultByAnimMode);
+		MutableRoster.DefaultByAnimMode[TEXT("gasp")] = TEXT("test_visual");
 		FActorSpawnParameters Spawn;
 		Spawn.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 		AGolmokGaspCharacter* Pawn = World->SpawnActor<AGolmokGaspCharacter>(FVector(500, 0, 1000), FRotator::ZeroRotator, Spawn);
@@ -117,7 +123,24 @@ namespace GolmokCharacterRosterTest
 			TGuardValue<TArray<FImplementedInterface>> InterfaceGuard(Pawn->GetClass()->Interfaces, Pawn->GetClass()->Interfaces);
 			Pawn->GetClass()->Interfaces.Add(FImplementedInterface(Interface, 0, true));
 			Test->TestTrue(TEXT("contract pawn now implements interface"), GolmokAnimation::PawnSupportsGasp(Pawn));
+			PC->UnPossess(); PC->Possess(Pawn); PC->SetViewTarget(Pawn);
+			Test->TestEqual(TEXT("automatic ABP id does not override new GASP mode default"), System->GetCurrentId(), FString(TEXT("test_visual")));
+			Test->TestTrue(TEXT("explicit ordinary selection on capable pawn"), System->SelectCharacter(TEXT("manny"), Message));
+			PC->UnPossess(); PC->Possess(Pawn); PC->SetViewTarget(Pawn);
+			Test->TestEqual(TEXT("explicit selection precedes mode default"), System->GetCurrentId(), FString(TEXT("manny")));
+			PC->UnPossess(); PC->Possess(Pawn); PC->SetViewTarget(Pawn);
+			Test->TestEqual(TEXT("repeated possession preserves explicit choice"), System->GetCurrentId(), FString(TEXT("manny")));
+			// Observe the source at the actual visual-apply boundary, using a deliberately stale source mesh.
+			Pawn->GetMesh()->SetSkeletalMesh(nullptr);
+			bool bObservedSource = false;
+			System->BeforeVisualApplyForTest = [&](AGolmokCharacter* C) {
+				bObservedSource = true;
+				Test->TestTrue(TEXT("visual application observes updated source mesh"), C->GetMesh()->GetSkeletalMeshAsset() == Original->GetMesh()->GetSkeletalMeshAsset());
+			};
+			ON_SCOPE_EXIT { System->BeforeVisualApplyForTest = nullptr; };
 			Test->TestTrue(TEXT("apply source and visual transaction"), System->SelectCharacter(TEXT("test_visual"), Message));
+			Test->TestTrue(TEXT("visual boundary observed"), bObservedSource);
+			System->BeforeVisualApplyForTest = nullptr;
 			Test->TestTrue(TEXT("visual override active"), Pawn->HasVisualOverride());
 			Test->TestTrue(TEXT("visual source hidden but posing"), Pawn->GetMesh()->bHiddenInGame
 				&& Pawn->GetMesh()->VisibilityBasedAnimTickOption == EVisibilityBasedAnimTickOption::AlwaysTickPoseAndRefreshBones);
@@ -132,6 +155,7 @@ namespace GolmokCharacterRosterTest
 			Test->TestTrue(TEXT("missing visual preserves visual scale"), Pawn->GetVisualMesh()->GetRelativeScale3D().Equals(FVector(.75,.8,.9)));
 			Test->TestTrue(TEXT("direct source clears previous visual"), System->SelectCharacter(TEXT("manny"), Message));
 			Test->TestFalse(TEXT("direct source visual cleared"), Pawn->HasVisualOverride());
+			Test->TestTrue(TEXT("cleared visual has unit scale"), Pawn->GetVisualMesh()->GetRelativeScale3D().Equals(FVector::OneVector));
 			Test->TestTrue(TEXT("reapply visual"), System->SelectCharacter(TEXT("test_visual"), Message));
 			TGuardValue<TMap<FString, FString>> DefaultsGuard(MutableRoster.DefaultByAnimMode, MutableRoster.DefaultByAnimMode);
 			MutableRoster.DefaultByAnimMode[TEXT("gasp")] = TEXT("test_visual_missing");

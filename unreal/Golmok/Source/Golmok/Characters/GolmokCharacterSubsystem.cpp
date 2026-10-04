@@ -348,7 +348,7 @@ void UGolmokCharacterSubsystem::OnPlayerPawnChanged(APawn* OldPawn, APawn* NewPa
 		&& GolmokAnimation::PawnSupportsGasp(Character);
 	const FString& ModeDefault = Roster.DefaultForMode(bGasp ? TEXT("gasp") : TEXT("abp"));
 	TArray<FString> Candidates;
-	if (!CurrentId.IsEmpty()) Candidates.AddUnique(CurrentId);
+	if (bExplicitSelection && !CurrentId.IsEmpty()) Candidates.AddUnique(CurrentId);
 	Candidates.AddUnique(ModeDefault);
 	Candidates.AddUnique(Roster.DefaultId); // Optional local assets may be absent even on a capable pawn.
 	bool bGaspDefaultFailed = false;
@@ -357,8 +357,10 @@ void UGolmokCharacterSubsystem::OnPlayerPawnChanged(APawn* OldPawn, APawn* NewPa
 		if (const FGolmokCharacterEntry* Entry = Roster.Find(Id))
 		{
 			FString Message;
+			const bool bRestoringExplicit = bExplicitSelection && Id == CurrentId;
 			if (ApplyEntry(Character, *Entry, Message))
 			{
+				bExplicitSelection = bRestoringExplicit; // Restoring an explicit choice does not create a new automatic choice.
 				if (bGaspDefaultFailed)
 					UE_LOG(LogGolmok, Log, TEXT("golmok.character: auto fallback applied %s after GASP default failure"), *Id);
 				return;
@@ -395,7 +397,9 @@ bool UGolmokCharacterSubsystem::SelectCharacter(const FString& InId, FString& Ou
 		OutMessage = TEXT("switch requires an active character view; exit photo/path/pause first");
 		return false;
 	}
-	return ApplyEntry(Character, *Entry, OutMessage);
+	if (!ApplyEntry(Character, *Entry, OutMessage)) return false;
+	bExplicitSelection = true;
+	return true;
 }
 
 bool UGolmokCharacterSubsystem::ApplyEntry(AGolmokCharacter* InCharacter, const FGolmokCharacterEntry& InEntry, FString& OutMessage)
@@ -409,6 +413,17 @@ bool UGolmokCharacterSubsystem::ApplyEntry(AGolmokCharacter* InCharacter, const 
 		return false;
 	}
 	TGuardValue<bool> Guard(bApplying, true);
+	GolmokAnimation::FConfig AnimationConfig; FString ConfigError;
+	const bool bGaspPath = GolmokAnimation::LoadConfig(AnimationConfig, ConfigError)
+		&& InEntry.AnimPath.Equals(AnimationConfig.AssetPath(AnimationConfig.AnimClass), ESearchCase::CaseSensitive);
+	if ((InEntry.bHasVisual || bGaspPath) && !GolmokAnimation::PawnSupportsGasp(InCharacter))
+	{
+		OutMessage = TEXT("GASP animation/visual requires a compatible GASP pawn; keeping current character");
+		return false;
+	}
+#if WITH_DEV_AUTOMATION_TESTS
+	AssetLoadAttempts += 2;
+#endif
 	USkeletalMesh* NewMesh = Cast<USkeletalMesh>(GolmokAnimation::LoadObjectIfPresent(InEntry.MeshPath, USkeletalMesh::StaticClass()));
 	UClass* NewAnimClass = GolmokAnimation::LoadClassIfPresent(InEntry.AnimPath, UAnimInstance::StaticClass());
 	const UAnimBlueprintGeneratedClass* AnimBP = Cast<UAnimBlueprintGeneratedClass>(NewAnimClass);
@@ -428,6 +443,9 @@ bool UGolmokCharacterSubsystem::ApplyEntry(AGolmokCharacter* InCharacter, const 
 	UClass* VisualAnim = nullptr;
 	if (InEntry.bHasVisual)
 	{
+#if WITH_DEV_AUTOMATION_TESTS
+		AssetLoadAttempts += 2;
+#endif
 		VisualMesh = Cast<USkeletalMesh>(GolmokAnimation::LoadObjectIfPresent(InEntry.VisualMeshPath, USkeletalMesh::StaticClass()));
 		VisualAnim = GolmokAnimation::LoadClassIfPresent(InEntry.VisualAnimPath, UAnimInstance::StaticClass());
 		const UAnimBlueprintGeneratedClass* VisualBP = Cast<UAnimBlueprintGeneratedClass>(VisualAnim);
@@ -457,20 +475,28 @@ bool UGolmokCharacterSubsystem::ApplyEntry(AGolmokCharacter* InCharacter, const 
 		}
 	}
 	// Every fallible load, compatibility check and resize check is complete before touching either mesh.
-	if (Gasp)
-	{
-		if (InEntry.bHasVisual)
-		{
-			if (!Gasp->SetVisualOverride(VisualMesh, VisualAnim, OutMessage)) return false;
-			Gasp->GetVisualMesh()->SetRelativeScale3D(GolmokCharacters::ToVector(InEntry.VisualScale));
-		}
-		else Gasp->ClearVisualOverride();
-	}
+
 	{
 		FScopedMovementUpdate Scoped(Capsule, EScopedUpdate::DeferredUpdates);
 		USkeletalMeshComponent* Mesh = InCharacter->GetMesh();
 		Mesh->SetSkeletalMesh(NewMesh);
 		Mesh->SetAnimInstanceClass(NewAnimClass);
+		if (Gasp)
+		{
+#if WITH_DEV_AUTOMATION_TESTS
+			if (BeforeVisualApplyForTest) BeforeVisualApplyForTest(InCharacter);
+#endif
+			if (InEntry.bHasVisual)
+			{
+				Gasp->SetVisualOverride(VisualMesh, VisualAnim, OutMessage); // Non-null assets validated above; no fallible step remains.
+				Gasp->GetVisualMesh()->SetRelativeScale3D(GolmokCharacters::ToVector(InEntry.VisualScale));
+			}
+			else
+			{
+				Gasp->ClearVisualOverride();
+				Gasp->GetVisualMesh()->SetRelativeScale3D(FVector::OneVector);
+			}
+		}
 		// ApplyCharacterVisuals exposes the capsule when the ini mesh cannot load.
 		// A valid roster mesh replaces that fallback; do not propagate to the mesh.
 		Capsule->SetHiddenInGame(true);
