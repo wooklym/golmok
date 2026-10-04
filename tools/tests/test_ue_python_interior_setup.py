@@ -305,6 +305,7 @@ def test_run_sequence(fake, unreal, parent, zone, it):
         ("import", "SM_c_e000_n000.obj", f"{ROOM_FOLDER}/_import", "SM_c_e000_n000", "fbx"),
         ("rename", f"{ROOM_FOLDER}/_import/SM_c_e000_n000", mesh),
         *[("delete_asset", f"{ROOM_FOLDER}/_import/{m}") for m in usemtl],  # importer by-products
+        ("set_lod_build", mesh, 0, True),  # LOD0 full precision UVs (runbook #41)
         ("set_nanite", mesh, True),
         *[("set_material", mesh, i, f"{ROOM_FOLDER}/Materials/MI_{m}") for i, m in enumerate(usemtl)],
         ("save", mesh),
@@ -397,6 +398,7 @@ def test_logs_match_runbook_and_log_source(fake, parent, zone, it):
         f"zone_import: material {ROOM_FOLDER}/Materials/MI_room parent={M_ZONE_SCAN} texture=T_room",
         f"zone_import: chunk {ROOM_FOLDER}/SM_c_e000_n000 tris=60 bounds ok (error 0.00 cm) "
         "slots=room=MI_room",
+        "zone_import: full precision UVs (LOD0) on 1/1 chunks (1 set, 0 already on)",
         f"zone_import: collision {collision} bounds ok (error 0.00 cm) complex-as-simple nanite=off",
         f"zone_import: copied manifest.json -> {dest}",
         SUBLEVEL_LINE,

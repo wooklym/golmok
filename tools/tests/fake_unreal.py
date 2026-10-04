@@ -41,6 +41,7 @@ RECORDS (fake.calls, design §5-0; "spawn" gets its label when set_actor_label i
     ("import", basename, dest, dest_name, route)  route None for .glb/.png   ("delete_directory", path)
     ("delete_asset", path) ("rename", old, new) ("save", path) ("create_asset", name, folder, class_name)
     ("set_material", mesh_path, index, material_path) ("set_nanite", mesh_path, enabled)
+    ("set_lod_build", mesh_path, lod_index, use_full_precision_u_vs) (StaticMeshEditorSubsystem; a rebuild)
     ("spawn", class_name, label) ("destroy", label) ("rebuild_in_editor", zone_id)
     ("unload_in_editor", zone_id) ("set_visual_visible", zone_id, visible) ("hidden_in_game", label, hidden)
     ("console", command) ("begin_play",) ("end_play",) ("load_level", path) ("new_level", path)
@@ -88,6 +89,8 @@ KNOBS (install(**cfg) keywords = Fake attributes): obj_mapping=(100.0, M_OBJ) gl
     (False: AssetTools.fixup_referencers leaves them). AssetRegistry.get_assets(ARFilter(package_names /
     package_paths, recursive_paths)) lists registered assets as FakeAssetData (asset_class_path.asset_name
     = the class name, get_asset()); AssetRegistryHelpers.is_redirector(data) checks that class name.
+    full_precision_uvs=False (the LOD0 MeshBuildSettings.use_full_precision_u_vs an imported static mesh
+    starts with; True: the importer already set it, so zone_import leaves it alone; runbook §12 #41)
 
 Console (SystemLibrary.execute_console_command): "golmok.tod <preset>" picks the screenshot folder
 (fake.tod_commands records every golmok.tod argument list; the WP-14a subcommands time / mode / rate / status
@@ -161,6 +164,7 @@ KNOBS = {
     "save_map_renames": True, "nullrhi": False, "relative_paths": False,
     "dependencies": {}, "rename_directory_ok": True,  # WP-19 gasp_import
     "leave_redirectors": False, "fixup_deletes_redirectors": True,  # WP-19a-2 gasp_import
+    "full_precision_uvs": False,  # WP-06 round 2 item 2
 }  # fmt: skip
 # (class, label, tags) of setup_dev_level._build_lighting(), seeded into the initial level when lit=True.
 L_DEV_LIGHTING = (
@@ -442,6 +446,13 @@ MeshNaniteSettings = _options("MeshNaniteSettings", {
     "target_minimum_residency_in_kb": 0, "max_edge_length_factor": 0.0, "shape_preservation": None,
     "explicit_tangents": False,
 })  # fmt: skip
+MeshBuildSettings = _options("MeshBuildSettings", {  # FMeshBuildSettings (LOD source model build settings)
+    "recompute_normals": True, "recompute_tangents": True, "use_mikk_t_space": True,
+    "compute_weighted_normals": False, "remove_degenerates": True, "build_reversed_index_buffer": True,
+    "use_high_precision_tangent_basis": False, "use_full_precision_u_vs": False,
+    "use_backwards_compatible_f16_trunc_u_vs": False, "generate_lightmap_u_vs": True,
+    "min_lightmap_resolution": 64, "src_lightmap_index": 0, "dst_lightmap_index": 1,
+})  # fmt: skip
 BodySetup = _options("BodySetup", {"collision_trace_flag": "CTF_USE_DEFAULT"})
 StaticMaterial = _options("StaticMaterial", {"material_interface": None, "material_slot_name": ""})
 CustomInput = _options("CustomInput", {"input_name": ""})
@@ -531,6 +542,8 @@ class FakeStaticMesh(FakeAsset):
         self.slots = list(slots)
         self.materials = list(materials) + [None] * (len(self.slots) - len(materials))
         self.nanite = MeshNaniteSettings()
+        # LOD0 build settings (a fresh import starts from the importer's value; knob full_precision_uvs)
+        self.lod_build = [MeshBuildSettings(use_full_precision_u_vs=bool(fake.full_precision_uvs))]
         self.body_setup = BodySetup()
         self.source = source
         self.props.update({"lod_group": None, "generate_mesh_distance_field": False})
@@ -964,6 +977,15 @@ class StaticMeshEditorSubsystem(_Bound):
 
     def get_nanite_settings(self, static_mesh):
         return static_mesh.nanite
+
+    def get_lod_build_settings(self, static_mesh, lod_index):
+        # a struct value (a copy): edits reach the mesh only through set_lod_build_settings
+        return copy.copy(static_mesh.lod_build[lod_index])
+
+    def set_lod_build_settings(self, static_mesh, lod_index, build_options):
+        static_mesh.lod_build[lod_index] = copy.copy(build_options)  # the engine rebuilds the mesh here
+        flag = bool(build_options.use_full_precision_u_vs)
+        self._fake.calls.append(("set_lod_build", static_mesh.path, lod_index, flag))
 
 
 def _null_references(fake, asset) -> None:
@@ -1883,6 +1905,7 @@ def _names(fake: Fake) -> dict:
         "ComponentMobility": ComponentMobility, "LightUnits": LightUnits, "CustomInput": CustomInput,
         "CollisionEnabled": CollisionEnabled, "CustomMaterialOutputType": CustomMaterialOutputType,
         "MeshNaniteSettings": MeshNaniteSettings, "BodySetup": BodySetup, "StaticMaterial": StaticMaterial,
+        "MeshBuildSettings": MeshBuildSettings,
         "LevelEditorPlaySettings": FakePlaySettings, "PlayModeType": PlayModeType,
         "LevelStreamingDynamic": LevelStreamingDynamic,
         "AssetRegistryDependencyOptions": AssetRegistryDependencyOptions,
