@@ -57,6 +57,7 @@ public:
 	FString DescribeRoster() const;
 	const FGolmokCharacterRoster& GetRoster() const { return Roster; }
 	const FString& GetCurrentId() const { return CurrentId; }
+	bool IsExplicitSelection() const { return bExplicitSelection; }
 	const FString& GetLoadError() const { return LoadError; }
 
 #if WITH_DEV_AUTOMATION_TESTS

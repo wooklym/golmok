@@ -488,3 +488,26 @@ STATUS/astra-tasks 문안: “선택 T18 R77-6/7/8 구현: 일반 폰 GASP 항�
 **병합 전 리뷰(Opus 5.5 ultracode 적대 검증, [R91](https://github.com/wooklym/golmok/pull/91#issuecomment-5977339808))**: (A) 0 · (B) 1 · (C) 5. 게이트(리눅스): ruff, format 112, pytest 1501 passed / 3 skipped, check_repo, `diff --check`, 등록 36, CI 10/10. UE 빌드·전체 36 Success는 Astra 보고다. 확인(결함 없음): R77-6·7·8 모두 해결 — 각 수정을 되돌리는 변이를 테스트가 잡는다(`Test.cpp:76`·`:127`·`:130`·`:132`·`:138`·`:158`), 사전 거절은 로드 뒤 거절의 부분집합(종전 적용을 새로 거절하지 않음), 경로 비교·설정 파싱 실패·상태 전이·C++ 위생·레인 준수. **해석 판정 — 수락**: "자동 적용은 거짓"을 새 기본값·폴백 선택에만 적용하고 명시 id의 자동 복원은 명시로 유지한 Astra 해석이 R77-8 의도에 맞다(문자 그대로면 두 번째 Photo/Path 복귀에서 선택을 잃어 "Photo/path pawns retain the selection" 계약이 깨진다 — 배정 문안의 오류). (B) **R91-1**: 세이브가 명시 여부와 무관하게 `GetCurrentId()`를 저장하고(`GolmokSaveSubsystem.cpp:372`) 복원이 `SelectCharacter`로 다시 적용해(`:816-826`), 이전 abp 세션의 자동 `manny`가 GASP 폰에 명시로 고정된다 — 기존 동작이며 이 PR 원인이 아니다. 19b·V-15 §B7 전에 고친다: 캐릭터 레인 `IsExplicitSelection()` 추가(Astra **T20**) → 세이브는 명시 선택만 저장·레거시 세이브 처리(Claude 레인, T20 병합 뒤). `golmok.anim preview off`의 같은 승격은 19b에서 정한다. (C → T20 선택): R91-2 폴백 성공이 명시 플래그를 지우는 단언, R91-3 거절 사유 단언·visual 절 전용 계수 비교, R91-4 관찰자 애님 클래스·리터럴 메시, R91-5 `SetVisualOverride` 반환값과 사소 정리. 설계 리뷰 불필요(품질 가설·D-018·D-021 조건 불변).
 
 **병합**: 오케스트레이터 결정(D-019). main(T19 #92 포함)을 병합한 뒤 이 커밋으로 반영했다. 위 "병합 시 반영 — T18" 문안에 "명시 id 자동 복원은 명시 유지(R91 수락)"와 R91-1 후속을 더해 STATUS 병행 트랙 WP-18 행과 `astra-tasks.md` T18·T20에 옮겼다. 19b 경로 확정 뒤 4개 경로 갱신 스택(R84 (C) 포함)이 T20보다 우선이다.
+
+## T20 — 명시 선택 조회 API·상태 전이 회귀 (2026-10-04 KST)
+
+배정: [이슈 #30 T20](https://github.com/wooklym/golmok/issues/30#issuecomment-5978226601). T18·T19가 병합된 main `8e7cfc5`에서 독립 `astra/wp-19c-roster-followup4`로 진행했다.
+
+- `bool IsExplicitSelection() const`를 추가해 기존 명시 선택 플래그를 읽는다. `SelectCharacter`·`GetCurrentId`·로스터 API와 선택 동작은 그대로다. 세이브는 이 API로 명시 선택만 저장하도록 Claude 레인에서 후속 수정한다. 이번 PR은 Save 파일이나 레거시 저장 처리에 손대지 않는다.
+- 자동 ABP/GASP 기본 선택은 false, 명시 선택 성공은 true, 반복 possession의 명시 id 복원은 true, 명시 복원 실패 뒤 기본값 폴백 성공은 false를 단언한다. 실패했던 visual 경로가 복구되면 다음 possession에서 GASP 기본값이 다시 적용되어 폴백 id가 고정되지 않는 것도 검사한다.
+- R91-3/4: 일반 GASP 및 visual-only 사전 거절 사유와 로드 시도 증가0을 검사한다. 소스 메시·애님을 모두 비운 뒤 visual 적용 직전 관찰자가 리터럴 Manny 메시 경로와 기대 애님 클래스를 확인한다.
+- R91-5: 사전 검증을 마친 `SetVisualOverride`가 뜻밖에 실패하면 `ensureAlwaysMsgf`로 진단한다. 검증 이후 실패 반환을 추가하거나 트랜잭션 적용 순서를 바꾸지는 않았다.
+
+검증: UE5.8.3 build 성공(49.75s), 전체 **36 Success(24+경고12)/failed0/notRun0,194.10s**, 이 중 Character7 Success. Python **1286 passed/218 skipped/208 warnings,89.49s**, ruff check/format114·check_repo·diff 통과. 로컬 근거: tools/.venv/t20-build.txt, t20-pytest.txt, t20-full-index.json. GaspSmoke 설치 미충족·RenderEvidence NOT EXECUTED는 실제 성공을 뜻하지 않는다. 등록36 유지, 새 소스·라이선스 채택 없음. 실제 GASP 설치·GUI·리타깃 품질 검증은 NOT EXECUTED이며 헤드리스 합성 계약 결과와 구분한다.
+
+### 병합 시 반영 — T20
+
+STATUS/astra-tasks 문안: “T20 캐릭터 레인 완료: `IsExplicitSelection() const` 공개 조회 API, 자동 선택/명시 성공/반복 명시 복원/복원 실패 후 폴백의 플래그 회귀, 일반 GASP·visual-only 로드 전 거절 및 소스 메시·애님 적용 시점 검사, visual 적용 불변식 진단. 등록36 유지. Save의 명시 선택만 저장·레거시 처리는 Claude 후속이며 이번 변경만으로 세이브 결함 해결을 선언하지 않는다. 실제 GASP 검증은 19b/V-15 대기.”
+
+## 병합 기록 — T20 PR [#94](https://github.com/wooklym/golmok/pull/94) (2026-10-04, 오케스트레이터 세션)
+
+**내용**: 위 "T20" 절과 같다. (B) R91-1 캐릭터 몫 — 공개 조회 API `bool IsExplicitSelection() const`(`bExplicitSelection` 반환, `WITH_DEV_AUTOMATION_TESTS` 밖이라 Shipping에서도 컴파일). 플래그 회귀: 자동 적용 뒤 거짓, `SelectCharacter` 성공 뒤 참, 명시 id 자동 복원 뒤 참 유지(T18 해석 고정), 명시 복원 실패 → 폴백 성공 뒤 거짓·복구 뒤 모드 기본값 복귀(R91-2). (C) R91-3(거절 사유 단언·visual 절 전용 로드 계수), R91-4(관찰자가 소스 애님 클래스·리터럴 메시 확인), R91-5(`SetVisualOverride`를 `ensureAlwaysMsgf`로 감싼 진단, 선언 분리). 등록 수는 36으로 같고, Astra 전체 UE 36 Success다.
+
+**병합 전 리뷰(Opus 5.5 ultracode 적대 검증, [R94](https://github.com/wooklym/golmok/pull/94#issuecomment-5978554246))**: (A) 0 · (B) 0 · (C) 2. 게이트(리눅스): ruff, format 112, pytest 1501 passed / 3 skipped, check_repo, `diff --check`, 등록 36, CI 10/10; base `8e7cfc5` = 당시 main. UE 빌드·전체 36 Success는 Astra 보고다. 확인(결함 없음): 플래그 전이 4가지와 (C) 수정마다 제품 줄을 되돌리는 변이를 테스트가 잡는다, 제품 동작 변화는 진단용 `ensureAlwaysMsgf`뿐(Shipping에서도 식은 평가됨, 정상 경로에서 발화하지 않음), 하류 #93과 `merge-tree` 충돌 0·API 서명 일치. (C → 다음 캐릭터 레인 push): R94-1 헤더에 `IsExplicitSelection()` 전이 계약 주석, 클래스 주석 "no saved selection" 갱신. R94-2(병합 세션 몫)는 이 커밋에서 처리. R91-5의 "문서 빈 줄" 지적은 파일 관례라 철회했다. 설계 리뷰 불필요(선택 우선순위·품질 가설·D-018·D-021 조건 불변).
+
+**병합**: 오케스트레이터 결정(D-019). 위 "병합 시 반영 — T20" 문안을 STATUS 병행 트랙 WP-18 행과 `astra-tasks.md` T20에 옮겼다. 세이브 결함(R91-1)의 해결은 이 PR이 아니라 바로 뒤 Claude 레인 #93(명시 선택만 저장·레거시 기본 id 복원 생략) 병합으로 선언한다. 19b 경로 확정 뒤 4개 경로 갱신 스택(R84 (C)·R94-1 포함)이 다음 캐릭터 레인 과제다.
