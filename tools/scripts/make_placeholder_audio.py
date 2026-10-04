@@ -25,13 +25,15 @@ def samples(seed, loop, rate=48000, synthesis="default"):
             np.clip((frequencies - 1000) / 500, 0, 1), np.clip((8000 - frequencies) / 1500, 0, 1)
         )
         noise = np.fft.irfft(np.fft.rfft(noise) * band, n=count)
-        for _ in range(12):
-            length = int(rate * rng.uniform(0.015, 0.04))
+        for _ in range(36):
+            length = int(rate * 0.048)
             offset = int(rng.integers(count))
-            droplet = rng.uniform(-1, 1, length) * np.hanning(length)
+            time = np.arange(length) / rate
+            envelope = np.minimum(time / 0.001, 1) * np.exp(-time / 0.006)
+            droplet = rng.uniform(-1, 1, length) * envelope
             burst = np.zeros(count)
             burst[(offset + np.arange(length)) % count] = droplet
-            noise += 0.35 * np.fft.irfft(np.fft.rfft(burst) * band, n=count)
+            noise += 2.1 * np.fft.irfft(np.fft.rfft(burst) * band, n=count)
         envelope = np.ones(count)
     elif loop:
         # Circular low-pass avoids an artificial filter startup transient at the seam.
