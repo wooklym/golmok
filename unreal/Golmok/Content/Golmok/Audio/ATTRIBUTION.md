@@ -73,5 +73,5 @@ Author: Golmok procedural generator
 Source: https://github.com/wooklym/golmok/blob/main/tools/scripts/make_placeholder_audio.py
 License: project-generated
 Verified: 2026-10-05
-Changes: Deterministic filtered noise/tone; not a field recording.
+Changes: Deterministic periodic 1–8 kHz filtered noise with sparse soft raindrop transients; synthetic test texture, not a field recording.
 Placeholder: True

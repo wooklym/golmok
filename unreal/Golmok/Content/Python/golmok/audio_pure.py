@@ -143,6 +143,12 @@ def parse_config(data):
             }[item["license"]]
             if item.get("license_url") != expected:
                 raise ValueError(f"{prefix}.license_url: expected URL matching declared license")
+        # Python-only generator selection; adopted audio may retain this inert metadata.
+        synthesis = item.get("synthesis", "default")
+        if not isinstance(synthesis, str) or synthesis not in ("default", "rain"):
+            raise ValueError(f"{prefix}.synthesis: expected default or rain")
+        if item["license"] == "project-generated" and synthesis == "rain" and not item["loop"]:
+            raise ValueError(f"{prefix}.synthesis: rain requires a loop")
         verified = item.get("verified")
         if not isinstance(verified, str) or not re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}", verified):
             raise ValueError(f"{prefix}.verified: expected YYYY-MM-DD")
