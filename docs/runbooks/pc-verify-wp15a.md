@@ -67,7 +67,7 @@
   GolmokSave: first visit z_synthetic_002 v1 (travel)
   GolmokSave: saving golmok_auto (async, travel): zone z_synthetic_002, visited 2, photos N, position yes, tod HH:MM fixed (<키프레임>)
   ```
-  (저장 로그 끝의 `tod …`는 WP-14a 연결 뒤 추가된 부분: 레벨 조명 그대로면 `tod -`, 시각 없는 프리셋 기저면 프리셋 이름만.)
+  (저장 로그 끝의 `tod …`는 WP-14a 연결 뒤 추가된 부분: 레벨 조명 그대로면 `tod -`, 시각 없는 프리셋 기저면 프리셋 이름만. WP-16a([#112](https://github.com/wooklym/golmok/pull/112))부터 그 뒤에 `, weather <목표> wet x.xx puddle x.xx <모드>`가 붙는다 — 날씨가 꺼졌거나 세이브에 없으면 `, weather - (not in save)`.)
   화면이 약 0.35 s 검게 페이드 아웃 → 파사드 B 유리창을 마주 보고(북쪽) 서 있음 → 페이드 인(P14-2 후속 뒤: 페이드 인 첫 프레임부터 캐릭터가 화면에 있고 카메라가 날아오지 않는다 — 녹화 확인은 §11). 캐릭터가 떨어지지 않는다(`Zone_Ground`). 로딩 중 WASD가 먹지 않는다(이동 입력 차단).
 - [ ] **히치 기록**: `golmok.stats` 또는 `stat unit`으로 이동 순간 최대 프레임(ms)을 적고 `pc-verify-wp09.md` §6 표(비동기 로드 히치)와 비교. 001(에셋 있음, 비동기)로 돌아갈 때(`golmok.travel z_synthetic_001`)의 `arrived … after x.xx s`도 적는다.
 - [ ] `golmok.zone.list`: 도착한 zone 행에 ` pinned`가 **없다**(다음 틱 해제). 002 행 `loaded … [index]`.
