@@ -17,6 +17,15 @@
 #include "Sound/SoundWave.h"
 #include "Weather/GolmokWeatherSubsystem.h"
 
+namespace GolmokAmbiencePrivate
+{
+	void ApplyVolume(UAudioComponent* Channel, float Value)
+	{
+		if (IsValid(Channel) && FMath::Abs(Channel->VolumeMultiplier - Value) >= 1.e-4f)
+			Channel->SetVolumeMultiplier(Value);
+	}
+}
+
 bool UGolmokAmbienceSubsystem::DoesSupportWorldType(const EWorldType::Type WorldType) const
 {
 	return WorldType == EWorldType::Game || WorldType == EWorldType::PIE;
@@ -230,7 +239,7 @@ void UGolmokAmbienceSubsystem::Tick(float DeltaTime)
 	}
 	for (int32 Slot = 0; Slot < 2; ++Slot)
 	{
-		if (IsValid(Channels[Slot])) Channels[Slot]->SetVolumeMultiplier(static_cast<float>((bMuted ? 0 : Config.MasterVolume * PhotoGain.Value) * Gains[Slot].Value));
+		GolmokAmbiencePrivate::ApplyVolume(Channels[Slot], static_cast<float>((bMuted ? 0 : Config.MasterVolume * PhotoGain.Value) * Gains[Slot].Value));
 	}
 	UpdateRain(UGolmokWeatherSubsystem::Get(GetWorld()), Dt);
 	if (bMuted) for (UAudioComponent* Shot : OneShots) if (IsValid(Shot)) Shot->Stop();
@@ -249,7 +258,7 @@ void UGolmokAmbienceSubsystem::UpdateRain(const UGolmokWeatherSubsystem* Weather
 	}
 	RainInterior.Advance(Dt);
 	RainVolume = Config.RainAsset.IsEmpty() || bMuted ? 0 : Config.MasterVolume * PhotoGain.Value * RainInterior.Value * Config.RainGain(RainIntensity);
-	if (IsValid(RainChannel)) RainChannel->SetVolumeMultiplier(static_cast<float>(RainVolume));
+	GolmokAmbiencePrivate::ApplyVolume(RainChannel, static_cast<float>(RainVolume));
 }
 
 void UGolmokAmbienceSubsystem::PlayFootstep(const FString& Set, bool bLanding)

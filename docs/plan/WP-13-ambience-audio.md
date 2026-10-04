@@ -694,3 +694,47 @@ DECISIONS D-015/C-08 문안: “T27은 PC 카드 전에 rain24초와 방울 분�
 - 위 "병합 시 반영 — T27" 문안은 STATUS 병행 트랙 WP-13 행, `astra-tasks.md` T27, DECISIONS D-015 진행에 옮겼다. STATUS C-08의 빗소리 가설도 R117 수치로 갱신했다.
 - **오케스트레이터 판단(퀄리티 우선): 플레이스홀더 합성 rain 반복은 여기서 멈춘다.** 남은 질문(틱 대 비, 24 s 반복, 약한 비 질감, 실내 필터)은 귀로만 답할 수 있다. 단일 루프는 강도별 밀도를 원리적으로 표현하지 못한다. 그래서 다음은 V-16 뒤 wp13 §9 PC 카드 → C-08 → 채택 음원이다.
 - Astra **T28**은 파형을 바꾸지 않는 묶음이다: PC 카드 전에 고칠 런북 정확성(R117-1·3), 방울 일정 성질 테스트(R117-2), 이월된 런타임 코드 품질(R114-2~6). R117-4는 청취 결과를 기다린다.
+
+
+## T28 — 파형 유지·검증/런타임 품질 (2026-10-05 KST)
+
+배정: [이슈 #30 T28](https://github.com/wooklym/golmok/issues/30#issuecomment-5984754855), [R117](https://github.com/wooklym/golmok/pull/117#issuecomment-5984680780). main `75b8869`에서 `astra/wp-13-audio-quality`로 시작했다. 합성 반복 종료 결정에 따라 WAV8개·audio.json 값·크레딧은 바꾸지 않았다.
+
+- 필수 R117-1/3: wp13 §1의 길이를 베드3개4초/rain24초로 정정, §9-1/3 정상 구간·패키지에서24초 이음매 최소1회 통과. §9-2 판정은 강수1·밤−42.45±1 dBFS 한 행, 나머지 참고. §7-1 master submix 녹음에서 안착 뒤48초를 자르는 PCM 예시와 `audio_analysis` whole-file RMS 측정, 선택 clear/rain 차분 추정식을 적었다. 실제 청취/측정 결과가 아니다.
+- 권장 R117-2: `rain_schedule(seed,count,rate)`가 독립 RNG로 배경 draw부터 재현하고 방울별 noise까지 반환해 원래 호출 순서를 보존한다. 생성기는 일정 출력으로 합성한다. 중복 배경 RNG draw 비용은 생기지만 파형 재현성을 우선했다. 4seed의9/s·순환 최소간격≥1439표본·간격CV>.5·진폭폭≥10 dB·감쇠3–15 ms, 비rain seconds 거부와 기존8개 LFS 해시 회귀 통과.
+- 권장 R114-3: `RainGain`을 UE 독립 `GolmokAudioMath.h`의 점 배열 템플릿 순수 함수로 옮겼다. 파서가 검증한 점 배열을 받는 계약이며 FGolmokAudioConfig는 위임한다. 40개 무작위 곡선·매듭·범위 밖·NaN/Inf·빈 배열의 Python 거울/g++ 드라이버 교차검증을 추가했다. gain 비감소 규칙을 C++/Python 양쪽에 넣고 감소만 어긴 사례의 정확한 진단·파서 원자성(UE)을 검사한다. 기존 설정은 유효하다.
+- 권장 R114-6: rain/베드2채널은 현재 AudioComponent.VolumeMultiplier와 목표의 차가1e-4 미만이면 SetVolumeMultiplier를 생략한다. 별도 캐시 없이 마지막 적용값과 비교하므로 작은 변화가 누적되면 갱신되고 교체 컴포넌트도 자체 값을 기준으로 한다. 종료 시0·Stop·Destroy 경로는 유지했다. 오디오 스레드 명령량의 실제 계측은 하지 않았다.
+- 선택 R114-5: 초기화 전 disabled 공급자의0 기본값만 확인하는 단언임을 라벨/보고에 명시하고 Photo weather 조회에 null 가드를 추가했다. R114-2의 모든 독립 사례·R114-4 기대값 설정 기반 전환은 이번 범위에 포함하지 않았다. R117-4 약한 비 질감은 C-08 뒤다.
+
+### 검증 — T28
+
+- 로컬 Python 전체 **1519 passed/273 skipped/208 warnings**(91.98 s). g++/clang++가 없어 순수 수학 드라이버9건은 로컬 skip이며 CI Linux에서 확인한다. 관련165 passed/10 skipped. WAV8개 재생성/LFS 일치·기존자산/설정 diff0.
+- ruff check/format·UE Python lint·check_repo·diff --check 통과. UE5.8.3 빌드 최초29.89 s·최종 테스트 추가 뒤6.51 s 성공. 전체 UE **39 Success**(일반26+경고13), Failed0/NotRun0, Audio2 포함. 보고서 `t28-full-index.json`의39개 state로 확인했다. 기저 fixture의 MPC/Fx 부재와 실제GASP 미설치 경로는 기존 제한이며 실제 출력 증거가 아니다.
+- 실제 출력·루프백·패키지·청취 미실행. V-16 뒤wp13 §9/C-08 유지, 등록39. 새출처/라이선스·소유자 결정 없음. Opus ultracode 코드 리뷰 요청.
+
+### 병합 시 반영 — T28
+
+STATUS/astra-tasks 문안: “T28 완료: 파형/설정값 유지, rain PC판정 밤1행·master submix 절단/RMS·이음매 명시, 방울 일정 성질/LFS 회귀, RainGain 순수함수와 g++거울·비감소 검증, rain/베드 볼륨 불변 갱신 생략, disabled 범위·Photo null 가드. 등록39 유지. R114-2 전체·4는 이월, 실제 청취/출력/패키지·R117-4는 PC카드/C-08 뒤.”
+
+## 병합 기록 — T28 PR [#118](https://github.com/wooklym/golmok/pull/118) (2026-10-04, 오케스트레이터 세션)
+
+**병합 전 리뷰(Opus 5.5 ultracode 적대 검증, [R118](https://github.com/wooklym/golmok/pull/118#issuecomment-5985411136))**: (A) 0 · (B) 0 · (C) 3. 파형·설정값·소리 가설이 바뀌지 않아 디자인 리뷰는 하지 않았다.
+- 게이트(리눅스): ruff, format 118, pytest 1789 passed / 3 skipped(+6), check_repo, `diff --check`, 등록 39, CI 10/10; base `75b8869`(= main, merge-tree 충돌 0). g++ 드라이버 9건이 실제로 실행됐다.
+- UE 빌드·전체 39 Success(경고 13)·Audio 2는 Astra 보고다.
+
+확인(결함 없음):
+- 볼륨 생략: 비교 대상이 컴포넌트의 `VolumeMultiplier`(마지막으로 보낸 값)다. 작은 변화가 쌓이면 보내므로 오차는 1e-4 미만이다. 채널은 0에서 시작하고, 슬롯 교체·Deinitialize·구 설정 경로는 그대로다.
+- `RainGain`: UE 타입 없는 inline 템플릿이다. 옛 구현과 1,538,200건이 비트 단위로 같다.
+- 비감소 규칙: C++ `>=`와 Python `<` 거절은 같은 규칙(같은 값 허용)이다. 검사 순서·문구가 맞고, 현재 곡선은 통과한다.
+- 방울 일정: RNG 순서가 같아 WAV 8개 sha256이 포인터 oid와 같다(rain `2bfe82de…`). 성질 테스트 여유는 최소 간격 1443–1473 표본, CV 0.66–0.78이다.
+- 런북: 판정 행 강수 1 밤 −42.45 dBFS(+2.16)와 Δ 진단 −46.52 dBFS가 R117 모델과 같다. 절단 예시와 `audio_analysis` 명령은 합성 WAV로 실행해 확인했다.
+- 변이: 40개 중 29개를 검출했다. 생존 11개는 등가 4, 경계 2(R118-2), R114-2 이월 5다.
+
+(C) R118-1~3:
+- R118-1: 날씨 clear 뒤 rain 채널 끝값이 0이 아니라 ≤ 1e-4로 남는다(들리지 않지만 "mute·clear = 디지털 0"이 깨짐). → 끝값 0은 항상 보낸다. 판정식은 순수 함수로 둔다.
+- R118-2: 규칙 경계 사례(평평한 구간 수락, 진단 순서, driver Count 1의 Y ≠ 0).
+- R118-3: §9-2 측정 조건(정지·`golmok.tod night`·정수 `start_s`·녹음 경로).
+
+**병합**: 오케스트레이터 결정(D-019). 이 커밋으로 반영했다(base가 main `75b8869`라 합칠 것 없음). 위 "병합 시 반영 — T28" 문안은 STATUS 병행 트랙 WP-13 행과 `astra-tasks.md` T28에 옮겼다. 새 결정이 없어 DECISIONS는 바꾸지 않았다.
+
+오케스트레이터 판단(퀄리티 우선): R118-1(디지털 0 보장)과 R118-3(PC 카드 측정 조건)은 PC 청취 카드 **전에** 고친다. 그래서 R118-2, R114-2 전체, R114-4와 묶어 Astra **T29**로 바로 배정한다(파형 무변경). R117-4는 C-08 청취 뒤다. wp13 §9 오디오 PC 카드는 T29 병합 뒤 V-16과 함께 발행한다.

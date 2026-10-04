@@ -12,6 +12,21 @@ sys.path.insert(0, str(PYTHON))
 from golmok.audio_pure import AUDIO, CONFIG, load_config, source_path, write_credits  # noqa: E402
 
 
+def rain_schedule(seed, count, rate=48000):
+    """Pure deterministic event stream, including each event's noise to preserve RNG order."""
+    rng = np.random.default_rng(seed)
+    rng.uniform(-1, 1, count)  # Background draw precedes the schedule in the frozen T27 stream.
+    drops = round(count / rate * 9)
+    gaps = rng.exponential(size=drops)
+    gaps = 0.03 + gaps / gaps.sum() * (count / rate - drops * 0.03)
+    offsets = (np.cumsum(gaps) * rate + rng.integers(count)).astype(int) % count
+    for offset in offsets:
+        amplitude = np.exp(rng.uniform(np.log(0.6), np.log(3.3)))
+        decay = rng.uniform(0.003, 0.015)
+        noise = rng.uniform(-1, 1, int(rate * decay * 8))
+        yield offset, amplitude, decay, noise
+
+
 def samples(seed, loop, rate=48000, synthesis="default", seconds=None):
     if synthesis not in ("default", "rain") or (synthesis == "rain" and not loop):
         raise ValueError("synthesis: expected default, or rain for a loop")
@@ -31,19 +46,12 @@ def samples(seed, loop, rate=48000, synthesis="default", seconds=None):
         noise = np.fft.irfft(np.fft.rfft(noise) * band, n=count)
         # Minimum circular gap prevents conspicuous coincident clusters; exponential
         # residual gaps avoid a regular tick grid. Filter the summed droplets once.
-        drops = round(count / rate * 9)
-        gaps = rng.exponential(size=drops)
-        gaps = 0.03 + gaps / gaps.sum() * (count / rate - drops * 0.03)
-        offsets = (np.cumsum(gaps) * rate + rng.integers(count)).astype(int) % count
         burst = np.zeros(count)
-        for offset in offsets:
-            amplitude = np.exp(rng.uniform(np.log(0.6), np.log(3.3)))
-            decay = rng.uniform(0.003, 0.015)
-            length = int(rate * decay * 8)
-            time = np.arange(length) / rate
+        for offset, amplitude, decay, drop_noise in rain_schedule(seed, count, rate):
+            time = np.arange(len(drop_noise)) / rate
             envelope = np.minimum(time / 0.001, 1) * np.exp(-time / decay)
-            droplet = amplitude * rng.uniform(-1, 1, length) * envelope
-            burst[(offset + np.arange(length)) % count] += droplet
+            droplet = amplitude * drop_noise * envelope
+            burst[(offset + np.arange(len(drop_noise))) % count] += droplet
         drop_band = np.minimum(
             np.clip((frequencies - 1000) / 500, 0, 1),
             np.clip((4000 - frequencies) / 500, 0, 1),

@@ -277,7 +277,7 @@ namespace GolmokAudioTest
 			// A newly constructed, uninitialized provider is disabled (no parsed config).
 			auto* Disabled = NewObject<UGolmokWeatherSubsystem>(World);
 			Audio->UpdateRainForTest(Disabled, 0);
-			Test->TestEqual(TEXT("disabled weather silences rain"), Audio->GetRainVolumeForTest(), 0.0);
+			Test->TestEqual(TEXT("uninitialized disabled weather defaults to zero rain; enabled guard not isolated"), Audio->GetRainVolumeForTest(), 0.0);
 			Audio->UpdateRainForTest(Weather, 0);
 			Test->TestTrue(TEXT("late provider sees ongoing rain without event"), FMath::IsNearlyEqual(Audio->GetRainVolumeForTest(), .8, 1e-6));
 			Test->TestEqual(TEXT("rain cannot replace night bed"), Audio->GetState(), Before);
@@ -355,7 +355,7 @@ namespace GolmokAudioTest
 				}
 			}
 			Audio->Tick(0);
-			Test->AddInfo(TEXT("EXECUTED rain null/disabled provider, late lookup/interior, rise/fall, bed preservation, save instant restore and mute; audible output remains PC verification."));
+			Test->AddInfo(TEXT("EXECUTED rain null/uninitialized disabled provider, late lookup/interior, rise/fall, bed preservation, save instant restore and mute; audible output remains PC verification."));
 			return true;
 		}
 	private:
@@ -387,7 +387,9 @@ namespace GolmokAudioTest
 			if (Phase == 1 && Audio->GetPhotoGain() < .0001)
 			{
 				Test->TestEqual(TEXT("photo fade also silences rain"), Audio->GetRainVolumeForTest(), 0.0);
-				Test->TestTrue(TEXT("photo freezes weather but keeps audio envelope ticking"), UGolmokWeatherSubsystem::Get(World)->GetRainIntensity() == 1.f);
+				auto* Weather = UGolmokWeatherSubsystem::Get(World);
+				if (Test->TestNotNull(TEXT("photo weather provider"), Weather))
+					Test->TestTrue(TEXT("photo freezes weather but keeps audio envelope ticking"), Weather->GetRainIntensity() == 1.f);
 				Test->AddInfo(TEXT("EXECUTED GamePause photo gain reached zero"));
 				Photo->Exit(TEXT("audio fade test")); At = Now; Phase = 2;
 			}
@@ -613,6 +615,17 @@ bool FGolmokAudioFootstepTest::RunTest(const FString& Parameters)
 		TestFalse(TEXT("invalid rain config rejected"), GolmokAudio::ParseConfig(Mutated, Parsed, Error));
 		TestTrue(TEXT("rain error names section"), Error.Contains(TEXT("rain")));
 		TestEqual(TEXT("rain failure atomic"), Parsed.RainAsset, Config.RainAsset);
+	}
+	{
+		TSharedPtr<FJsonObject> Root;
+		FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Manifest), Root);
+		Root->RemoveField(TEXT("rain"));
+		FString Mutated; FJsonSerializer::Serialize(Root.ToSharedRef(), TJsonWriterFactory<TCHAR, TCondensedJsonPrintPolicy<TCHAR>>::Create(&Mutated));
+		Mutated.InsertAt(1, TEXT("\"rain\":{\"asset\":\"rain\",\"gain_curve\":[[0,0],[0.5,0.8],[1,0.7]],\"interior_gain\":0.35},"));
+		FGolmokAudioConfig Parsed = Config;
+		TestFalse(TEXT("decreasing rain gain rejected"), GolmokAudio::ParseConfig(Mutated, Parsed, Error));
+		TestEqual(TEXT("decreasing rain diagnosis"), Error, FString(TEXT("audio.json rain.gain_curve: expected nondecreasing gains")));
+		TestEqual(TEXT("decreasing rain failure atomic"), Parsed.RainGain(.5), Config.RainGain(.5));
 	}
 	FGolmokAudioConfig LegacyConfig;
 	const FString Legacy = Manifest.Replace(TEXT("\"rain\":"), TEXT("\"unused_rain_fixture\":")).Replace(TEXT("\"driver\""), TEXT("\"unused_driver_fixture\"")).Replace(TEXT("\"stride_cm_by_character\""), TEXT("\"unused_stride_fixture\"")).Replace(TEXT("\"photo_mute_fade_seconds\""), TEXT("\"unused_photo_fixture\""));

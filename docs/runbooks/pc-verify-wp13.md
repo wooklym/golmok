@@ -14,7 +14,7 @@ $env:PYTHONUTF8 = '1'
 .\tools\.venv\Scripts\python tools/scripts/make_placeholder_audio.py
 ```
 
-생성기는 `placeholder=true`이면서 `license=project-generated`인 항목만 만든다. 채택 원본에는 이 값을 쓰지 않는다. 48kHz PCM16 mono, 앰비언스 4초/원샷 약 0.33초, 피크 약 −14dBFS. 짧은 루프는 재생·교체 검사용이며 음질 합격 기준이 아니다. 실행할 때마다 표기 파일과 배포 크레딧도 JSON에서 갱신한다.
+생성기는 `placeholder=true`이면서 `license=project-generated`인 항목만 만든다. 채택 원본에는 이 값을 쓰지 않는다. 48kHz PCM16 mono, 베드 3개 4초·rain 24초/원샷 약 0.33초, 피크 약 −14dBFS. 짧은 루프는 재생·교체 검사용이며 음질 합격 기준이 아니다. 실행할 때마다 표기 파일과 배포 크레딧도 JSON에서 갱신한다.
 
 에디터 Python:
 
@@ -292,13 +292,29 @@ notify 모드는 첫 이벤트 전부터 거리 스테퍼를 멈춘다. 이벤�
 
 ## 9. T24 빗소리 레이어 — PC 청취 대기
 
-WP-16a 병합 뒤 추가한 오디오 레인이다. 기존 낮/밤/실내 두 슬롯 위에 별도 `SW_rain` 루프를 둔다. `audio.json`의 선택 필드 `rain`이 없으면 종전대로 동작한다. `rain.asset`은 `assets`의 루프 ID, `gain_curve`는 2~32개 `[강수량, gain]`(강수량 엄격 증가, 처음 `[0,0]`, 마지막 강수량 1), `interior_gain`은 0~1이다. 두 점 사이 선형 보간이며 초기 가설은 `[[0,0],[0.3,0.35],[1,0.8]]`, 실내 ×0.35다. 실내 감쇠/복귀는 기존 목적 상태의 크로스페이드 시간으로 S-curve 전환한다. 원본 파일 gain은 SoundWave 임포트 볼륨에, rain 곡선·실내·master·PhotoGain은 채널 볼륨에 각각 한 번 적용한다.
+WP-16a 병합 뒤 추가한 오디오 레인이다. 기존 낮/밤/실내 두 슬롯 위에 별도 `SW_rain` 루프를 둔다. `audio.json`의 선택 필드 `rain`이 없으면 종전대로 동작한다. `rain.asset`은 `assets`의 루프 ID, `gain_curve`는 2~32개 `[강수량, gain]`(강수량 엄격 증가·gain 비감소, 처음 `[0,0]`, 마지막 강수량 1), `interior_gain`은 0~1이다. 두 점 사이 선형 보간이며 초기 가설은 `[[0,0],[0.3,0.35],[1,0.8]]`, 실내 ×0.35다. 실내 감쇠/복귀는 기존 목적 상태의 크로스페이드 시간으로 S-curve 전환한다. 원본 파일 gain은 SoundWave 임포트 볼륨에, rain 곡선·실내·master·PhotoGain은 채널 볼륨에 각각 한 번 적용한다.
 
-1. 위 §1 생성·임포트를 다시 실행한다. 기존 7개 + 합성 빗소리 1개 = 8개, 모두 PCM16/48 kHz. 빗소리는 서울 현장 녹음이 아닌 합성 검사용 노이즈다. T27은 Python 전용 `assets.rain.synthesis="rain"`, `seconds=24`로 1–8 kHz 노이즈에 24초당 216개의 방울을 생성한다(seed 1307). 방울은 1–4 kHz, 진폭 log-uniform 0.6–3.3(14.8 dB 범위), 상승1 ms·감쇠3–15 ms, 시작 간 최소30 ms(이음매 포함)다. rain 자산 gain 0.5503은 강한 비가 낮 베드보다 K-가중 약 2 dB 낮도록 계산한 초기값이다. RMS 정렬을 쓰지 않는다. 24초 반복·틱/지글거림이 귀에 띄는지 밤 강한 비 5분 이상 청취해 기록한다. `seconds`는 자체 생성 rain 루프에서 정수16–30만 지원하며 생략하면 종전4초다. 기존7개 WAV의 길이·바이트는 그대로다. 생략/`default`는 기존 생성 방식이며, `rain`은 자체 생성 루프에만 쓴다. 채택 음원은 이 필드가 남아 있어도 생성 대상에서 제외된다. 음원 교체는 `audio.json`의 기존 자산 출처·경로 필드와 소스 WAV만 교체하고 생성기/임포터/런타임은 그대로 사용한다. `ATTRIBUTION.md`, 배포용 txt, `golmok.audio credits`의 rain 출처를 확인한다.
-2. V-16 날씨 검증 뒤 `golmok.weather rain 1` → 20 s 관찰. HUD `audio:`의 `rain`은 **실제** 강수량이고 `rain_gain`은 원본 SoundWave gain을 곱하기 전 채널 gain이다. 하늘 전환 전반에는 0, 후반에는 증가한다. `golmok.weather clear`에서는 하늘보다 먼저 0이 된다. `rain 0.3 instant`는 실외 master 1에서 rain_gain 0.350, `rain 1 instant`는 0.800이다. master1·정상 PhotoGain1·실외에서 master submix 합 RMS 예측은 강수1 낮 **−39.93 dBFS(+1.08)**, 밤 **−42.45(+2.16)**; 강수0.3 낮 **−40.77(+0.23)**, 밤 **−44.11(+0.51)**다. T27 WAV/gain0.5503, V-10b 공통−8.96 dB 오프셋·상관없는 두 신호의 전력합 모델이며 새 실측이 아니다. 전환이 안착한 뒤 전체24초 이상 녹음 평균을 비교한다. 예측±1 dB 안이면 기록만 하며 밸런스 합격으로 세지 않는다. 밖이면 임포트 gain·master/PhotoGain·녹음 경로와 설정을 먼저 확인한다.
-3. 낮/밤 전환 중에도 빗소리가 끊기거나 낮/밤 베드를 교체하지 않는지 듣는다. 포털 진입은 rain 1에서 0.800 → 0.280, 복귀는 0.800. 빠른 왕복 중 클릭/하드컷을 검사한다. rain의 클릭·급정지는 전환 구간(이벤트 ± fade)에서 판정하고, 정상 구간 z는 원본 파일 자체 z(T27: 5.1)와 비교해 빗방울 과도음과 전환 결함을 구별한다. 플레이스홀더 PC 카드는 레벨·타이밍·클릭·mute/Photo·복원만 기록하며 **밸런스·마스킹을 판정하지 않는다**. 합산 clipping도 파형으로 기록한다. 곡선·실내 배율·발소리 headroom은 빗소리다운 소스(CC0 채택 또는 합성 변형)로 C-08에서 청취 평가한다. T27 합성 변형은 층 분리·단계 간격·문간 전환·거칠음 평가의 입력 후보이며 합격 증거가 아니다. 최종 곡선·실내 배율·가림은 채택 음원으로 정한다. 숫자는 초기 가설이다. 실제 포털로 실내를 왕복한다. ForceState의 interior 강제는 베드만 바꾸므로 빗소리 실내 감쇠 검증을 대체하지 않는다.
+1. 위 §1 생성·임포트를 다시 실행한다. 기존 7개 + 합성 빗소리 1개 = 8개, 모두 PCM16/48 kHz. 빗소리는 서울 현장 녹음이 아닌 합성 검사용 노이즈다. T27은 Python 전용 `assets.rain.synthesis="rain"`, `seconds=24`로 1–8 kHz 노이즈에 24초당 216개의 방울을 생성한다(seed 1307). 방울은 1–4 kHz, 진폭 log-uniform 0.6–3.3(14.8 dB 범위), 상승1 ms·감쇠3–15 ms, 시작 간 최소30 ms(이음매 포함)다. rain 자산 gain 0.5503은 강한 비가 낮 베드보다 K-가중 약 2 dB 낮도록 계산한 초기값이다. RMS 정렬을 쓰지 않는다. 정상 구간 녹음에 24초 이음매를 최소1회 포함하고 패키지에서도 이음매를 한 번 넘긴다. 24초 반복·틱/지글거림이 귀에 띄는지 밤 강한 비 5분 이상 청취해 기록한다. `seconds`는 자체 생성 rain 루프에서 정수16–30만 지원하며 생략하면 종전4초다. 기존7개 WAV의 길이·바이트는 그대로다. 생략/`default`는 기존 생성 방식이며, `rain`은 자체 생성 루프에만 쓴다. 채택 음원은 이 필드가 남아 있어도 생성 대상에서 제외된다. 음원 교체는 `audio.json`의 기존 자산 출처·경로 필드와 소스 WAV만 교체하고 생성기/임포터/런타임은 그대로 사용한다. `ATTRIBUTION.md`, 배포용 txt, `golmok.audio credits`의 rain 출처를 확인한다.
+2. V-16 날씨 검증 뒤 `golmok.weather rain 1` → 20 s 관찰. HUD `audio:`의 `rain`은 **실제** 강수량이고 `rain_gain`은 원본 SoundWave gain을 곱하기 전 채널 gain이다. 하늘 전환 전반에는 0, 후반에는 증가한다. `golmok.weather clear`에서는 하늘보다 먼저 0이 된다. `rain 0.3 instant`는 실외 master 1에서 rain_gain 0.350, `rain 1 instant`는 0.800이다. **판정 행은 강수1·밤 한 행**이며, 나머지는 참고다. master1·정상 PhotoGain1·실외에서 master submix 합 RMS 예측은 강수1 낮 **−39.93 dBFS(+1.08)**, 밤 **−42.45(+2.16)**; 강수0.3 낮 **−40.77(+0.23)**, 밤 **−44.11(+0.51)**다. T27 WAV/gain0.5503, V-10b 공통−8.96 dB 오프셋·상관없는 두 신호의 전력합 모델이며 새 실측이 아니다. §7-1의 master submix 녹음에서 전환이 안착한 뒤 24초 이상 구간을 잘라 `audio_analysis`의 whole-file RMS를 잰다(아래 예시는48초로 이음매를 포함). 강수1·밤 예측−42.45 dBFS의 ±1 dB 안이면 기록만 하며 밸런스 합격으로 세지 않는다. 밖이면 임포트 gain·master/PhotoGain·녹음 경로와 설정을 먼저 확인한다.
+3. 낮/밤 전환 중에도 빗소리가 끊기거나 낮/밤 베드를 교체하지 않는지 듣는다. 포털 진입은 rain 1에서 0.800 → 0.280, 복귀는 0.800. 빠른 왕복 중 클릭/하드컷을 검사한다. rain의 클릭·급정지는 전환 구간(이벤트 ± fade)에서 판정하고, 정상 구간은 24초 이음매가 최소1회 들어간 녹음으로 잡고, z는 원본 파일 자체 z(T27: 5.1)와 비교해 빗방울 과도음과 전환 결함을 구별한다. 플레이스홀더 PC 카드는 레벨·타이밍·클릭·mute/Photo·복원만 기록하며 **밸런스·마스킹을 판정하지 않는다**. 합산 clipping도 파형으로 기록한다. 곡선·실내 배율·발소리 headroom은 빗소리다운 소스(CC0 채택 또는 합성 변형)로 C-08에서 청취 평가한다. T27 합성 변형은 층 분리·단계 간격·문간 전환·거칠음 평가의 입력 후보이며 합격 증거가 아니다. 최종 곡선·실내 배율·가림은 채택 음원으로 정한다. 숫자는 초기 가설이다. 실제 포털로 실내를 왕복한다. ForceState의 interior 강제는 베드만 바꾸므로 빗소리 실내 감쇠 검증을 대체하지 않는다.
 4. `golmok.audio.mute 1/0`과 Photo mute 진입/해제에서 빗소리도 기존 master·PhotoGain 정책을 따른다. GamePause/TimeDilation 두 모드에서 확인한다. `pause_policy=maintain` 재시작 시 Photo 동안 비 강도는 멈추되 빗소리는 유지된다. Weather의 `fx off`는 빗줄기 성능 A/B이므로 소리를 끄지 않는다.
 5. 비를 저장하고 clear로 바꾼 뒤 로드한다. 다음 Audio 틱에서 복원 강도를 읽는지 확인한다(최대 한 프레임 지연 수용). 에디터 시작 시 처음부터 비·실내인 경우에도 이벤트를 기다리지 않아야 한다. 세이브 복원·instant·첫 바인딩은 별도 평활 없이 즉시 gain이 바뀌는 현재 계약이다. 이 경계의 레벨 점프/급정지 검출은 예상 결과로 따로 기록하고 일반 전환의 클릭·급정지 합격과 혼합하지 않는다.
 6. §5의 `$pkg` 패키지에서 SW_rain 쿡·8개 크레딧·재생을 확인한다. 이전 V-10/10b 기록의 7개는 당시 실행 사실이므로 그대로 둔다. **T24 패키지·청취·오디오 장치 출력은 별도 PC 검증 전 미실행**이다.
 
-헤드리스 `Golmok.Audio.StateMachine`은 null/disabled 날씨 공급자, 강수 상승·하강/clear, 늦은 조회·실내 바인딩, 기존 베드 보존, 독립 GUID 세이브 슬롯 즉시 복원, master/mute, Photo maintain 두 pause 모드와 GamePause mute 페이드를 검사한다. null 공급자는 비가 오는 월드에서도 직접 null을 전달해 검사한다. `-nullrhi -nosound` 결과는 실제 청취 증거가 아니다. 기존 자동화 등록 수를 늘리지 않는다.
+§9-2 절단 예시(`tools/`에서 실행): 원본 녹음 `rain-night.wav`에서 실제 안착 시각을 확인한 뒤 `start_s`를 바꾼다. 48초가 남는 길이로 녹음한다. PCM WAV만 이 예시로 자르며 원본을 덮어쓰지 않는다.
+
+```python
+import wave
+start_s = 25  # 실제 이벤트/안착 기록에 맞게 변경
+with wave.open("rain-night.wav", "rb") as src:
+    rate = src.getframerate()
+    assert src.getnframes() >= (start_s + 48) * rate
+    src.setpos(start_s * rate)
+    with wave.open("rain-night-steady.wav", "wb") as dst:
+        dst.setparams(src.getparams())
+        dst.writeframes(src.readframes(48 * rate))
+```
+
+`python -m golmok_tools.audio_analysis rain-night-steady.wav`의 `RMS`를 기록한다. 이 정상 구간의 높은 z 자체를 전환 클릭으로 판정하지 않는다. 선택 진단으로 같은 자리·밤의 clear와 rain1 RMS 차 Δ를 재면, rain 층 추정은 `clear_RMS + 10*log10(10**(Δ/10)-1)`이다(예측−46.52 dBFS). Δ>0이고 두 신호가 비상관이라는 전제이며, Δ가 작거나 음수면 이 추정을 판정에 쓰지 않는다.
+
+헤드리스 `Golmok.Audio.StateMachine`은 null/초기화 전 disabled 날씨 공급자, 강수 상승·하강/clear, 늦은 조회·실내 바인딩, 기존 베드 보존, 독립 GUID 세이브 슬롯 즉시 복원, master/mute, Photo maintain 두 pause 모드와 GamePause mute 페이드를 검사한다. null 공급자는 비가 오는 월드에서도 직접 null을 전달해 검사한다. `-nullrhi -nosound` 결과는 실제 청취 증거가 아니다. 기존 자동화 등록 수를 늘리지 않는다.

@@ -178,15 +178,17 @@ def parse_config(data):
         curve = rain.get("gain_curve")
         if not isinstance(curve, list) or not 2 <= len(curve) <= 32:
             raise ValueError("rain.gain_curve: expected 2..32 [intensity, gain] points")
-        previous = -1
+        previous = previous_gain = -1
         for point in curve:
             if not isinstance(point, list) or len(point) != 2:
                 raise ValueError("rain.gain_curve: expected [intensity, gain]")
             x = number(point[0], 0, 1, "rain.gain_curve.intensity")
-            number(point[1], 0, 1, "rain.gain_curve.gain")
+            gain = number(point[1], 0, 1, "rain.gain_curve.gain")
             if x <= previous:
                 raise ValueError("rain.gain_curve: expected strictly increasing intensities")
-            previous = x
+            if gain < previous_gain:
+                raise ValueError("rain.gain_curve: expected nondecreasing gains")
+            previous, previous_gain = x, gain
         if curve[0] != [0, 0] or curve[-1][0] != 1:
             raise ValueError("rain.gain_curve: expected first point [0, 0] and final intensity 1")
     if isinstance(data.get("ambience"), dict):
