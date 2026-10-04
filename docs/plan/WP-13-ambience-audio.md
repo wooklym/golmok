@@ -561,3 +561,38 @@ R114-2~6은 선택 이월.
 - STATUS C-08의 빗소리 가설은 R115-5로 갱신했다.
 - R115-1은 **들리는 과도음(a)**으로 정했다(퀄리티 우선). gain은 K-가중으로 맞춘다. 이것과 (C) R115-2~4, R114-2~6 이월은 Astra **T26**으로 배정한다.
 - PC 청취·패키지는 V-16 뒤 런북 §9 카드에서 한다.
+
+
+## T26 — 빗방울 과도음·K-가중 레벨 (2026-10-05 KST)
+
+배정: [이슈 #30 T26](https://github.com/wooklym/golmok/issues/30#issuecomment-5982843766), [R115](https://github.com/wooklym/golmok/pull/115#issuecomment-5982789631). main `9a52431`에서 `astra/wp-13-rain-followup2`로 시작했다.
+
+- R115-1 a안: 4초당 36개의 1 ms 상승·6 ms 지수 감쇠(48 ms 길이) 과도음을 진폭2.1로 추가한다. 원형 인덱스/FFT로 이음매를 래핑한다. seed1307의 5 ms 포락선 max/중앙값 대비는 5.368 dB, 과도음 없는 동일 대역 노이즈2.060 대비 **+3.308 dB**다. 제거 변이를 잡는 ≥3 dB 단언을 추가했다. 가청성을 위한 물리적 대비 증거이며 사람 청취 증거는 아니다. 4초 반복 인지 여부는 밤 강한 비5분 PC 청취에 남기고 인지되면 rain만16–30초로 확장한다.
+- 자산 rain gain **0.6023**. `day_gain / max_rain_curve × 10^((day_K − 2 − rain_K)/20)`로 산출·소수4자리 반올림, 최고 강수에서 K 차이 −2.0006 dB(허용±0.02) 회귀. 원본 peak 정규화 후 RMS는 T25 −25.5 → T26 −31.23 dBFS로 낮아져 gain0.3 제안을 그대로 쓰지 않았다. 곡선·실내 ×0.35·런타임은 그대로다.
+- K 계산은 오디오 테스트 헬퍼 `tools/tests/audio_weighting.py`에서 numpy로 48 kHz 두 biquad의 주기적 정상상태를 FFT 평가한다. 계수 출처: [ITU-R BS.1770-1 Annex 1 Tables 1/2](https://www.itu.int/dms_pubrec/itu-r/rec/bs/R-REC-BS.1770-1-200709-S!!PDF-E.pdf). K 표는 mono −0.691 보정 포함, 시간 게이트/다채널 합산 없는 루프 비교값으로 통합 LUFS·SPL 측정이 아니다. A는 1 kHz 정규화 아날로그 A 곡선을 FFT 빈에서 평가한 참고치(디지털 bilinear 필터와 다름). `audio_analysis`는 수정하지 않았다.
+
+| 소스/모델 | RMS dBFS | K (무게이트) | A 가중 dBFS |
+|---|---:|---:|---:|
+| rain 원본 | −31.23 | −28.17 | −30.52 |
+| 낮 원본 | −26.02 | −26.49 | −29.66 |
+| rain 강수1 모델 | −46.53 | −43.47 | −45.82 |
+| 낮 베드 모델 | −41.00 | −41.47 | −44.64 |
+| 밤 베드 모델 | −44.62 | −45.12 | −48.31 |
+| 실내 베드 모델 | −46.34 | −46.82 | −49.98 |
+
+모델은 V-10b 공통 출력 오프셋 −8.96 dB + 자산 gain, rain에는 곡선최댓값0.8을 포함한다. 실내 rain은 해당 rain 모델에서 ×0.35(−9.12 dB). 모두 계산 예측이며 새 master-submix 녹음이 아니다.
+
+- 선택 R115-2/3/4: Python 전용 키 source/seed/synthesis의 대소문자 별칭을 거절(런타임 KeyCase 패리티 불변), 자체 생성 WAV8개의 재생성 SHA-256과 LFS 포인터/스머지 파일 일치 회귀, 런북에 전환 구간만 rain 클릭·급정지 판정 및 정상 구간은 원본z 비교를 추가했다. R114-2~6은 이월한다.
+
+### 검증 — T26
+
+- rain `audio_analysis --check` 통과: peak−14.0, RMS−31.2, click z6.5, 급정지/clipping0. 최종 WAV SHA-256 `1126d5cc2e074045d109f0a1adaf2fe74ea3aa2d625ce2b471e27f1d96a27c75`. 기존7 WAV 바이트 유지, rain LFS·크레딧만 재생성.
+- 관련 pytest **154 passed / 1 skipped**: 4seed×3반복 루프, 스펙트럼, 과도음 대비, 생성물8개 해시, alias, K 목표와 기준 사인파 검사. 전체 **1503 passed / 272 skipped / 208 warnings**(86.49 s), ruff check/format·UE Python lint·check_repo·diff --check 통과.
+- 실제 UE 임포트/재임포트8+8, loop/변경 gain 포함8개 검증, `T26_IMPORT_VERIFIED_8_REIMPORT_8`, commandlet 오류0/경고0. 빌드/전체 UE 자동화는 C++ 변경이 없어 재실행하지 않는다(등록39 유지).
+- 실제 청취·출력 루프백·패키지 미실행. 최종 곡선/실내/마스킹은 채택 음원 C-08, 플레이스홀더 PC 카드는 레벨·타이밍·클릭·mute/Photo·복원만. 소스 채택/소유자 결정 없음. Opus ultracode 코드+Opus 소리 품질 리뷰 요청.
+
+### 병합 시 반영 — T26
+
+STATUS/astra-tasks 문안: “T26 R115 후속 완료: 지수 빗방울36개/4초·대비+3.31 dB, K-가중 기준 rain gain0.6023(강수1 대 낮−2.00 dB), 원본파형 check 통과·임포트8+8. Python 전용 alias·생성WAV/LFS 회귀·전환 구간 판정 안내. 런타임/등록39 유지. PC 청취/패키지·4초 반복인지·최종 C-08 대기, R114-2~6 이월.”
+
+DECISIONS D-015/C-08 진행 문안: “T26 과도음을 강화해 원본 RMS가−31.23 dBFS로 바뀌었으므로 rain gain0.6023으로 K-가중 강수1 대 낮−2.00 dB를 맞췄다. T25의 gain0.5 대0.3 비교는 이전 파형 기준이다. 새 초기값 주변에서 층 분리/거칠음/문간을 청취하고, 밤 강한 비5분 반복인지 시 rain 루프16–30초 확장을 검토한다. 최종 곡선/실내 배율/가림은 채택 음원에서 판단한다.”
