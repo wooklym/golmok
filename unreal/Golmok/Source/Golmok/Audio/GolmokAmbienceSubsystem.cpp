@@ -21,7 +21,7 @@ namespace GolmokAmbiencePrivate
 {
 	void ApplyVolume(UAudioComponent* Channel, float Value)
 	{
-		if (IsValid(Channel) && FMath::Abs(Channel->VolumeMultiplier - Value) >= 1.e-4f)
+		if (IsValid(Channel) && GolmokAudioMath::ShouldSendVolume(Channel->VolumeMultiplier, Value))
 			Channel->SetVolumeMultiplier(Value);
 	}
 }

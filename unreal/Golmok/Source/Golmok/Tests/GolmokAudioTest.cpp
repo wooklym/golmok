@@ -600,32 +600,64 @@ bool FGolmokAudioFootstepTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("rain curve zero"), Config.RainGain(0) == 0);
 	TestTrue(TEXT("rain curve interpolation"), FMath::IsNearlyEqual(Config.RainGain(.15), .175, 1e-6));
 	TestTrue(TEXT("rain upper segment interpolation"), FMath::IsNearlyEqual(Config.RainGain(.65), .575, 1e-6));
-	for (const TCHAR* Invalid : {TEXT("null"), TEXT("{}"), TEXT("{\"asset\":\"asphalt\",\"gain_curve\":[[0,0],[1,1]],\"interior_gain\":0.35}"),
-		TEXT("{\"asset\":\"rain\",\"gain_curve\":[[0,0],[0,1]],\"interior_gain\":0.35}"),
-		TEXT("{\"asset\":\"rain\",\"gain_curve\":[[0,0.1],[1,1]],\"interior_gain\":0.35}"),
-		TEXT("{\"asset\":\"rain\",\"gain_curve\":[[0,0],[1,true]],\"interior_gain\":0.35}"),
-		TEXT("{\"asset\":\"rain\",\"gain_curve\":[[0,0],[1,1]],\"interior_gain\":2}")})
+	// Independent structural/order cases; out-of-range X necessarily overlaps
+	// ordering/endpoints, so its exact range diagnostic also fixes precedence.
+	// UE accepts NaN as a number (field rejection); Infinity fails JSON parsing.
+	struct FRainCase { const TCHAR* Name; const TCHAR* Json; const TCHAR* Diagnostic; };
+	const FRainCase RainCases[] = {
+		{TEXT("empty"), TEXT("{\"asset\":\"rain\",\"gain_curve\":[],\"interior_gain\":0.35}"), TEXT("audio.json rain.gain_curve: expected 2..32 [intensity, gain] points")},
+		{TEXT("one"), TEXT("{\"asset\":\"rain\",\"gain_curve\":[[0,0]],\"interior_gain\":0.35}"), TEXT("audio.json rain.gain_curve: expected 2..32 [intensity, gain] points")},
+		{TEXT("33 increasing points"), TEXT("{\"asset\":\"rain\",\"gain_curve\":[[0.0,0.0],[0.03125,0.03125],[0.0625,0.0625],[0.09375,0.09375],[0.125,0.125],[0.15625,0.15625],[0.1875,0.1875],[0.21875,0.21875],[0.25,0.25],[0.28125,0.28125],[0.3125,0.3125],[0.34375,0.34375],[0.375,0.375],[0.40625,0.40625],[0.4375,0.4375],[0.46875,0.46875],[0.5,0.5],[0.53125,0.53125],[0.5625,0.5625],[0.59375,0.59375],[0.625,0.625],[0.65625,0.65625],[0.6875,0.6875],[0.71875,0.71875],[0.75,0.75],[0.78125,0.78125],[0.8125,0.8125],[0.84375,0.84375],[0.875,0.875],[0.90625,0.90625],[0.9375,0.9375],[0.96875,0.96875],[1.0,1.0]],\"interior_gain\":0.35}"), TEXT("audio.json rain.gain_curve: expected 2..32 [intensity, gain] points")},
+		{TEXT("duplicate x"), TEXT("{\"asset\":\"rain\",\"gain_curve\":[[0,0],[0.5,0.3],[0.5,0.5],[1,1]],\"interior_gain\":0.35}"), TEXT("audio.json rain.gain_curve: expected strictly increasing intensities")},
+		{TEXT("descending x"), TEXT("{\"asset\":\"rain\",\"gain_curve\":[[0,0],[0.7,0.3],[0.5,0.5],[1,1]],\"interior_gain\":0.35}"), TEXT("audio.json rain.gain_curve: expected strictly increasing intensities")},
+		{TEXT("decreasing gain"), TEXT("{\"asset\":\"rain\",\"gain_curve\":[[0,0],[0.5,0.8],[1,0.7]],\"interior_gain\":0.35}"), TEXT("audio.json rain.gain_curve: expected nondecreasing gains")},
+		{TEXT("x before gain"), TEXT("{\"asset\":\"rain\",\"gain_curve\":[[0,0],[0.5,0.6],[0.5,0.4],[1,1]],\"interior_gain\":0.35}"), TEXT("audio.json rain.gain_curve: expected strictly increasing intensities")},
+		{TEXT("first x"), TEXT("{\"asset\":\"rain\",\"gain_curve\":[[0.1,0],[1,1]],\"interior_gain\":0.35}"), TEXT("audio.json rain.gain_curve: expected first point [0, 0] and final intensity 1")},
+		{TEXT("first gain"), TEXT("{\"asset\":\"rain\",\"gain_curve\":[[0,0.1],[1,1]],\"interior_gain\":0.35}"), TEXT("audio.json rain.gain_curve: expected first point [0, 0] and final intensity 1")},
+		{TEXT("last x"), TEXT("{\"asset\":\"rain\",\"gain_curve\":[[0,0],[0.9,1]],\"interior_gain\":0.35}"), TEXT("audio.json rain.gain_curve: expected first point [0, 0] and final intensity 1")},
+		{TEXT("negative x"), TEXT("{\"asset\":\"rain\",\"gain_curve\":[[0,0],[-0.1,0.5],[1,1]],\"interior_gain\":0.35}"), TEXT("audio.json rain.gain_curve: expected finite [intensity, gain] in [0, 1]")},
+		{TEXT("high x"), TEXT("{\"asset\":\"rain\",\"gain_curve\":[[0,0],[1.01,0.5],[1,1]],\"interior_gain\":0.35}"), TEXT("audio.json rain.gain_curve: expected finite [intensity, gain] in [0, 1]")},
+		{TEXT("bool x"), TEXT("{\"asset\":\"rain\",\"gain_curve\":[[0,0],[true,0.5],[1,1]],\"interior_gain\":0.35}"), TEXT("audio.json rain.gain_curve: expected finite [intensity, gain] in [0, 1]")},
+		{TEXT("string x"), TEXT("{\"asset\":\"rain\",\"gain_curve\":[[0,0],[\"0.5\",0.5],[1,1]],\"interior_gain\":0.35}"), TEXT("audio.json rain.gain_curve: expected finite [intensity, gain] in [0, 1]")},
+		{TEXT("nan x"), TEXT("{\"asset\":\"rain\",\"gain_curve\":[[0,0],[NaN,0.5],[1,1]],\"interior_gain\":0.35}"), TEXT("audio.json rain.gain_curve: expected finite [intensity, gain] in [0, 1]")},
+		{TEXT("inf x"), TEXT("{\"asset\":\"rain\",\"gain_curve\":[[0,0],[Infinity,0.5],[1,1]],\"interior_gain\":0.35}"), TEXT("audio.json $: expected valid JSON object")},
+		{TEXT("negative gain"), TEXT("{\"asset\":\"rain\",\"gain_curve\":[[0,0],[0.5,-0.1],[1,1]],\"interior_gain\":0.35}"), TEXT("audio.json rain.gain_curve: expected finite [intensity, gain] in [0, 1]")},
+		{TEXT("high gain"), TEXT("{\"asset\":\"rain\",\"gain_curve\":[[0,0],[1,1.01]],\"interior_gain\":0.35}"), TEXT("audio.json rain.gain_curve: expected finite [intensity, gain] in [0, 1]")},
+		{TEXT("bool gain"), TEXT("{\"asset\":\"rain\",\"gain_curve\":[[0,0],[1,true]],\"interior_gain\":0.35}"), TEXT("audio.json rain.gain_curve: expected finite [intensity, gain] in [0, 1]")},
+		{TEXT("nan gain"), TEXT("{\"asset\":\"rain\",\"gain_curve\":[[0,0],[1,NaN]],\"interior_gain\":0.35}"), TEXT("audio.json rain.gain_curve: expected finite [intensity, gain] in [0, 1]")},
+		{TEXT("short pair"), TEXT("{\"asset\":\"rain\",\"gain_curve\":[[0,0],[1]],\"interior_gain\":0.35}"), TEXT("audio.json rain.gain_curve: expected finite [intensity, gain] in [0, 1]")},
+		{TEXT("nonpair"), TEXT("{\"asset\":\"rain\",\"gain_curve\":[[0,0],\"bad\"],\"interior_gain\":0.35}"), TEXT("audio.json rain.gain_curve: expected finite [intensity, gain] in [0, 1]")},
+		{TEXT("null"), TEXT("null"), TEXT("audio.json rain: expected object")},
+		{TEXT("missing asset"), TEXT("{}"), TEXT("audio.json rain.asset: expected single-line string")},
+		{TEXT("nonloop"), TEXT("{\"asset\":\"asphalt\",\"gain_curve\":[[0,0],[1,1]],\"interior_gain\":0.35}"), TEXT("audio.json rain.asset: expected looping asset id")},
+		{TEXT("unknown id"), TEXT("{\"asset\":\"unregistered_rain\",\"gain_curve\":[[0,0],[1,1]],\"interior_gain\":0.35}"), TEXT("audio.json rain.asset: expected looping asset id")},
+		{TEXT("interior None"), TEXT("{\"asset\":\"rain\",\"gain_curve\":[[0,0],[1,1]],\"interior_gain\":null}"), TEXT("audio.json rain.interior_gain: expected finite number in [0, 1]")},
+		{TEXT("interior True"), TEXT("{\"asset\":\"rain\",\"gain_curve\":[[0,0],[1,1]],\"interior_gain\":true}"), TEXT("audio.json rain.interior_gain: expected finite number in [0, 1]")},
+		{TEXT("interior -1"), TEXT("{\"asset\":\"rain\",\"gain_curve\":[[0,0],[1,1]],\"interior_gain\":-1}"), TEXT("audio.json rain.interior_gain: expected finite number in [0, 1]")},
+		{TEXT("interior 1.01"), TEXT("{\"asset\":\"rain\",\"gain_curve\":[[0,0],[1,1]],\"interior_gain\":1.01}"), TEXT("audio.json rain.interior_gain: expected finite number in [0, 1]")},
+	};
+	TSharedPtr<FJsonObject> RainRoot;
+	FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Manifest), RainRoot);
+	RainRoot->RemoveField(TEXT("rain"));
+	FString RainBase; FJsonSerializer::Serialize(RainRoot.ToSharedRef(), TJsonWriterFactory<TCHAR, TCondensedJsonPrintPolicy<TCHAR>>::Create(&RainBase));
+	for (const auto& Case : RainCases)
 	{
-		TSharedPtr<FJsonObject> Root;
-		FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Manifest), Root);
-		Root->RemoveField(TEXT("rain"));
-		FString Mutated; FJsonSerializer::Serialize(Root.ToSharedRef(), TJsonWriterFactory<TCHAR, TCondensedJsonPrintPolicy<TCHAR>>::Create(&Mutated));
-		Mutated.InsertAt(1, FString::Printf(TEXT("\"rain\":%s,"), Invalid));
+		FString Mutated = RainBase;
+		Mutated.InsertAt(1, FString::Printf(TEXT("\"rain\":%s,"), Case.Json));
 		FGolmokAudioConfig Parsed = Config;
-		TestFalse(TEXT("invalid rain config rejected"), GolmokAudio::ParseConfig(Mutated, Parsed, Error));
-		TestTrue(TEXT("rain error names section"), Error.Contains(TEXT("rain")));
-		TestEqual(TEXT("rain failure atomic"), Parsed.RainAsset, Config.RainAsset);
+		TestFalse(FString::Printf(TEXT("rain %s rejected"), Case.Name), GolmokAudio::ParseConfig(Mutated, Parsed, Error));
+		TestEqual(FString::Printf(TEXT("rain %s diagnostic"), Case.Name), Error, FString(Case.Diagnostic));
+		TestEqual(TEXT("rain failure preserves asset"), Parsed.RainAsset, Config.RainAsset);
+		TestEqual(TEXT("rain failure preserves interior"), Parsed.RainInteriorGain, Config.RainInteriorGain);
+		TestTrue(TEXT("rain failure preserves all curve points"), Parsed.RainGainCurve == Config.RainGainCurve);
 	}
+	for (const TCHAR* Curve : {TEXT("[[0,0],[0.5,0.5],[1,0.5]]"), TEXT("[[0.0,0.0],[0.03225806451612903,0.03225806451612903],[0.06451612903225806,0.06451612903225806],[0.0967741935483871,0.0967741935483871],[0.12903225806451613,0.12903225806451613],[0.16129032258064516,0.16129032258064516],[0.1935483870967742,0.1935483870967742],[0.22580645161290322,0.22580645161290322],[0.25806451612903225,0.25806451612903225],[0.2903225806451613,0.2903225806451613],[0.3225806451612903,0.3225806451612903],[0.3548387096774194,0.3548387096774194],[0.3870967741935484,0.3870967741935484],[0.41935483870967744,0.41935483870967744],[0.45161290322580644,0.45161290322580644],[0.4838709677419355,0.4838709677419355],[0.5161290322580645,0.5161290322580645],[0.5483870967741935,0.5483870967741935],[0.5806451612903226,0.5806451612903226],[0.6129032258064516,0.6129032258064516],[0.6451612903225806,0.6451612903225806],[0.6774193548387096,0.6774193548387096],[0.7096774193548387,0.7096774193548387],[0.7419354838709677,0.7419354838709677],[0.7741935483870968,0.7741935483870968],[0.8064516129032258,0.8064516129032258],[0.8387096774193549,0.8387096774193549],[0.8709677419354839,0.8709677419354839],[0.9032258064516129,0.9032258064516129],[0.9354838709677419,0.9354838709677419],[0.967741935483871,0.967741935483871],[1.0,1.0]]")})
 	{
-		TSharedPtr<FJsonObject> Root;
-		FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Manifest), Root);
-		Root->RemoveField(TEXT("rain"));
-		FString Mutated; FJsonSerializer::Serialize(Root.ToSharedRef(), TJsonWriterFactory<TCHAR, TCondensedJsonPrintPolicy<TCHAR>>::Create(&Mutated));
-		Mutated.InsertAt(1, TEXT("\"rain\":{\"asset\":\"rain\",\"gain_curve\":[[0,0],[0.5,0.8],[1,0.7]],\"interior_gain\":0.35},"));
-		FGolmokAudioConfig Parsed = Config;
-		TestFalse(TEXT("decreasing rain gain rejected"), GolmokAudio::ParseConfig(Mutated, Parsed, Error));
-		TestEqual(TEXT("decreasing rain diagnosis"), Error, FString(TEXT("audio.json rain.gain_curve: expected nondecreasing gains")));
-		TestEqual(TEXT("decreasing rain failure atomic"), Parsed.RainGain(.5), Config.RainGain(.5));
+		FString Mutated = RainBase;
+		Mutated.InsertAt(1, FString::Printf(TEXT("\"rain\":{\"asset\":\"rain\",\"interior_gain\":0.35,\"gain_curve\":%s},"), Curve));
+		FGolmokAudioConfig Parsed;
+		TestTrue(TEXT("rain plateau / 32 points accepted"), GolmokAudio::ParseConfig(Mutated, Parsed, Error));
+		TestTrue(TEXT("accepted rain curve retained"), Parsed.RainGain(.75) > 0);
 	}
 	FGolmokAudioConfig LegacyConfig;
 	const FString Legacy = Manifest.Replace(TEXT("\"rain\":"), TEXT("\"unused_rain_fixture\":")).Replace(TEXT("\"driver\""), TEXT("\"unused_driver_fixture\"")).Replace(TEXT("\"stride_cm_by_character\""), TEXT("\"unused_stride_fixture\"")).Replace(TEXT("\"photo_mute_fade_seconds\""), TEXT("\"unused_photo_fixture\""));

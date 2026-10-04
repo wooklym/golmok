@@ -44,6 +44,11 @@ int main()
 			std::cin >> Mapped >> Tagged;
 			std::cout << static_cast<int>(GolmokAudioMath::ChooseSurface(Mapped != 0, Tagged != 0)) << '\n';
 		}
+		else if (Command == "volume")
+		{
+			float Current, Target; std::cin >> Current >> Target;
+			std::cout << GolmokAudioMath::ShouldSendVolume(Current, Target) << '\n';
+		}
 		else if (Command == "rain")
 		{
 			struct Point { double X, Y; };

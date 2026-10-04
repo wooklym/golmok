@@ -347,35 +347,153 @@ def test_invalid_rain_section(value):
 
 
 @pytest.mark.parametrize(
-    "curve",
+    "curve, expected",
     [
-        [],
-        [[0, 0]],
-        [[0, 0], [0, 1]],
-        [[0.1, 0], [1, 1]],
-        [[0, 0.1], [1, 1]],
-        [[0, 0], [0.9, 1]],
-        [[0, 0], [1, True]],
-        [[0, 0], [1, float("nan")]],
-        [[0, 0], [1, 1.01]],
-        [[0, 0], [1]],
-        [[0, 0], "bad"],
-        [[0, 0]] * 33,
+        pytest.param([], "rain.gain_curve: expected 2..32 [intensity, gain] points", id="empty"),
+        pytest.param([[0, 0]], "rain.gain_curve: expected 2..32 [intensity, gain] points", id="one"),
+        pytest.param(
+            [
+                [0.0, 0.0],
+                [0.03125, 0.03125],
+                [0.0625, 0.0625],
+                [0.09375, 0.09375],
+                [0.125, 0.125],
+                [0.15625, 0.15625],
+                [0.1875, 0.1875],
+                [0.21875, 0.21875],
+                [0.25, 0.25],
+                [0.28125, 0.28125],
+                [0.3125, 0.3125],
+                [0.34375, 0.34375],
+                [0.375, 0.375],
+                [0.40625, 0.40625],
+                [0.4375, 0.4375],
+                [0.46875, 0.46875],
+                [0.5, 0.5],
+                [0.53125, 0.53125],
+                [0.5625, 0.5625],
+                [0.59375, 0.59375],
+                [0.625, 0.625],
+                [0.65625, 0.65625],
+                [0.6875, 0.6875],
+                [0.71875, 0.71875],
+                [0.75, 0.75],
+                [0.78125, 0.78125],
+                [0.8125, 0.8125],
+                [0.84375, 0.84375],
+                [0.875, 0.875],
+                [0.90625, 0.90625],
+                [0.9375, 0.9375],
+                [0.96875, 0.96875],
+                [1.0, 1.0],
+            ],
+            "rain.gain_curve: expected 2..32 [intensity, gain] points",
+            id="33 increasing points",
+        ),
+        pytest.param(
+            [[0, 0], [0.5, 0.3], [0.5, 0.5], [1, 1]],
+            "rain.gain_curve: expected strictly increasing intensities",
+            id="duplicate x",
+        ),
+        pytest.param(
+            [[0, 0], [0.7, 0.3], [0.5, 0.5], [1, 1]],
+            "rain.gain_curve: expected strictly increasing intensities",
+            id="descending x",
+        ),
+        pytest.param(
+            [[0, 0], [0.5, 0.8], [1, 0.7]],
+            "rain.gain_curve: expected nondecreasing gains",
+            id="decreasing gain",
+        ),
+        pytest.param(
+            [[0, 0], [0.5, 0.6], [0.5, 0.4], [1, 1]],
+            "rain.gain_curve: expected strictly increasing intensities",
+            id="x before gain",
+        ),
+        pytest.param(
+            [[0.1, 0], [1, 1]],
+            "rain.gain_curve: expected first point [0, 0] and final intensity 1",
+            id="first x",
+        ),
+        pytest.param(
+            [[0, 0.1], [1, 1]],
+            "rain.gain_curve: expected first point [0, 0] and final intensity 1",
+            id="first gain",
+        ),
+        pytest.param(
+            [[0, 0], [0.9, 1]],
+            "rain.gain_curve: expected first point [0, 0] and final intensity 1",
+            id="last x",
+        ),
+        pytest.param(
+            [[0, 0], [-0.1, 0.5], [1, 1]],
+            "rain.gain_curve.intensity: expected finite number in [0, 1]: -0.1",
+            id="negative x",
+        ),
+        pytest.param(
+            [[0, 0], [1.01, 0.5], [1, 1]],
+            "rain.gain_curve.intensity: expected finite number in [0, 1]: 1.01",
+            id="high x",
+        ),
+        pytest.param(
+            [[0, 0], [True, 0.5], [1, 1]],
+            "rain.gain_curve.intensity: expected finite number in [0, 1]: True",
+            id="bool x",
+        ),
+        pytest.param(
+            [[0, 0], ["0.5", 0.5], [1, 1]],
+            "rain.gain_curve.intensity: expected finite number in [0, 1]: '0.5'",
+            id="string x",
+        ),
+        pytest.param(
+            [[0, 0], [float("nan"), 0.5], [1, 1]],
+            "rain.gain_curve.intensity: expected finite number in [0, 1]: nan",
+            id="nan x",
+        ),
+        pytest.param(
+            [[0, 0], [float("inf"), 0.5], [1, 1]],
+            "rain.gain_curve.intensity: expected finite number in [0, 1]: inf",
+            id="inf x",
+        ),
+        pytest.param(
+            [[0, 0], [0.5, -0.1], [1, 1]],
+            "rain.gain_curve.gain: expected finite number in [0, 1]: -0.1",
+            id="negative gain",
+        ),
+        pytest.param(
+            [[0, 0], [1, 1.01]],
+            "rain.gain_curve.gain: expected finite number in [0, 1]: 1.01",
+            id="high gain",
+        ),
+        pytest.param(
+            [[0, 0], [1, True]],
+            "rain.gain_curve.gain: expected finite number in [0, 1]: True",
+            id="bool gain",
+        ),
+        pytest.param(
+            [[0, 0], [1, float("nan")]],
+            "rain.gain_curve.gain: expected finite number in [0, 1]: nan",
+            id="nan gain",
+        ),
+        pytest.param([[0, 0], [1]], "rain.gain_curve: expected [intensity, gain]"),
+        pytest.param([[0, 0], "bad"], "rain.gain_curve: expected [intensity, gain]"),
     ],
 )
-def test_invalid_rain_curve(curve):
+def test_invalid_rain_curve(curve, expected):
     data = audio.load_config()
     data["rain"]["gain_curve"] = curve
-    with pytest.raises(ValueError, match="rain.gain_curve"):
+    with pytest.raises(ValueError) as caught:
         audio.parse_config(data)
+    assert str(caught.value) == expected
 
 
 @pytest.mark.parametrize("gain", [None, True, -1, 1.01, float("inf")])
 def test_invalid_rain_indoor_gain(gain):
     data = audio.load_config()
     data["rain"]["interior_gain"] = gain
-    with pytest.raises(ValueError, match="rain.interior_gain"):
+    with pytest.raises(ValueError) as caught:
         audio.parse_config(data)
+    assert str(caught.value) == f"rain.interior_gain: expected finite number in [0, 1]: {gain!r}"
 
 
 def test_rain_optional_and_asset_replacement_is_data_only():
@@ -412,3 +530,24 @@ def test_runtime_python_known_key_names_match():
         for body in re.findall(r"\.KeyCase\(\{(.*?)\}\)", cpp, re.S)
     )
     assert python_lists == cpp_lists
+
+
+def test_unknown_rain_asset_has_exact_diagnostic():
+    data = audio.load_config()
+    data["rain"]["asset"] = "unregistered_rain"
+    with pytest.raises(ValueError) as caught:
+        audio.parse_config(data)
+    assert str(caught.value) == "rain.asset: expected looping asset id"
+
+
+@pytest.mark.parametrize(
+    "curve",
+    [
+        [[0, 0], [0.5, 0.5], [1, 0.5]],
+        [[i / 31, i / 31] for i in range(32)],
+    ],
+)
+def test_rain_plateau_and_maximum_points_accepted(curve):
+    data = audio.load_config()
+    data["rain"]["gain_curve"] = curve
+    assert audio.parse_config(data) is data

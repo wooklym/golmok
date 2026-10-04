@@ -7,6 +7,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+import numpy as np
 import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -184,6 +185,56 @@ def test_rain_curve_cpp_mirror(driver):
         for intensity in [-1, 0, 1, 2, float("nan"), float("inf"), *xs, rng.random()]:
             commands.append(f"rain {size} {intensity:.17g} {points}")
             expected.append(rain_gain_mirror(curve, intensity))
-    commands += ["rain 0 .5", "rain 1 .5 0 0"]
+    commands += ["rain 0 .5", "rain 1 .5 0 0.7"]
     expected += [0, 0]
     assert [row[0] for row in run(driver, commands)] == pytest.approx(expected, abs=1e-12)
+
+
+def should_send_volume_mirror(current, target):
+    # Match the float32 component property and subtraction, not Python double.
+    current, target = np.float32(current), np.float32(target)
+    if target == 0:
+        return current != 0
+    return abs(current - target) >= np.float32(1e-4)
+
+
+def volume_cases():
+    threshold = np.float32(1e-4)
+    below = np.nextafter(threshold, np.float32(0))
+    above = np.nextafter(threshold, np.float32(1))
+    return [
+        (0, 0, False),
+        (0, -0.0, False),
+        (0, below, False),
+        (0, threshold, True),
+        (0, above, True),
+        (below, 0, True),
+        (threshold, 0, True),
+        (above, 0, True),
+        (np.finfo(np.float32).tiny, 0, True),
+        (1, 1, False),
+        (1, 0, True),
+        (0, 1, True),
+        (np.nextafter(np.float32(1), np.float32(0)), 1, False),
+        (0.99995, 1, False),
+        (0.9998, 1, True),
+        (1, 0.99995, False),
+        (1, 0.9998, True),
+    ]
+
+
+def test_volume_mirror_boundaries():
+    for current, target, expected in volume_cases():
+        assert should_send_volume_mirror(current, target) == expected
+
+
+def test_volume_cpp_mirror(driver):
+    cases = volume_cases()
+    rng = random.Random(29)
+    cases += [
+        (c, t, should_send_volume_mirror(c, t))
+        for c, t in ((rng.random(), rng.choice([0, 1, rng.random()])) for _ in range(500))
+    ]
+    assert [row[0] for row in run(driver, [f"volume {c:.17g} {t:.17g}" for c, t, _ in cases])] == [
+        expected for _, _, expected in cases
+    ]

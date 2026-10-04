@@ -5,6 +5,13 @@ namespace GolmokAudioMath
 {
 	inline double Clamp01(double Value) { return !std::isfinite(Value) || Value < 0.0 ? 0.0 : (Value > 1.0 ? 1.0 : Value); }
 
+	// Inputs are the component's last sent volume and the finite [0,1] target.
+	// Always finish silence at digital zero, even below the update threshold.
+	inline bool ShouldSendVolume(float Current, float Target)
+	{
+		return (Target == 0.f && Current != 0.f) || std::fabs(Current - Target) >= 1.e-4f;
+	}
+
 	// Points have X/Y members; parser guarantees [0,0]..[1,y], increasing X.
 	template <typename Point>
 	inline double RainGain(const Point* Points, int Count, double Intensity)
