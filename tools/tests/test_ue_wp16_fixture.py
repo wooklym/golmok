@@ -171,6 +171,13 @@ def test_three_automation_tests_under_the_editor_guard():
     assert not re.search(r"\breturn\b", body)
     reset = body.index("\n\t\t\tPresetEvents = 0;\n\t\t\tNightEvents = 0;\n")
     assert body.index("NightUnaffected skipped") < reset
+    # The weather changes are the stimulus on both paths: method level, in order, between the reset and the
+    # zero asserts (the 4-tab Set(Clear) in the else branch never matches a 3-tab needle).
+    first = body.index('\n\t\t\tTest->TestEqual(TEXT("weather changes fire no OnPresetChanged")')
+    at = reset
+    for change in ("Rain, 1.f", "Overcast, 0.f", "Clear, 0.f"):
+        at = body.index(f"\n\t\t\tSet(EGolmokWeather::{change}, true);\n", at)
+        assert at < first, change
     for needle in (
         'TEXT("weather changes fire no OnPresetChanged"), PresetEvents, 0);',
         'TEXT("weather changes fire no OnNightChanged"), NightEvents, 0);',
