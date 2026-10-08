@@ -136,6 +136,7 @@
                 "maximum": 500
               },
               "socket_cm": {
+                "description": "순수 수학의 socket Z는 옛 출발값이며 T23 구도 테스트와 characters.json 설정이 우선한다.",
                 "type": "array",
                 "minItems": 3,
                 "maxItems": 3,

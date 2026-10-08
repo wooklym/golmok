@@ -346,6 +346,9 @@ UE5.8.3·D3D12 offscreen·실시간 PIE·`L_ZoneTest06`, UTC 06:37~06:41. 다른
 
 검증 게이트: UE5.8.3 빌드7.90 s 성공, `test.ps1 -SetupDevLevel` 전체32 Success(21+경고11), failed0/notRun0, 178.39 s. 기본 RenderEvidence NOT EXECUTED1을 제외한 실제31개, RHI는 위 별도 실행이다. Python1029 passed/203 skipped/208 warnings(43.09 s), ruff check·format108·check_repo·diff check 통과. 소유자 결정 필요 없음; Opus ultracode 리뷰 요청. CI는 PR에서 확인한다.
 
+
+실행 순서·UTC: 정상 6코스 06:36:52→06:40:45.480 → 백업 복원 → flush4 06:40:46→06:41:13.366 → 백업 복원 → wrong-flag0 06:41:14→06:41:48.992 → 백업 복원. 각 실행 뒤 기준 파일로 복원했다([당시 이슈 보고](https://github.com/wooklym/golmok/issues/30#issuecomment-5906483741)). flush는 0.25 s 이후 첫 틱(실측 0.400 s)에 발생했다.
+
 ### 병합 시 반영 — T11
 
 > STATUS WP-18/T11 메모: R72-1 런북 코스별 플래그·walk_01 백업/복원, R72-2 입력 인식 이력, R72-4 잘못 지정한 강제 flush 경고, R72-5/6 표기 정정. 정상 D3D12 6코스1회 경고0/실패0·단언25 PASS·PNG37장, 기준 경로 복원 확인. 엔진 입력 회귀 근거이며 WP-18/V-11 품질 판정은 별도 PC 카드에 따른다.
@@ -576,3 +579,48 @@ STATUS/astra-tasks 문안: “T23 카메라 구도: 로스터 Socket Z를 성인
 **디자인 판단(채택)**: 붐·FOV가 같아 캐릭터 크기는 그대로이고, 카메라가 −15°에서 177/138/115 cm(각 캐릭터 눈높이 ≈ +10 cm)로 내려가 지평선이 머리 바로 위를 지난다. 작은 캐릭터가 큰 골목을 걷는 D-018 방향과 맞는다. 실내 천장 접촉은 줄고(탐침 상단 242 → 191 cm), 올려다보기 바닥 접촉은 빨라졌다(+23.7/+21.9/+20.5° → +14.5/+12.7/+10.8°). 렌더의 걷기 머리 꼭대기는 75~77 %로 식(80.5~80.9 %, 1014×550)보다 약 4 %p 낮아 머리 상한에는 실제 여유가 있다(R108-5). 기본 피치를 더 내리는 대안은 파사드·간판 노출이 줄어 기각한다.
 
 **병합**: 오케스트레이터 결정(D-019). main을 병합하면서 런북 끝 충돌(main §14 V-11 ↔ T23 절)은 양쪽을 살려 T23 절을 §15로 옮겼다(R108-1). 이 커밋에서 T23 완료 기준 문서(0° 값, 런북 머리말, V-11 §14-7 링크 — R108-2)와 낡은 소켓 값(로스터 표·런북 Runtime 문구 — R108-3)을 고쳤다. 위 "병합 시 반영 — T23" 문안은 STATUS 병행 트랙 WP-18 행과 `astra-tasks.md` T23에 옮겼다. 다음 V-12/V-15 녹화 카드가 실제 키 입력으로 계단 하강 전체 클립·착지·올려다보기·도착 피치 0° 첫 화면을 본다(R108-4). (C) R108-5~10은 다음 캐릭터 레인 과제의 선택 항목이다: R108-5 랙 상수 소스 대조, R108-6 옛 소켓 Z 기본값(출발식·`Dimensions`; CDO는 Claude 레인 훅), R108-7 이미지 폴더는 다음부터 `docs/images/characters/<주제>/`, R108-8 도착 피치 −10°(Claude 레인 선택지), R108-9 울트라와이드 Hor+, R108-10 다음 조정 수단(프록시 붐/FOV·피치별 소켓 곡선).
+
+## T30 — 리뷰 잔여 정리와 Quinn 반복 실험 (2026-10-09)
+
+R42-S2~S6: Sequence는 누락 fixture를 모두 보고한 뒤 큐 등록을 중단한다. COMPLETE 단언 표시는 `none` 또는 `PASS(n/m)`이며 단언 실패는 완료로 기록하지 않는다. 캡처 진단 간격(sim 0.1 s), 타임아웃 범위, 명령줄 공유 전 검토·경로 가림을 런북 §11에 명시했다.
+
+R75-1~4: 런북 §12는 같은 SHA-256 백업을 재사용하고 다른 백업이면 두 해시를 표시하고 중단한다. 원래 파일이 없으면 새 녹화를 별도 이름으로 보존하고 원래 부재를 복원한다. 정상 6코스에 포함된 코스4가 파일을 썼는지 존재·해시·mtime으로 확인하고 미갱신이면 실패한다. finally 복원은 유지하며 수동 복구 문안을 넣었다. T11 당시 정상→복원→flush4→복원→wrong-flag0→복원 순서와 UTC를 추가했다. 실측 flush는 0.25 s 이후 첫 틱(0.400 s)이다.
+
+R108-5·6: 구도 테스트는 읽기 전용 Player 소스의 CameraLagSpeed 대입을 정확히 하나 요구한다. 양의 숫자 리터럴을 읽어 랙을 계산하며 누락·중복·0·음수·변수 대입은 거부한다. 순수 수학 socket Z가 옛 출발값이고 T23 테스트·characters.json이 우선함을 주석·스키마에 적었다. 설정값·훅·등록 39·런북 §14/§15는 무변경이다.
+
+### Quinn baseline 실험
+
+코드 변경 전 main `4ca9e65`에서 수행했다. K=각 재빌드 뒤 전체, W=재빌드 없는 전체, L=Locomotion 단독, P=Animation+Audio+Character.Config+Locomotion 필터. K2/K3는 테스트 파일 mtime만 갱신해 다시 빌드했으며 내용 diff는 없었다. W2는 외부 프로세스 PID50604 감지로 간섭 있음(유형·출처 미확정), 이후 중단했다가 PC 조건을 다시 확인하고 W3부터 재개했다. 새 9회에는 간섭 기록이 없다.
+
+**Locomotion 실패 0/14 (K0/3 · W0/3 · L0/5 · P0/3). 14회 재현 없음, 원인 미확정.** W2 간섭을 포함한 관측이며 무간섭 14회라고 주장하지 않는다. 임계값 X<−5000·Feet<3·Speed<1은 그대로 유지한다. H1/hitch·빌드 첫 실행·H2/순서·H3/턱 오르기 원인은 이 결과로 확정하지 않는다. 반복 실험 종료를 제안한다. 화면 품질·실제 키보드·RHI 검수는 미실행이다.
+
+|회|시작 UTC|필터|성공/경고/실패/미실행|Locomotion|Quinn 진단|4캐릭터 Block 최대 dt|오류|간섭|
+|---|---|---|---|---|---|---|---|---|
+|K1|2026-10-08T20:18:09.2616740Z|Golmok.|28/11/0/0|Success|quinn: Block diagnostic X=-5041.909 Y=-4700.000 Feet=2.000 Speed2D=0.000 MovementMode=1 MaxFrameDt=0.008495|0.008495|없음|없음|
+|K2|2026-10-08T20:21:13.5568521Z|Golmok.|28/11/0/0|Success|quinn: Block diagnostic X=-5041.909 Y=-4700.000 Feet=2.000 Speed2D=0.000 MovementMode=1 MaxFrameDt=0.008341|0.008345|없음|없음|
+|K3|2026-10-08T20:24:01.5290087Z|Golmok.|28/11/0/0|Success|quinn: Block diagnostic X=-5041.909 Y=-4700.000 Feet=2.000 Speed2D=0.000 MovementMode=1 MaxFrameDt=0.008462|0.012451|없음|없음|
+|W1|2026-10-08T20:26:44.6165838Z|Golmok.|28/11/0/0|Success|quinn: Block diagnostic X=-5041.909 Y=-4700.000 Feet=2.000 Speed2D=0.000 MovementMode=1 MaxFrameDt=0.008381|0.008381|없음|없음|
+|W2|2026-10-08T20:29:27.7261175Z|Golmok.|28/11/0/0|Success|quinn: Block diagnostic X=-5041.909 Y=-4700.000 Feet=2.000 Speed2D=0.000 MovementMode=1 MaxFrameDt=0.008376|0.008405|없음|있음|
+|W3|2026-10-08T22:23:17.8299530Z|Golmok.|28/11/0/0|Success|quinn: Block diagnostic X=-5041.909 Y=-4700.000 Feet=2.000 Speed2D=0.000 MovementMode=1 MaxFrameDt=0.008336|0.010034|없음|없음|
+|L1|2026-10-08T22:26:19.0427488Z|Golmok.Character.Locomotion|1/0/0/0|Success|quinn: Block diagnostic X=-5041.909 Y=-4700.000 Feet=2.000 Speed2D=0.000 MovementMode=1 MaxFrameDt=0.008539|0.008539|없음|없음|
+|L2|2026-10-08T22:27:59.1128339Z|Golmok.Character.Locomotion|1/0/0/0|Success|quinn: Block diagnostic X=-5041.909 Y=-4700.000 Feet=2.000 Speed2D=0.000 MovementMode=1 MaxFrameDt=0.008393|0.008431|없음|없음|
+|L3|2026-10-08T22:29:39.1449451Z|Golmok.Character.Locomotion|1/0/0/0|Success|quinn: Block diagnostic X=-5041.909 Y=-4700.000 Feet=2.000 Speed2D=0.000 MovementMode=1 MaxFrameDt=0.008404|0.008439|없음|없음|
+|L4|2026-10-08T22:31:19.1835887Z|Golmok.Character.Locomotion|1/0/0/0|Success|quinn: Block diagnostic X=-5041.909 Y=-4700.000 Feet=2.000 Speed2D=0.000 MovementMode=1 MaxFrameDt=0.008427|0.00847|없음|없음|
+|L5|2026-10-08T22:32:58.6817907Z|Golmok.Character.Locomotion|1/0/0/0|Success|quinn: Block diagnostic X=-5041.909 Y=-4700.000 Feet=2.000 Speed2D=0.000 MovementMode=1 MaxFrameDt=0.008357|0.013116|없음|없음|
+|P1|2026-10-08T22:34:38.7198115Z|Golmok.Animation+Golmok.Audio+Golmok.Character.Config+Golmok.Character.Locomotion|6/2/0/0|Success|quinn: Block diagnostic X=-5041.909 Y=-4700.000 Feet=2.000 Speed2D=0.000 MovementMode=1 MaxFrameDt=0.008490|0.0085|없음|없음|
+|P2|2026-10-08T22:36:35.7092191Z|Golmok.Animation+Golmok.Audio+Golmok.Character.Config+Golmok.Character.Locomotion|6/2/0/0|Success|quinn: Block diagnostic X=-5041.909 Y=-4700.000 Feet=2.000 Speed2D=0.000 MovementMode=1 MaxFrameDt=0.008383|0.008383|없음|없음|
+|P3|2026-10-08T22:38:32.2950173Z|Golmok.Animation+Golmok.Audio+Golmok.Character.Config+Golmok.Character.Locomotion|6/2/0/0|Success|quinn: Block diagnostic X=-5041.909 Y=-4700.000 Feet=2.000 Speed2D=0.000 MovementMode=1 MaxFrameDt=0.008364|0.008442|없음|없음|
+
+증거는 로컬 `tools/.venv/t30-quinn/`의 index·엔진 로그·meta·summary에 보존했다(커밋 제외).
+
+### 병합 시 반영 — T30
+
+STATUS Astra WP-18 행: “T30 선택 정리 완료: Sequence 누락 fixture 전체 보고·단언 수 표시, ZoneWalk 백업 보호·T11 순서 정합성, 구도 랙 상수 소스 검증·socket 주석. Quinn baseline Locomotion 실패 0/14(K0/3·W0/3·L0/5·P0/3), W2 간섭 있음, 14회 재현 없음·원인 미확정. 반복 종료 제안, 등록39·설정값·GUI 기록 무변경.” astra-tasks T30에 PR·게이트를 옮긴다. 새 결정 없음.
+
+### T30 최종 검증
+
+- ruff check·format(120 파일)·check_repo·diff --check 통과.
+- pytest 1580 passed / 276 skipped / 61 warnings, 111.61 s(Windows g++ 미가용 포함).
+- UE 빌드 성공, 53.78 s. 전체 39 Success = 28 + 경고 11, 실패 0 / notRun 0, 147.194 s. 경고는 미설치 fixture/GASP 등의 기존 조건이다.
+- 런북 백업 블록을 추출해 UE 호출만 스텁한 격리 5사례(same backup, different backup, original absence, unchanged normal recording, forced failure preservation) 통과. 실제 RHI 코스는 미실행.
+- CI는 draft PR 생성 뒤 확인한다. Opus ultracode 리뷰 요청 후 push 정지.

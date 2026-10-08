@@ -64,6 +64,7 @@ inline bool Calculate(double Height, double WidthRatio, Dimensions& Out)
 	Candidate.MeshOffset[2] = -Candidate.HalfHeight;
 	Candidate.MeshScale = {Scale * WidthRatio, Scale * WidthRatio, Scale};
 	Candidate.Boom = 80.0 + 240.0 * Scale;
+	// Legacy Socket Z starting point; T23 framing tests and characters.json take precedence.
 	Candidate.Socket = {0.0, 5.0 + 40.0 * Scale, 15.0 + 40.0 * Scale};
 	Candidate.Fov = 60.0 + 20.0 * Scale;
 	if (!Validate(Candidate))

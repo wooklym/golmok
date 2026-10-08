@@ -5,6 +5,7 @@ from __future__ import annotations
 import copy
 import json
 import math
+import re
 
 import jsonschema
 import pytest
@@ -231,10 +232,41 @@ def framing_y(entry, point_x, point_z):
     return 0.5 + up / (2 * depth * tan_vertical)
 
 
+def camera_lag_speed(source):
+    code = re.sub(r"//[^\n]*", "", re.sub(r"/\*.*?\*/", "", source, flags=re.S))
+    values = re.findall(r"CameraBoom->CameraLagSpeed\s*=\s*([^;]+);", code)
+    assert len(values) == 1, "expected exactly one CameraLagSpeed assignment"
+    assert re.fullmatch(r"\d+(?:\.\d*)?f?", values[0].strip()), "expected positive numeric literal"
+    value = float(values[0].strip().removesuffix("f"))
+    assert math.isfinite(value) and value > 0
+    return value
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "",
+        "CameraBoom->CameraLagSpeed = 12.f;" * 2,
+        "CameraBoom->CameraLagSpeed = 0.f;",
+        "CameraBoom->CameraLagSpeed = -1.f;",
+        "CameraBoom->CameraLagSpeed = value;",
+        "CameraBoom->CameraLagSpeed = 12.f;CameraBoom->CameraLagSpeed = -1.f;",
+    ],
+)
+def test_camera_lag_source_rejects_ambiguous_or_invalid(source):
+    with pytest.raises(AssertionError):
+        camera_lag_speed(source)
+
+
+def test_camera_lag_literal_reader():
+    assert camera_lag_speed("CameraBoom->CameraLagSpeed = 12.f;") == 12
+
+
 def framing_margins(entry):
     audio = json.loads((REPO / "unreal/Golmok/Config/Golmok/audio.json").read_text(encoding="utf-8"))
     half_stride = audio["footsteps"]["stride_cm_by_character"][entry["id"]]["walk"] / 2
-    lag = entry["movement"]["walk_cm_s"] / 12  # unchanged CameraLagSpeed
+    source = (REPO / "unreal/Golmok/Source/Golmok/Player/GolmokCharacter.cpp").read_text(encoding="utf-8")
+    lag = entry["movement"]["walk_cm_s"] / camera_lag_speed(source)
     return (
         framing_y(entry, 0, 0),
         framing_y(entry, -half_stride - lag, 0),
