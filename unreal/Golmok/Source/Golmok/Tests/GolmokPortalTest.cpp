@@ -18,7 +18,11 @@
 // Golmok.Portal.SharedInterior: on L_ZoneTest (same skip) a second entry portal door_2 into the same interior is
 // spawned 10 m beside door_1; Enter on door_1, Enter + Leave on door_2 (walked in by one door, out by the other):
 // the overlay must go off at once (door_1's lighting source released), both portals Leaving, and after
-// UnloadDelaySeconds the sublevel and the zone unloaded with both portals Idle.
+// UnloadDelaySeconds the sublevel and the zone unloaded with both portals Idle. Then the pending-sibling branch of
+// OnUnloadDelayElapsed (review R3-state-01), twice: Enter + Leave on door_1 while door_2 is Pending without an
+// interior request (the player debouncing in its box); door_1's unload delay must end in "unload postponed" with
+// door_1 still Leaving and the interior loaded. Step 1: door_2 activates before the retry -> door_1 Idle with the
+// interior and the sublevel kept, released after Leave on door_2. Step 2: door_2 goes Idle -> the retry unloads.
 // All pass under -nullrhi.
 //
 // Headless: .\tools\ue\test.ps1 -Filter Golmok.Portal   (or in the editor console: Automation RunTests Golmok.Portal)
@@ -51,6 +55,9 @@ namespace GolmokPortalTest
 	const TCHAR* EntryPortalId = TEXT("door_1");
 	const TCHAR* SecondPortalId = TEXT("door_2");
 	const TCHAR* ExpectedSublevel = TEXT("/Game/Golmok/Zones/z_synthetic_001_interior/v1/L_z_synthetic_001_interior");
+	/** AGolmokPortal::LastEvent of OnUnloadDelayElapsed's postpone and keep branches (SharedInterior pending steps). */
+	const TCHAR* PostponedEvent = TEXT("unload postponed; another portal is pending");
+	const TCHAR* KeptEvent = TEXT("released; interior kept by another portal");
 
 	/** Shared latent-command scaffolding: PIE world lookup, phase timing, timeout failure (as in GolmokCharacterTest). */
 	class FPortalScenarioBase : public IAutomationLatentCommand
@@ -697,7 +704,7 @@ namespace GolmokPortalTest
 				return Next(3);
 			}
 
-			case 3: // both Idle, interior released once
+			case 3: // both Idle, interior released once (the two-door pass, then the end of each pending-sibling step)
 			{
 				AGolmokPortal* A = PortalA.Get();
 				AGolmokPortal* B = PortalB.Get();
@@ -727,9 +734,142 @@ namespace GolmokPortalTest
 					Cleanup();
 					return true;
 				}
-				Test->AddInfo(FString::Printf(TEXT("interior released after %.2f s: %s | %s"), Elapsed, *A->Describe(), *B->Describe()));
+				Test->AddInfo(FString::Printf(TEXT("%sinterior released after %.2f s: %s | %s"), StepPrefix(), Elapsed, *A->Describe(), *B->Describe()));
+				if (PendingStep < 2)
+				{
+					++PendingStep;
+					return Next(4);
+				}
 				Cleanup();
 				return true;
+			}
+
+			case 4: // pending-sibling step: enter through door_1 again (one update after the release, as RoundTrip's next cycle)
+			{
+				AGolmokPortal* A = PortalA.Get();
+				if (!A || !PortalB.IsValid())
+				{
+					Test->AddError(TEXT("a portal disappeared after the release"));
+					Cleanup();
+					return true;
+				}
+				FString Msg;
+				Test->TestTrue(FString::Printf(TEXT("EnterInterior(door_1) (step %d)"), PendingStep), A->EnterInterior(Msg));
+				Test->AddInfo(Msg);
+				return Next(5);
+			}
+
+			case 5: // interior up through door_1; Leave on door_1 while door_2 is Pending without an interior request
+			{
+				AGolmokPortal* A = PortalA.Get();
+				AGolmokPortal* B = PortalB.Get();
+				if (!A || !B)
+				{
+					Test->AddError(TEXT("a portal disappeared after EnterInterior"));
+					Cleanup();
+					return true;
+				}
+				if (!InteriorReady(Test, World, Subsystem, A, Elapsed, StreamInTimeoutSeconds, bDone))
+				{
+					if (bDone)
+					{
+						Cleanup();
+					}
+					return bDone;
+				}
+				FString Msg;
+				Test->TestTrue(FString::Printf(TEXT("LeaveInterior(door_1) (step %d)"), PendingStep), A->LeaveInterior(Msg));
+				Test->AddInfo(Msg);
+				Test->TestEqual(TEXT("door_1 Leaving"), static_cast<int32>(A->State), static_cast<int32>(EGolmokPortalState::Leaving));
+				Test->TestEqual(TEXT("door_2 Idle before it turns Pending"), static_cast<int32>(B->State), static_cast<int32>(EGolmokPortalState::Idle));
+				// door_2 as BeginPlayerOverlap leaves an Idle portal until its next-tick preload: Pending, interior not
+				// requested, the only state HasPendingSibling counts. The WP-09 preload shortens that window to one tick,
+				// so the state is set here (as Travel.Teleport does for its portal check) instead of walking a pawn into
+				// door_2's box. No timer runs on door_2; the step decides how its debounce ends (phase 6).
+				B->State = EGolmokPortalState::Pending;
+				B->bInteriorRequested = false;
+				Test->AddInfo(B->Describe());
+				UnloadDeadline = static_cast<double>(A->UnloadDelaySeconds) + 1.0;
+				return Next(6);
+			}
+
+			case 6: // door_1's unload delay ends while door_2 is Pending: postponed, door_1 still Leaving, interior loaded
+			{
+				AGolmokPortal* A = PortalA.Get();
+				AGolmokPortal* B = PortalB.Get();
+				if (!A || !B)
+				{
+					Test->AddError(TEXT("a portal disappeared during the unload delay"));
+					Cleanup();
+					return true;
+				}
+				if (A->LastEvent != PostponedEvent)
+				{
+					if (A->State == EGolmokPortalState::Leaving && Elapsed < UnloadDeadline)
+					{
+						return false;
+					}
+					Test->AddInfo(A->Describe());
+					Test->TestEqual(TEXT("door_1 postponed its unload while door_2 was pending"), A->LastEvent, FString(PostponedEvent));
+					Cleanup();
+					return true;
+				}
+				AGolmokZone* Interior = Subsystem->FindZone(InteriorZoneId);
+				Test->AddInfo(FString::Printf(TEXT("%sunload postponed after %.2f s: %s | %s"), StepPrefix(), Elapsed, *A->Describe(), *B->Describe()));
+				Test->TestEqual(TEXT("door_1 still Leaving while the unload is postponed"), static_cast<int32>(A->State),
+					static_cast<int32>(EGolmokPortalState::Leaving));
+				Test->TestTrue(TEXT("interior zone still loaded while the unload is postponed"), Interior && Interior->IsLoaded());
+				Test->TestTrue(TEXT("sublevel still loaded while the unload is postponed"), A->IsSublevelLoaded());
+				// door_1 asks again after DebounceSeconds + 0.05 (OnUnloadDelayElapsed); door_2's debounce ends before that.
+				UnloadDeadline = static_cast<double>(A->DebounceSeconds) + 0.05 + 1.0;
+				if (PendingStep == 1)
+				{
+					// Debounce over with the player in door_2's box: door_2 requests the (still loaded) interior and activates.
+					FString Msg;
+					Test->TestTrue(TEXT("EnterInterior(door_2) while door_1's unload is postponed"), B->EnterInterior(Msg));
+					Test->AddInfo(Msg);
+					return Next(7);
+				}
+				// Debounce over with the player gone and nothing requested: OnDebounceElapsed's plain Idle.
+				B->State = EGolmokPortalState::Idle;
+				return Next(3);
+			}
+
+			case 7: // step 1: door_1's retry finds door_2 Active -> door_1 Idle, interior and sublevel kept; then Leave on door_2
+			{
+				AGolmokPortal* A = PortalA.Get();
+				AGolmokPortal* B = PortalB.Get();
+				if (!A || !B)
+				{
+					Test->AddError(TEXT("a portal disappeared during the postponed unload"));
+					Cleanup();
+					return true;
+				}
+				if (A->State != EGolmokPortalState::Idle)
+				{
+					if (Elapsed < UnloadDeadline)
+					{
+						return false;
+					}
+					Test->AddInfo(A->Describe());
+					Test->TestEqual(TEXT("door_1 Idle after the postponed unload"), static_cast<int32>(A->State), static_cast<int32>(EGolmokPortalState::Idle));
+					Cleanup();
+					return true;
+				}
+				AGolmokZone* Interior = Subsystem->FindZone(InteriorZoneId);
+				AGolmokTimeOfDay* Tod = AGolmokTimeOfDay::Find(World);
+				Test->AddInfo(FString::Printf(TEXT("%sinterior kept after %.2f s: %s | %s"), StepPrefix(), Elapsed, *A->Describe(), *B->Describe()));
+				Test->TestEqual(TEXT("door_1 released with the interior kept by door_2"), A->LastEvent, FString(KeptEvent));
+				Test->TestEqual(TEXT("door_2 Active"), static_cast<int32>(B->State), static_cast<int32>(EGolmokPortalState::Active));
+				Test->TestTrue(TEXT("interior zone kept loaded by door_2"), Interior && Interior->IsLoaded());
+				Test->TestTrue(TEXT("sublevel kept visible by door_2"), B->IsSublevelVisible());
+				FString Msg;
+				Test->TestTrue(TEXT("LeaveInterior(door_2) (step 1)"), B->LeaveInterior(Msg));
+				Test->AddInfo(Msg);
+				Test->TestFalse(TEXT("overlay off right after leaving through door_2 (step 1)"), Tod && Tod->IsInterior());
+				Test->TestEqual(TEXT("door_2 Leaving (step 1)"), static_cast<int32>(B->State), static_cast<int32>(EGolmokPortalState::Leaving));
+				UnloadDeadline = static_cast<double>(B->UnloadDelaySeconds) + 1.0;
+				return Next(3);
 			}
 
 			default:
@@ -746,10 +886,20 @@ namespace GolmokPortalTest
 			}
 		}
 
+		/** Info-line prefix: none for the two-door pass (runbook line unchanged), the step for the pending-sibling steps. */
+		const TCHAR* StepPrefix() const
+		{
+			return PendingStep == 1 ? TEXT("step 1 (pending door_2 activates): ")
+				   : PendingStep == 2 ? TEXT("step 2 (pending door_2 goes idle): ")
+									  : TEXT("");
+		}
+
 		static constexpr double StreamInTimeoutSeconds = 5.0; // WP-09: async interior load + sublevel streaming (upper bound only)
 		TWeakObjectPtr<AGolmokPortal> PortalA;
 		TWeakObjectPtr<AGolmokPortal> PortalB;
 		double UnloadDeadline = 4.0;
+		/** 0 = two-door pass; 1 = pending door_2 activates (interior kept); 2 = pending door_2 goes idle (interior unloaded). */
+		int32 PendingStep = 0;
 	};
 } // namespace GolmokPortalTest
 

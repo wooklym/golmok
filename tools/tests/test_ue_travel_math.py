@@ -10,8 +10,9 @@ stdin/stdout driver. Checked against golmok_tools.zone.transform / .index and nu
 - spec §1 fallback probe (+3 m above zone-local (0,0,0), straight down), hit / no-hit feet, heading yaw_deg 0;
 - standing location = feet + half height + 2 cm; save yaw ENU <-> UE sign and normalisation;
 - travel refusal order, poll verdicts, restore rules ①②③ (full truth table), periodic autosave rule;
-- map: bbox <-> pixel (linear and Web Mercator) round trips, z16 cell == index.lonlat_to_tile, cell bounds ==
-  index.tile_bounds, cell pixel rectangles tile the texture, world pixels.
+- map: bbox <-> pixel (linear and Web Mercator) round trips, z16 cell == index.lonlat_to_tile (also for
+  NaN / ±inf, WP-09 V-07 memo 5), cell bounds == index.tile_bounds, cell pixel rectangles tile the texture,
+  world pixels.
 Skipped when no C++ compiler is on PATH.
 """
 
@@ -322,6 +323,27 @@ def test_cells_match_index_py(driver):
     tiles = [(55873, 25379), (55874, 25380), (0, 0), (65535, 65535)]
     for (x, y), got in zip(tiles, run(driver, [f"bounds {x} {y} 16" for x, y in tiles]), strict=True):
         assert np.abs(np.array(got) - np.array(zi.tile_bounds(x, y, 16))).max() < 1e-12
+
+
+def test_cell_non_finite_matches_index_py(driver):
+    # WP-09 V-07 memo (5), same rule as GolmokGeoMath::LonLatToCell (test_ue_geo_math.py): a non-finite
+    # lon / lat takes the clamp of out-of-range input (±inf -> the edge on its side, NaN -> 0 on its axis),
+    # never static_cast<int>(NaN)
+    nan, inf = float("nan"), float("inf")
+    cases = [
+        ((nan, 37.562, 16), (0, 25379)),
+        ((inf, 37.562, 16), (65535, 25379)),
+        ((-inf, 37.562, 16), (0, 25379)),
+        ((126.925, nan, 16), (55873, 0)),
+        ((126.925, inf, 16), (55873, 0)),
+        ((126.925, -inf, 16), (55873, 65535)),
+        ((nan, nan, 0), (0, 0)),
+        ((inf, -inf, 30), (2**30 - 1, 2**30 - 1)),
+        ((-inf, nan, 30), (0, 0)),
+    ]
+    rows = run(driver, [f"cell {fmt(lon, lat)} {z}" for (lon, lat, z), _ in cases])
+    for ((lon, lat, z), want), (x, y) in zip(cases, rows, strict=True):
+        assert (int(x), int(y)) == want == zi.lonlat_to_tile(lon, lat, z), (lon, lat, z)
 
 
 def test_cell_rects_tile_a_mercator_texture(driver):

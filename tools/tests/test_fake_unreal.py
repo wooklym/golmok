@@ -750,6 +750,27 @@ def test_lit_knob(monkeypatch, tmp_path):
     assert dark.calls == [("save_map", DEFAULT_LEVEL, DEFAULT_LEVEL)]
 
 
+def test_undeletable_knob(monkeypatch, tmp_path):
+    """undeletable (runbook §12 #8): delete_asset of a listed asset is False and keeps it; delete_directory
+    deletes the rest and is False when it keeps one or the folder is listed."""
+    kept, stays = f"{FOLDER}/a/T_kept", f"{FOLDER}/b"
+    fake = fake_unreal.install(monkeypatch, tmp_path, undeletable=[kept, stays])
+    library = fake.module.EditorAssetLibrary
+    for name in ("a/T_kept", "a/T_gone", "b/T_x", "T_free"):
+        fake.registry[f"{FOLDER}/{name}"] = fake_unreal.FakeTexture2D(fake, f"{FOLDER}/{name}")
+    assert not library.delete_asset(kept) and kept in fake.registry
+    assert fake.calls[-1] == ("delete_asset", kept)
+    assert not library.delete_directory(f"{FOLDER}/a")
+    assert fake.calls[-1] == ("delete_directory", f"{FOLDER}/a")
+    assert kept in fake.registry and f"{FOLDER}/a/T_gone" not in fake.registry
+    assert not library.delete_directory(stays) and not library.does_directory_exist(stays)  # assets went
+    assert library.delete_asset(f"{FOLDER}/T_free")
+    assert isinstance(fake.undeletable, set)  # a test may change it between runs
+    fake.undeletable.clear()
+    assert library.delete_directory(FOLDER) and not [k for k in fake.registry if k.startswith(FOLDER + "/")]
+    assert fake_unreal.install(monkeypatch, tmp_path / "default").undeletable == set()
+
+
 @pytest.mark.parametrize("renames", [True, False])
 def test_save_map_save_as(monkeypatch, tmp_path, renames):
     """save_map to another path (runbook §12 #18): the copy exists with clones of the world's actors; with

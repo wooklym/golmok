@@ -725,27 +725,33 @@ namespace GolmokWeatherTests
 					BaseLux = Base.Lux;
 				}
 			}
+			// R113-6: without the minute (or when it reads as night) only the night checks drop; the weather changes still
+			// run at the current state, so the OnPresetChanged / OnNightChanged counts below are always asserted.
+			FString When;
+			bool bNearThreshold = false;
 			if (Minute < 0.f)
 			{
 				Test->AddInfo(FString::Printf(TEXT("no minute with base lux in [%g, %g) (threshold %g, rain lux_scale %g) - NightUnaffected skipped"), Low,
 					High, Threshold, RainLuxScale));
-				return;
 			}
-			const FString When = FString::Printf(TEXT("%02d:%02d (base lux %g)"), static_cast<int32>(Minute) / 60, static_cast<int32>(Minute) % 60, BaseLux);
-			Test->AddInfo(FString::Printf(TEXT("NightUnaffected at %s"), *When)); // passing assertions print nothing: V-16 §3 reads this line
-			Set(EGolmokWeather::Clear, 0.f, true);
-			Tod->SetTimeOfDay(Minute, /*bInstant*/ true);
-			if (!Test->TestFalse(*FString::Printf(TEXT("%s is not night"), *When), Tod->IsNight()))
+			else
 			{
-				return;
+				When = FString::Printf(TEXT("%02d:%02d (base lux %g)"), static_cast<int32>(Minute) / 60, static_cast<int32>(Minute) % 60, BaseLux);
+				Test->AddInfo(FString::Printf(TEXT("NightUnaffected at %s"), *When)); // passing assertions print nothing: V-16 §3 reads this line
+				Set(EGolmokWeather::Clear, 0.f, true);
+				Tod->SetTimeOfDay(Minute, /*bInstant*/ true);
+				bNearThreshold = Test->TestFalse(*FString::Printf(TEXT("%s is not night"), *When), Tod->IsNight());
 			}
 			PresetEvents = 0;
 			NightEvents = 0;
 			Set(EGolmokWeather::Rain, 1.f, true);
-			FGolmokLightingState S;
-			Tod->CaptureState(S);
-			Test->TestTrue(*FString::Printf(TEXT("%s rain 1.0: lux %g < the night threshold"), *When, S.Lux), S.Lux < Threshold);
-			Test->TestFalse(*FString::Printf(TEXT("%s rain 1.0: still not night"), *When), Tod->IsNight());
+			if (bNearThreshold)
+			{
+				FGolmokLightingState S;
+				Tod->CaptureState(S);
+				Test->TestTrue(*FString::Printf(TEXT("%s rain 1.0: lux %g < the night threshold"), *When, S.Lux), S.Lux < Threshold);
+				Test->TestFalse(*FString::Printf(TEXT("%s rain 1.0: still not night"), *When), Tod->IsNight());
+			}
 			Set(EGolmokWeather::Overcast, 0.f, true);
 			Set(EGolmokWeather::Clear, 0.f, true);
 			Test->TestEqual(TEXT("weather changes fire no OnPresetChanged"), PresetEvents, 0);
