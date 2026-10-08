@@ -1319,7 +1319,7 @@ PR #87 병합 리뷰 R87의 WP-06 쪽 (C) 3건을 처리했다. 설계·동작 �
 
 **병합**: [PR #122](https://github.com/wooklym/golmok/pull/122) → main(오케스트레이터 결정 D-019; 리뷰 [R122](https://github.com/wooklym/golmok/pull/122#issuecomment-6065848475) (A) 0 · (B) 1 · (C) 6). 위 문안은 STATUS WP-06 행·ROADMAP zone_import 줄에 옮겼다. ROADMAP은 리뷰 제안대로 "긴 worktree 경로" 뒤에 넣고, "GUI 폴백 팩만 PC 미확인"을 "폴백 팩(GUI·헤드리스)만 PC 미확인"으로 바꿨다. R122-B1(태그 판정 뒤 헤드리스 팩 `_pack_udim_tiles`는 PC 미실행)은 이 병합 커밋에서 런북 §2 머리 주의·§12 #4·#42에 반영했다. (C) R122-C1~C6(`parse_dimensions_tag` 초장 자릿수, fake `_TagName` docstring, 테스트 주석, 헤드리스 #38 테스트, §2 커맨드릿 `1 warnings`(#41), 위 "열린 브랜치와 파일 겹침 없음" — #121도 `pc-verify-v17.md`를 고침, 줄 충돌 없음)는 후속 후보로 남긴다.
 
-## 결과 — Claude 후속: 스크래치 폴더 삭제 결과 확인(R81 판단 1 후속) (2026-10-09, Opus 5.5, 세션 `session_01NM6uvZaVMgq5SUSaduHD1Z`, 브랜치 `wip/scratch-cleanup`) — 🟡 코드 완료·PC 미검증
+## 결과 — Claude 후속: 스크래치 폴더 삭제 결과 확인(R81 판단 1 후속) (2026-10-09, Opus 5.5, 세션 `session_01NM6uvZaVMgq5SUSaduHD1Z`, 브랜치 `claude/claude-lane-followups5`) — 🟡 코드 완료·PC 미검증
 "(C) 후속 2" 판단 1에서 범위 밖으로 남긴 `_import_moved`의 스크래치 폴더 정리를 R81 F3(`_cleanup_folder`)과 같은 규칙으로 고쳤다. 전에는 폴더 안 에셋마다 `deleted` 줄을 먼저 적고 `delete_directory`를 불렀으며 그 결과를 보지 않았다. 설계 변경은 없다. 정상 경로의 로그·호출 기록은 바이트 단위로 같다.
 
 | 항목 | 변경 | 테스트 |
