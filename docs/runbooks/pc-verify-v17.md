@@ -66,7 +66,7 @@ V-11 §14와 같은 방법(SendInput 지속 입력 + ffmpeg 1920×1080 60 fps)�
 | §2 T23 (a)~(d) | 발 화면 밖 0·머리 잘림 0 | (대기) |
 | §3 Full Precision UV | 로그 줄·LOD0 체크·임포트 시간 | (대기) |
 | §4 Yeonnam 성능 | clock − fixed < 1.0 ms(또는 재검토 필요) | (대기) |
-| §5 패키지 | 발소리·Manny·전환 | (대기) |
-| §6 TraceLog | 인자 유무·1985 | (대기) |
+| §5 패키지 | 발소리·Manny·전환 | **선행 실행(V-11 세션, 2026-10-09, main `3cfeec5`, `GOLMOK_PKG_DIR` 미설정 → V-11 워크트리의 같은 exe 경로, 방화벽 창 없음)**: ① ✅ W 발소리(루프백 34 시작점, 0.37 s 간격) ② ✅ 첫 프레임 마네킹·`Character mesh … not found` 없음 ③ ⚠️ `list`·`proxy135`·`manny` ✅, **`quinn` 거절**(`SKM_Quinn_Simple` 미쿡) → `[WP-18 hook]` `+DirectoriesToAlwaysCook=(Path="/Game/Characters/Mannequins")` 로컬 시험(미커밋)으로 해결 확인. 남은 것: 클라우드 훅 반영 뒤 이 카드에서 `GOLMOK_PKG_DIR` 경로로 ③만 재확인. 세부 [wp18a §14-6](pc-verify-wp18a.md) |
+| §6 TraceLog | 인자 유무·1985 | **확인(V-11 세션, 2026-10-09)**: 리스너를 끄는 런타임 인자 없음(소스: `Writer_InternalInitializeImpl` → `Writer_InitializeControl`, `-notrace` 파싱 없음), 실행마다 `netstat`에 `TCP 0.0.0.0:1985 LISTENING`. [pc-setup §2a](pc-setup.md)에 기록. 이 카드에서 다시 할 필요 없음 |
 
 STATUS 반영(PC 세션이 자기 행만): V-17 행 결과, 세션 로그. 다른 행(WP-15a·V-14·WP-18·V-11·WP-06·V-05·WP-14a·V-13·C-07·V-10)은 클라우드 병합 커밋이 옮긴다 — PR 본문에 "병합 시 반영" 문안을 적는다.
