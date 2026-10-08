@@ -99,6 +99,10 @@ KNOBS (install(**cfg) keywords = Fake attributes): obj_mapping=(100.0, M_OBJ) gl
     = the class name, get_asset()); AssetRegistryHelpers.is_redirector(data) checks that class name.
     full_precision_uvs=False (the LOD0 MeshBuildSettings.use_full_precision_u_vs an imported static mesh
     starts with; True: the importer already set it, so zone_import leaves it alone; runbook §12 #41)
+    undeletable=frozenset() (asset or folder paths a force delete leaves in place: delete_asset of one returns
+    False and keeps it; delete_directory deletes every other asset under the folder and returns False when it
+    keeps one or the folder itself is listed - an editor that could not delete every asset, or the folder;
+    runbook §12 #8)
 
 Console (SystemLibrary.execute_console_command): "golmok.tod <preset>" picks the screenshot folder
 (fake.tod_commands records every golmok.tod argument list; the WP-14a subcommands time / mode / rate / status
@@ -174,6 +178,7 @@ KNOBS = {
     "dependencies": {}, "rename_directory_ok": True,  # WP-19 gasp_import
     "leave_redirectors": False, "fixup_deletes_redirectors": True,  # WP-19a-2 gasp_import
     "full_precision_uvs": False,  # WP-06 round 2 item 2
+    "undeletable": frozenset(),  # WP-06 scratch cleanup
 }  # fmt: skip
 # (class, label, tags) of setup_dev_level._build_lighting(), seeded into the initial level when lit=True.
 L_DEV_LIGHTING = (
@@ -1087,6 +1092,8 @@ class FakeEditorAssetLibrary(_Bound):
     def delete_asset(self, asset_path):
         key = _key(asset_path)
         self._fake.calls.append(("delete_asset", key))
+        if key in self._fake.undeletable:
+            return False
         asset = self._fake.registry.pop(key, None)
         _null_references(self._fake, asset)
         return asset is not None
@@ -1094,9 +1101,13 @@ class FakeEditorAssetLibrary(_Bound):
     def delete_directory(self, directory_path):
         key = _key(directory_path)
         self._fake.calls.append(("delete_directory", key))
+        kept = False
         for k in [k for k in self._fake.registry if k.startswith(key + "/")]:
+            if k in self._fake.undeletable:
+                kept = True
+                continue
             _null_references(self._fake, self._fake.registry.pop(k))
-        return True
+        return not kept and key not in self._fake.undeletable
 
     def rename_asset(self, source_asset_path, destination_asset_path):
         old, new = _key(source_asset_path), _key(destination_asset_path)
@@ -1673,7 +1684,7 @@ class Fake:
             os.makedirs(d, exist_ok=True)
         for knob, default in KNOBS.items():
             value = cfg.get(knob, default)
-            if knob in ("obj_routes_ok", "fail_import"):
+            if knob in ("obj_routes_ok", "fail_import", "undeletable"):
                 value = set(value)
             elif knob in ("bounds_offset", "dependencies"):
                 value = dict(value)
