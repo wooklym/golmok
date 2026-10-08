@@ -931,7 +931,7 @@ Python 검증: (a) 헤더 순수성(`#include "` 없음, `<>` ⊆ 허용 7개, `
 
 **남은 것**
 - PC 검증 V-03(런북 §1~§12). 컴파일 에러는 §11 표로 고치고 `WP-05: PC fix` 커밋. 특히 `LoadLevelInstance` 시그니처·`RHIGetGPUFrameCycles`·`OnPossessedPawnChanged` 바인딩·`TakeHighResScreenShot` 파일명을 먼저 본다.
-- `Golmok.Portal.SharedInterior`는 Pending 형제 연기 분기를 자동으로 검증하지 않는다(런북 §5 수동).
+- `Golmok.Portal.SharedInterior`는 Pending 형제 연기 분기를 자동으로 검증하지 않는다(런북 §5 수동). → 2026-10-08 후속(Opus): 같은 테스트에 1·2단계 추가(door_1 Leaving 중 door_2를 요청 전 `Pending`으로 두고 `unload postponed` 확인 → 1단계 door_2 Active면 door_1 `released; interior kept by another portal`·실내 유지, 2단계 Idle이면 재판정 언로드). 자동화 수 그대로, 🟡 PC 확인 대기(런북 §2 마지막 항목).
 - `bAsyncLoad`(WP-04 TODO), Zone Index 발견 경로, splat 시각 형식(D-010)은 그대로 미구현.
 
 **통합 리뷰(오케스트레이터, Opus 읽기 전용 리뷰 → 직접 수정, 병합 전)**

@@ -387,9 +387,10 @@ def _delete_assets(paths: list[str], keep: set[str]) -> list[str]:
     """Delete the Material / MaterialInstanceConstant / Texture2D assets an import created besides `keep`.
     Returns the deleted keys; a failed delete gets no 'deleted' (zi.cleanup) line and is not returned. Only
     _discard_failed_import warns about one (R69-11); the other callers leave it to the folder delete that
-    follows (_import_moved's scratch folder, _pack_udim_tiles' Textures/_tiles) or, on _import_in_place's
-    success path, to the cleanup step (_cleanup_folder) after the last import of the same run, or of the next
-    run when a later step fails (R81-6)."""
+    follows (_import_moved's scratch folder, which warns about what it cannot delete - _delete_scratch;
+    _pack_udim_tiles' Textures/_tiles) or, on _import_in_place's success path, to the cleanup step
+    (_cleanup_folder) after the last import of the same run, or of the next run when a later step fails
+    (R81-6)."""
     lib = unreal.EditorAssetLibrary
     classes = _byproduct_classes()
     deleted = []
@@ -407,6 +408,34 @@ def _delete_assets(paths: list[str], keep: set[str]) -> list[str]:
         else:
             _warn(f"unexpected asset {key} left in place")
     return deleted
+
+
+def _could_not_delete(path: str) -> None:
+    """The `cleanup: could not delete <path> (runbook #8)` WARNING of a failed delete (R81 F3), once per path
+    in an import_assets() call: what a scratch folder delete left (_delete_scratch) is listed again by the
+    next import into that folder and by the cleanup step (_cleanup_folder), which may fail on it again."""
+    once = f"cleanup {path}"
+    if once not in _warned_once:
+        _warned_once.add(once)
+        _warn(f"cleanup: could not delete {path} (runbook #8)")
+
+
+def _delete_scratch(scratch: str) -> None:
+    """Delete an import's scratch folder with everything in it, then log it like _cleanup_folder (R81 F3): a
+    'deleted' (zi.cleanup) line follows the delete and only for what it deleted. When delete_directory returns
+    False, each listed asset still there is a `cleanup: could not delete <asset>` WARNING instead, and the
+    folder itself is one when no listed asset is left (runbook #8)."""
+    lib = unreal.EditorAssetLibrary
+    keys = [_asset_key(path) for path in lib.list_assets(scratch, recursive=True, include_folder=False)]
+    deleted = bool(lib.delete_directory(scratch))
+    left = set() if deleted else {key for key in keys if lib.does_asset_exist(key)}
+    for key in keys:
+        if key in left:
+            _could_not_delete(key)
+        else:
+            _log("zi.cleanup", asset=key)
+    if not deleted and not left:  # the listed assets went (or none was listed), the folder stayed
+        _could_not_delete(scratch)
 
 
 def _ensure_path(asset, target: str, row: int, scratch: str | None = None):
@@ -503,7 +532,8 @@ def _discard_failed_import(paths: list[str], target: str) -> None:
 def _import_moved(filename, folder: str, name: str, target: str, cls, row: int, options=None, factory=None):
     """V-03 pattern (pc-findings #1, synthetic_zone._import_geometry): import into <folder>/_import, move the
     `cls` asset to `target`, delete the by-products it listed, then drop the scratch folder with whatever the
-    importer left there unlisted (Interchange glTF: <source>/StaticMeshes/<name> + sibling Materials/)."""
+    importer left there unlisted (Interchange glTF: <source>/StaticMeshes/<name> + sibling Materials/); what
+    that folder delete cannot remove is a WARNING (_delete_scratch, runbook #8)."""
     lib = unreal.EditorAssetLibrary
     scratch = f"{folder}/{SCRATCH}"
     try:
@@ -514,9 +544,7 @@ def _import_moved(filename, folder: str, name: str, target: str, cls, row: int, 
         _delete_assets(paths, keep={target, src})
     finally:
         if lib.does_directory_exist(scratch):
-            for path in lib.list_assets(scratch, recursive=True, include_folder=False):
-                _log("zi.cleanup", asset=_asset_key(path))
-            lib.delete_directory(scratch)
+            _delete_scratch(scratch)
     if _asset_key(asset.get_path_name()) != target:
         raise RuntimeError(f"imported as {asset.get_path_name()}, but the convention path is {target}")
     return asset
@@ -1074,7 +1102,7 @@ def _cleanup_folder(plan: dict) -> None:
             if lib.delete_asset(key):  # like _delete_assets: never a "deleted" line for a failed delete
                 _log("zi.cleanup", asset=key)
             else:
-                _warn(f"cleanup: could not delete {key} (runbook #8)")
+                _could_not_delete(key)  # once per path: a failed scratch delete may have warned already
         else:
             _warn(f"unexpected asset {key} left in place")
 

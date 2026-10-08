@@ -1318,3 +1318,26 @@ PR #87 병합 리뷰 R87의 WP-06 쪽 (C) 3건을 처리했다. 설계·동작 �
 - DECISIONS: 없음(구현 수정, 설계·스택 변경 아님).
 
 **병합**: [PR #122](https://github.com/wooklym/golmok/pull/122) → main(오케스트레이터 결정 D-019; 리뷰 [R122](https://github.com/wooklym/golmok/pull/122#issuecomment-6065848475) (A) 0 · (B) 1 · (C) 6). 위 문안은 STATUS WP-06 행·ROADMAP zone_import 줄에 옮겼다. ROADMAP은 리뷰 제안대로 "긴 worktree 경로" 뒤에 넣고, "GUI 폴백 팩만 PC 미확인"을 "폴백 팩(GUI·헤드리스)만 PC 미확인"으로 바꿨다. R122-B1(태그 판정 뒤 헤드리스 팩 `_pack_udim_tiles`는 PC 미실행)은 이 병합 커밋에서 런북 §2 머리 주의·§12 #4·#42에 반영했다. (C) R122-C1~C6(`parse_dimensions_tag` 초장 자릿수, fake `_TagName` docstring, 테스트 주석, 헤드리스 #38 테스트, §2 커맨드릿 `1 warnings`(#41), 위 "열린 브랜치와 파일 겹침 없음" — #121도 `pc-verify-v17.md`를 고침, 줄 충돌 없음)는 후속 후보로 남긴다.
+
+## 결과 — Claude 후속: 스크래치 폴더 삭제 결과 확인(R81 판단 1 후속) (2026-10-09, Opus 5.5, 세션 `session_01NM6uvZaVMgq5SUSaduHD1Z`, 브랜치 `claude/claude-lane-followups5`) — 🟡 코드 완료·PC 미검증
+"(C) 후속 2" 판단 1에서 범위 밖으로 남긴 `_import_moved`의 스크래치 폴더 정리를 R81 F3(`_cleanup_folder`)과 같은 규칙으로 고쳤다. 전에는 폴더 안 에셋마다 `deleted` 줄을 먼저 적고 `delete_directory`를 불렀으며 그 결과를 보지 않았다. 설계 변경은 없다. 정상 경로의 로그·호출 기록은 바이트 단위로 같다.
+
+| 항목 | 변경 | 테스트 |
+|---|---|---|
+| `_delete_scratch` | `_import_moved`의 `finally`가 부른다. 목록 → `delete_directory` → 로그 순서다. True면 목록 전부에 `zi.cleanup` 줄(종전과 같은 줄·순서, 다만 삭제 뒤). False면 아직 있는 에셋(`does_asset_exist`)마다 `zone_import: WARNING cleanup: could not delete <path> (runbook #8)`, 사라진 것은 `deleted` 줄이다. 남은 에셋이 없는데 False면(폴더만 남음) `<path>`는 스크래치 폴더 자체다 | `test_scratch_deleted_lines_follow_the_folder_delete`(삭제 시점마다 아직 있는 에셋의 `deleted` 줄 0), `…_that_fails_warns_once_per_leftover`, `…_that_stays_is_one_warning`, `test_master_scratch_leftover_is_warned` |
+| `_could_not_delete` | 위 WARNING의 공용 도우미다. 한 `import_assets()` 호출에서 경로당 한 번(`_warned_once`)만 낸다. 지우지 못한 에셋은 같은 스크래치로의 다음 임포트와 cleanup 단계가 다시 목록에 올려 다시 실패할 수 있기 때문이다. `_cleanup_folder`도 이 도우미를 쓴다(첫 경고 문구는 그대로) | `…_warns_once_per_leftover`: 스크래치 삭제 2회 + cleanup 단계가 같은 에셋에서 실패해도 WARNING 1줄, `done … 1 warnings`. 다음 실행이 지운다 |
+| fake 노브 `undeletable` | 경로 집합. `delete_asset`은 False를 돌려주고 에셋을 남긴다. `delete_directory`는 나머지를 지우고, 남긴 에셋이 있거나 폴더 자체가 목록에 있으면 False다(일부 에셋이나 폴더를 지우지 못한 에디터를 흉내 냄). 기본은 빈 집합이라 기존 동작은 같다 | `test_undeletable_knob` |
+| 런북 | §2 실패 목록에 `…/_import` 경로의 `cleanup: could not delete` 한 줄. §12 #8 행에 스크래치 정리 문장(호출 위치 두 곳, 경로당 1회, 마스터 스크래치는 cleanup 단계 밖) | 문구는 코드·테스트와 글자 단위로 같다 |
+
+**판단**
+1. True는 믿는다(F3의 `delete_asset` 규칙과 같다; API 설명상 반환값은 작업 성공 여부다). False일 때만 에셋별로 `does_asset_exist`로 나눈다. 그래서 정상 경로에는 호출이 늘지 않는다.
+2. `_pack_udim_tiles`의 `Textures/_tiles` 삭제와 프로브 `_probe` 삭제는 그대로 두었다. 둘 다 zone 폴더 안이라 같은 실행의 cleanup 단계가 남은 것을 지우거나 경고한다. `_tiles`에 `deleted` 줄을 새로 붙이면 정상 경로 로그가 바뀐다. `synthetic_zone._import_geometry`의 스크래치 삭제(개발용 합성 도구)도 범위 밖이다.
+3. `import_result.json`은 성공한 실행에만 쓰인다(종전 규칙). 임포트가 실패한 실행의 이 WARNING은 Output Log에만 남는다.
+
+**게이트·검증**: `ruff check`·`ruff format --check` 통과, pytest **1841 passed / 3 skipped**(기준 1836 + 새 테스트 5), `check_repo.py` OK, `git diff --check` 깨끗. 기존 코드와 바꾼 코드로 합성 zone `zi.run` 2회 + `interior_setup.run`을 노브 4가지(기본·`nested_glb`·`importer_makes_materials=False`·`nested_glb`+`leave_redirectors`)에서 돌렸다. 로그와 호출 기록이 바이트 단위로 같았다. 새 테스트 4개는 기존 `zone_import.py`에서 모두 실패한다. 뮤테이션 8개(삭제 전 로그·결과 무시·중복 허용·폴더 경고 없음·`_cleanup_folder` 중복·남은 판정 전부/없음·폴더 경고 항상)는 모두 잡혔다.
+
+**PC 미검증**: 실패 분기는 PC에서 일부러 재현하지 않는다(정상 경로 로그는 같다). 런북 §12 #8에 실제로 나오면 `<path>`와 앞의 엔진 경고 줄을 §11에 적는다.
+
+**병합 시 반영(문안)**
+- STATUS WP-06 행 비고 끝에 `· 스크래치 폴더 삭제 결과 확인(R81 판단 1 후속, 실패 시 cleanup WARNING) PR #<번호> 병합`.
+- ROADMAP zone_import 줄: 바꿀 것 없음. V-04c 카드: 바꿀 것 없음(기대 문구 불변).

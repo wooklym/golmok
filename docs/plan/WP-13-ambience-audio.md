@@ -833,3 +833,7 @@ UE 리더 실측:
 R126-1: 가설 점 개수 중복 리터럴을 제거했다. 곡선 전체 비교가 개수도 검사하며 pytest와 같은 가설 수치만 남긴다. R126-2: DOM fixture 파싱 가드를 복구해 실패 시 역참조 전에 테스트를 종료한다. 선택 R126-3~10은 이월, R126-11은 오케스트레이터 병합 시 반영 범위다.
 
 검증: UE 빌드 성공(8.05 s), 전체 39 Success(26 + 경고 13), 실패 0/notRun 0. 오디오 pytest 143 passed/11 skipped, 전체 pytest 1567 passed/274 skipped(97.05 s), check_repo와 diff --check 통과. 생산 코드·설정·WAV·등록 수 무변경. PR #126 수정 push 뒤 push 정지.
+
+### 병합 — T31
+
+[#126](https://github.com/wooklym/golmok/pull/126) → main(오케스트레이터 결정 D-019, merge commit). 리뷰 [R126](https://github.com/wooklym/golmok/pull/126#issuecomment-6068875846)(Opus ultracode 적대 리뷰, 4차원 + 발견별 독립 검증 2표, 변이 39): (A) 0 · (B) 2 · (C) 9. (B) R126-1(가설 블록 점 개수 리터럴이 pytest 동기화 밖)·R126-2(DOM fixture 파싱 가드 삭제)는 Astra `f1062bf`에서 반영했고, 오케스트레이터가 바뀐 두 줄을 다시 확인했다(곡선 전체 비교가 개수를 포함, 람다 뒤 `ReadFixture().IsValid()` 가드). (C) R126-3~10(주석 속 호출, 동기화 pytest 엄격화, `\n` 밖 제어 문자, Warning 위치 정적 검사, `match=` 앞 고정, 빈 상세 분기, `interior_gain = 1.0` 판별력, 문서 정정)은 선택 이월이다. R126-11(병합 시 반영 문안)은 이 병합 커밋에서 처리했다: STATUS WP-13 병행 행에 "D-019 배정으로 R119-1·3·R114-4를 C-08 전에 앞당겨 완료"를 적고, astra-tasks T31 행을 병합으로 바꾸고 배정일을 2026-10-09(KST)로 맞췄으며, R65-1은 C-08과 무관한 독립 이월로 적었다. 새 결정 없음(앞당김은 astra-tasks·STATUS에 이미 기록). C-08 튜닝 PR은 이 병합 뒤에 연다(R114-4 순서); `pc-verify-v18.md`의 0.800/0.280 기대값은 pytest 동기화 밖이라 C-08 튜닝 때 함께 고친다.

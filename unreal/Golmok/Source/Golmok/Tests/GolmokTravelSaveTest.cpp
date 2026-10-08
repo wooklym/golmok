@@ -20,8 +20,15 @@
 // the PC's local time, not the saved minutes); a saved Fixed 16:40 restores time and mode; a save from before WP-14a
 // (Minutes -1) falls back to ApplyPreset(PresetName). Then, with automatic saves on for that step only,
 // golmok.save reset while standing in a zone (R49-1): direct and timer visit polls neither record that zone nor recreate
-// the slot; after leaving it and coming back it is a first visit again and the slot is written. The slot and the test
-// photo are deleted at the end.
+// the slot; after leaving it and coming back it is a first visit again and the slot is written.
+// Close path last (P14-6, R49-2 / V-14 PC fix): with automatic saves on (still the test slot) and the pawn's movement
+// off, a synchronous save at the pawn becomes the last snapshot; the pawn is then moved 10 km and turned without another
+// one, and FEndPlayMapCommand ends PIE (UEditorEngine::EndPlayMap: the game viewport's close request, then teardown and
+// the synchronous world end save). FSaveCloseReadBack waits until PIE has ended and reads the slot back: it holds the
+// close position and yaw (lat / lon 1e-12 deg, h 1e-6 m, ENU yaw 0.001 deg), the zone there, the level and the visit
+// index, not the last snapshot. Without a game viewport (no close request to hook) the last snapshot is accepted too,
+// with an Info line. The test photo is deleted before PIE ends, the slot after the read back (also when PIE does not
+// end in time); a run that stops early deletes both in the scenario.
 // Character (R91-1; skipped with an Info line without an automatically applied roster character and a 'quinn' entry):
 // the automatic pick is saved as an empty id with CharacterIdRule 1; after SelectCharacter(quinn) the slot holds quinn
 // (rule 1). Restores of a slot without position / zone / home (rule 3, only the character step runs): a legacy (rule 0)
@@ -55,6 +62,7 @@
 #include "Engine/World.h"
 #include "EngineUtils.h"
 #include "GameFramework/Character.h"
+#include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/Pawn.h"
 #include "GameFramework/PlayerController.h"
 #include "GameFramework/SpringArmComponent.h"
@@ -97,6 +105,10 @@ namespace GolmokTravelSaveTest
 	constexpr float TodFixedMinutes = 1000.f;  // 16:40, saved in Fixed mode
 	constexpr float TodMinutesTolerance = 0.01f;
 	constexpr float WeatherTolerance = 1e-4f; // WP-16a saved floats (rain intensity, wetness, puddle)
+	constexpr double CloseMoveCm = 1.0e6;     // P14-6: last snapshot -> close position, 10 km along +X (phase 5's offset)
+	constexpr double CloseFromYawUE = 10.0;   // P14-6: control yaw of the last snapshot
+	constexpr double CloseYawUE = -61.25;     // P14-6: control yaw when PIE ends (ENU +61.25)
+	constexpr double CloseWaitSeconds = 30.0; // P14-6: PIE end after FEndPlayMapCommand (the next editor tick in practice)
 
 	/** "id 'quinn' rule 1": a slot's character as one string, so one TestEqual shows both fields (R91-1 follow-up). */
 	FString SlotCharacter(const FString& Id, int32 Rule)
@@ -465,10 +477,33 @@ namespace GolmokTravelSaveTest
 
 	// ---- Golmok.Save.RoundTrip ------------------------------------------------------------------------------------
 
+	/**
+	 * P14-6: what the PIE end save must write. The RoundTrip close step fills it right before FEndPlayMapCommand and
+	 * FSaveCloseReadBack checks it once PIE has ended (the game instance and its save subsystem are gone by then).
+	 */
+	struct FCloseExpectation
+	{
+		bool bArmed = false;    // the close step ran: the test slot is left for the PIE end save, read back and deleted
+		bool bViewport = false; // the PIE world had a game viewport, so the save subsystem's close request hook is bound
+		double Lat = 0.0;       // where the pawn stands when PIE ends
+		double Lon = 0.0;
+		double H = 0.0;
+		double YawDeg = 0.0; // ENU
+		FString ZoneId;      // loaded zone at the close position (empty: none)
+		FString LevelName;   // as the close step's synchronous save wrote it
+		int32 Visited = 0;
+		double BeforeLat = 0.0; // the last snapshot (the close step's synchronous save)
+		double BeforeLon = 0.0;
+		double BeforeYawDeg = 0.0;
+	};
+
 	class FSaveRoundTripScenario : public FScenarioBase
 	{
 	public:
-		explicit FSaveRoundTripScenario(FAutomationTestBase* InTest) : FScenarioBase(InTest) {}
+		FSaveRoundTripScenario(FAutomationTestBase* InTest, const TSharedRef<FCloseExpectation>& InCloseCheck)
+			: FScenarioBase(InTest), CloseCheck(InCloseCheck)
+		{
+		}
 
 		virtual bool Update() override
 		{
@@ -736,7 +771,7 @@ namespace GolmokTravelSaveTest
 				if (!Present)
 				{
 					Test->AddInfo(TEXT("reset / visit poll step skipped: the pawn stands in no loaded zone"));
-					return Cleanup(Save);
+					return Next(7); // the close step does not need a zone
 				}
 				PresentZoneId = Present->ZoneId;
 				PresentLocation = Here;
@@ -786,7 +821,74 @@ namespace GolmokTravelSaveTest
 					return Fail(TEXT("async save after the re-entry did not complete"), 10.0, Elapsed) ? Cleanup(Save) : false;
 				}
 				Test->TestTrue(TEXT("re-entered: slot exists"), Save->HasSave());
-				return Cleanup(Save);
+				return Next(7);
+			}
+
+			case 7: // P14-6: the close path. The last Update: FEndPlayMapCommand ends PIE next, FSaveCloseReadBack reads the slot back
+			{
+				if (Save->GetPendingAsyncSaves() > 0)
+				{
+					// An async write still in flight when PIE ends could land after the world end save with older data (R49-9).
+					return Fail(TEXT("close step: a pending async save did not complete"), 10.0, Elapsed) ? Cleanup(Save) : false;
+				}
+				if (!Pawn || !PC)
+				{
+					Test->AddError(TEXT("close step: no player pawn / controller"));
+					return Cleanup(Save);
+				}
+				if (Save->SlotName != TestSlot)
+				{
+					// The PIE end save writes SlotName with automatic saves on: never with a developer slot.
+					Test->AddError(FString::Printf(TEXT("close step: slot is %s, not %s"), *Save->SlotName, TestSlot));
+					Save->SlotName = TestSlot; // Cleanup's reset deletes the test slot only
+					return Cleanup(Save);
+				}
+				ACharacter* Character = Cast<ACharacter>(Pawn);
+				if (Character && Character->GetCharacterMovement())
+				{
+					Character->GetCharacterMovement()->DisableMovement(); // no fall (no collision under -nullrhi): stays where it is put
+				}
+				Save->ReleaseHold(TEXT("test close step"));
+				Save->SetAutomaticEnabled(true); // the world end save writes only with automatic saves on; the game instance ends with PIE
+				PC->SetControlRotation(FRotator(0.0, CloseFromYawUE, 0.0));
+				FString Message;
+				if (!Test->TestTrue(TEXT("close step: SaveNow(sync) (the last snapshot)"), Save->SaveNow(/*bSync*/ true, TEXT("test close"), &Message)))
+				{
+					Test->AddError(Message);
+					return Cleanup(Save);
+				}
+				const UGolmokSaveGame* Before = Save->LoadSlot();
+				if (!Test->TestNotNull(TEXT("close step: slot written"), Before))
+				{
+					return Cleanup(Save);
+				}
+				FCloseExpectation& Close = *CloseCheck;
+				Close.BeforeLat = Before->Lat;
+				Close.BeforeLon = Before->Lon;
+				Close.BeforeYawDeg = Before->YawDeg;
+				Close.LevelName = Before->LevelName;
+
+				// Moved and turned with no snapshot after it: only one taken when PIE ends can write this position and yaw.
+				Pawn->SetActorLocation(Pawn->GetActorLocation() + FVector(CloseMoveCm, 0.0, 0.0), false, nullptr, ETeleportType::TeleportPhysics);
+				PC->SetControlRotation(FRotator(0.0, CloseYawUE, 0.0));
+				const FVector At = Pawn->GetActorLocation();
+				if (!Test->TestTrue(TEXT("close step: geodetic position of the close spot"), Geo->LevelUEToLonLat(At, Close.Lat, Close.Lon, Close.H)))
+				{
+					return Cleanup(Save);
+				}
+				Close.YawDeg = GolmokTravelMath::UEYawToEnuYaw(CloseYawUE);
+				const AGolmokZone* CloseZone = Zones->FindLoadedZoneAt(FVector2D(At.X, At.Y));
+				Close.ZoneId = CloseZone ? CloseZone->ZoneId : FString();
+				Close.Visited = Save->GetVisited().Num();
+				Close.bViewport = World->GetGameViewport() != nullptr;
+				Close.bArmed = true;
+				bArmed = false; // the slot stays for the PIE end save; FSaveCloseReadBack deletes it
+				IFileManager::Get().Delete(*FPaths::Combine(FPaths::ProjectSavedDir(), TestPhotoRel));
+				Test->AddInfo(FString::Printf(TEXT("close step: last snapshot saved to %s (lat %.9f / lon %.9f, ENU yaw %.2f); pawn moved %.0f m to "
+												   "lat %.9f / lon %.9f, ENU yaw %.2f, zone %s; PIE ends with automatic saves on (game viewport %s)"),
+					TestSlot, Close.BeforeLat, Close.BeforeLon, Close.BeforeYawDeg, CloseMoveCm / 100.0, Close.Lat, Close.Lon, Close.YawDeg,
+					Close.ZoneId.IsEmpty() ? TEXT("-") : *Close.ZoneId, Close.bViewport ? TEXT("yes") : TEXT("no")));
+				return true;
 			}
 
 			default:
@@ -1144,6 +1246,87 @@ namespace GolmokTravelSaveTest
 		bool bArmed = false;
 		bool bTodReady = false; // an AGolmokTimeOfDay with keyframes: the WP-14a time-of-day steps run
 		bool bCharacterReady = false; // an automatic roster pick other than quinn and a quinn entry: the R91-1 character steps run
+		TSharedRef<FCloseExpectation> CloseCheck; // P14-6: filled by the close step (case 7), read by FSaveCloseReadBack
+	};
+
+	/**
+	 * P14-6, after FEndPlayMapCommand: waits until PIE has ended (UEditorEngine::EndPlayMap ran: close request, teardown,
+	 * world end save, game instance shut down), reads the test slot back with UGameplayStatics (no world needed) and deletes
+	 * it. Does nothing when the close step did not run (the scenario said why and already deleted the slot).
+	 */
+	class FSaveCloseReadBack : public IAutomationLatentCommand
+	{
+	public:
+		FSaveCloseReadBack(FAutomationTestBase* InTest, const TSharedRef<FCloseExpectation>& InCloseCheck) : Test(InTest), CloseCheck(InCloseCheck) {}
+
+		virtual bool Update() override
+		{
+			if (!CloseCheck->bArmed)
+			{
+				return true;
+			}
+			const double Now = FPlatformTime::Seconds();
+			if (StartedAt < 0.0)
+			{
+				StartedAt = Now; // latent commands are built when the test starts: time this wait from its first update
+			}
+			if (GEditor && GEditor->PlayWorld.Get())
+			{
+				if (Now - StartedAt < CloseWaitSeconds)
+				{
+					return false;
+				}
+				Test->AddError(FString::Printf(TEXT("close: PIE did not end within %.0f s after FEndPlayMapCommand"), CloseWaitSeconds));
+			}
+			else
+			{
+				CheckSlot();
+			}
+			UGameplayStatics::DeleteGameInSlot(TestSlot, 0);
+			Test->TestFalse(TEXT("close: test slot deleted"), UGameplayStatics::DoesSaveGameExist(TestSlot, 0));
+			return true;
+		}
+
+	private:
+		void CheckSlot()
+		{
+			const FCloseExpectation& Close = *CloseCheck;
+			const UGolmokSaveGame* Slot = Cast<UGolmokSaveGame>(UGameplayStatics::LoadGameFromSlot(TestSlot, 0));
+			if (!Test->TestNotNull(TEXT("close: the slot is readable after PIE ended (world end save)"), Slot))
+			{
+				return;
+			}
+			const FString Got = FString::Printf(TEXT("lat %.9f / lon %.9f / h %.4f, ENU yaw %.3f, zone %s"), Slot->Lat, Slot->Lon, Slot->HeightEllipsoidal,
+				Slot->YawDeg, Slot->ZoneId.IsEmpty() ? TEXT("-") : *Slot->ZoneId);
+			const bool bAtClose = Slot->bHasPosition && FMath::IsNearlyEqual(Slot->Lat, Close.Lat, 1e-12) && FMath::IsNearlyEqual(Slot->Lon, Close.Lon, 1e-12)
+				&& FMath::IsNearlyEqual(Slot->HeightEllipsoidal, Close.H, 1e-6) && FMath::IsNearlyEqual(Slot->YawDeg, Close.YawDeg, 1e-3);
+			const bool bAtBefore = Slot->bHasPosition && FMath::IsNearlyEqual(Slot->Lat, Close.BeforeLat, 1e-12)
+				&& FMath::IsNearlyEqual(Slot->Lon, Close.BeforeLon, 1e-12) && FMath::IsNearlyEqual(Slot->YawDeg, Close.BeforeYawDeg, 1e-3);
+			Test->AddInfo(FString::Printf(TEXT("close: PIE end wrote %s: %s, visited %d"), TestSlot, *Got, Slot->Visited.Num()));
+			if (Close.bViewport)
+			{
+				Test->TestTrue(FString::Printf(TEXT("close: saved where the pawn stood when PIE ended (lat %.9f / lon %.9f, ENU yaw %.3f)"), Close.Lat,
+								   Close.Lon, Close.YawDeg),
+					bAtClose);
+				if (bAtBefore)
+				{
+					Test->AddError(TEXT("close: the slot holds the last snapshot: nothing refreshed it when PIE ended (R49-2; runbook pc-verify-wp15a section 9 #14 / #16)"));
+				}
+				Test->TestEqual(TEXT("close: zone of the close spot"), Slot->ZoneId, Close.ZoneId);
+			}
+			else
+			{
+				Test->AddInfo(TEXT("close: no game viewport in this PIE world (no close request to hook): the last snapshot is accepted too"));
+				Test->TestTrue(TEXT("close: saved at the close spot or at the last snapshot"), bAtClose || bAtBefore);
+			}
+			Test->TestEqual(TEXT("close: SaveSchemaVersion 1"), Slot->SaveSchemaVersion, 1);
+			Test->TestEqual(TEXT("close: level kept"), Slot->LevelName, Close.LevelName);
+			Test->TestEqual(TEXT("close: visit index written"), Slot->Visited.Num(), Close.Visited);
+		}
+
+		FAutomationTestBase* Test;
+		TSharedRef<FCloseExpectation> CloseCheck;
+		double StartedAt = -1.0;
 	};
 
 	/** R91-1 pure rule on a literal roster (the characters.json defaults): no map, pawn or roster assets needed. */
@@ -1202,10 +1385,12 @@ bool FGolmokSaveRoundTripTest::RunTest(const FString& Parameters)
 	{
 		return true;
 	}
+	const TSharedRef<FCloseExpectation> CloseCheck = MakeShared<FCloseExpectation>();
 	ADD_LATENT_AUTOMATION_COMMAND(FEditorLoadMap(ZoneTestMap));
 	ADD_LATENT_AUTOMATION_COMMAND(FStartPIECommand(false));
-	ADD_LATENT_AUTOMATION_COMMAND(FSaveRoundTripScenario(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FSaveRoundTripScenario(this, CloseCheck));
 	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
+	ADD_LATENT_AUTOMATION_COMMAND(FSaveCloseReadBack(this, CloseCheck)); // P14-6: the slot the PIE end save wrote
 	return true;
 }
 
