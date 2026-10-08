@@ -1259,6 +1259,20 @@ def png_size(head: bytes) -> tuple[int, int]:
     return width, height
 
 
+DIMENSIONS_RE = re.compile(r"\s*(\d+)\s*[xX]\s*(\d+)")
+
+
+def parse_dimensions_tag(value) -> tuple[int, int] | None:
+    """(width, height) from a texture's asset registry tag Dimensions ('512x512'; text after the two
+    numbers is ignored, e.g. '512x512x6' or '512x512 (VT)'); None for no value, another form or a 0 side
+    (runbook #42)."""
+    m = DIMENSIONS_RE.match(str(value)) if value is not None else None
+    if m is None:
+        return None
+    width, height = int(m.group(1)), int(m.group(2))
+    return (width, height) if width > 0 and height > 0 else None
+
+
 # ---- Zone Index sync (WP-09 design §3-7; spec §6 and docs/spec/zone-index.schema.json) ------------------
 
 

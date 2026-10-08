@@ -19,8 +19,10 @@ What it does (docs/runbooks/pc-verify-wp06.md §2; WP-06 design §3-2):
 3. Textures: the UDIM anchor tile (BaseName.1001.ext) or the single file is imported in place as
    Textures/T_<base> (replace_existing: a re-import keeps the asset object), sRGB and virtual texture streaming
    are forced on, and tiles the importer did not merge are packed with UDIMTextureFunctionLibrary from copies
-   named outside the engine UDIM rule (last resort: tile 1001 only + WARNING). Under -nullrhi the size test
-   cannot tell merged from unmerged: no pack, one WARNING (V-04b F1).
+   named outside the engine UDIM rule (last resort: tile 1001 only + WARNING). The merge test reads the
+   texture's asset registry tag Dimensions (the whole canvas, with or without RHI; runbook #42), else
+   blueprint_get_size_x/y; only without the tag under -nullrhi (or on a 0 size) does it skip the pack with one
+   WARNING (V-04b F1).
 4. Materials: /Game/Golmok/Materials/M_ZoneScan (VT sampler; default texture = its own T_ZoneScanDefault,
    repaired in place on an existing master) and M_ZoneScan_NoVT (T_ZoneScanDefault_NoVT) when a texture
    could not be made VT; one MI_<material> per MTL material.
@@ -72,7 +74,8 @@ _BYPRODUCT_CLASSES = ("Material", "MaterialInstanceConstant", "Texture2D")  # im
 SCRATCH = "_import"  # V-03: mesh imports (and T_ZoneScanDefault) go to <folder>/_import, then are moved
 MASTER_DEFAULT_NAME = "T_ZoneScanDefault"  # the masters' own default texture (never a zone texture)
 MASTER_DEFAULT_PX = 256  # >= the virtual texture tile size
-NULLRHI_FLAG = "-nullrhi"  # headless editor: texture sizes are not measurable (V-04b F1, runbook #4)
+NULLRHI_FLAG = "-nullrhi"  # headless editor: blueprint_get_size_x/y is not the canvas (V-04b F1, runbook #4)
+DIMENSIONS_TAG = "Dimensions"  # Texture2D asset registry tag: the imported source size "WxH" (runbook #42)
 HOW_NO_RHI = "merged by importer (size unverifiable without RHI)"
 HOW_SIZE_ZERO = "merged by importer (size {w}x{h})"  # with RHI, before the texture has data (R81-7)
 FULL_PRECISION_UVS_ROW = 41  # runbook §12 row of the LOD0 build settings calls (WP-06 round 2 item 2)
@@ -619,10 +622,44 @@ def _importer_mappings(work: str, asset_folder: str, remeasure: bool):
 # ---- textures --------------------------------------------------------------------------------------------
 
 
-def _texture_size(texture) -> tuple[int, int] | None:
+def _dimensions_tag(texture) -> tuple[int, int] | None:
+    """(w, h) from the texture's asset registry tag Dimensions, None without a usable one (runbook #42).
+
+    The tag is the imported source size, so a merged UDIM's whole canvas with or without RHI. V-04 probe
+    (UE 5.8.3, -nullrhi, Interchange): "512x512" right after import, after rename_asset and after save, and on
+    a make_udim_virtual_texture_from_texture2_ds result, while blueprint_get_size_x/y gave the first block
+    (256x256). get_tag_values returns an unreal.Map keyed by unreal.Name: the Map itself takes a str key
+    (5.8.3), but hash(Name) != hash(str), so a dict copy of it misses one; the keys are read as str."""
+    lib = unreal.EditorAssetLibrary
+    if not hasattr(lib, "get_tag_values") or not hasattr(texture, "get_path_name"):
+        return None
+    try:
+        tags = {str(k): str(v) for k, v in lib.get_tag_values(_asset_key(texture.get_path_name())).items()}
+    except Exception as e:  # uncertain call (#42): blueprint_get_size_x/y decides, as before the tag
+        if "get_tag_values" not in _warned_once:  # once per call (R69-7)
+            _warned_once.add("get_tag_values")
+            _warn(
+                f"EditorAssetLibrary.get_tag_values failed ({e}); texture sizes read from "
+                "blueprint_get_size_x/y (runbook #42)"
+            )
+        return None
+    return _pure.parse_dimensions_tag(tags.get(DIMENSIONS_TAG))
+
+
+def _texture_size_and_source(texture) -> tuple[tuple[int, int] | None, str | None]:
+    """(size, source): the Dimensions tag ('tag', the canvas with or without RHI; #42), else
+    blueprint_get_size_x/y ('blueprint': without RHI a merged UDIM's first block, V-04c; with RHI 32x32 or 0
+    until the texture has data, R81-7), else (None, None)."""
+    size = _dimensions_tag(texture)
+    if size is not None:
+        return size, "tag"
     if hasattr(texture, "blueprint_get_size_x") and hasattr(texture, "blueprint_get_size_y"):
-        return int(texture.blueprint_get_size_x()), int(texture.blueprint_get_size_y())
-    return None
+        return (int(texture.blueprint_get_size_x()), int(texture.blueprint_get_size_y())), "blueprint"
+    return None, None
+
+
+def _texture_size(texture) -> tuple[int, int] | None:
+    return _texture_size_and_source(texture)[0]
 
 
 def _png_tile_size(path: str) -> tuple[int, int] | None:
@@ -647,9 +684,9 @@ def _force_texture_settings(texture) -> tuple[bool, bool]:
 def _without_rhi() -> bool | None:
     """True when the editor runs without RHI (-nullrhi, or a -run= commandlet without
     -AllowCommandletRendering), None when SystemLibrary.get_command_line is not exposed (runbook #4, #40).
-    Without RHI a texture's size comes from its source, and a merged UDIM then seems to report its first
-    block (the tile size) [unverified on 5.8.3 source]: the size test cannot tell merged from unmerged, and
-    packing a merged texture again ends the editor (V-04b F1). Kept for tests
+    Without RHI blueprint_get_size_x/y of a merged UDIM reports its first block (the tile size; V-04c on
+    5.8.3): that size cannot tell merged from unmerged, and packing a merged texture again ends the editor
+    (V-04b F1). It matters only when the Dimensions tag is missing (#42). Kept for tests
     only (R81-7): _import_texture reads _no_rhi_reason() directly, for the WARNING's cause."""
     reason = _no_rhi_reason()
     return None if reason is None else bool(reason)
@@ -750,8 +787,9 @@ def _import_texture(tex: dict, asset_folder: str, reimport: bool, work: str) -> 
                     "[._]####); rename the file (runbook #38)"
                 )
         elif len(tiles) > 1:
-            size, tile = _texture_size(texture), _png_tile_size(tex["anchor"])
-            reason = _no_rhi_reason()
+            (size, source), tile = _texture_size_and_source(texture), _png_tile_size(tex["anchor"])
+            # the Dimensions tag is the canvas with or without RHI (#42): RHI matters for blueprint sizes only
+            reason = "" if source == "tag" else _no_rhi_reason()
             no_rhi = None if reason is None else bool(reason)
             if size is None or tile is None:
                 how = "merged by importer (size unknown)"

@@ -1151,6 +1151,34 @@ def test_png_size(mods):
             pure.png_size(bad)
 
 
+@pytest.mark.parametrize(
+    ("value", "size"),
+    [
+        ("512x512", (512, 512)),  # V-04 probe: a merged 2 x 2 UDIM of 256 px tiles
+        ("256x256", (256, 256)),
+        ("2048x1024", (2048, 1024)),  # w first
+        (" 512 X 256 ", (512, 256)),
+        ("512x512x6", (512, 512)),  # suffixes are ignored
+        ("512x512 (VT)", (512, 512)),
+        ("4096x40960", (4096, 40960)),
+        ("1x1", (1, 1)),
+        ("0x0", None),
+        ("512x0", None),
+        ("0x512", None),
+        ("", None),
+        (None, None),
+        ("unknown", None),
+        ("512", None),
+        ("x512", None),
+        ("512 by 512", None),
+        ("-512x512", None),
+        ("Dimensions: 512x512", None),  # a prefix is not tolerated
+    ],
+)
+def test_parse_dimensions_tag(mods, value, size):
+    assert mods.pure.parse_dimensions_tag(value) == size
+
+
 # ---- logs, results ----------------------------------------------------------------------------------
 
 
