@@ -35,7 +35,7 @@ V-11 §14와 같은 방법(SendInput 지속 입력 + ffmpeg 1920×1080 60 fps)�
 - [ ] 4×3 대표 프레임 시트(캐릭터당 1장, ≤ 300 KB)와 측정 표를 `pc-verify-wp18a.md` §15 끝 "V-17 결과"에 적는다(PC 결과 절, §7.6 예외).
 
 ## 3. Full Precision UV API 확인 (#107, P04c-2) — [`pc-verify-wp06.md` §2·§4·§12 #41](pc-verify-wp06.md)
-- [ ] 합성 zone 임포트(§2, 헤드리스 `-nullrhi` 1회 + GUI 1회): 로그에 `zone_import: full precision UVs (LOD0) on 2/2 chunks (2 set, 0 already on)`가 나오고 `done … 8 assets`의 warnings 수가 늘지 않는다. 재실행 시 `(0 set, 2 already on)`이 아니라 새 메시라 다시 `2 set`이어도 정상(§12 #41).
+- [ ] 합성 zone 임포트(§2, 헤드리스 `-nullrhi` 1회 + GUI 1회): 로그에 `zone_import: full precision UVs (LOD0) on 2/2 chunks (2 set, 0 already on)`가 나오고 `done … 8 assets`의 warnings 수가 늘지 않는다. 재실행 시 `(0 set, 2 already on)`이 아니라 새 메시라 다시 `2 set`이어도 정상(§12 #41). 태그 우선 PR #NNN 뒤로는 헤드리스도 `T_facade … size=512x512 vt=on (merged by importer)`·`0 warnings`다(그 전 `(-nullrhi)` WARNING 1줄은 사라짐). 태그와 `blueprint_get_size_x/y` 비교는 2026-10-09에 확인했다(`pc-verify-wp06.md` §11 인계 10, §12 #42).
 - [ ] GUI에서 `SM_c_e000_n000` → LOD0 Build Settings › **Use Full Precision UVs ✔**.
 - [ ] API가 없으면 WARNING 1줄(`StaticMeshEditorSubsystem.get_lod_build_settings/set_lod_build_settings unavailable…`)이 나오고 임포트는 끝난다 — 그 경우 §12 #41 대안(에디터 수동 체크)을 적고 `pc-spike.md` S7에 남긴다.
 - [ ] 청크당 임포트 시간(이전 V-04c 로그 대비)을 적는다(R107-5: 빌드 3회 비용 판단 자료).

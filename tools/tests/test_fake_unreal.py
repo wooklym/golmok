@@ -278,6 +278,36 @@ def test_png_import_udim_merge_and_single(fake, unreal, zone, tmp_path):
     assert fake.calls[-1] == ("make_udim", f"{textures}/T_packed", [(0, 0), (1, 0), (0, 1)])
 
 
+def test_texture_dimensions_tag_and_nullrhi_block_size(fake, unreal, zone):
+    # V-04 probe (-nullrhi): blueprint_get_size_x/y = the first block, tag Dimensions = the canvas, keys are
+    # unreal.Name (the fake's dict misses a str lookup, like a dict copy of the real unreal.Map); the packed
+    # texture and a single texture carry it too (runbook #42)
+    lib = unreal.EditorAssetLibrary
+    textures = f"{FOLDER}/Textures"
+    fake.nullrhi = True
+    merged = lib.load_asset(_import(unreal, zone.tex / "facade.1001.png", textures, "T_facade")[0])
+    ground = lib.load_asset(_import(unreal, zone.tex / "ground.png", textures, "T_ground")[0])
+    assert (merged.blueprint_get_size_x(), merged.blueprint_get_size_y()) == (256, 256)
+    assert (ground.blueprint_get_size_x(), ground.blueprint_get_size_y()) == (256, 256)
+
+    def tags(path):
+        got = lib.get_tag_values(path)
+        assert all(not isinstance(k, str) for k in got) and "Dimensions" not in got
+        return {str(k): v for k, v in got.items()}
+
+    for path in (merged.path, merged.get_path_name()):  # package or object path
+        assert tags(path) == {"HasAlphaChannel": "False", "Dimensions": "512x512"}
+    assert tags(ground.path)["Dimensions"] == "256x256"
+    lib.rename_asset(merged.path, f"{textures}/T_moved")
+    lib.save_loaded_asset(merged)
+    assert tags(f"{textures}/T_moved")["Dimensions"] == "512x512" and tags(merged.path)["Dimensions"]
+    assert lib.get_tag_values(f"{textures}/T_missing") == {} and lib.get_tag_values(f"{FOLDER}/x") == {}
+    fake.dimensions_tag = False
+    assert tags(ground.path) == {"HasAlphaChannel": "False"}
+    fake.nullrhi = False
+    assert (merged.blueprint_get_size_x(), merged.blueprint_get_size_y()) == (512, 512)  # RHI: the canvas
+
+
 def test_obj_route_detection_and_ladder(fake, unreal, zone):
     obj = zone.version / "visual" / "c_w001_n000.obj"
     fake.importer_makes_materials = False

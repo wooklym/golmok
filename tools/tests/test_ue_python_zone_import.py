@@ -687,13 +687,66 @@ def test_texture_named_otherwise_is_moved_with_warning(fake, unreal, zone, zi, m
     assert result["warnings"] == [f"{src} renamed to {dst} (importer naming; runbook #4)"]
 
 
-# ---- V-04b F1: UDIM fallback without RHI -----------------------------------------------------------------
+# ---- V-04b F1: UDIM fallback without RHI; the Dimensions tag (runbook #42) -------------------------------
 
 
-def test_nullrhi_skips_udim_pack_fallback(monkeypatch, tmp_path, zone):
-    # -nullrhi: the merged UDIM reports its first block (256 = the tile), so the size test would pack an
-    # already merged texture - an engine assert (GetNumBlocks() == 1) that ended the V-04b headless run
+def _tag_map(**tags) -> dict:
+    """A get_tag_values result: unreal.Name keys (not str; a str lookup misses) to str values."""
+    return {fake_unreal._TagName(k): v for k, v in tags.items()}
+
+
+def test_nullrhi_reads_the_dimensions_tag(monkeypatch, tmp_path, zone):
+    # -nullrhi: blueprint_get_size_x/y of the merged UDIM is its first block (256 = the tile; V-04c), but the
+    # Dimensions tag is the canvas (V-04 probe): the merge check runs as in a GUI editor, no WARNING
     fake = fake_unreal.install(monkeypatch, tmp_path, nullrhi=True)
+    zi = importlib.import_module("golmok.zone_import")
+    result = _run(zi, zone)
+    tex = fake.registry[f"{FOLDER}/Textures/T_facade"]
+    assert tex.size == (512, 512) and tex.blueprint_get_size_x() == 256  # merged; blueprint says a tile
+    tags = fake.module.EditorAssetLibrary.get_tag_values(tex.path)
+    assert "Dimensions" not in tags and {str(k): v for k, v in tags.items()}["Dimensions"] == "512x512"
+    assert fake.calls_of("make_udim") == [] and not [c for c in fake.calls_of("import") if c[2] == TILES]
+    assert result["warnings"] == [] and fake.logged("warning") == []
+    facade = next(a for a in result["assets"] if a["asset"].endswith("T_facade"))
+    assert facade["detail"] == {
+        "tiles": [1001, 1002, 1011], "size": [512, 512], "vt": True, "how": "merged by importer",
+    }  # fmt: skip
+    assert (
+        f"zone_import: texture {FOLDER}/Textures/T_facade tiles=[1001, 1002, 1011] size=512x512 vt=on "
+        "(merged by importer)"
+    ) in fake.logged("log")
+    assert f"zone_import: done {ZONE} v1: 8 assets, 0 warnings" in "\n".join(fake.logged("log"))
+
+
+def test_nullrhi_packs_unmerged_tiles_by_the_tag(monkeypatch, tmp_path, zone):
+    # with the tag the size test is trustworthy headless too: unmerged tiles are packed (V-04 probe: packing
+    # works under -nullrhi), without the #40 WARNING (the tag needs no RHI)
+    fake = fake_unreal.install(monkeypatch, tmp_path, nullrhi=True, udim_merge=False)
+    zi = importlib.import_module("golmok.zone_import")
+    result = _run(zi, zone)
+    packed = ("make_udim", f"{FOLDER}/Textures/T_facade", [(0, 0), (1, 0), (0, 1)])
+    assert fake.calls_of("make_udim") == [packed] and result["warnings"] == []
+    assert (
+        f"zone_import: texture {FOLDER}/Textures/T_facade tiles=[1001, 1002, 1011] size=512x512 vt=on "
+        "(packed from 3 tiles)"
+    ) in fake.logged("log")
+    monkeypatch.delattr(fake.module.SystemLibrary, "get_command_line")  # #40: not needed with the tag
+    fake.calls.clear()
+    assert _run(zi, zone)["warnings"] == [] and len(fake.calls_of("make_udim")) == 1
+
+
+@pytest.mark.parametrize("no_tag", ["knob", "no_api", "unparsable", "zero"])
+def test_nullrhi_without_the_tag_skips_udim_pack_fallback(monkeypatch, tmp_path, zone, no_tag):
+    # no usable Dimensions tag: the blueprint size under -nullrhi is the first block (256 = the tile), so the
+    # size test would pack an already merged texture - an engine assert (GetNumBlocks() == 1) that ended the
+    # V-04b headless run
+    fake = fake_unreal.install(monkeypatch, tmp_path, nullrhi=True, dimensions_tag=no_tag != "knob")
+    lib = fake.module.EditorAssetLibrary
+    if no_tag == "no_api":
+        monkeypatch.delattr(lib, "get_tag_values")
+    elif no_tag != "knob":
+        tags = _tag_map(Dimensions={"unparsable": "unknown", "zero": "0x512"}[no_tag])
+        monkeypatch.setattr(lib, "get_tag_values", staticmethod(lambda asset_path: tags))
     zi = importlib.import_module("golmok.zone_import")
     result = _run(zi, zone)  # no fake engine assert
     assert fake.calls_of("make_udim") == [] and not [c for c in fake.calls_of("import") if c[2] == TILES]
@@ -719,8 +772,9 @@ def test_nullrhi_skips_udim_pack_fallback(monkeypatch, tmp_path, zone):
 
 
 def test_nullrhi_unmerged_tiles_are_not_packed_either(monkeypatch, tmp_path, zone):
-    # without RHI the size test cannot tell merged from unmerged: no pack at all, one WARNING
-    fake = fake_unreal.install(monkeypatch, tmp_path, nullrhi=True, udim_merge=False)
+    # without RHI and without the Dimensions tag the size test cannot tell merged from unmerged: no pack at
+    # all, one WARNING
+    fake = fake_unreal.install(monkeypatch, tmp_path, nullrhi=True, udim_merge=False, dimensions_tag=False)
     zi = importlib.import_module("golmok.zone_import")
     result = _run(zi, zone)
     assert fake.calls_of("make_udim") == []
@@ -731,9 +785,10 @@ def test_nullrhi_unmerged_tiles_are_not_packed_either(monkeypatch, tmp_path, zon
 
 @pytest.mark.parametrize("size", [(0, 0), (512, 0)])
 def test_zero_size_skips_udim_pack_fallback(monkeypatch, tmp_path, zone, size):
-    # a size with a 0 (no platform data yet) is not a size to pack on either (V-04b F1); R87-3: WxH in order
+    # a size with a 0 (no platform data yet) is not a size to pack on either (V-04b F1); R87-3: WxH in order.
+    # Without the Dimensions tag: the tag is the source size and never 0 (#42)
     w, h = size
-    fake = fake_unreal.install(monkeypatch, tmp_path, udim_merge=False)
+    fake = fake_unreal.install(monkeypatch, tmp_path, udim_merge=False, dimensions_tag=False)
     monkeypatch.setattr(fake_unreal.FakeTexture2D, "_reported_size", lambda self: size)
     zi = importlib.import_module("golmok.zone_import")
     result = _run(zi, zone)
@@ -755,7 +810,7 @@ def test_zero_size_skips_udim_pack_fallback(monkeypatch, tmp_path, zone, size):
 
 def test_zero_size_without_get_command_line_names_the_size(monkeypatch, tmp_path, zone):
     """R87-4: RHI not detectable (#40) and a 0 size: the size WARNING alone; no pack, no #40 WARNING."""
-    fake = fake_unreal.install(monkeypatch, tmp_path, udim_merge=False)
+    fake = fake_unreal.install(monkeypatch, tmp_path, udim_merge=False, dimensions_tag=False)
     monkeypatch.delattr(fake.module.SystemLibrary, "get_command_line")
     monkeypatch.setattr(fake_unreal.FakeTexture2D, "_reported_size", lambda self: (0, 512))
     zi = importlib.import_module("golmok.zone_import")
@@ -771,7 +826,7 @@ def test_zero_size_without_get_command_line_names_the_size(monkeypatch, tmp_path
 
 def test_zero_size_without_rhi_keeps_the_no_rhi_wording(monkeypatch, tmp_path, zone):
     """R81-7: -nullrhi and a 0x0 size together: the cause is the missing RHI (one WARNING, as before)."""
-    fake = fake_unreal.install(monkeypatch, tmp_path, nullrhi=True)
+    fake = fake_unreal.install(monkeypatch, tmp_path, nullrhi=True, dimensions_tag=False)
     monkeypatch.setattr(fake_unreal.FakeTexture2D, "_reported_size", lambda self: (0, 0))
     zi = importlib.import_module("golmok.zone_import")
     result = _run(zi, zone)
@@ -795,8 +850,9 @@ def test_zero_size_without_rhi_keeps_the_no_rhi_wording(monkeypatch, tmp_path, z
     ids=["nullrhi", "slash", "commandlet", "both"],
 )
 def test_no_rhi_warning_names_its_cause(monkeypatch, tmp_path, zone, command_line, why):
-    """R69-6: -nullrhi, /nullrhi and a commandlet without rendering each name themselves in the WARNING."""
-    fake = fake_unreal.install(monkeypatch, tmp_path, nullrhi=True)
+    """R69-6: -nullrhi, /nullrhi and a commandlet without rendering each name themselves in the WARNING
+    (the WARNING needs a missing Dimensions tag, #42)."""
+    fake = fake_unreal.install(monkeypatch, tmp_path, nullrhi=True, dimensions_tag=False)
     monkeypatch.setattr(fake.module.SystemLibrary, "get_command_line", staticmethod(lambda: command_line))
     zi = importlib.import_module("golmok.zone_import")
     result = _run(zi, zone)
@@ -809,9 +865,10 @@ def test_no_rhi_warning_names_its_cause(monkeypatch, tmp_path, zone, command_lin
 
 
 def test_gui_editor_packs_as_before_and_reads_the_command_line(monkeypatch, tmp_path, zone):
-    # GUI editor (no -nullrhi): unmerged tiles are packed exactly as before; without get_command_line the
-    # pack still runs on the size test alone, with a WARNING that -nullrhi could not be checked
-    fake = fake_unreal.install(monkeypatch, tmp_path, udim_merge=False)
+    # GUI editor (no -nullrhi) without the Dimensions tag: unmerged tiles are packed exactly as before;
+    # without get_command_line the pack still runs on the blueprint size alone, with a WARNING that -nullrhi
+    # could not be checked (the tag needs no check: test_nullrhi_packs_unmerged_tiles_by_the_tag)
+    fake = fake_unreal.install(monkeypatch, tmp_path, udim_merge=False, dimensions_tag=False)
     assert "-nullrhi" not in fake.module.SystemLibrary.get_command_line()
     zi = importlib.import_module("golmok.zone_import")
     result = _run(zi, zone)
@@ -844,6 +901,105 @@ def test_gui_editor_packs_as_before_and_reads_the_command_line(monkeypatch, tmp_
     assert fake.logged("warning") == [f"zone_import: WARNING {message}"]
     fake.logs.clear()
     assert _run(zi, zone)["warnings"] == [message]  # once per call, not once per process
+
+
+def test_tag_beats_a_placeholder_blueprint_size(monkeypatch, tmp_path, zone):
+    # V-04c GUI: right after an editor start blueprint_get_size_x/y gave 32x32 for ~20 s; the tag is the
+    # source size at once, so unmerged tiles are still packed (the blueprint size alone says "merged")
+    fake = fake_unreal.install(monkeypatch, tmp_path, udim_merge=False)
+    monkeypatch.setattr(fake_unreal.FakeTexture2D, "_reported_size", lambda self: (32, 32))
+    zi = importlib.import_module("golmok.zone_import")
+    result = _run(zi, zone)
+    assert len(fake.calls_of("make_udim")) == 1 and result["warnings"] == []
+    facade = next(a for a in result["assets"] if a["asset"].endswith("T_facade"))
+    assert facade["detail"]["how"] == "packed from 3 tiles" and facade["detail"]["size"] == [512, 512]
+    fake.dimensions_tag = False
+    fake.calls.clear()
+    result = _run(zi, zone)
+    facade = next(a for a in result["assets"] if a["asset"].endswith("T_facade"))
+    assert fake.calls_of("make_udim") == [] and facade["detail"]["how"] == "merged by importer"
+
+
+def test_tag_without_blueprint_size_still_decides(monkeypatch, tmp_path, zone):
+    # the tag first: blueprint_get_size_x/y missing does not matter while the tag is there (#42)
+    fake = fake_unreal.install(monkeypatch, tmp_path, nullrhi=True, udim_merge=False)
+    monkeypatch.delattr(fake_unreal.FakeTexture2D, "blueprint_get_size_x")
+    zi = importlib.import_module("golmok.zone_import")
+    result = _run(zi, zone)
+    assert len(fake.calls_of("make_udim")) == 1 and result["warnings"] == []
+    assert (
+        f"zone_import: texture {FOLDER}/Textures/T_facade tiles=[1001, 1002, 1011] size=512x512 vt=on "
+        "(packed from 3 tiles)"
+    ) in fake.logged("log")
+
+
+@pytest.mark.parametrize("nullrhi", [False, True])
+def test_no_size_from_either_source_warns_and_skips(monkeypatch, tmp_path, zone, nullrhi):
+    # neither the tag nor blueprint_get_size_x/y: no pack, the "could not be verified by size" WARNING
+    fake = fake_unreal.install(monkeypatch, tmp_path, nullrhi=nullrhi, udim_merge=False)
+    monkeypatch.delattr(fake.module.EditorAssetLibrary, "get_tag_values")
+    monkeypatch.delattr(fake_unreal.FakeTexture2D, "blueprint_get_size_x")
+    zi = importlib.import_module("golmok.zone_import")
+    result = _run(zi, zone)
+    assert fake.calls_of("make_udim") == []
+    assert result["warnings"] == ["texture T_facade: UDIM merge could not be verified by size (runbook #4)"]
+    facade = next(a for a in result["assets"] if a["asset"].endswith("T_facade"))
+    assert facade["detail"]["how"] == "merged by importer (size unknown)" and facade["detail"]["size"] is None
+    assert (
+        f"zone_import: texture {FOLDER}/Textures/T_facade tiles=[1001, 1002, 1011] size=?x? vt=on "
+        "(merged by importer (size unknown))"
+    ) in fake.logged("log")
+
+
+def _raise_no_registry(asset_path):
+    raise RuntimeError("no registry")
+
+
+@pytest.mark.parametrize(
+    ("broken", "why"),
+    [
+        (_raise_no_registry, "no registry"),
+        (lambda asset_path: None, "'NoneType' object has no attribute 'items'"),  # not a map: also caught
+    ],
+    ids=["raises", "returns-none"],
+)
+def test_get_tag_values_failure_warns_once_and_falls_back(monkeypatch, tmp_path, zone, broken, why):
+    # a failing uncertain call (#42): one WARNING per call, then blueprint_get_size_x/y decides
+    fake = fake_unreal.install(monkeypatch, tmp_path, udim_merge=False)
+    monkeypatch.setattr(fake.module.EditorAssetLibrary, "get_tag_values", staticmethod(broken))
+    zi = importlib.import_module("golmok.zone_import")
+    message = (
+        f"EditorAssetLibrary.get_tag_values failed ({why}); texture sizes read from "
+        "blueprint_get_size_x/y (runbook #42)"
+    )
+    for _ in range(2):  # once per call, not once per process
+        fake.calls.clear()
+        fake.logs.clear()
+        result = _run(zi, zone)
+        assert result["warnings"] == [message]
+        assert fake.logged("warning") == [f"zone_import: WARNING {message}"]
+        assert len(fake.calls_of("make_udim")) == 1  # GUI: the blueprint size (256 = the tile) packs
+    # with get_command_line missing too, the blueprint-size pack also gives its own #40 WARNING (own key)
+    monkeypatch.delattr(fake.module.SystemLibrary, "get_command_line")
+    result = _run(zi, zone)
+    assert result["warnings"] == [
+        message,
+        "SystemLibrary.get_command_line unavailable: -nullrhi not detectable; UDIM pack fallback for "
+        "T_facade runs on the size test alone (runbook #4)",
+    ]
+
+
+def test_tag_reads_the_package_path(fake, unreal, zi, monkeypatch):
+    # get_tag_values gets the package path ('/Game/A/B', as in the V-04 probe), never the object path
+    seen = []
+    monkeypatch.setattr(
+        unreal.EditorAssetLibrary,
+        "get_tag_values",
+        staticmethod(lambda asset_path: seen.append(asset_path) or _tag_map(Dimensions="1024x512 (VT)")),
+    )
+    tex = fake_unreal.FakeTexture2D(fake, f"{FOLDER}/Textures/T_x", (8, 8))
+    assert zi._texture_size_and_source(tex) == ((1024, 512), "tag")
+    assert seen == [f"{FOLDER}/Textures/T_x"]
 
 
 @pytest.mark.parametrize(

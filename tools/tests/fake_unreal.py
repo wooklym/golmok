@@ -69,7 +69,11 @@ KNOBS (install(**cfg) keywords = Fake attributes): obj_mapping=(100.0, M_OBJ) gl
     [._]#### with #### >= 1001 is placed as one UDIM block like UTextureFactory's default UdimRegexPattern,
     unless the task options carry import_udi_ms=False; runbook §12 #38)
     nullrhi=False (True: SystemLibrary.get_command_line() carries -nullrhi and a merged UDIM texture reports
-    its first block, the tile size, from blueprint_get_size_x/y - the V-04b F1 headless case; runbook §12 #4)
+    its first block, the tile size, from blueprint_get_size_x/y - the V-04b F1 headless case, V-04c measured
+    256x256; runbook §12 #4) dimensions_tag=True (EditorAssetLibrary.get_tag_values(path) of a Texture2D maps
+    _TagName("Dimensions") - not a str key: unreal.Name hashes unlike its str - to its canvas "WxH" with or
+    without nullrhi, as the V-04 probe and 2026-10-09 PC runs read it; False: no Dimensions tag; runbook §12
+    #42)
     relative_paths=False (True: Paths.project_*_dir() are relative to the fake editor binaries folder
     <tmp_path>/UE_5.8/Engine/Binaries/Win64 (fake.binaries_dir), like the editor;
     convert_relative_path_to_full resolves them against it; V-04b F2, runbook §12 #31)
@@ -119,8 +123,9 @@ Libraries (EditorAssetLibrary, SystemLibrary, Paths, ...) are classes of static 
 monkeypatch.delattr(unreal.SystemLibrary, "get_engine_version") removes one for a hasattr test; subsystems
 are classes too (delattr on unreal.StaticMeshEditorSubsystem); get_editor_subsystem returns Fake instances.
 EditorLevelLibrary and CesiumGeoreference are absent by default (fallback tests add them). Where the fake
-merely assumes real-API behaviour (UDIM canvas size, usemtl slot names, HighResShot fallback name, save_map
-renaming the open world) the runbook rows are docs/runbooks/pc-verify-wp06.md §12 #4, #7, #30 and #18.
+merely assumes real-API behaviour (UDIM canvas size, the Dimensions tag in a GUI editor, usemtl slot names,
+HighResShot fallback name, save_map renaming the open world) the runbook rows are
+docs/runbooks/pc-verify-wp06.md §12 #4, #42, #7, #30 and #18.
 """
 
 from __future__ import annotations
@@ -165,7 +170,7 @@ KNOBS = {
     "screenshot_fallback_name": False,
     "viewport_size": (1014, 550), "nested_glb": False, "engine_udim_regex": False,
     "zone_transform": ZONE_ROOT_CM, "begin_play_starts_pie": True, "level": DEFAULT_LEVEL, "lit": True,
-    "save_map_renames": True, "nullrhi": False, "relative_paths": False,
+    "save_map_renames": True, "nullrhi": False, "relative_paths": False, "dimensions_tag": True,
     "dependencies": {}, "rename_directory_ok": True,  # WP-19 gasp_import
     "leave_redirectors": False, "fixup_deletes_redirectors": True,  # WP-19a-2 gasp_import
     "full_precision_uvs": False,  # WP-06 round 2 item 2
@@ -310,6 +315,30 @@ class Name(str):
     """FName stand-in: a str, so Name('x') == 'x' and `Name(tag) in actor.tags` work."""
 
     __slots__ = ()
+
+
+class _TagName:
+    """unreal.Name as a key of EditorAssetLibrary.get_tag_values: str() gives the text and == compares with
+    the str, but hash(Name) != hash(str) (5.8.3), so a str lookup misses here. The real result is an
+    unreal.Map that does take str keys; this fake is the stricter dict copy of it, so code must read the
+    map as {str(k): str(v) ...} (runbook §12 #42)."""
+
+    __slots__ = ("_text",)
+
+    def __init__(self, text: str):
+        self._text = str(text)
+
+    def __str__(self):
+        return self._text
+
+    def __repr__(self):
+        return f"Name({self._text!r})"
+
+    def __eq__(self, other):
+        return type(other) is _TagName and other._text == self._text
+
+    def __hash__(self):
+        return hash((_TagName, self._text))
 
 
 class Box:
@@ -1041,6 +1070,19 @@ class FakeEditorAssetLibrary(_Bound):
     def save_loaded_asset(self, asset_to_save, only_if_is_dirty=True):
         self._fake.calls.append(("save", asset_to_save.path))
         return True
+
+    def get_tag_values(self, asset_path):
+        """Asset registry tags (TMap<FName, FString>, keys _TagName): a Texture2D has HasAlphaChannel and
+        Dimensions = its imported source size, the canvas of a merged UDIM even when nullrhi makes
+        blueprint_get_size_x/y report the first block (runbook §12 #42); dimensions_tag=False drops it.
+        An unknown path gives an empty map, like the editor (which logs an error)."""
+        asset = self._fake.registry.get(_key(asset_path))
+        if not isinstance(asset, FakeTexture2D):
+            return {}
+        tags = {_TagName("HasAlphaChannel"): "False"}
+        if self._fake.dimensions_tag:
+            tags[_TagName("Dimensions")] = f"{asset.size[0]}x{asset.size[1]}"
+        return tags
 
     def delete_asset(self, asset_path):
         key = _key(asset_path)
