@@ -3,7 +3,9 @@
 #include "GolmokMapMath.h"
 #include "GolmokTravelMath.h"
 
+#include <cstdlib>
 #include <iostream>
+#include <limits>
 #include <sstream>
 #include <string>
 
@@ -24,6 +26,25 @@ namespace
 		GolmokMapMath::BBox B;
 		In >> B.West >> B.South >> B.East >> B.North;
 		return B;
+	}
+
+	// One number token, with Python repr()'s non-finite spellings ("nan", "inf", "-inf"; WP-09 V-07 memo 5) matched
+	// here: istream >> double rejects them, and whether strtod does depends on the C runtime (Windows CI MinGW).
+	double ParseNum(const std::string& Tok)
+	{
+		if (Tok == "nan")
+		{
+			return std::numeric_limits<double>::quiet_NaN();
+		}
+		if (Tok == "inf")
+		{
+			return std::numeric_limits<double>::infinity();
+		}
+		if (Tok == "-inf")
+		{
+			return -std::numeric_limits<double>::infinity();
+		}
+		return std::strtod(Tok.c_str(), nullptr);
 	}
 
 	void Print(std::ostream& Out, std::initializer_list<double> Values)
@@ -130,11 +151,11 @@ int main()
 		}
 		else if (Cmd == "cell")
 		{
-			double Lon = 0, Lat = 0;
+			std::string LonTok, LatTok;
 			int Z = 0;
-			In >> Lon >> Lat >> Z;
+			In >> LonTok >> LatTok >> Z;
 			int X = 0, Y = 0;
-			MM::LonLatToCell(Lon, Lat, Z, X, Y);
+			MM::LonLatToCell(ParseNum(LonTok), ParseNum(LatTok), Z, X, Y);
 			Print(std::cout, {static_cast<double>(X), static_cast<double>(Y)});
 		}
 		else if (Cmd == "bounds")

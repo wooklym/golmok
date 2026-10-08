@@ -405,14 +405,22 @@ namespace GolmokGeoMath
 	 * XYZ tile of (lon, lat) at Zoom (spec §6): x = floor((lon+180)/360·2^z), y = floor((1 − asinh(tan φ)/π)/2·2^z).
 	 * Same expression order as index.lonlat_to_tile (g++ cross-check). Lat clamped to ±MaxMercatorLatDeg, x/y clamped
 	 * to [0, 2^Zoom − 1] (no wrap), Zoom clamped to 0..30 (fits int).
+	 * Non-finite input (WP-09 V-07 memo 5) goes through the same clamp as out-of-range input: +inf lon -> last column,
+	 * -inf lon -> 0, +inf lat -> row 0 (north), -inf lat -> last row (what the clamp already gave), and NaN -> 0 on its
+	 * axis (it has no side; index.lonlat_to_tile's lat clamp also sends a NaN lat to row 0). Before the guard a NaN
+	 * failed both clamp comparisons and reached static_cast<int>(NaN), which is undefined behaviour.
 	 */
 	inline void LonLatToCell(double LonDeg, double LatDeg, int Zoom, int& OutX, int& OutY)
 	{
 		const int Z = (Zoom < 0) ? 0 : ((Zoom > 30) ? 30 : Zoom);
 		const double N = std::ldexp(1.0, Z);                                   // 2^z exactly
 		const double Lat = (LatDeg < -MaxMercatorLatDeg) ? -MaxMercatorLatDeg : ((LatDeg > MaxMercatorLatDeg) ? MaxMercatorLatDeg : LatDeg);
-		const double X = std::floor((LonDeg + 180.0) / 360.0 * N);
-		const double Y = std::floor((1.0 - std::asinh(std::tan(DegToRad(Lat))) / Pi) / 2.0 * N);
+		// Non-finite: a value just outside [0, N - 1] on its side (N or -1), so the clamp below decides as for any
+		// out-of-range input. std::isinf before the sign test keeps a NaN out of the comparison.
+		const double OffX = (std::isinf(LonDeg) && LonDeg > 0.0) ? N : -1.0;
+		const double OffY = (std::isinf(LatDeg) && LatDeg < 0.0) ? N : -1.0;
+		const double X = std::isfinite(LonDeg) ? std::floor((LonDeg + 180.0) / 360.0 * N) : OffX;
+		const double Y = std::isfinite(LatDeg) ? std::floor((1.0 - std::asinh(std::tan(DegToRad(Lat))) / Pi) / 2.0 * N) : OffY;
 		const double Max = N - 1.0;
 		OutX = static_cast<int>((X < 0.0) ? 0.0 : ((X > Max) ? Max : X));
 		OutY = static_cast<int>((Y < 0.0) ? 0.0 : ((Y > Max) ? Max : Y));

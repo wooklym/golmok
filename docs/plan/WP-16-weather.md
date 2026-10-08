@@ -515,7 +515,7 @@ PYTHONUTF8=1 PYTHONPATH=$PWD python -m pytest -q -p no:cacheprovider && python s
 - R113-5: 정적 needle 2개.
 - R113-7: 주석.
 - R113-4: 위 결과 #10·#24를 이 커밋에서 갱신했다.
-- R113-6(건너뛸 때 이벤트 0 단언도 빠짐)은 선택으로 이월했다.
+- R113-6(건너뛸 때 이벤트 0 단언도 빠짐)은 이 커밋에서 선택으로 이월했고, 후속 `f58f7be`·`e730903`에서 반영했다. `NightUnaffected`가 분을 못 찾거나 선행 조건이 실패해도 밤 확인 두 줄만 빠지고, 날씨 변경과 `OnPresetChanged`/`OnNightChanged` 0 단언은 항상 돈다(조기 return 제거). wp16 픽스처가 이를 정적으로 지킨다(리셋 → 날씨 변경 3개 → 0 단언 순서, 메서드 수준).
 
 게이트(리눅스, Astra T24 #114 병합 뒤 main과 합친 트리): ruff, format, pytest 1752 passed / 3 skipped, check_repo, `diff --check`, 등록 39.
 

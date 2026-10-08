@@ -9,6 +9,7 @@ blocker axes. Tolerance 1e-6 m (the spec asks 1e-4). Skipped when no C++ compile
 from __future__ import annotations
 
 import json
+import math
 import re
 import shutil
 import subprocess
@@ -41,6 +42,27 @@ CELL_EXAMPLES = [
     ((180.0, -85.1, 16), (65535, 65535)),  # x / y clamp
     ((126.9250, 37.5620, 0), (0, 0)),
     ((126.9250, 37.5620, 20), (893983, 406079)),
+]
+# WP-09 V-07 memo (5): a non-finite lon / lat takes the clamp of out-of-range input. Each value's finite
+# out-of-range stand-in (whose clamp result was already defined): +inf -> east edge / north row 0,
+# -inf -> west edge / south edge, NaN -> 0 on its axis (west column / north row: it has no side, and
+# index.lonlat_to_tile's lat clamp sends a NaN lat north).
+NAN, INF = float("nan"), float("inf")
+LON_STANDIN = {"nan": -1000.0, "inf": 1000.0, "-inf": -1000.0}
+LAT_STANDIN = {"nan": 90.0, "inf": 90.0, "-inf": -90.0}
+# z16 at the spec §6 example point (126.9250, 37.5620) -> (55873, 25379), spelled out
+NON_FINITE_Z16 = [
+    ((NAN, 37.5620), (0, 25379)),
+    ((INF, 37.5620), (65535, 25379)),
+    ((-INF, 37.5620), (0, 25379)),
+    ((126.9250, NAN), (55873, 0)),
+    ((126.9250, INF), (55873, 0)),
+    ((126.9250, -INF), (55873, 65535)),
+    ((NAN, NAN), (0, 0)),
+    ((INF, -INF), (65535, 65535)),
+    ((-INF, INF), (0, 0)),
+    ((NAN, -INF), (0, 65535)),
+    ((INF, NAN), (65535, 0)),
 ]
 
 
@@ -304,6 +326,38 @@ def test_lonlat_to_cell_matches_python_exactly(driver):
     # the fixture cell probes really land in the four cells (or their direct neighbours)
     inner = {(x, y) for x, y in FIXTURE_CELLS}
     assert inner <= set(got[3000:])
+
+
+def _standin(lon: float, lat: float) -> tuple[float, float]:
+    return (
+        lon if math.isfinite(lon) else LON_STANDIN[repr(lon)],
+        lat if math.isfinite(lat) else LAT_STANDIN[repr(lat)],
+    )
+
+
+def test_lonlat_to_cell_non_finite(driver):
+    # spelled-out z16 table: single-shot `cell` (argv) and Python
+    for (lon, lat), expect in NON_FINITE_Z16:
+        assert zi.lonlat_to_tile(lon, lat, 16) == expect, (lon, lat)
+        assert tuple(int(v) for v in run(driver, "cell", repr(lon), repr(lat), 16)) == expect, (lon, lat)
+    # batch `cells` (stdin): every non-finite combination at several zooms == its finite out-of-range
+    # stand-in, which takes the unchanged finite path (so ±inf keeps the result the clamp gave before the
+    # guard) == Python
+    points: list[tuple[float, float, int]] = []
+    for z in (0, 1, 16, 20, 30):
+        for lon in (126.9250, NAN, INF, -INF):
+            for lat in (37.5620, NAN, INF, -INF):
+                if not (math.isfinite(lon) and math.isfinite(lat)):
+                    points.append((lon, lat, z))
+    got = run_cells(driver, points)
+    standins = run_cells(driver, [(*_standin(lon, lat), z) for lon, lat, z in points])
+    for (lon, lat, z), cell, ref in zip(points, got, standins, strict=True):
+        assert cell == ref == zi.lonlat_to_tile(*_standin(lon, lat), z), (lon, lat, z)
+        assert cell == zi.lonlat_to_tile(lon, lat, z), (lon, lat, z)
+        n = 2**z
+        assert 0 <= cell[0] < n and 0 <= cell[1] < n, (lon, lat, z)
+    # the 30-zoom corners are the int edges (no overflow, no UB)
+    assert run_cells(driver, [(INF, -INF, 30), (NAN, NAN, 30)]) == [(2**30 - 1, 2**30 - 1), (0, 0)]
 
 
 def test_cell_bounds_match_python(driver):

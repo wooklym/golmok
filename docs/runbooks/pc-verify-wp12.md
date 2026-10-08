@@ -100,7 +100,7 @@ PIE 시작(PlayerStart = 001 zone-local (0, −5, 0) m, `Zone_z_synthetic_001` L
   WASD/EQ move  Shift fast  mouse look  Z/C roll  wheel fov
   [ ] fov   - = ev   , . focus   N M f-stop
   ```
-  프리셋 칸은 `AGolmokTimeOfDay::CurrentPreset`(없으면 `-`), 거리는 폰↔캐릭터 캡슐 중심 — 진입 직후는 스프링암 카메라 거리(`CameraBoom->TargetArmLength = 320` + `SocketOffset(0,45,55)` ≈ 3.28 m; 카메라 프로브가 당겼으면 더 짧음)다. 분모는 이번 세션의 유효 반경 `GetEffectiveRadiusCm()` = max(`MaxDistanceM` 3.0 m, 진입 거리 + 1 cm)라 진입 카메라가 3 m 밖이면 `3.3 / 3.3 m`처럼 넓어지고, 첫 이동·R에서 카메라가 튀지 않는다(튀면 §13에; 관찰한 분모 값도 §13에), 배율은 `ScreenshotMultiplier`(2). `(21 mm)`는 `FovToFocalMm(80)`(36 mm 환산; 65°면 `28 mm`). 힌트 3줄은 `photo.json` `hints.keyboard` 그대로(패키지에서도 JSON 값).
+  프리셋 칸은 `AGolmokTimeOfDay::CurrentPreset`(없으면 `-`), 거리는 폰↔캐릭터 캡슐 중심 — 진입 직후는 스프링암 카메라 거리(성인 manny: 암 320 cm + 소켓 (0,45,2) ≈ 3.23 m — T23 [#108](https://github.com/wooklym/golmok/pull/108) 전에는 (0,45,55) ≈ 3.28 m; 프록시는 로스터 암·소켓대로 더 짧다; 카메라 프로브가 당겼으면 더 짧음)다. 분모는 이번 세션의 유효 반경 `GetEffectiveRadiusCm()` = max(`MaxDistanceM` 3.0 m, 진입 거리 + 1 cm)라 진입 카메라가 3 m 밖이면 `3.3 / 3.3 m`처럼 넓어지고, 첫 이동·R에서 카메라가 튀지 않는다(튀면 §13에; 관찰한 분모 값도 §13에), 배율은 `ScreenshotMultiplier`(2). `(21 mm)`는 `FovToFocalMm(80)`(36 mm 환산; 65°면 `28 mm`). 힌트 3줄은 `photo.json` `hints.keyboard` 그대로(패키지에서도 JSON 값).
 - [ ] **정지 화면 중앙에 "PAUSED" 글자 없음**(`SetSuppressTransitionMessage(true)`, §12 #12). 있으면 §12 #12 대안(`PauseMode=TimeDilation`)으로 재실행하고 §13에.
 - [ ] P → 원래 3인칭 시점·컨트롤 회전·디버그 HUD(F1 상태) 복귀, 캐릭터 즉시 이동 가능:
   ```

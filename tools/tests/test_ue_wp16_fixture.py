@@ -164,6 +164,25 @@ def test_three_automation_tests_under_the_editor_guard():
     save = _strip_comments(_read(SAVE_CPP))
     start = save.index("Extras += RestoreWeather(Save->Weather);")
     assert "Weather->ResetRainFx();" in save[start : save.index("UnappliedCharacterId.Reset();", start)]
+    # R113-6: a skipped NightUnaffected minute drops only the night checks; the event counts are reset and
+    # asserted at method level (three tabs), after the skip branch, with no early return.
+    start = code.index("void NightUnaffected()")
+    body = code[start : code.index("\n\t\t}\n", start)]
+    assert not re.search(r"\breturn\b", body)
+    reset = body.index("\n\t\t\tPresetEvents = 0;\n\t\t\tNightEvents = 0;\n")
+    assert body.index("NightUnaffected skipped") < reset
+    # The weather changes are the stimulus on both paths: method level, in order, between the reset and the
+    # zero asserts (the 4-tab Set(Clear) in the else branch never matches a 3-tab needle).
+    first = body.index('\n\t\t\tTest->TestEqual(TEXT("weather changes fire no OnPresetChanged")')
+    at = reset
+    for change in ("Rain, 1.f", "Overcast, 0.f", "Clear, 0.f"):
+        at = body.index(f"\n\t\t\tSet(EGolmokWeather::{change}, true);\n", at)
+        assert at < first, change
+    for needle in (
+        'TEXT("weather changes fire no OnPresetChanged"), PresetEvents, 0);',
+        'TEXT("weather changes fire no OnNightChanged"), NightEvents, 0);',
+    ):
+        assert reset < body.index("\n\t\t\tTest->TestEqual(" + needle), needle
     for needle in (
         'TEXT("/Game/Golmok/Maps/L_Dev")',
         'TEXT("MPC_GolmokWeather missing - skipped")',

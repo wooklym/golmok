@@ -1187,6 +1187,83 @@ def test_cleanup_step_that_cannot_delete_warns_instead_of_a_deleted_line(fake, u
     assert result["warnings"] == [f"cleanup: could not delete {stray} (runbook #8)"]
 
 
+DELETED = "zone_import: deleted importer-created asset "
+
+
+def _scratch_leftover(cid: str) -> str:
+    """The glTF material instance Interchange leaves beside a nested collision mesh (nested_glb, #37)."""
+    return f"{FOLDER}/_import/SM_{ZONE}_collision_{cid}/Materials/collision_{cid}_mat"
+
+
+def test_scratch_deleted_lines_follow_the_folder_delete(monkeypatch, tmp_path, zone):
+    """_import_moved logs a scratch leftover's 'deleted' line after delete_directory removed it, never
+    before: at every folder delete, no 'deleted' line names an asset that is still there."""
+    fake = fake_unreal.install(monkeypatch, tmp_path, nested_glb=True)
+    unreal, zi = fake.module, importlib.import_module("golmok.zone_import")
+    real, early = unreal.EditorAssetLibrary.delete_directory, []
+
+    def spying(path):
+        early.extend(t for t in _logs(fake, DELETED) if t[len(DELETED) :] in fake.registry)
+        return real(path)
+
+    monkeypatch.setattr(unreal.EditorAssetLibrary, "delete_directory", staticmethod(spying))
+    result = _run(zi, zone)
+    assert early == [] and result["warnings"] == [] and fake.logged("warning") == []
+    assert [t for t in _logs(fake, DELETED) if "/_import/SM_" in t] == [
+        DELETED + _scratch_leftover(cid) for cid in CHUNKS
+    ]
+
+
+def test_scratch_folder_delete_that_fails_warns_once_per_leftover(monkeypatch, tmp_path, zone):
+    """delete_directory returns False and keeps a leftover: that asset is one `cleanup: could not delete`
+    WARNING (R81 F3 rule, runbook #8), never a 'deleted' line - also when the next import into the same
+    scratch folder and the cleanup step fail on it again. The next run deletes it."""
+    stuck, other = (_scratch_leftover(cid) for cid in CHUNKS)
+    fake = fake_unreal.install(monkeypatch, tmp_path, nested_glb=True, undeletable={stuck})
+    zi = importlib.import_module("golmok.zone_import")
+    result = _run(zi, zone)
+    warning = f"cleanup: could not delete {stuck} (runbook #8)"
+    assert result["warnings"] == [warning]
+    assert fake.logged("warning") == [f"zone_import: WARNING {warning}"]
+    assert DELETED + stuck not in fake.logged("log") and DELETED + other in fake.logged("log")
+    assert stuck in fake.registry and other not in fake.registry
+    assert fake.calls_of("delete_directory").count(("delete_directory", f"{FOLDER}/_import")) == 2
+    assert ("delete_asset", stuck) in fake.calls  # the cleanup step tried it again
+    assert f"zone_import: done {ZONE} v1: 8 assets, 1 warnings -> " in " ".join(fake.logged("log"))
+    fake.undeletable.clear()  # the next run: the folder delete works
+    fake.logs.clear()
+    result = _run(zi, zone)
+    assert result["warnings"] == [] and stuck not in fake.registry and DELETED + stuck in fake.logged("log")
+
+
+def test_scratch_folder_that_stays_is_one_warning(monkeypatch, tmp_path, zone):
+    """delete_directory deletes every asset but returns False (the folder could not be removed): the leftovers
+    get their 'deleted' lines and the folder path is one WARNING per run, not one per import."""
+    scratch = f"{FOLDER}/_import"
+    fake = fake_unreal.install(monkeypatch, tmp_path, nested_glb=True, undeletable={scratch})
+    zi = importlib.import_module("golmok.zone_import")
+    result = _run(zi, zone)
+    assert fake.calls_of("delete_directory").count(("delete_directory", scratch)) == 2
+    assert result["warnings"] == [f"cleanup: could not delete {scratch} (runbook #8)"]
+    for cid in CHUNKS:
+        assert DELETED + _scratch_leftover(cid) in fake.logged("log")
+        assert _scratch_leftover(cid) not in fake.registry
+
+
+def test_master_scratch_leftover_is_warned(fake, unreal, zone, zi):
+    """The master default texture's scratch folder (/Game/Golmok/Materials/_import) is outside the zone
+    folder, so the cleanup step never sees it: a leftover there that delete_directory keeps is warned by
+    _import_moved."""
+    stuck = f"{MATERIALS}/_import/T_old"
+    fake.registry[stuck] = fake_unreal.FakeTexture2D(fake, stuck)
+    fake.undeletable.add(stuck)
+    result = _run(zi, zone)
+    assert ("delete_directory", f"{MATERIALS}/_import") in fake.calls
+    assert fake.registry[DEFAULT_TEX] and stuck in fake.registry
+    assert result["warnings"] == [f"cleanup: could not delete {stuck} (runbook #8)"]
+    assert DELETED + stuck not in fake.logged("log")
+
+
 def test_failed_texture_import_keeps_the_previous_target(fake, unreal, zone, zi, monkeypatch):
     """A re-run whose import lands elsewhere and whose target cannot be replaced: the previous T_ground (what
     MI_ground points at) stays, only the new stray copy goes."""

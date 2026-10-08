@@ -3,12 +3,43 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <limits>
 #include <string>
 
 // Command-line driver for tools/tests/test_ue_geo_math.py. Prints doubles with 10-12 decimals.
 // WP-09 cell commands: cell <lon> <lat> <z> -> "x y"; cells (stdin, one "lon lat z" per line -> one "x y" per line;
 // Windows argv is limited to 32 KiB so batches go through stdin); cellbounds <x> <y> <z> -> "west south east north".
+// cell / cells take Python repr() spellings of non-finite values ("nan", "inf", "-inf"; WP-09 V-07 memo 5).
 using namespace GolmokGeoMath;
+
+// strtod, with Python repr()'s non-finite spellings matched here first: whether strtod / atof accept "nan" and "inf"
+// depends on the C runtime (an msvcrt-based MinGW on the Windows CI runner may not), and a silent 0 would make the
+// NaN / inf cases test lon 0 / lat 0 instead. Leading blanks are skipped only for the match, so a blank line still
+// leaves *end == s (the cells loop skips it).
+static double parseNum(const char* s, char** end)
+{
+	const char* p = s;
+	while (*p == ' ' || *p == '\t')
+	{
+		++p;
+	}
+	static const char* const names[] = {"nan", "inf", "-inf"};
+	const double values[] = {std::numeric_limits<double>::quiet_NaN(), std::numeric_limits<double>::infinity(),
+		-std::numeric_limits<double>::infinity()};
+	for (int i = 0; i < 3; ++i)
+	{
+		const std::size_t n = std::strlen(names[i]);
+		if (!std::strncmp(p, names[i], n) && (p[n] == '\0' || p[n] == ' ' || p[n] == '\t' || p[n] == '\r' || p[n] == '\n'))
+		{
+			if (end)
+			{
+				*end = const_cast<char*>(p + n);
+			}
+			return values[i];
+		}
+	}
+	return std::strtod(s, end);
+}
 
 static std::string readStdin()
 {
@@ -157,7 +188,7 @@ int main(int argc, char** argv)
 	else if (!std::strcmp(cmd, "cell") && argc >= 5)
 	{
 		int x = 0, y = 0;
-		LonLatToCell(std::atof(argv[2]), std::atof(argv[3]), std::atoi(argv[4]), x, y);
+		LonLatToCell(parseNum(argv[2], nullptr), parseNum(argv[3], nullptr), std::atoi(argv[4]), x, y);
 		std::printf("%d %d\n", x, y);
 	}
 	else if (!std::strcmp(cmd, "cells"))
@@ -177,13 +208,13 @@ int main(int argc, char** argv)
 			pos = nl + 1;
 			const char* s = line.c_str();
 			char* end = nullptr;
-			const double lon = std::strtod(s, &end);
+			const double lon = parseNum(s, &end);
 			if (end == s)
 			{
 				continue;
 			}
 			s = end;
-			const double lat = std::strtod(s, &end);
+			const double lat = parseNum(s, &end);
 			s = end;
 			const int z = static_cast<int>(std::strtol(s, &end, 10));
 			int x = 0, y = 0;
