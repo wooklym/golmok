@@ -22,11 +22,23 @@ INDEX_DIR_NAME = "index"  # <zones_root>/index is the index itself (spec §6), n
 
 
 def lonlat_to_tile(lon: float, lat: float, z: int = CELL_ZOOM) -> tuple[int, int]:
-    """Web Mercator (XYZ / slippy map) tile containing the point. y grows southward."""
+    """Web Mercator (XYZ / slippy map) tile containing the point. y grows southward.
+
+    Out-of-range input is clamped to the edge tile. Non-finite input takes the same clamp (WP-09 V-07
+    memo 5, mirrored by GolmokGeoMath / GolmokMapMath::LonLatToCell): ±inf goes to the edge on its side,
+    NaN to 0 on its axis (math.floor would raise on a non-finite lon; the C++ side had undefined behaviour).
+    """
     n = 2**z
+    # n or -1: just outside [0, n - 1] on the value's side, so the final clamp decides like out-of-range input
+    off_x = n if math.isinf(lon) and lon > 0 else -1
+    off_y = n if math.isinf(lat) and lat < 0 else -1
+    finite_lon, finite_lat = math.isfinite(lon), math.isfinite(lat)
     lat = max(-MAX_LAT, min(MAX_LAT, lat))
-    x = math.floor((lon + 180.0) / 360.0 * n)
-    y = math.floor((1.0 - math.asinh(math.tan(math.radians(lat))) / math.pi) / 2.0 * n)
+    x, y = off_x, off_y
+    if finite_lon:
+        x = math.floor((lon + 180.0) / 360.0 * n)
+    if finite_lat:
+        y = math.floor((1.0 - math.asinh(math.tan(math.radians(lat))) / math.pi) / 2.0 * n)
     return min(max(x, 0), n - 1), min(max(y, 0), n - 1)
 
 

@@ -97,14 +97,20 @@ namespace GolmokMapMath
 		return true;
 	}
 
-	/** XYZ tile of (lon, lat) at Zoom: GolmokGeoMath::LonLatToCell (floor, clamped to [0, 2^z - 1], Zoom 0..30). */
+	/**
+	 * XYZ tile of (lon, lat) at Zoom: GolmokGeoMath::LonLatToCell (floor, clamped to [0, 2^z - 1], Zoom 0..30), including
+	 * its non-finite rule (WP-09 V-07 memo 5): +inf / -inf go to the edge on their side like out-of-range input, NaN -> 0.
+	 */
 	inline void LonLatToCell(double LonDeg, double LatDeg, int Zoom, int& OutX, int& OutY)
 	{
 		const int Z = (Zoom < 0) ? 0 : ((Zoom > 30) ? 30 : Zoom);
 		const double N = std::ldexp(1.0, Z);
 		const double Lat = ClampLat(LatDeg);
-		const double X = std::floor((LonDeg + 180.0) / 360.0 * N);
-		const double Y = std::floor((1.0 - std::asinh(std::tan(DegToRad(Lat))) / Pi) / 2.0 * N);
+		// Non-finite: N or -1 (just outside the range on its side) for the clamp below; NaN never reaches static_cast<int>.
+		const double OffX = (std::isinf(LonDeg) && LonDeg > 0.0) ? N : -1.0;
+		const double OffY = (std::isinf(LatDeg) && LatDeg < 0.0) ? N : -1.0;
+		const double X = std::isfinite(LonDeg) ? std::floor((LonDeg + 180.0) / 360.0 * N) : OffX;
+		const double Y = std::isfinite(LatDeg) ? std::floor((1.0 - std::asinh(std::tan(DegToRad(Lat))) / Pi) / 2.0 * N) : OffY;
 		const double Max = N - 1.0;
 		OutX = static_cast<int>((X < 0.0) ? 0.0 : ((X > Max) ? Max : X));
 		OutY = static_cast<int>((Y < 0.0) ? 0.0 : ((Y > Max) ? Max : Y));

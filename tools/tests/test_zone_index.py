@@ -20,6 +20,24 @@ def test_tile_math_known_values():
     assert (e - w) == pytest.approx(360 / 65536)
 
 
+@pytest.mark.parametrize("z", [0, 16, 30])
+def test_tile_math_non_finite_clamps_like_out_of_range(z):
+    # WP-09 V-07 memo (5), mirrored by GolmokGeoMath / GolmokMapMath::LonLatToCell (g++ cross-checks in
+    # test_ue_geo_math.py / test_ue_travel_math.py): no exception, ±inf -> the edge on its side, NaN -> 0 on
+    # its axis
+    nan, inf = float("nan"), float("inf")
+    last = 2**z - 1
+    x0, y0 = zi.lonlat_to_tile(126.9250, 37.5620, z)
+    assert zi.lonlat_to_tile(nan, 37.5620, z) == (0, y0) == zi.lonlat_to_tile(-1000.0, 37.5620, z)
+    assert zi.lonlat_to_tile(inf, 37.5620, z) == (last, y0) == zi.lonlat_to_tile(1000.0, 37.5620, z)
+    assert zi.lonlat_to_tile(-inf, 37.5620, z) == (0, y0)
+    assert zi.lonlat_to_tile(126.9250, nan, z) == (x0, 0) == zi.lonlat_to_tile(126.9250, 90.0, z)
+    assert zi.lonlat_to_tile(126.9250, inf, z) == (x0, 0)
+    assert zi.lonlat_to_tile(126.9250, -inf, z) == (x0, last) == zi.lonlat_to_tile(126.9250, -90.0, z)
+    assert zi.lonlat_to_tile(nan, nan, z) == (0, 0)
+    assert zi.lonlat_to_tile(inf, -inf, z) == (last, last)
+
+
 @pytest.mark.parametrize("lon, lat", [(126.9250, 37.5620), (-73.98, 40.75), (151.2, -33.86), (0.001, -0.001)])
 def test_tile_bounds_contain_point(lon, lat):
     x, y = zi.lonlat_to_tile(lon, lat, 16)
