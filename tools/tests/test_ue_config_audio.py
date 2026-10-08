@@ -3,6 +3,7 @@
 import copy
 import importlib
 import json
+import re
 import sys
 import warnings
 from pathlib import Path
@@ -33,33 +34,62 @@ def test_all_lighting_cycle_presets_are_mapped():
 
 
 @pytest.mark.parametrize(
-    "source", ["../bad.wav", "src/../../bad.wav", "C:/tmp/a.wav", "src/a/../../x.wav", "src\\a\\b.wav"]
+    "source, diagnostic",
+    list(
+        zip(
+            ["../bad.wav", "src/../../bad.wav", "C:/tmp/a.wav", "src/a/../../x.wav", "src\\a\\b.wav"],
+            [
+                "assets.asphalt.source: expected src/<category>/<name>.wav",
+                "assets.asphalt.source: expected src/<category>/<name>.wav",
+                "assets.asphalt.source: expected src/<category>/<name>.wav",
+                "assets.asphalt.source: expected src/<category>/<name>.wav",
+                "assets.asphalt.source: expected src/<category>/<name>.wav",
+            ],
+            strict=True,
+        )
+    ),
 )
-def test_unsafe_source(source):
+def test_unsafe_source(source, diagnostic):
     data = audio.load_config()
     data["assets"]["asphalt"]["source"] = source
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match=re.escape(diagnostic)):
         audio.parse_config(data)
 
 
 @pytest.mark.parametrize(
-    "change",
-    [
-        lambda d: d.update(master_volume=float("nan")),
-        lambda d: d.update(master_volume=True),
-        lambda d: d.update(schema_version=True),
-        lambda d: d["assets"]["tile"].update(license="CC-BY-NC-4.0"),
-        lambda d: d["assets"]["tile"].update(asset=d["assets"]["asphalt"]["asset"]),
-        lambda d: d["ambience"].update(outdoor_day="asphalt"),
-        lambda d: d["footsteps"]["sets"].update(tile=[]),
-        lambda d: d["footsteps"].update(landing="missing"),
-        lambda d: d["footsteps"].update(pitch_range=[1.2, 0.8]),
-    ],
+    "change, diagnostic",
+    list(
+        zip(
+            [
+                lambda d: d.update(master_volume=float("nan")),
+                lambda d: d.update(master_volume=True),
+                lambda d: d.update(schema_version=True),
+                lambda d: d["assets"]["tile"].update(license="CC-BY-NC-4.0"),
+                lambda d: d["assets"]["tile"].update(asset=d["assets"]["asphalt"]["asset"]),
+                lambda d: d["ambience"].update(outdoor_day="asphalt"),
+                lambda d: d["footsteps"]["sets"].update(tile=[]),
+                lambda d: d["footsteps"].update(landing="missing"),
+                lambda d: d["footsteps"].update(pitch_range=[1.2, 0.8]),
+            ],
+            [
+                "master_volume: expected finite number in [0, 1]",
+                "master_volume: expected finite number in [0, 1]",
+                "schema_version: expected integer 1",
+                "assets.tile.license: expected approved audio license",
+                "assets.tile: expected unique asset and source",
+                "ambience.outdoor_day: expected looping asset id",
+                "footsteps.sets.tile: expected nonempty array",
+                "footsteps.landing: expected one-shot asset id",
+                "footsteps.pitch_range[1]: expected finite number in [1.2, 2]",
+            ],
+            strict=True,
+        )
+    ),
 )
-def test_invalid_playback_contract(change):
+def test_invalid_playback_contract(change, diagnostic):
     data = audio.load_config()
     change(data)
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match=re.escape(diagnostic)):
         audio.parse_config(data)
 
 
@@ -87,17 +117,31 @@ def test_source_symlink_cannot_escape(tmp_path):
         (root / "escape.wav").symlink_to(outside)
     except OSError:
         pytest.skip("symlink creation unavailable")
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="source escapes Audio directory"):
         audio.source_path(root, "escape.wav")
 
 
 @pytest.mark.parametrize(
-    "value", [None, [], {"missing": 1}, {"interior": -1}, {"interior": True}, {"interior": float("nan")}]
+    "value, diagnostic",
+    list(
+        zip(
+            [None, [], {"missing": 1}, {"interior": -1}, {"interior": True}, {"interior": float("nan")}],
+            [
+                "crossfade_seconds_by_state: expected object",
+                "crossfade_seconds_by_state: expected object",
+                "crossfade_seconds_by_state.missing: expected known destination state",
+                "crossfade_seconds_by_state.interior: expected finite number in [0, 30]",
+                "crossfade_seconds_by_state.interior: expected finite number in [0, 30]",
+                "crossfade_seconds_by_state.interior: expected finite number in [0, 30]",
+            ],
+            strict=True,
+        )
+    ),
 )
-def test_invalid_state_fade(value):
+def test_invalid_state_fade(value, diagnostic):
     data = audio.load_config()
     data["crossfade_seconds_by_state"] = value
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match=re.escape(diagnostic)):
         audio.parse_config(data)
 
 
@@ -109,39 +153,86 @@ def test_partial_state_fade_and_legacy_default():
     audio.parse_config(data)
 
 
-@pytest.mark.parametrize("value", [None, "", "2026-9-28", "2026-02-30", "0000-01-01", "2026-09-28T00:00:00"])
-def test_invalid_verified_date(value):
+@pytest.mark.parametrize(
+    "value, diagnostic",
+    list(
+        zip(
+            [None, "", "2026-9-28", "2026-02-30", "0000-01-01", "2026-09-28T00:00:00"],
+            [
+                "assets.tile.verified: expected YYYY-MM-DD",
+                "assets.tile.verified: expected YYYY-MM-DD",
+                "assets.tile.verified: expected YYYY-MM-DD",
+                "assets.tile.verified: expected valid calendar date",
+                "assets.tile.verified: expected valid calendar date",
+                "assets.tile.verified: expected YYYY-MM-DD",
+            ],
+            strict=True,
+        )
+    ),
+)
+def test_invalid_verified_date(value, diagnostic):
     data = audio.load_config()
     data["assets"]["tile"]["verified"] = value
-    with pytest.raises(ValueError):
-        audio.parse_config(data)
-
-
-@pytest.mark.parametrize("value", [None, True, -0.01, 5.01, float("nan"), "0.25"])
-def test_invalid_photo_fade(value):
-    data = audio.load_config()
-    data["photo_mute_fade_seconds"] = value
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match=re.escape(diagnostic)):
         audio.parse_config(data)
 
 
 @pytest.mark.parametrize(
-    "value",
-    [
-        None,
-        [],
-        {"Manny": {"walk": 67, "run": 146}},
-        {"manny": {"walk": 67}},
-        {"manny": {"walk": True, "run": 146}},
-        {"manny": {"walk": 0, "run": 146}},
-        {"manny": {"walk": 67, "run": float("nan")}},
-        {"manny": {"walk": 67, "run": 146, "extra": 1}},
-    ],
+    "value, diagnostic",
+    list(
+        zip(
+            [None, True, -0.01, 5.01, float("nan"), "0.25"],
+            [
+                "photo_mute_fade_seconds: expected finite number in [0, 5]",
+                "photo_mute_fade_seconds: expected finite number in [0, 5]",
+                "photo_mute_fade_seconds: expected finite number in [0, 5]",
+                "photo_mute_fade_seconds: expected finite number in [0, 5]",
+                "photo_mute_fade_seconds: expected finite number in [0, 5]",
+                "photo_mute_fade_seconds: expected finite number in [0, 5]",
+            ],
+            strict=True,
+        )
+    ),
 )
-def test_invalid_character_strides(value):
+def test_invalid_photo_fade(value, diagnostic):
+    data = audio.load_config()
+    data["photo_mute_fade_seconds"] = value
+    with pytest.raises(ValueError, match=re.escape(diagnostic)):
+        audio.parse_config(data)
+
+
+@pytest.mark.parametrize(
+    "value, diagnostic",
+    list(
+        zip(
+            [
+                None,
+                [],
+                {"Manny": {"walk": 67, "run": 146}},
+                {"manny": {"walk": 67}},
+                {"manny": {"walk": True, "run": 146}},
+                {"manny": {"walk": 0, "run": 146}},
+                {"manny": {"walk": 67, "run": float("nan")}},
+                {"manny": {"walk": 67, "run": 146, "extra": 1}},
+            ],
+            [
+                "footsteps.stride_cm_by_character: expected object",
+                "footsteps.stride_cm_by_character: expected object",
+                "footsteps.stride_cm_by_character.Manny: expected lowercase character id",
+                "footsteps.stride_cm_by_character.manny: expected walk and run object",
+                "footsteps.stride_cm_by_character.manny.walk: expected finite number in [1, 10000]",
+                "footsteps.stride_cm_by_character.manny.walk: expected finite number in [1, 10000]",
+                "footsteps.stride_cm_by_character.manny.run: expected finite number in [1, 10000]",
+                "footsteps.stride_cm_by_character.manny: expected walk and run object",
+            ],
+            strict=True,
+        )
+    ),
+)
+def test_invalid_character_strides(value, diagnostic):
     data = audio.load_config()
     data["footsteps"]["stride_cm_by_character"] = value
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match=re.escape(diagnostic)):
         audio.parse_config(data)
 
 
@@ -561,3 +652,14 @@ def test_rain_plateau_and_maximum_points_accepted(curve):
     data = audio.load_config()
     data["rain"]["gain_curve"] = curve
     assert audio.parse_config(data) is data
+
+
+def test_c08_rain_hypothesis_matches_config():
+    source = (PYTHON.parent.parent / "Source/Golmok/Tests/GolmokAudioTest.cpp").read_text(encoding="utf-8")
+    block = source.split("// C-08 hypothesis begin", 1)[1].split("// C-08 hypothesis end", 1)[0]
+    curve = re.search(r"TArray<FVector2D>\(\{(.*?)\}\)", block).group(1)
+    points = [[float(x), float(y)] for x, y in re.findall(r"\{([\d.]+), ([\d.]+)\}", curve)]
+    interior = float(re.search(r"Config.RainInteriorGain, ([\d.]+)\)", block).group(1))
+    rain = audio.load_config()["rain"]
+    assert points == rain["gain_curve"]
+    assert interior == rain["interior_gain"]

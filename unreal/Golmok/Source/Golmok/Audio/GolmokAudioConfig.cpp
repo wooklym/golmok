@@ -13,7 +13,12 @@ namespace GolmokAudio
 	struct FConfigReader
 	{
 		FObject Data; FString Path; FString& Error;
-		FString Field(const FString& Key) const { return Path.IsEmpty() ? Key : (Key.IsEmpty() ? Path : Path + TEXT(".") + Key); }
+		FString Field(const FString& Key) const
+		{
+			FString SafeKey = Key;
+			for (TCHAR& Char : SafeKey) if (Char <= 0x1f || Char == 0x7f) Char = '?';
+			return Path.IsEmpty() ? SafeKey : (SafeKey.IsEmpty() ? Path : Path + TEXT(".") + SafeKey);
+		}
 		bool Check(bool bValid, const FString& Key, const TCHAR* Expected) const
 		{
 			if (!bValid) Error = FString::Printf(TEXT("audio.json %s: expected %s"), *Field(Key), Expected);
@@ -77,8 +82,14 @@ namespace GolmokAudio
 	{
 		Error.Empty();
 		FObject RootObject;
-		if (!FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Json), RootObject) || !RootObject.IsValid())
-		{ Error = TEXT("audio.json $: expected valid JSON object"); return false; }
+		const auto Reader = TJsonReaderFactory<>::Create(Json);
+		if (!FJsonSerializer::Deserialize(Reader, RootObject) || !RootObject.IsValid())
+		{
+			Error = TEXT("audio.json $: expected valid JSON object");
+			const FString Detail = Reader->GetErrorMessage();
+			if (!Detail.IsEmpty()) Error += TEXT(" (") + Detail + TEXT(")");
+			return false;
+		}
 		const FConfigReader Root{RootObject, TEXT(""), Error};
 		if (!Root.KeyCase({TEXT("schema_version"), TEXT("master_volume"), TEXT("crossfade_seconds"), TEXT("pause_policy"), TEXT("photo_mute_fade_seconds"), TEXT("crossfade_seconds_by_state"), TEXT("assets"), TEXT("ambience"), TEXT("preset_states"), TEXT("footsteps"), TEXT("rain")})) return false;
 		FGolmokAudioConfig Next;
