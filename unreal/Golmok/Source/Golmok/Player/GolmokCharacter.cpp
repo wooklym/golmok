@@ -46,6 +46,9 @@ AGolmokCharacter::AGolmokCharacter()
 	CameraBoom->SetupAttachment(RootComponent);
 	CameraBoom->TargetArmLength = 320.f;
 	CameraBoom->SocketOffset = FVector(0.f, 45.f, 55.f);
+	// [WP-18 hook] Fallback pawn without a roster entry frames like the adult manny entry (socket_cm after T23 #108, R108-6).
+	CameraBoom->SocketOffset = FVector(0.f, 45.f, 2.f);
+	// [/WP-18 hook]
 	CameraBoom->bUsePawnControlRotation = true;
 	// Narrow alleys: keep the boom collision test on so the camera never clips into walls.
 	CameraBoom->bDoCollisionTest = true;
