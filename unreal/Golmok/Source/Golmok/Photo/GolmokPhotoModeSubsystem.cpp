@@ -1001,8 +1001,8 @@ bool UGolmokPhotoModeSubsystem::Enter(FString& OutMessage)
 			Start += (Anchor - Start).GetSafeNormal() * PhotoEntryRetreatCm;
 		}
 		EnterLocation = Start;
-		// The spring-arm camera sits ~328 cm from the capsule center (arm 320 + socket offset), outside the 3 m
-		// sphere: widen the sphere for this session so the entry pose (and Reset) is valid and the first move does not jump.
+		// The spring-arm camera can sit outside the 3 m sphere (adult manny: arm 320 + socket (0, 45, 2) ~ 323 cm from the
+		// capsule center): widen the sphere for this session so the entry pose (and Reset) is valid and the first move does not jump.
 		EffectiveRadiusCm = FMath::Max(static_cast<double>(MaxDistanceM) * 100.0, FVector::Dist(EnterLocation, Anchor) + 1.0);
 	}
 	NewPawn->Init(this, EnterLocation, EnterRotation, EnterFov, CollisionRadiusCm);

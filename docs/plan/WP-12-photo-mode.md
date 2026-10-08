@@ -652,7 +652,7 @@ saved 20260925_101112.png (2x)                                        (초록, 2
 
 ### 6. 카메라 제약
 #### 6-1 구(반경 `MaxDistanceM` 3 m, 앵커 = 캐릭터 캡슐 중심 = `SavedPawn->GetActorLocation()`)
-(수정 STATE-1, 2026-09-27) 스프링암 카메라는 캡슐 중심에서 ≈ 328 cm(암 320 + `SocketOffset(0,45,55)`)라 3 m 구 밖에서 시작한다. §4-2 3항 "카메라 자세 그대로 시작"을 지키려고 진입 시 세션 유효 반경 `EffectiveRadiusCm = max(MaxDistanceM·100, Dist(EnterLocation, 앵커) + 1)`을 저장하고, 폰 `MoveConstrained`와 오버레이 거리 분모는 `GetEffectiveRadiusCm()`을 쓴다(첫 이동·R에서 튐 없음).
+(수정 STATE-1, 2026-09-27) 스프링암 카메라는 캡슐 중심에서 ≈ 328 cm(암 320 + `SocketOffset(0,45,55)`)라 3 m 구 밖에서 시작한다(2026-10-09 주: T23 [#108](https://github.com/wooklym/golmok/pull/108) 뒤 성인 manny는 소켓 (0,45,2)라 ≈ 323 cm, proxy135(암 260)는 ≈ 262 cm로 구 안에서 시작한다 — 아래 규칙은 그대로 맞다). §4-2 3항 "카메라 자세 그대로 시작"을 지키려고 진입 시 세션 유효 반경 `EffectiveRadiusCm = max(MaxDistanceM·100, Dist(EnterLocation, 앵커) + 1)`을 저장하고, 폰 `MoveConstrained`와 오버레이 거리 분모는 `GetEffectiveRadiusCm()`을 쓴다(첫 이동·R에서 튐 없음).
 
 재구성 품질은 촬영 경로(보행자 시선) 근처에서 가장 좋고 멀어질수록 무너진다. 3 m는 골목 폭 2~4 m에서 벽 앞까지 닿고, 28 mm 환산(65°)에서 전신 인물 + 여유가 나오며, "다른 골목"까지는 못 가는 반경. 하한은 바닥 충돌(15 cm 구)이 정한다(로우 앵글 허용). 높이 상한은 두지 않는다(스펙 밖; ②의 `MaxHeightAboveAnchorM` 제거).
 #### 6-2 footprint 다각형
