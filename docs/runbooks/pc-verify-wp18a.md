@@ -387,6 +387,15 @@ v11a의 D 코스는 큐브를 `transient=True`로 스폰해 PIE 월드에 복제
 - 발 지표는 소켓(관절) 기준이라 메시 발바닥 접지와 다를 수 있다. 사람 눈 채점은 영상 원본으로 한다.
 - 패키지 실행 스모크(wp13 런북 §8-1)는 다른 PC 세션 GUI 단계가 모두 끝난 뒤 마지막에 했다. 새 exe 경로의 첫 실행에서 Windows 방화벽 알림 창이 떠서(20:05:43, 원인은 Development 빌드 TraceLog 제어 소켓 TCP 1985) 키 입력 전에 멈췄다. 그래서 패키지의 W 걷기 발소리와 §13 T14의 `golmok.character proxy135` 패키지 전환은 미실행이다. 창은 누르지 않고 소유자에게 넘겼다.
 - **패키지 재실행 묶음(≈ 10분, 병합 시 추가 — P11-2·P11-3)**: 소유자가 방화벽 창을 **취소**한 뒤 같은 워크트리(같은 exe 경로)에서 하거나, 고정 출력 경로(`package.ps1` `GOLMOK_PKG_DIR`)가 들어간 뒤 패키지를 쓰는 다음 PC 카드에서 한다. ① W 걷기 발소리 1회(wp13 §8-1) ② 첫 화면이 대체 캡슐이 아닌 Manny이고 로그에 `Character mesh '…' not found`가 없다 ③ `golmok.character list|proxy135|quinn|manny`. ②·③이 실패하면 `DefaultGame.ini` `[WP-18 hook]` `+DirectoriesToAlwaysCook=(Path="/Game/Characters/Mannequins")`를 별도 훅 커밋으로 더한다(Claude 레인).
+- **패키지 재실행 결과(2026-10-09 KST, V-11 세션 이어서, 워크트리 `sharp-wright-5b1e4a`, 브랜치 `pc/v11-package-rerun` ← main `3cfeec5`)**: 빌드 무수정 205 s, 임포트 `WP13_IMPORT_VERIFIED_8_REIMPORT_8`, `package.ps1` 227 s(`Package output: …\sharp-wright-5b1e4a\build\Windows` — `GOLMOK_PKG_DIR` 미설정이라 2026-10-04와 같은 exe 경로). 이 경로에는 소유자 처리로 생긴 인바운드 규칙이 있어 방화벽 창은 다시 뜨지 않았다. 실행 중 `netstat`: `TCP 0.0.0.0:1985 LISTENING <게임 PID>`(매 실행).
+  - ① ✅ W 걷기 발소리: 포그라운드 패키지 창에 SendInput W를 4 s·3 s·3 s·3 s 눌렀다. WASAPI 루프백(DELL U2724D, OS 52 %)에서 발소리 시작점 34개가 네 구간에만 10·8·8·8개로 잡혔다. 간격 0.35~0.39 s(Manny 67 cm ÷ 180 cm/s = 0.372 s), 피크 중앙값 −32.6 dBFS. 같은 실행에서 키 `4`/`1`로 앰비언스 −51.0 → −54.3 → −51.1 dBFS(밤·낮)를 확인했다. **콘솔(` 키)은 SendInput으로 열리지 않았다**(로그에 `Cmd:` 0줄 — V-08 메모와 같은 이 PC의 제약). 그래서 ②·③은 창 없는 `Golmok.exe -RenderOffScreen -ExecCmds=…`로 확인했다. 이후 소유자가 PC를 쓰기 시작해 포그라운드 키 입력은 더 하지 않았다.
+  - ② ✅ 첫 프레임(엔진 `shot`, 1280×720)은 대체 캡슐이 아닌 마네킹이다. 로그에 `Character mesh … not found`·`showing capsule`이 없고, `golmok.character list`는 `current=manny`다.
+  - ③ ⚠️ `list`·`proxy135`·`manny` 전환은 성공했다. **`quinn`은 거절**됐다: `golmok.character: mesh/animation missing or skeleton mismatch; keeping current character`(원자적 거절, 현재 캐릭터 유지). stage manifest에 `SKM_Quinn_Simple`이 없다(Manny 메시만 기본 폰 경로로 쿡됨). P11-2 가설과 같다.
+  - 해결 확인(커밋 안 함): 위 `[WP-18 hook]` 블록을 `DefaultGame.ini` 끝에 **임시로** 넣고 다시 패키징했다(64 s, 뒤에 `git checkout`, diff 없음). manifest에 `SKM_Quinn_Simple`이 생겼고 `list → proxy135 → quinn → list → proxy110 → manny → quinn → list`가 모두 `selected …`·`current=quinn`이었다. 훅 반영은 클라우드 Claude 레인 몫이다(이 PC 세션은 핫스팟 ini를 커밋하지 않는다). 반영 뒤 V-17 §5에서 `GOLMOK_PKG_DIR` 경로로 ③을 다시 본다.
+  - 패키지 오디오(창 없음): `golmok.audio` = `audio: outdoor_day [outdoor_day / ] vol 1.00 steps=none drv=distance(auto) ev=0 photo_gain=1.00 rain 0.00 rain_gain=0.000`, 크레딧 8항목(rain 포함), `ListWaves`에 `SW_rain`(0.00)·`SW_outdoor_day`(0.50), `missing SoundWave`·`error:` 0.
+  - 기록·스크립트: PC 로컬 `C:\Users\user\golmok-pc-recordings\v11-2026-10-04\pkg_rerun\`(실행별 로그·json·스크린샷·루프백 WAV).
+
+![패키지 첫 프레임(Manny)과 임시 쿡 훅 뒤 quinn 전환](pc-verify-wp18a-v11-pkg-rerun.jpg)
 
 ### 14-7. Opus 채점(오케스트레이터, 2026-10-04)
 
