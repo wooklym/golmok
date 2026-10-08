@@ -106,7 +106,7 @@ setx GOLMOK_PKG_DIR C:\Users\user\golmok-pkg\Windows
 $pkg = if (-not [string]::IsNullOrWhiteSpace($env:GOLMOK_PKG_DIR)) { $env:GOLMOK_PKG_DIR.Trim().TrimEnd('\') } else { ".\build\Windows" }
 & "$pkg\Golmok.exe" …
 ```
-- [미확인] `-trace=none`이나 `-notrace`로 실행하면 이 리스너가 열리지 않는지는 확인하지 않았다. PC 세션이 엔진 소스로 확인한다.
+- 확인(2026-10-09, V-11 PC 세션, UE 5.8.3 Launcher 소스): Development 빌드는 `LaunchEngineLoop.cpp`에서 `FTraceAuxiliary::Initialize`를 무조건 부르고, TraceLog 작성기 초기화가 제어 리스너를 켠다(`TraceLog/Private/Trace/Writer.cpp` `Writer_InternalInitializeImpl` → `Writer_InitializeControl`, 워커가 `Control.cpp` `Writer_ControlListen` 호출, `Detail/Windows/WindowsTrace.cpp` `bind(INADDR_ANY:1985)`). **이 리스너를 끄는 런타임 인자는 없다**(`-notrace` 파싱 없음, `-trace=`는 채널만 고름, `-notraceserver`는 Unreal Trace Server 자동 실행만 막음). 실행 중 `netstat -ano`는 매번 `TCP 0.0.0.0:1985 LISTENING <게임 PID>`였다(창 있는 실행·`-RenderOffScreen` 실행 모두). Shipping은 `UE_TRACE_ENABLED`가 0이라 해당 없음. 고정 출력 경로가 유일한 대책이다.
 
 ### 3. 리허설 사진 점검 (가이드 §4-C)
 - 사용자가 아이폰 리허설 사진 20장과 영상 1분을 PC로 옮긴다(원본 유지).
