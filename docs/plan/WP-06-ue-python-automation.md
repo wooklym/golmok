@@ -1316,3 +1316,5 @@ PR #87 병합 리뷰 R87의 WP-06 쪽 (C) 3건을 처리했다. 설계·동작 �
 - STATUS WP-06 행 비고 끝에 `· 태그 우선 PR #122 병합(헤드리스 UDIM 판정 Dimensions 태그, PC 헤드리스·GUI·커맨드릿 확인 2026-10-09)`. V-05 행: 바꿀 것 없음.
 - ROADMAP zone_import 줄의 "헤드리스 `-nullrhi` `zi.run` assert 없음" 뒤에 `; 헤드리스 UDIM 판정은 PR #122부터 Dimensions 태그(2026-10-09 PC 확인)`.
 - DECISIONS: 없음(구현 수정, 설계·스택 변경 아님).
+
+**병합**: [PR #122](https://github.com/wooklym/golmok/pull/122) → main(오케스트레이터 결정 D-019; 리뷰 [R122](https://github.com/wooklym/golmok/pull/122#issuecomment-6065848475) (A) 0 · (B) 1 · (C) 6). 위 문안은 STATUS WP-06 행·ROADMAP zone_import 줄에 옮겼다. ROADMAP은 리뷰 제안대로 "긴 worktree 경로" 뒤에 넣고, "GUI 폴백 팩만 PC 미확인"을 "폴백 팩(GUI·헤드리스)만 PC 미확인"으로 바꿨다. R122-B1(태그 판정 뒤 헤드리스 팩 `_pack_udim_tiles`는 PC 미실행)은 이 병합 커밋에서 런북 §2 머리 주의·§12 #4·#42에 반영했다. (C) R122-C1~C6(`parse_dimensions_tag` 초장 자릿수, fake `_TagName` docstring, 테스트 주석, 헤드리스 #38 테스트, §2 커맨드릿 `1 warnings`(#41), 위 "열린 브랜치와 파일 겹침 없음" — #121도 `pc-verify-v17.md`를 고침, 줄 충돌 없음)는 후속 후보로 남긴다.
