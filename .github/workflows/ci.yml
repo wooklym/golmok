@@ -32,10 +32,11 @@ jobs:
       run:
         working-directory: tools
     steps:
-      - uses: actions/checkout@v4
+      # [WP-01 hook] actions Node 24 majors (2026-10-08)
+      - uses: actions/checkout@v7
         with:
           lfs: false  # tests need no binary assets
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.python }}
           cache: pip
@@ -52,8 +53,8 @@ jobs:
   repo-check:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
       - name: check_repo.py
@@ -64,13 +65,13 @@ jobs:
     runs-on: ubuntu-latest
     continue-on-error: true
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
           cache: pip
           cache-dependency-path: tools/pyproject.toml
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: "22"
       - name: Build synthetic basemap
