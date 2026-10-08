@@ -476,7 +476,6 @@ bool FGolmokAudioFootstepTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("unknown roster uses global stride"), Config.StrideFor(TEXT("future"), false), 70.0);
 	TestEqual(TEXT("production photo fade setting"), Config.PhotoMuteFadeSeconds, .25);
 	// C-08 hypothesis begin — update with audio.json rain
-	TestEqual(TEXT("rain hypothesis point count"), Config.RainGainCurve.Num(), 3);
 	TestTrue(TEXT("rain hypothesis curve"), Config.RainGainCurve == TArray<FVector2D>({{0, 0}, {.3, .35}, {1, .8}}));
 	TestEqual(TEXT("rain hypothesis interior"), Config.RainInteriorGain, .35);
 	// C-08 hypothesis end
@@ -511,6 +510,7 @@ bool FGolmokAudioFootstepTest::RunTest(const FString& Parameters)
 	const int32 PreviousSets = Config.Sets.Num(), PreviousSurfaces = Config.Surfaces.Num(), PreviousPresets = Config.Presets.Num();
 	auto ReadFixture = [&Manifest]() { TSharedPtr<FJsonObject> Root; FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Manifest), Root); return Root; };
 	auto SerializeFixture = [](const TSharedPtr<FJsonObject>& Root) { FString Json; FJsonSerializer::Serialize(Root.ToSharedRef(), TJsonWriterFactory<>::Create(&Json)); return Json; };
+	if (!TestTrue(TEXT("DOM fixture parses"), ReadFixture().IsValid())) return false;
 	FGolmokAudioConfig ReferenceControl;
 	{
 		const auto Root = ReadFixture();
