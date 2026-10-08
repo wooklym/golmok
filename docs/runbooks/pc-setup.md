@@ -89,7 +89,7 @@ pytest
 ### 2a. 패키징 출력 경로와 방화벽 (C-07, 2026-10-04)
 Development 패키지는 TraceLog 제어 소켓(TCP 1985)을 모든 인터페이스(INADDR_ANY)에 연다. Windows 방화벽은 **새 exe 경로마다** 허용 여부를 묻는다. 워크트리마다 `<워크트리>\build\Windows`에 패키징하면 경로가 매번 달라져 대화상자가 다시 뜬다. 출력 경로를 하나로 고정하면 한 번만 뜬다.
 
-**Claude 작업**(PC마다 한 번)
+**PC Claude 세션 작업**(PC마다 한 번, 소유자 작업이 아니다. 2026-10-09 기준 미설정이라 다음 PC 카드가 §0에서 한다 — 오케스트레이터 결정, 리뷰 [R121](https://github.com/wooklym/golmok/pull/121#issuecomment-6065793275) C2)
 ```powershell
 setx GOLMOK_PKG_DIR C:\Users\user\golmok-pkg\Windows
 ```
@@ -100,13 +100,15 @@ setx GOLMOK_PKG_DIR C:\Users\user\golmok-pkg\Windows
 
 **사용자 작업**
 - 방화벽 대화상자가 뜨면 **취소**를 누른다. 허용하면 다른 PC에서 1985 포트로 접속할 수 있게 된다(공용 네트워크를 체크하면 공용망에서도). 취소하면 이 exe의 인바운드 차단 규칙이 생긴다. 같은 PC 안(loopback) 테스트는 취소해도 영향이 없다.
+- 창이 뜨기 전에 막으려면 관리자 PowerShell에서 고정 경로의 exe에 차단 규칙을 한 번 만든다: `New-NetFirewallRule -DisplayName "Golmok pkg block" -Direction Inbound -Action Block -Program C:\Users\user\golmok-pkg\Windows\Golmok\Binaries\Win64\Golmok.exe`.
+- 기존 허용 규칙(C-07, 2026-10-09 V-11 PC 확인): 예전 창이 **허용**으로 처리돼 `sharp-wright-5b1e4a`·`upbeat-rosalind-95c87c`·`stoic-kare-964e86` 세 워크트리의 `build\Windows\Golmok\Binaries\Win64\Golmok.exe`에 인바운드 허용 규칙(프로필 Public, TCP·UDP 모든 포트)이 있다. Windows Defender 방화벽 → 고급 설정 → 인바운드 규칙에서 이 셋을 **차단**으로 바꾼다. 지우면 그 경로를 다시 실행할 때 창이 또 뜨므로 지우지 말고 차단으로 둔다.
 
 **패키지 exe를 실행하는 런북**은 경로를 이렇게 정한다.
 ```powershell
 $pkg = if (-not [string]::IsNullOrWhiteSpace($env:GOLMOK_PKG_DIR)) { $env:GOLMOK_PKG_DIR.Trim().TrimEnd('\') } else { ".\build\Windows" }
 & "$pkg\Golmok.exe" …
 ```
-- 확인(2026-10-09, V-11 PC 세션, UE 5.8.3 Launcher 소스): Development 빌드는 `LaunchEngineLoop.cpp`에서 `FTraceAuxiliary::Initialize`를 무조건 부르고, TraceLog 작성기 초기화가 제어 리스너를 켠다(`TraceLog/Private/Trace/Writer.cpp` `Writer_InternalInitializeImpl` → `Writer_InitializeControl`, 워커가 `Control.cpp` `Writer_ControlListen` 호출, `Detail/Windows/WindowsTrace.cpp` `bind(INADDR_ANY:1985)`). **이 리스너를 끄는 런타임 인자는 없다**(`-notrace` 파싱 없음, `-trace=`는 채널만 고름, `-notraceserver`는 Unreal Trace Server 자동 실행만 막음). 실행 중 `netstat -ano`는 매번 `TCP 0.0.0.0:1985 LISTENING <게임 PID>`였다(창 있는 실행·`-RenderOffScreen` 실행 모두). Shipping은 `UE_TRACE_ENABLED`가 0이라 해당 없음. 고정 출력 경로가 유일한 대책이다.
+- 확인(2026-10-09, V-11 PC 세션, UE 5.8.3 Launcher 소스): Development 빌드는 `LaunchEngineLoop.cpp`에서 `FTraceAuxiliary::Initialize`를 무조건 부르고, TraceLog 작성기 초기화가 제어 리스너를 켠다(`TraceLog/Private/Trace/Writer.cpp` `Writer_InternalInitializeImpl` → `Writer_InitializeControl`, 워커가 `Control.cpp` `Writer_ControlListen` 호출, `Detail/Windows/WindowsTrace.cpp` `bind(INADDR_ANY:1985)`). **이 리스너를 끄는 런타임 인자는 없다**(`-notrace` 파싱 없음, `-trace=`는 채널만 고름, `-notraceserver`는 Unreal Trace Server 자동 실행만 막음). 실행 중 `netstat -ano`는 매번 `TCP 0.0.0.0:1985 LISTENING <게임 PID>`였다(창 있는 실행·`-RenderOffScreen` 실행 모두). Shipping은 `UE_TRACE_ENABLED`가 0이라 해당 없음. ~~고정 출력 경로가 유일한 대책이다.~~ → 정정(리뷰 [R121](https://github.com/wooklym/golmok/pull/121#issuecomment-6065793275) C1): 런타임 인자로는 끌 수 없으므로, 예방은 고정 출력 경로와 그 경로의 차단 규칙 1회다(Shipping 패키지로도 피할 수 있다).
 
 ### 3. 리허설 사진 점검 (가이드 §4-C)
 - 사용자가 아이폰 리허설 사진 20장과 영상 1분을 PC로 옮긴다(원본 유지).

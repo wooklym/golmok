@@ -6,18 +6,20 @@
 - **선행**: V-16(`pc-verify-wp16a.md`)을 먼저 끝낸다. 날씨 상태 머신·전환이 PC에서 확인돼야 빗소리 판정이 뜻이 있다. V-16 결과가 main에 아직 없으면, 같은 PC 세션에서 V-16 직후에 이어서 한다. 이때 V-16 브랜치·워크트리를 그대로 쓰고, §8 결과는 이 카드에 따로 적는다.
 - **작업 폴더**(AGENTS.md §5): 이 세션의 Claude Desktop 워크트리에서만 일한다. 다른 워크트리와 `C:\Users\user\golmok`은 읽기·복사만 한다.
 - **GUI 잠금**: GUI 에디터·PIE·녹음·패키지 실행 전에 `C:\Users\user\AppData\Local\Temp\claude\gui-foreground.lock`을 확인한다(V-17과 같은 규칙: 20분 안 기록이 있으면 기다리고, 쓰는 동안 20분마다 갱신, 끝나면 삭제).
-- **소요**: 약 2~3 h(§6 패키지는 소유자 조치 뒤).
+- **소요**: 약 2~3 h.
 - **저장소에 넣는 것**: 이 문서 결과 칸, `pc-verify-wp13.md` §9 끝 "V-18 결과"(PC 결과 절, §7.6 예외), STATUS 자기 행·세션 로그. 녹음 원본 WAV·CSV는 PC 로컬에 두고 경로만 적는다(오디오는 저장소에 넣지 않는다).
 - **PC fix**: 결함이 나오면 Astra 레인 파일(`Audio/`·`audio.json`·`audio_pure.py`·오디오 테스트)은 **고치지 않는다**. PR 본문에 재현·로그를 적으면 오케스트레이터가 Astra 과제로 넘긴다. 레인 밖 결함만 `WP-NN: PC fix …`로 고친다.
 - 돈이 드는 일, 라이선스 동의, 외부 발송은 하지 않는다. 새 음원을 내려받지 않는다(채택 음원은 C-08 뒤 별도 결정).
 
-## 소유자 사전 조치 (§6 전에 필요)
-- [ ] V-17 카드와 같다. "Windows 보안" 창에서 **취소**를 누르고, `setx GOLMOK_PKG_DIR C:\Users\user\golmok-pkg\Windows`를 한 번 실행한 뒤 새 셸을 연다([pc-setup.md §2a](pc-setup.md)).
+## 소유자 조치 (C-07, 2026-10-09 갱신)
+- [ ] V-17 카드와 같다. 고정 경로 `C:\Users\user\golmok-pkg\Windows\Golmok\Binaries\Win64\Golmok.exe`에서 "Windows 보안" 창이 뜨면 **취소**한다(미리 막으려면 그 exe에 차단 규칙을 한 번 만든다, [pc-setup.md §2a](pc-setup.md)). 세션은 누르지 않고 소유자에게 넘긴다.
+- `setx GOLMOK_PKG_DIR …`는 소유자 작업이 아니다. PC 세션이 §0에서 한 번 한다.
 
 ## 0. 준비
 - [ ] STATUS V-18 행을 🔵로 바꾸고 세션 로그 줄을 단다.
 - [ ] `git fetch origin`을 하고, 열린 `pc/*`·`astra/*`와 겹치는지 확인한다(`git diff --stat origin/main...origin/<브랜치>`).
 - [ ] `git switch -c pc/v18-verify-rain-audio origin/main`을 실행해 SHA를 기록하고 `git lfs pull`을 한다. `rain.wav`가 2,304,044 bytes(24 s)인지 확인한다.
+- [ ] **패키지 출력 경로(§6용, PC 세션이 한 번)**: `[Environment]::GetEnvironmentVariable('GOLMOK_PKG_DIR','User')`가 비어 있으면(앞 카드가 아직 안 했으면) `setx GOLMOK_PKG_DIR C:\Users\user\golmok-pkg\Windows`를 실행하고 새 셸을 연다([pc-setup.md §2a](pc-setup.md)).
 - [ ] `.\tools\ue\build.ps1`을 실행한 뒤 `.\tools\ue\test.ps1 -SetupDevLevel -Filter Golmok.` → **39 Success**(`Golmok.Audio.*` 2 포함)를 확인한다.
 
 ## 1. 생성·임포트 — [`pc-verify-wp13.md` §1·§9-1](pc-verify-wp13.md)
@@ -50,9 +52,10 @@
 - [ ] 복원·instant·첫 바인딩의 즉시 gain 변화는 **기대 동작**으로 따로 적는다(일반 전환의 클릭 판정과 섞지 않는다).
 
 ## 6. 패키지 — [§9-6](pc-verify-wp13.md)
-소유자 사전 조치 뒤에만 한다. `.\tools\ue\package.ps1`을 실행하고 `Package output: C:\Users\user\golmok-pkg\Windows`를 확인한다.
+§0의 `GOLMOK_PKG_DIR` 설정 뒤에 한다. `.\tools\ue\package.ps1`을 실행하고 `Package output: C:\Users\user\golmok-pkg\Windows`를 확인한다.
 - [ ] `SW_rain`이 쿡됐는지, 크레딧 8항목이 있는지, `rain 1`이 재생되고 이음매를 한 번 넘기는지(24 s 이상 재생) 확인한다.
 - [ ] 방화벽 창이 다시 뜨면 세션은 누르지 않고 소유자에게 넘긴다.
+- 패키지 창의 콘솔(` 키)은 SendInput으로 열리지 않았다(2026-10-09 V-11 재실행, [wp18a §14-6](pc-verify-wp18a.md)). `golmok.weather rain 1` 같은 명령은 실행 인자 `-ExecCmds=…`로 준다.
 
 ## 7. C-08 청취 자료 (판정 아님)
 세션은 판정하지 않는다. 소유자가 들을 수 있게 PC 로컬에 남기고 경로만 적는다(저장소에 넣지 않는다).

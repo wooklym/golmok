@@ -5,6 +5,8 @@
 대상: PC Claude 세션(또는 사용자). 브랜치 `pc/v16-verify-wp16a` ← 16a가 병합된 origin/main.
 전제: V-03(WP-05 조명)·V-09(포토)·V-13(WP-14a 시간대)·V-14(WP-15a 이동·세이브) 🟢인 PC. `L_Dev`(`golmok.setup_dev_level`)와 `L_ZoneTest`(+ `synthetic_zone.run(interior=True)`의 실내 서브레벨)가 있다. `cd tools && PYTHONUTF8=1 python -m pytest -q` 초록. `Golmok.uproject` `Plugins`에 `{"Name": "Niagara", "Enabled": true}`가 있다(16a 커밋 `WP-16: plugins (Golmok.uproject)`).
 소요: 빌드 10~20분 + 에셋 저작 30분 + 헤드리스 15분 + PIE 검증 90분 + 성능 20분 + 패키지 30분. 결과는 이 문서 §13과 `docs/plan/STATUS.md`(V-16 행, WP-16 행)에 적는다.
+GUI 잠금: GUI 에디터·PIE·패키지 실행 전에 `C:\Users\user\AppData\Local\Temp\claude\gui-foreground.lock`을 확인한다(한 줄 `<세션> <목적> <ISO 시각>`). 20분이 안 된 기록이 있으면 기다린다. 쓰는 동안 20분 안에 갱신하고 끝나면 지운다. 성능 측정(§10) 중에는 다른 UnrealEditor·`-game` 프로세스가 없어야 한다. 헤드리스 빌드·테스트(§1·§3)는 잠금 없이 해도 된다. V-08b·V-17·V-18·V-12 카드와 GUI 시간을 나눠 쓴다.
+패키지 출력 경로(§11용, C-07): 시작할 때 `[Environment]::GetEnvironmentVariable('GOLMOK_PKG_DIR','User')`가 비어 있으면 PC 세션이 한 번 `setx GOLMOK_PKG_DIR C:\Users\user\golmok-pkg\Windows`를 실행하고 새 셸을 연다([`pc-setup.md` §2a](pc-setup.md), 소유자 작업 아님). 고정 경로 exe에서 Windows 방화벽 창이 뜨면 세션은 누르지 않고 소유자가 **취소**한다(또는 그 exe에 차단 규칙을 미리 만든다).
 
 클라우드 세션은 UE를 컴파일할 수 없었다. **컴파일·링크 에러가 나면 §12 표를 보고 고친 뒤 커밋**한다(`WP-16a: PC fix …`). 설계 의도를 바꾸는 수정이면 `docs/plan/WP-16-weather.md` "결과"에 한 줄 적는다.
 
@@ -310,6 +312,7 @@ Select-String "$env:TEMP\utoc.csv" -Pattern 'Golmok/Weather/(MPC_GolmokWeather|N
 - [ ] 패키지 실행 명령: `& "$pkg\Golmok.exe" -windowed -forcelogflush`(`$pkg`는 `pc-setup.md` §2a; `-log` 창은 포커스를 뺏으므로 쓰지 않는다). Windows 방화벽 대화상자가 뜨면 세션은 누르지 않고 소유자가 **취소**한다(C-07, `pc-setup.md` §2a).
 - [ ] 패키지 실행 → 로그(`$pkg\Golmok\Saved\Logs\Golmok.log` — `$pkg`는 `pc-setup.md` §2a의 `GOLMOK_PKG_DIR` 규칙)에 `weather: clear fixed, transition 20.0 s, 10 schedule slots, mpc ok, fx idle`, `MPC missing`·`rain fx missing`·`weather: off -` 줄 없음.
 - [ ] `~` → `golmok.weather rain heavy` → 20 s 전환·빗줄기(HUD는 Development 빌드에서 F1), `golmok.weather status` 끝 줄 `mpc ok | fx on | interior no | frozen no`.
+  패키지 창의 콘솔(` 키)은 이 PC에서 SendInput으로 열리지 않았다(2026-10-09 V-11 재실행, [`pc-verify-wp18a.md` §14-6](pc-verify-wp18a.md)). 사람이 직접 키를 누르지 않으면 명령은 실행 인자 `-ExecCmds=…`로 준다.
 
 ## 12. 불확실한 UE 5.8 API와 대안(설계 §17)
 | # | 파일 | API·항목 | 불확실한 점 | 대안 | PC 결과 |

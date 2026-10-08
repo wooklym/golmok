@@ -1,6 +1,6 @@
 # WP-04 — UE C++ 런타임 1: Geo·Zone
 
-상태: 🟡 코드 완료·PC 검증 대기 (2026-09-24, session_01GGmw3pPHLp4Wk5Us9243AL) · 담당: 클라우드 Claude 세션(**Fable 5.1 ultracode**, 모델 정책 DEVELOPMENT-PLAN §7.4) · 의존: WP-02 · 검증: **G2(PC 빌드·PIE, [runbooks/pc-verify-wp04.md](../runbooks/pc-verify-wp04.md))**
+상태: 🟢 완료(PC 검증 통과 — V-03 2026-09-25, 아래 "결과"의 "PC 검증") — 이전: 🟡 코드 완료·PC 검증 대기 (2026-09-24, session_01GGmw3pPHLp4Wk5Us9243AL) · 담당: 클라우드 Claude 세션(**Fable 5.1 ultracode**, 모델 정책 DEVELOPMENT-PLAN §7.4) · 의존: WP-02 · 검증: **G2(PC 빌드·PIE, [runbooks/pc-verify-wp04.md](../runbooks/pc-verify-wp04.md))**
 
 ## 목표
 Zone manifest를 읽어 청크 메시·충돌·blocker를 올바른 위치에 배치하고, 거리·우선순위 규칙으로 로드/언로드하며, 겹치는 배경 베이스맵을 숨기는 **런타임 핵심**을 C++로 만든다. 이 세션은 UE를 빌드할 수 없으므로 **보수적인 API + 상세한 PC 검증 런북**이 완료 조건이다.
@@ -447,7 +447,7 @@ BlockerThicknessCm=10
 10. **quality 추가 키**: 문자열(`ExtraJson`) 보존만, 구조화하지 않는다.
 
 ## 결과
-세션: session_01GGmw3pPHLp4Wk5Us9243AL (Fable 5.1 ultracode; 검증 단계 회의론자는 사용자 지시로 Opus) · 2026-09-24 · 상태 **🟡 코드 완료·PC 검증 대기** (G2 `runbooks/pc-verify-wp04.md`, V-03)
+세션: session_01GGmw3pPHLp4Wk5Us9243AL (Fable 5.1 ultracode; 검증 단계 회의론자는 사용자 지시로 Opus) · 2026-09-24 · 상태 **🟡 코드 완료·PC 검증 대기** (G2 `runbooks/pc-verify-wp04.md`, V-03) → **🟢 PC 검증 통과**(V-03 2026-09-25, 아래 "PC 검증")
 
 **진행 방식(ultracode)** — ① 설계 패널: 안정성·성능·스펙 충실 3안(Fable) → 심판 채점(스펙안 34/40 승, 결함 목록) → 종합 → 위 "설계 (확정)" 절. ② 구현(Geo → Zones, 공용 헤더 `GolmokGeoMath.h` 먼저 확정·g++ 테스트로 고정). ③ 적대적 리뷰: UE 5.8 API / 리플렉션·빌드 / 수학·규약 / 스펙·런북 4관점(Fable) → 원시 소견 20건 → 소견마다 회의론자 2명(Opus, 엔진 사실 관점 + 코드 맥락 관점)이 반박 시도 → **확정 6·반박 14**(반박 14 중 12는 1차 수정 커밋 뒤 "이미 고쳐짐", 실질 반박은 A6·D5 2건). 확정 6건은 모두 반영: A1 컴포넌트 이름 훼손(`MakeUniqueObjectName`이 `glass_1`→`glass_2`; 정확한 이름 + 죽은 컴포넌트 TRASH 개명 + 컴포넌트 태그), A2 런타임 컴포넌트가 디테일 패널에 안 보임(배열 `VisibleAnywhere` + 배치 로그 추가), A3 런북 로그 문자열(`blockers 1/1`), A4 언로드 테스트 거리(원점 기준 −50 m), A5 설계 시그니처 불일치(설계 문구를 코드에 맞춤: `FTransform GetPortalWorldTransform(...) const`, `int32 Build*()`), D7 결과·STATUS(이 절). 세션 자체 점검으로 잡은 것: UE `PI` 매크로 충돌(`Pi`로 개명), Static 루트는 게임 월드에서 이동 불가(루트 Movable·자식 Stationary), `FTimerHandle` include, 원점 없는 레벨의 `LonLatToLevelUE` 폴백 오류(false 반환으로 변경), blocker 축 임계값을 Python 기준(`|h|<1e-6`)에 맞춤, exterior 쌍만 겹침 판정, L_Dev 바닥이 zone까지 안 닿음(`Zone_Ground` 평면).
 

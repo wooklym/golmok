@@ -61,9 +61,9 @@ ROADMAP "품질 목표"를 그대로 쓴다. 요약하면 (1) 고사양에서 4K
 ```
 Phase 0  조사·설계 ─────────────────────────────── ✅ 완료 (PR #1)
 Phase 1  MVP
-  ├ 1A  클라우드 코드 트랙   WP-01~08 ✅ M1 (2026-09-25) → 후속 WP-09·11·10   ← 지금 여기
-  ├ 1B  PC 셋업·검증 트랙    V-01~V-06 (PC Claude 세션 + 사용자)
-  ├ 1C  촬영·데이터 트랙     C-01~C-06 (사용자)
+  ├ 1A  클라우드 코드 트랙   WP-01~08 ✅ M1 (2026-09-25) → 후속 WP-09~13·14a·15a·16a·17·18a·19a 병합 (13·17·18a는 Astra)
+  ├ 1B  PC 셋업·검증 트랙    V-01~V-18 (PC Claude 세션 + 사용자) — M2 🟢(2026-10-09), WP별 PC 검증 계속   ← 지금 여기
+  ├ 1C  촬영·데이터 트랙     C-01~C-06 (사용자) — C-01 리허설·C-02 촬영 대기(1D의 선행)
   ├ 1D  스파이크 1.1 → D-010 (환경 표현 방식 확정)
   ├ 1E  통합: 골목 Zone + 실내 Zone + 조명·폴리시
   └ 1F  검수·회고 → Phase 2 계획
@@ -120,27 +120,41 @@ UE 에디터와 실데이터 없이도 만들 수 있고, 합성 데이터로 �
 | **WP-13** | 환경음 기본(D-016 (a)) | `research/10-ambience-sources.md`(라이선스 원문 인용), `Audio/`(앰비언스 서브시스템 크로스페이드, 발소리 컴포넌트, 콘솔), `Config/Golmok/audio.json`, `audio_import.py`, WAV(LFS, ≤ 40 MB) 또는 플레이스홀더 생성기 | UE 자동화 `Golmok.Audio.*`, pytest, 런북 | **빌드 + PIE**(V-10) | WP-05, WP-12 |
 | **WP-14a** | 시간대 폴리시 14a — 연속 시각·시계 모드(D-015 (a), D-010 독립; 2026-09-28 D-019) | `Lighting/GolmokClockMath.h`(g++ 교차검증), `GolmokTimeOfDay` 시각·모드 fixed/clock/realtime·보간·`OnNightChanged`·콘솔 `golmok.tod time/mode/rate/status`·HUD, `Config/Golmok/lighting_presets.json` schema 2(`time`), `lighting.py`, 런북 `pc-verify-wp14a.md`; 스펙 `plan/WP-14-time-of-day-policy.md`. 14b(night look-dev·발광 에셋)는 D-010 뒤 PC | UE 자동화 `Golmok.Lighting.Clock`(+PresetsFile/PresetApply 유지), pytest, 런북 | **빌드 + PIE**(V-13) | WP-05, WP-12, WP-13(이벤트 계약) |
 | **WP-15a** | Zone 이동·세이브·manifest v2(D-014·D-017 중 지도 UI 제외; 2026-09-28 D-019) | `docs/spec/zone-manifest.md` schema 2(`spawn`·`display_name`, v1 호환)·validator·CLI·생성기, `AGolmokZone::GetSpawnUE`, `Map/GolmokTravelSubsystem`(선로드→페이드→텔레포트, `golmok.travel`), `Save/GolmokSaveGame`·`GolmokSaveSubsystem`(자동 슬롯 1·경위도·방문·사진 색인·복원 폴백, `golmok.save/load`), 순수 헤더 `GolmokTravelMath.h`·`GolmokMapMath.h`, 런북 `pc-verify-wp15a.md`; 스펙 `plan/WP-15-zone-travel-save.md`. 15b 지도 UI·텍스처는 D-009 자문·실제 zone 뒤 | UE 자동화 `Golmok.Zone.ManifestV2`·`Golmok.Travel.Teleport`·`Golmok.Save.RoundTrip`, pytest, 런북 | **빌드 + PIE**(V-14) | WP-04, WP-09(V-07), WP-12(사진 훅), WP-14a(시간대 API) |
-| **WP-16a** | 날씨(비) 16a — 상태·조명 수정자·빗줄기·젖음/오디오 계약(D-015 (b) 중 D-010 독립 부분; 2026-10-04 D-019, 설계 Opus) | `Weather/`(순수 헤더 `GolmokWeatherMath.h` g++ 교차검증, `UGolmokWeatherSubsystem`: clear/overcast/rain + 비 강도·fixed/schedule(시간대 시계 분 기준 결정적 일정)·월드 초 20 s 전환·강수 지연·젖음/웅덩이 적분, `GolmokWeatherRainFx` Niagara 빗줄기 — 카메라 추종·실내 끔), `Config/Golmok/weather.json`, `AGolmokTimeOfDay` 합성 단계(기저 → 날씨 → 실내 오버레이, clear = 항등), MPC `MPC_GolmokWeather`(RainIntensity·Wetness·PuddleAmount, 값만), 오디오 계약 `OnWeatherChanged`·`GetRainIntensity()`(소비는 Astra), 세이브 `FGolmokSaveWeather`(Rule 0/1), `golmok.weather`·HUD 공급자, 사진 메타 `weather`, 훅(`.uproject` Niagara·Build.cs·DefaultGame.ini 쿡·등록부), 런북 `pc-verify-wp16a.md`; 스펙 `plan/WP-16-weather.md`. 16b(젖은 표면·반사·빗줄기 룩·look-dev)는 D-010 뒤 PC | UE 자동화 `Golmok.Weather.Config/Lighting/Runtime`(+ `Save.RoundTrip` 날씨 단계), pytest(g++ 교차검증·스키마·MPC 셋업·훅), 런북 | **빌드 + PIE**(V-16) | WP-14a(V-13), WP-15a(V-14), WP-12, WP-05(실내), WP-13(빗소리는 Astra 과제) |
+| **WP-16a** | 날씨(비) 16a — 상태·조명 수정자·빗줄기·젖음/오디오 계약(D-015 (b) 중 D-010 독립 부분; 2026-10-04 D-019, 설계 Opus) | `Weather/`(순수 헤더 `GolmokWeatherMath.h` g++ 교차검증, `UGolmokWeatherSubsystem`: clear/overcast/rain + 비 강도·fixed/schedule(시간대 시계 분 기준 결정적 일정)·월드 초 20 s 전환·강수 지연·젖음/웅덩이 적분, `GolmokWeatherRainFx` Niagara 빗줄기 — 카메라 추종·실내 끔), `Config/Golmok/weather.json`, `AGolmokTimeOfDay` 합성 단계(기저 → 날씨 → 실내 오버레이, clear = 항등), MPC `MPC_GolmokWeather`(RainIntensity·Wetness·PuddleAmount, 값만), 오디오 계약 `OnWeatherChanged`·`GetRainIntensity()`(소비는 Astra), 세이브 `FGolmokSaveWeather`(Rule 0/1), `golmok.weather`·HUD 공급자, 사진 메타 `weather`, 훅(`.uproject` Niagara·Build.cs·DefaultGame.ini 쿡·등록부), 런북 `pc-verify-wp16a.md`; 스펙 `plan/WP-16-weather.md`. 16b(젖은 표면·반사·빗줄기 룩·look-dev)는 D-010 뒤 PC | UE 자동화 `Golmok.Weather.Config/Lighting/Runtime`(+ `Save.RoundTrip` 날씨 단계), pytest(g++ 교차검증·스키마·MPC 셋업·훅), 런북 | **빌드 + PIE**(V-16) — 상태 🟡 코드 완료(2026-10-04, [#112](https://github.com/wooklym/golmok/pull/112))·V-16 대기 | WP-14a(V-13), WP-15a(V-14), WP-12, WP-05(실내), WP-13(빗소리는 Astra 과제) |
+| **WP-19** | GASP 모션 매칭 로코모션 통합([D-021](DECISIONS.md); 2026-09-30 설계 확정 Opus) — 19a 클라우드 기반 / 19b PC GUI 바인딩 / 19c Astra 로스터·발소리 | 19a(Claude 레인): `Animation/`(순수 헤더 `GolmokLocomotionMath.h` g++ 교차검증, 상태 공급 컴포넌트 `UGolmokLocomotionStateComponent`, `AGolmokGaspCharacter`, `GolmokAnimationConfig`), `Config/Golmok/animation.json`(mode abp/gasp, ① 폴백 규칙), `golmok.anim`, `tools/ue/add-gasp.ps1`·`gasp_import.py`, GASP 경로 가드(`check_repo`), GameMode 훅, 런북 `pc-verify-wp19.md`(A절 19b·B절 V-15). 19b(PC): `BPI_SandboxCharacter_Pawn` 구현 BP(로컬 전용)·T3D 텍스트·`animation.json` 확정 값. 19c(Astra): 로스터 GASP 항목·노티파이 구동 발소리. GASP 원본은 커밋하지 않는다(Fab EULA §5(a)); 스펙 `plan/WP-19-gasp-locomotion.md` | UE 자동화 `Golmok.Animation.Config/StateProvider/Fallback/GaspSmoke`(GASP 없으면 Info skip), pytest, ① 불변(기본 mode abp) | 19b 런북 A절 → **V-15**(B절) — 상태 🟡 19a 코드 완료·PC 대기(2026-09-30, [#76](https://github.com/wooklym/golmok/pull/76)·[#78](https://github.com/wooklym/golmok/pull/78)) · 19b ⚪ D-021 발효·V-08b 뒤 · 19c Astra T12~T17 병합(19b 확정 경로 반영은 19b 뒤) | V-08([D-021](DECISIONS.md)), V-08b, WP-18a(로스터), WP-13(발소리) |
 | **WP-11** | 웹 검수 뷰어 2차: 충돌·blocker 오버레이 | `tools/viewer` collision.glb/blockers.glb 오버레이·토글(Cesium.Model, glTF Y-up 변환), 서버 GLB 서빙(경로 탈출 금지), Playwright 스모크 | `npm test`, pytest | 브라우저 | WP-03, WP-06, WP-08 |
 
 - **후속(M1 이후, 2026-09-25 등록)**: 계획서에 남아 있던 항목을 WP-09(Zone Index 런타임 발견·비동기 로드 + V-03 디버그 표시 정리, Fable ultracode), WP-11(뷰어 충돌·blocker 오버레이, Opus), WP-10(애니메이션 평가·게임 기능 제안 문서, Opus)으로 묶었다. 순서 WP-09 → WP-11 → WP-10. `replaces.building_ids` 단위 런타임 숨김은 제외(베이스맵 타일이 건물을 병합하므로 빌드 단계 `golmok-zone exclude`가 정본, D-012).
 - **게임 기능(D-013~D-017 승인 2026-09-25, 권장 우선순위대로)**: WP-12 포토 모드 → WP-13 환경음 기본(둘 다 Fable ultracode, 1.6 폴리시의 선택 항목이며 MVP 범위 §1.3은 그대로) → **WP-14** 시간대 폴리시(D-015 (a); 2026-09-28 오케스트레이터 결정 D-019로 분할 — **14a** 연속 시각·시계 모드는 D-010과 무관해 먼저(클라우드, `plan/WP-14-time-of-day-policy.md`), **14b** night look-dev·발광 에셋은 D-010 확정 뒤 PC) → **WP-15** Zone 지도·이동 + 세이브(D-014·D-017; 2026-09-28 D-019로 분할 — **15a** 이동·세이브·manifest v2는 V-07 통과·합성 zone 2곳으로 먼저(클라우드, `plan/WP-15-zone-travel-save.md`), **15b** 지도 UI·정사영상 텍스처는 D-009 자문·실제 zone 뒤 PC) → **WP-16** 날씨 비(D-015 (b); 2026-10-04 오케스트레이터 결정 D-019로 분할 — **16a** 상태·조명 수정자·빗줄기·젖음/오디오 계약은 표현 방식과 무관해 V-13·V-14 통과 뒤 먼저(클라우드, `plan/WP-16-weather.md` 설계 확정), **16b** 젖은 표면·반사·look-dev는 D-010 뒤 PC) → **WP-17** 현장 녹음 절차·Zone별 소리(D-016 (b), 문서·촬영 가이드, Opus). WP-14 이후 스펙은 착수 조건이 충족될 때 쓴다.
 - WP-08은 ROADMAP 1.6의 "(웹, 선택)"이었으나 2026-09-24에 CesiumJS 기반으로 **완료**했다(`tools/viewer`, `golmok-viewer`). UE 디버그 도구(WP-05)는 그대로 진행한다.
 - Phase 2 서버 파이프라인(COLMAP+gsplat)은 이 트랙에 넣지 않는다(D-005: MVP는 수동).
-- **병행(ChatGPT Astra, §7.6 캐릭터 레인, 2026-09-26 등록)**: **WP-18** 플레이어 캐릭터 — 설계(`design/character-concept.md`, `research/11-character-pipeline.md`, `plan/WP-18-characters.md`, D-018 제안) → 18a(`Characters/`, `Config/Golmok/characters.json`, 플레이스홀더 마네킹 교체·콘솔, 핫스팟은 훅만; pytest·g++ 교차검증·UE 자동화 `Golmok.Character.*`, 검증 V-11) → 18b(실제 에셋·리타깃·이모트, V-08·V-12 룩 검증·D-018 ② 뒤).
+- **병행(ChatGPT Astra, §7.6 캐릭터 레인, 2026-09-26 등록)**: **WP-18** 플레이어 캐릭터 — 설계(`design/character-concept.md`, `research/11-character-pipeline.md`, `plan/WP-18-characters.md`, D-018 제안) → 18a(`Characters/`, `Config/Golmok/characters.json`, 플레이스홀더 마네킹 교체·콘솔, 핫스팟은 훅만; pytest·g++ 교차검증·UE 자동화 `Golmok.Character.*`, 검증 V-11) → 18b(실제 에셋·리타깃·이모트, V-08·V-12 룩 검증·D-018 ② 뒤). 2026-09-27부터 오디오 레인 **WP-13** 환경음 기본(T3, V-10)·**WP-17** 현장 녹음 절차(T4, 문서)도 Astra가 맡았다(§7.6 레인 표, `plan/astra-tasks.md`). WP-16a 빗소리 레이어(T24~T29, V-18)와 WP-19c(T12~T17)도 Astra 레인이다.
 
 ### 5.2 트랙 1B — PC 셋업·검증 (PC Claude 세션 + 사용자)
 
-| V | 내용 | 런북 | 의존 |
-|---|---|---|---|
-| V-01 | PC 셋업: Git LFS, Python 도구, UE 5.8.3, VS 2026, 빌드, L_Dev, 리허설 사진 점검 | `runbooks/pc-setup.md` §0~§4 (기존) | 사용자 설치 |
-| V-02 | 베이스맵 실데이터 빌드·임포트 | `runbooks/pc-setup.md` §5 (기존) | V-01, C-03 |
-| V-03 | WP-04/05 C++ 빌드·PIE 검증(합성 Zone, 포털, 조명, 디버그) | `runbooks/pc-verify-wp04.md`, `pc-verify-wp05.md` | V-01, M1 |
-| V-04 | WP-06 에디터 Python 검증(합성 청크 임포트, 실내 서브레벨) | `runbooks/pc-verify-wp06.md` | V-03 |
-| V-05 | RealityScan/Postshot 실행 → WP-03·07 도구로 후처리·정합 → 스파이크 1.1 측정 | `runbooks/pc-spike.md`(WP-06에서 작성) | V-04, C-01, C-02 |
-| V-06 | 골목 Zone·실내 Zone 통합, 성능 튜닝, 패키징 | `runbooks/pc-integrate.md`(M4 이후 작성) | M4 |
-| V-07 | WP-09 Zone Index 발견·비동기 로드 검증(배치 액터 없이 발견·로드, 히치 비교) | `runbooks/pc-verify-wp09.md`(WP-09에서 작성) | V-04 |
-| V-08 | 애니메이션 3안 PC 평가(L_Dev, 게임패드) | `runbooks/pc-verify-animation.md`(WP-10에서 작성) | V-01 |
+| V | 내용 | 런북 | 의존 | 상태(2026-10-09) |
+|---|---|---|---|---|
+| V-01 | PC 셋업: Git LFS, Python 도구, UE 5.8.3, VS 2026, 빌드, L_Dev, 리허설 사진 점검 | `runbooks/pc-setup.md` §0~§4 (기존) | 사용자 설치 | 🔵 §0~2 🟢(2026-09-24), §3 리허설은 C-01 사진·EgoBlur 모델 동의 대기 |
+| V-02 | 베이스맵 실데이터 빌드·임포트 | `runbooks/pc-setup.md` §5 (기존) | V-01, C-03 | 🟢 |
+| V-03 | WP-04/05 C++ 빌드·PIE 검증(합성 Zone, 포털, 조명, 디버그) | `runbooks/pc-verify-wp04.md`, `pc-verify-wp05.md` | V-01, M1 | 🟢 2026-09-25 |
+| V-04 | WP-06 에디터 Python 검증(합성 청크 임포트, 실내 서브레벨) | `runbooks/pc-verify-wp06.md` | V-03 | 🟢 2026-09-28(V-04b 2026-09-29·V-04c 2026-10-04 🟢) |
+| V-05 | RealityScan/Postshot 실행 → WP-03·07 도구로 후처리·정합 → 스파이크 1.1 측정 | `runbooks/pc-spike.md`(WP-06에서 작성) | V-04, C-01, C-02 | ⚪ C-01·C-02·C-04·EgoBlur 모델 동의 대기 |
+| V-06 | 골목 Zone·실내 Zone 통합, 성능 튜닝, 패키징 | `runbooks/pc-integrate.md`(M4 이후 작성) | M4 | ⚪ D-010 뒤 |
+| V-07 | WP-09 Zone Index 발견·비동기 로드 검증(배치 액터 없이 발견·로드, 히치 비교) | `runbooks/pc-verify-wp09.md`(WP-09에서 작성) | V-04 | 🟢 2026-09-26 |
+| V-08 | 애니메이션 3안 PC 평가(L_Dev, 게임패드) | `runbooks/pc-verify-animation.md`(WP-10에서 작성) | V-01 | 🟢 2026-09-30 → [D-021](DECISIONS.md) ② GASP 방향 |
+| V-08b | GASP 통합 전 PC 실험(이동 값 A/B·돌아서기·Manny·4.5등신 리타깃·`.uplugin` 표·패키지 스모크, 제품 코드 변경 없음) | `runbooks/pc-verify-v08b.md` | V-08(D-021) | ⚪ 카드 발행(2026-10-04), PC 대기 |
+| V-09 | WP-12 포토 모드 검증 | `runbooks/pc-verify-wp12.md` | WP-12, V-07 | 🟢 V-09c 2026-09-29(V-09·V-09b 뒤 재검증) |
+| V-10 | WP-13 환경음 검증(Astra 레인) | `runbooks/pc-verify-wp13.md` | WP-13 | 🟢 2026-09-29(V-10b 🟢 2026-10-04), 소유자 청취 C-08 남음 |
+| V-11 | WP-18a 캐릭터 목록·교체 검증(Astra 레인) | `runbooks/pc-verify-wp18a.md` | WP-18a | 🟢 2026-10-04. 패키지 재실행(2026-10-09, [#121](https://github.com/wooklym/golmok/pull/121)·[#123](https://github.com/wooklym/golmok/pull/123))에서 quinn 미쿡 → 쿡 훅 추가, 재확인은 V-17 §5 ③ |
+| V-12 | 캐릭터 룩 검증(프록시) | `runbooks/pc-verify-v12.md` | V-11, T23([#108](https://github.com/wooklym/golmok/pull/108)) | ⚪ 카드 발행(2026-10-09; 런북·채점표 2026-09-29), PC 대기 |
+| V-13 | WP-14a 시간대 폴리시 검증 | `runbooks/pc-verify-wp14a.md` | WP-14a | 🟢 2026-10-04 |
+| V-14 | WP-15a Zone 이동·세이브 검증 | `runbooks/pc-verify-wp15a.md` | WP-15a, V-07 | 🟢 2026-10-04(후속 P14-2 확인은 V-17 §1) |
+| V-15 | WP-19 통합 검증(같은 메시·우리 카메라·블라인드 채점, D-021 사전 등록 기준) | `runbooks/pc-verify-wp19.md` B절 | WP-19(19a·19b·19c), V-08b | ⚪ WP-19 뒤 |
+| V-16 | WP-16a 날씨 검증(MPC·NS 에셋 저작 포함) | `runbooks/pc-verify-wp16a.md` | WP-16a | ⚪ 카드 발행(2026-10-04), PC 대기 |
+| V-17 | 2026-10-04 후속 묶음(도착 카메라·카메라 구도·Full Precision UV·베이스맵 성능·패키지 재실행·TraceLog 인자) | `runbooks/pc-verify-v17.md` | [#107](https://github.com/wooklym/golmok/pull/107), [#108](https://github.com/wooklym/golmok/pull/108) | ⚪ 카드 발행(2026-10-04). §6·§5 ①② ✅(2026-10-09), §5 ③ quinn 재확인·§1~§4 남음 |
+| V-18 | WP-13 빗소리 레이어 검증(Astra T24~T29) | `runbooks/pc-verify-v18.md` | V-16 | ⚪ 카드 발행(2026-10-05), PC 대기 |
+
+상태 칸은 2026-10-09 기준 요약이다. 정본은 `plan/STATUS.md` 트랙 1B·병행 트랙이다.
 
 ### 5.3 트랙 1C — 촬영·데이터·구매 (사용자)
 
@@ -344,17 +358,20 @@ AGENTS.md, 브랜치 astra/<…>의 WP 문서와 diff를 읽는다. 레인·훅 
 
 ---
 
-## 11. 사용자 결정·행동 대기 목록 (2026-09-24 기준)
+## 11. 사용자 결정·행동 대기 목록 (2026-10-09 기준; 처음 작성 2026-09-24)
 
 | # | 항목 | 어디에 기록 |
 |---|---|---|
-| 1 | PR #1 병합(merge commit 권장) → 이 PR 리뷰 | GitHub |
+| 1 | ~~PR #1 병합(merge commit 권장) → 이 PR 리뷰~~ → 2026-09-24 PR #1·#2 병합(merge commit) | GitHub |
 | 2 | PC 업그레이드 여부(GPU → 저장장치 → RAM) | D-006 |
 | 3 | 홈 Zone 선택(첫 촬영 후) | D-008 |
 | 4 | Postshot Studio 구독, XGRIDS 문의 발송 | D-005, D-009 |
 | 5 | S-Map 문의 발송 | 1.0e |
-| 6 | ~~MVP 이후 게임 기능 우선순위~~ → **2026-09-25 D-013~D-017 전부 승인, 권장 우선순위대로**(WP-12 → 13 → 14 → 15 → 16 → 17, §5.1). 남은 결정: 사운드 라이브러리 유료 구매 여부(WP-13이 후보·가격을 정리한 뒤) | D-013~D-017 (승인) |
+| 6 | ~~MVP 이후 게임 기능 우선순위~~ → **2026-09-25 D-013~D-017 전부 승인, 권장 우선순위대로**(WP-12 → 13 → 14 → 15 → 16 → 17, §5.1). 남은 결정: 사운드 라이브러리 유료 구매 여부(WP-13a가 후보·가격을 정리했다 — BOOM Urban Europe 구매는 보류, 소유자 결정) | D-013~D-017 (승인), STATUS 결정 필요 |
 | 7 | 실내 동의 후보 가게 접촉 | C-05 |
-| 8 | 애니메이션: GASP 라이선스 원문 확인(Fab 리스팅·Fab EULA·UE EULA — 클라우드에서 403) → V-08 평가 뒤 3안 중 채택 | `runbooks/pc-verify-animation.md` §0·§8, D-002 |
-| 9 | night 프리셋 look-dev 조합 선택(D-010 뒤 폴리시) | `design/lighting-night-lookdev.md` |
+| 8 | ~~애니메이션: GASP 라이선스 원문 확인(Fab 리스팅·Fab EULA·UE EULA — 클라우드에서 403) → V-08 평가 뒤 3안 중 채택~~ → 2026-09-30 V-08 완료, [D-021](DECISIONS.md) ② GASP 방향 채택(오케스트레이터 결정, D-019). 남은 소유자 항목: 라이선스 원문 재확인(사실 확인 — 확인 전에는 D-021 미발효), GASP 에셋 보관 방식(비공개 저장소는 D-018 ②와 같은 결정), (선택) 녹화 재채점 | `runbooks/pc-verify-animation.md` §0·§8, D-002, [D-021](DECISIONS.md), STATUS 결정 필요 |
+| 9 | ~~night 프리셋 look-dev 조합 선택(D-010 뒤 폴리시)~~ → 2026-09-27 D-019로 소유자 항목에서 빠졌다. 오케스트레이터(Opus, D-020)가 D-010 스파이크 뒤 WP-14b에서 정한다 | `design/lighting-night-lookdev.md`, [D-019](DECISIONS.md) 재분류 |
 | 10 | D-018 ①(캐릭터 제작 가설·18a) 승인. **② 대기**: V-08/V-12 뒤 최종 룩/명칭·외주 예산/권리 계약·비공개 저장소·필요 라이선스/출시 표시. 지출은② 이후 | [D-018](DECISIONS.md), [WP-18](plan/WP-18-characters.md) |
+| 11 | PC 방화벽(C-07) 보안 조치: 2026-10-09 PC 확인에서 워크트리 3곳의 패키지 `Golmok.exe` 인바운드 규칙이 **허용**(Public, 모든 포트)이었다 → 세 규칙을 **차단**으로 바꾼다(삭제하면 창이 다시 뜨므로 차단). 새 경로에서 창이 뜨면 **취소**하거나 차단 규칙을 미리 만든다. `setx GOLMOK_PKG_DIR`는 다음 PC 카드 §0에서 PC 세션이 한 번 실행한다(소유자 일 아님) | STATUS C-07, `runbooks/pc-setup.md` §2a |
+
+이 표는 요약이다. 최신 소유자 항목의 정본은 `plan/STATUS.md` "결정 필요"와 트랙 1C다(Freesound 계정 가입 여부, C-08 청취, C-09 게임패드 등).

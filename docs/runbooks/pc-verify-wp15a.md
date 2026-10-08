@@ -186,7 +186,7 @@
 ## 11. P14-2 후속 — 도착 카메라 스냅(다음 L_ZoneTest 카드)
 
 V-14 §10 "§3 페이드·도착 연출" 관찰(스프링암 랙으로 카메라가 192 m를 날아옴)의 후속이다. 코드: `Map/GolmokTravelSubsystem.cpp` `GolmokTravelPrivate::SnapCameraAfterTeleport`(§9 #15), 자동화 `Golmok.Travel.Teleport` case 2 단언. 캐릭터 랙 설정(`bEnableCameraLag`·`CameraLagSpeed 12`, hot-spot)은 그대로다 — 걷는 동안의 랙 느낌은 바뀌지 않아야 한다.
-- [ ] §1 빌드·§2 `Golmok.Travel.Teleport` `Success`(새 단언 `camera snapped at arrival: …` 통과), 전체 자동화 **36개** 그대로.
+- [ ] §1 빌드·§2 `Golmok.Travel.Teleport` `Success`(새 단언 `camera snapped at arrival: …` 통과), 전체 자동화 **39개** 전부 `Success`(이 절 작성 때 36, 그 뒤 WP-16a `Golmok.Weather.*` 3).
 - [ ] GUI 새 창 PIE(`L_ZoneTest`), 60 fps 녹화(V-14와 같은 ddagrab 방법): `golmok.travel z_synthetic_002` → `golmok.travel z_synthetic_001` 각 1회 이상. 기대: 페이드 인 첫 프레임부터 캐릭터가 화면 같은 자리(화면 중앙 약간 왼쪽, 평소 3인칭 구도)에 있고, **카메라 스윕·옆으로 흐르는 지면·모션 블러 번짐이 없다**. 녹화 프레임을 `pc-verify-wp15a-travel-fade-p14.jpg`로 V-14 `travel-fade.jpg`와 나란히 남긴다.
 - [ ] 도착 뒤 바로 W로 걸으면 평소처럼 카메라 랙이 있다(랙이 꺼진 채 남지 않음). 이어서 `golmok.travel status`·로그에 새 오류가 없다.
 - [ ] zone 없는 저장 위치 복원: zone footprint 밖(예: 001 남쪽 25 m, `Zone_Ground` 위)에서 `golmok.save` → 50 m 걸어가 → `golmok.load` → 메시지 `placed at the saved position (no zone) …`, 화면이 검정에서 약 0.35 s 페이드 인(스펙 §2 ⑧ "페이드 인 → 서 있음")하고 카메라가 저장 자리에서 바로 시작한다(스윕 없음). 이 경로가 `traveling to …`로 나오면(그 자리가 zone 안) 다른 자리에서 다시 한다.
@@ -195,7 +195,7 @@ V-14 §10 "§3 페이드·도착 연출" 관찰(스프링암 랙으로 카메라
 | 항목 | 기대 | 결과/근거 |
 |---|---|---|
 | 세션/head | 날짜·담당·커밋 | (대기) |
-| 자동화 | Travel.Teleport Success·전체 36 | (대기) |
+| 자동화 | Travel.Teleport Success·전체 39 | (대기) |
 | 도착 녹화 60 fps | 스윕 없음·첫 프레임부터 캐릭터 | (대기) |
 | 도착 뒤 랙 | 걷기 랙 평소대로 | (대기) |
 | zone 없는 복원 | 페이드 인·스냅 | (대기) |
