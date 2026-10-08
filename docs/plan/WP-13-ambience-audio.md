@@ -785,3 +785,55 @@ STATUS/astra-tasks 문안: “T29 완료: rain/베드 볼륨 생략에서 디지
 - 위 "병합 시 반영 — T29" 문안은 STATUS 병행 트랙 WP-13 행과 `astra-tasks.md` T29에 옮겼다. 새 결정이 없어 DECISIONS는 바꾸지 않았다.
 - 다음은 V-16 뒤 PC 오디오 카드 **V-18**(`runbooks/pc-verify-v18.md`, 별도 docs PR)이다.
 - Astra 오디오 레인은 PC 결과·C-08 청취를 기다린다. R119-1·3, 선택 R114-4, R117-4는 그 뒤 과제로 넘긴다.
+
+
+## T31 — 오디오 선택 정리 (2026-10-09)
+
+배정: [이슈 #30](https://github.com/wooklym/golmok/issues/30#issuecomment-6066428230). 최신 main `5573c0c`에서 `astra/wp-13-optional-cleanup`으로 착수. 기존 R119 뒤 대기 순서는 이번 배정이 앞당겼다.
+
+- R119-1: `ApplyVolume` 순수 함수 배선·베드/비 각 1곳·직접 전송 2곳을 Python이 검사한다. 옛 1e-4 식으로 되돌린 소스는 단언 실패.
+- R119-3: rain 원자성 라벨에 사례 이름을 넣었다.
+- R114-4: PIE 비·실내·master·Photo 기대값을 설정에서 계산한다. 세이브 복원은 fixture 강수를 별도로 단언하며 그 강수로 gain을 계산한다. 중간 전환은 강수 범위와 해당 곡선값을 검사한다. 보간은 생산과 다른 고정 곡선으로 검사한다. C-08 생산 가설 블록은 한 곳이며 pytest가 `audio.json`과 대조한다. 로컬 `interior_gain=1.0` 변이는 실패했고 파일을 원상 복원했다.
+- R65-2·5: 구문 오류에 리더 상세를 붙이고 실패 초기화 Warning은 한 번만 출력한다. 키의 제어 문자(0x00–0x1F·0x7F)는 진단에서 `?`로 표시한다. 원문 키 판정은 유지한다.
+- R65-3·4·7: 참조 타입 fixture를 DOM 수정으로 만들고 성공 대조군·실패 뒤 항목/개수 보존을 검사한다. Python의 기존 실패 40사례에 경로·문구 단언을 붙였다.
+- 선택 R65-1(세트 ID 규칙 강화)은 이월: 이번 정리는 기존 수락 규칙을 유지한다. R117-4는 C-08 뒤다.
+
+UE 리더 실측:
+- 누락 쉼표: `audio.json $: expected valid JSON object (Comma token expected, but not found. Line: 1 Ch: 35)`.
+- Infinity: `audio.json $: expected valid JSON object (Invalid Json Token. Check that your member names have quotes around them! Line: 1 Ch: 53)`.
+- 끝 쉼표 `{"a":1,}` 거절: `String token expected, but not found. Line: 1 Ch: 8`. 거절 단언을 추가했다.
+- 키 `a\nb`: `audio.json crossfade_seconds_by_state.a?b: expected known ambience state` (한 줄).
+
+검증 결과는 아래 최종 게이트 표에 기록한다. WAV 8개·`audio.json`·크레딧·`GolmokAudioMath.h`·`ApplyVolume`·`UpdateRain`·PC 런북은 무변경. 등록 39 유지. 소리 출력·C-08 청취·V-18은 실행하지 않았다.
+
+### 병합 시 반영 — T31
+
+- STATUS WP-13 / Astra 병행 행: “T31 오디오 선택 정리: 설정 기반 PIE rain 기대값·C-08 가설 동기화·볼륨 배선 회귀·JSON 리더 상세/한 줄 키 진단·DOM 참조 fixture·40 진단 단언. 파형·설정값·PC 카드 무변경, 등록 39. 선택 R65-1 이월; R117-4는 C-08 뒤.”
+- astra-tasks T31 완료 행에 PR·최종 게이트 결과를 옮긴다. 새 결정 없음.
+
+
+### T31 게이트
+
+| 항목 | 결과 |
+|---|---|
+| ruff check / format / check_repo / diff --check | 통과 (format 120 파일) |
+| pytest 전체 | 1567 passed / 274 skipped / 208 warnings, 101.80 s (Windows g++ 없음) |
+| 오디오 두 파일 집중 pytest | 143 passed / 11 skipped |
+| 변이 | 옛 볼륨 식 → 배선 검사 실패(테스트 내 음성 사례); `interior_gain=1.0` → 가설 동기화 pytest 실패(exit 1), 복원 뒤 통과 |
+| UE 첫 빌드 | 성공, 34.01 s |
+| UE 첫 전체 | 39 Success = 26 + 경고 13, 실패 0 / notRun 0, 195.686 s |
+| UE 최종 빌드 | 성공, 8.22 s |
+| UE 최종 전체 | 39 Success = 26 + 경고 13, 실패 0 / notRun 0, 195.255 s (코드 head `63a7ac1`) |
+| CI | PR 생성 뒤 확인 |
+
+기존 엔진 API/툴체인 경고와 픽스처·GASP 미확인 경고는 유지된다. 새 오디오 테스트 경고는 없다. 테스트 전용 로컬 증거는 `tools/.venv/t31-*`(커밋 제외)에 보존했다.
+
+### T31 R126 필수 리뷰 수정 (2026-10-09)
+
+R126-1: 가설 점 개수 중복 리터럴을 제거했다. 곡선 전체 비교가 개수도 검사하며 pytest와 같은 가설 수치만 남긴다. R126-2: DOM fixture 파싱 가드를 복구해 실패 시 역참조 전에 테스트를 종료한다. 선택 R126-3~10은 이월, R126-11은 오케스트레이터 병합 시 반영 범위다.
+
+검증: UE 빌드 성공(8.05 s), 전체 39 Success(26 + 경고 13), 실패 0/notRun 0. 오디오 pytest 143 passed/11 skipped, 전체 pytest 1567 passed/274 skipped(97.05 s), check_repo와 diff --check 통과. 생산 코드·설정·WAV·등록 수 무변경. PR #126 수정 push 뒤 push 정지.
+
+### 병합 — T31
+
+[#126](https://github.com/wooklym/golmok/pull/126) → main(오케스트레이터 결정 D-019, merge commit). 리뷰 [R126](https://github.com/wooklym/golmok/pull/126#issuecomment-6068875846)(Opus ultracode 적대 리뷰, 4차원 + 발견별 독립 검증 2표, 변이 39): (A) 0 · (B) 2 · (C) 9. (B) R126-1(가설 블록 점 개수 리터럴이 pytest 동기화 밖)·R126-2(DOM fixture 파싱 가드 삭제)는 Astra `f1062bf`에서 반영했고, 오케스트레이터가 바뀐 두 줄을 다시 확인했다(곡선 전체 비교가 개수를 포함, 람다 뒤 `ReadFixture().IsValid()` 가드). (C) R126-3~10(주석 속 호출, 동기화 pytest 엄격화, `\n` 밖 제어 문자, Warning 위치 정적 검사, `match=` 앞 고정, 빈 상세 분기, `interior_gain = 1.0` 판별력, 문서 정정)은 선택 이월이다. R126-11(병합 시 반영 문안)은 이 병합 커밋에서 처리했다: STATUS WP-13 병행 행에 "D-019 배정으로 R119-1·3·R114-4를 C-08 전에 앞당겨 완료"를 적고, astra-tasks T31 행을 병합으로 바꾸고 배정일을 2026-10-09(KST)로 맞췄으며, R65-1은 C-08과 무관한 독립 이월로 적었다. 새 결정 없음(앞당김은 astra-tasks·STATUS에 이미 기록). C-08 튜닝 PR은 이 병합 뒤에 연다(R114-4 순서); `pc-verify-v18.md`의 0.800/0.280 기대값은 pytest 동기화 밖이라 C-08 튜닝 때 함께 고친다.
