@@ -18,10 +18,11 @@
 
 ## 0. 준비
 - [ ] STATUS V-08b 행을 🔵로 바꾸고 세션 로그 줄을 단다(§11-3 문안).
-- [ ] 겹침 확인: `git fetch origin` 뒤 열린 `pc/*`·`astra/*`(특히 T23 `astra/wp-18-camera-framing`, `package.ps1` `GOLMOK_PKG_DIR` 도구 PR)에 `git diff --stat origin/main...origin/<브랜치>`. #105(V-11 병합, D-018·D-021 진행 기록 2026-10-04)가 main에 있는지 본다.
+- [ ] 겹침 확인: `git fetch origin` 뒤 열린 `pc/*`·`astra/*`에 `git diff --stat origin/main...origin/<브랜치>`. #105(V-11 병합, D-018·D-021 진행 기록 2026-10-04)가 main에 있는지 본다. (T23 `astra/wp-18-camera-framing` [#108](https://github.com/wooklym/golmok/pull/108)과 `package.ps1` `GOLMOK_PKG_DIR` 도구 [#106](https://github.com/wooklym/golmok/pull/106)은 2026-10-04 main에 병합됐다.)
 - [ ] 브랜치: `git switch -c pc/v08b-gasp-experiment origin/main` → SHA 기록 → `git lfs pull`. tools venv: `cd tools; py -3.12 -m venv .venv; .\.venv\Scripts\Activate.ps1; pip install -e ".[dev]"; $env:PYTHONUTF8=1; pytest -q`(기준선).
 - [ ] UE 자료: `.\tools\ue\add-mannequin.ps1`. §6-4 포털용 `L_ZoneTest`와 합성 Zone은 이전 카드 워크트리(V-14 `goofy-maxwell-3aee56` 등)에서 복사한다(읽기·복사만, [`pc-verify-wp06.md`](pc-verify-wp06.md) §0~§4와 같은 자료).
-- [ ] 빌드·기준선(헤드리스): `.\tools\ue\build.ps1` → `.\tools\ue\test.ps1 -SetupDevLevel -Filter Golmok.` → **36 Success**(`Golmok.Animation.GaspSmoke`는 `GASP not installed — skipped` Info).
+- [ ] **패키지 출력 경로(§8용, C-07, PC 세션이 한 번)**: `[Environment]::GetEnvironmentVariable('GOLMOK_PKG_DIR','User')`가 비어 있으면 `setx GOLMOK_PKG_DIR C:\Users\user\golmok-pkg\Windows`를 실행하고 새 셸을 연다([pc-setup.md §2a](pc-setup.md), 소유자 작업 아님).
+- [ ] 빌드·기준선(헤드리스): `.\tools\ue\build.ps1` → `.\tools\ue\test.ps1 -SetupDevLevel -Filter Golmok.` → **39 Success**(카드 발행 때 36, 그 뒤 WP-16a `Golmok.Weather.*` 3 — MPC·NS 에셋이 없으면 해당 단계 skip Info로 Success. `Golmok.Animation.GaspSmoke`는 `GASP not installed — skipped` Info).
 - [ ] **GASP 식별**(V-08과 같은 판인지):
   - `C:\UE\GASP_58\*.uproject`의 `EngineAssociation`, `Content` 용량·파일 수(V-08: 5,582 MB)를 적는다.
   - `Get-FileHash`로 `Content\Blueprints\SandboxCharacter_CMC_ABP.uasset`·`SandboxCharacter_CMC.uasset`의 해시를 적는다.
@@ -327,7 +328,7 @@ V-08b 판정은 없다. 게이트 (8)의 사전 자료다.
 **규칙(D-018 진행 기록 2026-10-04 (4), 원문)**
 > 패키지 실행 규칙(P11-3, C-07 재발): PC 패키지 스모크는 고정 출력 경로(Claude 레인 `package.ps1` `GOLMOK_PKG_DIR`)를 쓴다. 방화벽 창이 뜨면 소유자가 취소한다(게임은 인바운드가 필요 없다). `DefaultEngine.ini`(핫스팟)는 바꾸지 않는다.
 
-- [ ] **출력 경로**: `$pkg = $env:GOLMOK_PKG_DIR`을 쓴다. 비어 있으면 도구 PR 문서의 권장 경로로 한 번 설정한다. 그런 문서가 없으면 저장소·워크트리 밖 고정 경로(예: `C:\Users\user\golmok-pkg`)를 쓰고 §13에 적는다. 도구 PR 병합 전후 모두 되도록 `-OutDir`를 명시한다.
+- [ ] **출력 경로**: `$pkg = $env:GOLMOK_PKG_DIR`을 쓴다(§0에서 설정, [pc-setup.md §2a](pc-setup.md)). 비어 있으면 §0 단계를 먼저 한다. A·B는 구성별 하위 폴더를 `-OutDir`로 명시한다(아래 명령). 하위 폴더도 새 exe 경로라 Development 첫 실행에서 방화벽 창이 뜰 수 있다(Shipping은 TraceLog 리스너가 없다, pc-setup §2a).
 - [ ] **A(필수, D-021 조건 3)**: §4-3 최소 집합 상태에서 Development와 Shipping 둘 다 만든다.
   - 명령: `.\tools\ue\package.ps1 -Config Development -OutDir $pkg\v08b-dev`, `.\tools\ue\package.ps1 -Config Shipping -OutDir $pkg\v08b-ship`. `/Game/GolmokLocal`은 상시 쿡이라 스모크 맵과 그 참조(ABP·UEFN·Manny·리타깃)가 들어간다.
   - 실행: `Golmok.exe /Game/GolmokLocal/V08b/L_V08b_PluginSmoke -windowed -ResX=1920 -ResY=1080 -forcelogflush`(`-log` 금지: 콘솔 창이 포그라운드를 가져간다).
@@ -335,8 +336,9 @@ V-08b 판정은 없다. 게이트 (8)의 사전 자료다.
   - Shipping에서 맵 인자가 먹지 않으면(§12 #14) L_Dev 시작·쿡 로그의 스모크 맵 포함·로그 오류 0만 본다.
   - 패키지 크기를 적는다.
 - [ ] **B(참고, 선택)**: ②b′ 시험 설정(플러그인 21개)으로 Development 1회 만든다. `L_Dev_AnimEvalB` 사본을 `/Game/GolmokLocal/V08b/`에 두어 쿡하고, 실행해 W 5 s 걷기가 애니메이션되는지 본다. **불허 플러그인이 든 구성이라 D-021 조건 판정에 쓰지 않는다.**
-- [ ] **C(선택)**: V-11 패키지 재실행 묶음(wp18a §14-6: W 걷기 발소리 1회, 첫 화면 Manny·`Character mesh … not found` 없음, `golmok.character list|proxy135|quinn|manny`)을 A의 Development 패키지(L_Dev 시작)로 해도 된다. "최소 플러그인 켬"을 함께 적는다. 결과는 §13에 적고 오케스트레이터가 옮긴다.
-- [ ] **방화벽**: 새 exe 경로에서 Windows 방화벽 창이 뜨면 **누르지 않고** 소유자에게 넘긴다. 소유자는 **취소**를 누른다. 창이 포그라운드를 막으면 SendInput 단계를 멈추고 기록한다. 이 절은 GUI 묶음의 마지막이다.
+- [ ] **C(선택)**: V-11 패키지 재실행 묶음(wp18a §14-6: W 걷기 발소리 1회, 첫 화면 Manny·`Character mesh … not found` 없음, `golmok.character list|proxy135|quinn|manny`)을 A의 Development 패키지(L_Dev 시작)로 해도 된다. "최소 플러그인 켬"을 함께 적는다. 플러그인 없는 main 기준으로는 ①·②가 2026-10-09 V-11 재실행에서 끝났고 ③ quinn은 V-17 §5 몫이다([#123](https://github.com/wooklym/golmok/pull/123) 쿡 훅). 결과는 §13에 적고 오케스트레이터가 옮긴다.
+- [ ] **방화벽**: 새 exe 경로에서 Windows 방화벽 창이 뜨면 **누르지 않고** 소유자에게 넘긴다. 소유자는 **취소**를 누른다(또는 그 exe에 차단 규칙을 미리 만든다, pc-setup §2a). 창이 포그라운드를 막으면 SendInput 단계를 멈추고 기록한다. 이 절은 GUI 묶음의 마지막이다.
+- 패키지 창의 콘솔(` 키)은 이 PC에서 SendInput으로 열리지 않았다(2026-10-09 V-11 재실행, [wp18a §14-6](pc-verify-wp18a.md)). C의 `golmok.character …`처럼 콘솔 명령이 필요하면 실행 인자 `-ExecCmds=…`로 준다.
 
 | 구성 | 쿡 | 실행 | 로그 오류 | 크기 | 스크린샷 |
 |---|---|---|---|---|---|

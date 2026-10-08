@@ -1,6 +1,6 @@
 # WP-05 — UE C++ 런타임 2: 포털·조명·디버그
 
-상태: 🟡 코드 완료·PC 검증 대기 (2026-09-25, session_01W4S1qYJPhQaziYbJMvAXMo) · 담당: 클라우드 Claude 세션(**Fable 5.1 ultracode**, 모델 정책 DEVELOPMENT-PLAN §7.4) · 의존: WP-04 · 검증: **G2(`runbooks/pc-verify-wp05.md`)**
+상태: 🟢 완료(PC 검증 통과 — V-03 2026-09-25, 아래 "결과"의 "PC 검증") — 이전: 🟡 코드 완료·PC 검증 대기 (2026-09-25, session_01W4S1qYJPhQaziYbJMvAXMo) · 담당: 클라우드 Claude 세션(**Fable 5.1 ultracode**, 모델 정책 DEVELOPMENT-PLAN §7.4) · 의존: WP-04 · 검증: **G2(`runbooks/pc-verify-wp05.md`)**
 
 ## 목표
 (1) 실외↔실내 전환(포털·레벨 스트리밍·노출 전환), (2) 시간대 조명 런타임 전환, (3) 스파이크·회귀 측정용 디버그 도구(충돌 와이어프레임, 성능 HUD, 카메라 경로 녹화·재생)를 C++로 만든다. ROADMAP 1.3 "조명 프리셋·디버그", 1.5 "문 포털·전환".
@@ -891,7 +891,7 @@ Python 검증: (a) 헤더 순수성(`#include "` 없음, `<>` ⊆ 허용 7개, `
 | `AGolmokPortal` 비공개 API(§3-1 헤더) | `OnDebounceElapsed/OnUnloadDelayElapsed/StreamIn/StreamOut/SetInside` | + `Activate()`(OnDebounceElapsed·EnterInterior 공용 로드 단계), `BeginPlayerOverlap/EndPlayerOverlap/RefreshOverlap/StartLeaving/ReleaseSiblings`, `static AnyEntryPortal()/IsInteriorZoneInUse()/HasPendingSibling()/UnloadInteriorAfterEndPlay()`, `OnPlayerPawnChanged`(UFUNCTION), 멤버 `Root/OverlappingPawn/BoundController`. `EnterInterior`는 `DebounceTimer`도 해제 | 위 행들의 구현 |
 
 ## 결과
-세션: session_01W4S1qYJPhQaziYbJMvAXMo (Fable 5.1 ultracode; 적대적 검증 회의론자는 모델 정책대로 Opus) · 2026-09-25 · 상태 **🟡 코드 완료·PC 검증 대기** (G2 `runbooks/pc-verify-wp05.md`, V-03). PR #10.
+세션: session_01W4S1qYJPhQaziYbJMvAXMo (Fable 5.1 ultracode; 적대적 검증 회의론자는 모델 정책대로 Opus) · 2026-09-25 · 상태 **🟡 코드 완료·PC 검증 대기** (G2 `runbooks/pc-verify-wp05.md`, V-03) → **🟢 PC 검증 통과**(V-03 2026-09-25, 아래 "PC 검증"). PR #10.
 
 **진행 방식(ultracode)** — ① 설계 패널: 안정성·성능·스펙 충실 3안(Fable) → 심판 2명(엔진 사실 / 제품·검증 관점) 채점(스펙안 33/32, 안정안 32/33, 성능안 31/31) → 종합해 위 "설계 (확정)" §0~§12(심판 지적 결함 33건 반영). ② 구현: Lighting·StatsMath·Portals·합성 실내 4모듈 병렬 → Debug(다른 모듈의 실제 헤더를 읽고) → 통합(PlayerController·GameMode·ini·Build.cs·규약 테스트, 전체 게이트). ③ 적대적 검증 3라운드: 리뷰어 4관점(UE 5.8 API / 리플렉션·빌드 / 스트리밍·입력·HUD 런타임 / 스펙·테스트) → 소견마다 Opus 회의론자 2명(엔진 사실·코드 맥락)이 반박 → 둘 다 반박한 것만 기각 → 모듈별 수정 → 바뀐 영역만 다시 리뷰. 원시 소견 **25 → 11 → 1**(수렴), 확정 24·8·1(1차 24건은 관점이 겹쳐 실질 12건), 반박 1·3·0. 확정은 전부 반영했고 설계 대비 변경은 §13 표(25행)에, 반박 근거는 세션 로그(워크플로 결과)에 있다.
 - 1차 확정(실질): 명명 스트리밍 경로에서 첫 stream-out이 등록 항목까지 제거(재진입 불가) / 포털 `EndPlay`가 pin된 실내를 영영 못 풀음 + 오버레이 고아 / 재생 폰 교체 시 오버랩 추적 유실 / MSVC C4458 섀도잉 2건(컴파일 차단) / 유니티 빌드 익명 namespace `Fail` 중복 / `HighResShot`이 `UEngine::Exec`에 안 닿음·파일명 `00000` 접미 / `InitialPreset` 비움일 때 실내 왕복이 레벨 노출 오버라이드를 영구 변경 / `HudStats`의 수학적으로 보장 안 되는 단언 / `RoundTrip` skip 조건 / 디바운스 중 안쪽 이탈이 실내를 안 올림 / 프리셋 로드 로그 부재.

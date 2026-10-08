@@ -1,6 +1,6 @@
 # WP-06 — UE Python 에디터 자동화 2차
 
-상태: 🟡 코드 완료·PC 검증 대기 · 담당: 클라우드 Claude 세션(**Fable 5.1 ultracode**, 모델 정책 DEVELOPMENT-PLAN §7.4) · 의존: WP-03, WP-05 · 검증: G2/G3(`runbooks/pc-verify-wp06.md`, `runbooks/pc-spike.md`)
+상태: 🟢 완료(V-04 2026-09-28, [#41](https://github.com/wooklym/golmok/pull/41); 후속 V-04b 2026-09-29·V-04c 2026-10-04 PC 확인 🟢, 아래 "병합 기록"·"결과") · 남은 PC 확인: Full Precision UV([#107](https://github.com/wooklym/golmok/pull/107), V-17 §3·V-05 S7), 태그 판정 뒤 UDIM 팩 폴백([#122](https://github.com/wooklym/golmok/pull/122) 리뷰 (B)) — 이전: 🟡 코드 완료·PC 검증 대기 · 담당: 클라우드 Claude 세션(**Fable 5.1 ultracode**, 모델 정책 DEVELOPMENT-PLAN §7.4) · 의존: WP-03, WP-05 · 검증: G2/G3(`runbooks/pc-verify-wp06.md`, `runbooks/pc-spike.md`)
 
 ## 목표
 후처리 결과(WP-03)를 에디터에 넣고 Zone 액터(WP-04)를 배치하는 일, 실내 서브레벨·포털 준비, 스파이크 1.1 측정을 **한 줄 명령**으로 만든다. `unreal` API 호출은 얇게, 계산은 순수 함수로 분리해 클라우드에서 테스트한다.
@@ -1053,7 +1053,7 @@ def tick(fake, n: int, dt: float = 0.1)           # 등록된 slate 콜백을 n�
 심판이 갈린 곳과 결정: ① UDIM `_####` — 심판 1(A 결함)은 "`.####`만, `_####`는 경고", 심판 2(그래프트)는 "`_####` 허용" → **`.####`만 인정, `_####`는 경고**(공식 문서 인용이 `.####`뿐이고 UE 정규식 기본값은 미확인). ② `-game` 종료 감지 — 심판 2는 `CsvProfile Stop` 로그 마커(A), 심판 1은 A의 그 마커가 실제로 찍히지 않는다고 지적 → **`-ExitAfterCsvProfiling` + 타임아웃 + `GolmokDebugSubsystem: csv:` 줄**. ③ 포털 불일치 — B는 경고, C는 오류 → **오류**(§8 12). ④ 스크린샷 폴더 접두 — "그대로 또는 문서화" → **접두 없음**.
 
 ## 결과
-세션: session_011qpTa7U7onDnW7L9jNSgwA (Fable 5.1 ultracode; 심판·회의론자·수정 에이전트는 모델 정책대로 Opus 5.5) · 2026-09-24~25 · 상태 **🟡 코드 완료·PC 검증 대기** (G2 `runbooks/pc-verify-wp06.md`, V-04; 스파이크는 `runbooks/pc-spike.md`, V-05). PR #12.
+세션: session_011qpTa7U7onDnW7L9jNSgwA (Fable 5.1 ultracode; 심판·회의론자·수정 에이전트는 모델 정책대로 Opus 5.5) · 2026-09-24~25 · 상태 **🟡 코드 완료·PC 검증 대기** (G2 `runbooks/pc-verify-wp06.md`, V-04; 스파이크는 `runbooks/pc-spike.md`, V-05) → **🟢 V-04 통과**(2026-09-28, 아래 "병합 기록 — T5 PR #41"). PR #12.
 
 **진행 방식(ultracode)** — ① 설계 패널: API 현실성 / 데이터·경로 규약 / 검증 가능성 3안(Fable) → Opus 심판 2명 채점(검증 가능성안 41/50 승) → 종합해 위 "설계 (확정)"(심판 지적 44건 반영표 §9). 설계 전에 5.8 Python API 레퍼런스 40여 클래스와 UDIM 공식 문서를 이 컨테이너에서 직접 확인해 `citations`로 고정했다. ② 구현: A단계 `_pure.py`+생성기(병렬) → B단계 가짜 `unreal`·런북 → `zone_import`‖`spike_runner` → `interior_setup` → 통합. 중간에 main의 V-03 결과(PR #13, PC 수정 4건)를 병합해 반영. ③ 적대적 검증 1라운드: 리뷰어 4관점(API 정확성 / UDIM·VT 규약 / 스펙·경로·C++ 계약 / 런북·PC 발견 준수, Fable) → 소견마다 Opus 회의론자 2명(엔진 사실·코드 맥락) 반박 → 둘 다 반박한 것만 기각 → 파일 그룹별 Opus 수정(테스트 먼저) → Opus 게이트. 2라운드는 리뷰어 3명이 소견 6건을 낸 시점에서 오케스트레이터 지시(비용)로 중단했고, 그 6건은 미검증 상태로 아래 표에 남긴다(병합 전 Opus 보완 리뷰에서 이어짐).
 

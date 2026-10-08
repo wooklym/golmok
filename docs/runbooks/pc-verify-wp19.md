@@ -50,7 +50,7 @@ git pull
 ```
 - [ ] 컴파일 성공(경고는 기록). 실패하면 §C 표의 번호로 고치고 `WP-19: PC fix …` 커밋(핫스팟은 훅 줄만).
 - [ ] 첫 명령: 4개 전부 `Success`. `Golmok.Animation.GaspSmoke`는 GASP가 없으면 `[Info] GASP not installed — skipped (…)`. `Golmok.Animation.Fallback`은 기대 Warning 1개(`anim: falling back to ABP pawn (GASP pawn class missing — add-gasp / 19b (/Game/GolmokLocal/GASP/BP_Missing.BP_Missing_C))`)를 소비한다.
-- [ ] 두 번째 명령: **36개** 전부 `Success`(`pc-verify-wp12.md` §1 두 번째 명령과 같은 목록 + `Animation` 4개). `Golmok.Player.Movement`·`Golmok.Character.*`·`Golmok.Photo.*`·`Golmok.Audio.*`는 코드 변경 없이 종전과 같아야 한다(① 불변). `Golmok.Audio.Footstep` 로그에 `EXECUTED auto positive cache/class/generation/HUD and ordinary-pawn conjunction` Info가 있다(T17 [#85](https://github.com/wooklym/golmok/pull/85), 리뷰 R85-4). `NOT EXECUTED …`면 양성 fixture가 돌지 않은 것이라 원인(설정 파싱 실패 등)을 §A9에 적는다.
+- [ ] 두 번째 명령: **39개** 전부 `Success`(`pc-verify-wp12.md` §1 두 번째 명령의 목록 — `Animation` 4개·`Weather` 3개 포함. 19a 병합 때 36, 그 뒤 WP-16a `Golmok.Weather.*` 3). `Golmok.Player.Movement`·`Golmok.Character.*`·`Golmok.Photo.*`·`Golmok.Audio.*`는 코드 변경 없이 종전과 같아야 한다(① 불변). `Golmok.Audio.Footstep` 로그에 `EXECUTED auto positive cache/class/generation/HUD and ordinary-pawn conjunction` Info가 있다(T17 [#85](https://github.com/wooklym/golmok/pull/85), 리뷰 R85-4). `NOT EXECUTED …`면 양성 fixture가 돌지 않은 것이라 원인(설정 파싱 실패 등)을 §A9에 적는다.
 - [ ] `StateProvider` 로그에 `[Error]`가 없고, `Info` 줄 `GASP pawn after p0: accel 2048/2048 braking 2000/2000 friction 8.00/8.00 factor 2.00/2.00 separate 0/0 braking friction 0.00/0.00 (pawn/CDO)`가 있다(§D #6 p0 = 엔진 기본값 확인). `W intent (…) length 1.000` 근처, 점프 apex 약 90 cm, `land velocity z` < −300.
 - [ ] `Saved/Logs/Golmok.log`에서 `StateProvider` 구간에 `Character mesh '' not found`가 **없다**(§C #14: 파생 C++ 폰이 `[/Script/Golmok.GolmokCharacter]` ini 값을 물려받는지). 있으면 §C #14 대안.
 - [ ] 에디터 PIE(L_Dev) 콘솔 `golmok.anim status` → 첫 줄 `mode abp (animation.json) | animation.json ok`, `pawn: /Script/Golmok.GolmokCharacter | last spawn: /Script/Golmok.GolmokCharacter`. `gasp install:` 줄은 GASP를 **로드하지 않고** `on disk`/`no`만 보인다(끝에 `(not loaded; golmok.anim status load)`; 19a-2 R76 C2). 클래스 로드까지 보려면 `golmok.anim status load`. HUD(F1)에 `anim: abp` 한 줄.
@@ -59,7 +59,7 @@ git pull
 ### A2. 플러그인 (V-08b `.uplugin` 표의 최소 집합, 별도 커밋)
 입력: [V-08b 카드](pc-verify-v08b.md) §4 표(`.uproject` 줄·`ALLOWED_PLUGINS` 추가 요청 포함). BPI 함수 표(§A4-2)·경로 확인 표(§A3·§A7)는 같은 카드 §4-2·§3-1이 미리 채운다.
 - [ ] V-08b가 기록한 표대로 `Golmok.uproject` `Plugins`에 GASP 로코모션 플러그인만 켠다(D-021 허용: PoseSearch·Chooser·AnimationWarping·MotionWarping·AnimationLocomotionLibrary·BlendStack·CurveExpression·DrawDebugLibrary·MovieSceneAnimMixer·Mover). 의존 플러그인이 더 필요하면 목록을 기록하고 `tools/tests/test_ue_wp19_fixture.py` `ALLOWED_PLUGINS`에 근거와 함께 더한다. 불허(GameplayCameras·ChaosMover·MoverExamples·Locomotor·SmartObjects·GameplayInteractions·MetaHuman·LiveLink·RigLogic·HairStrands)는 켜지 않는다.
-- [ ] 커밋 `WP-19: plugins (Golmok.uproject)`(이 파일만). 빌드 → §A1 두 번째 명령 36개 다시 `Success`(플러그인을 켠 ①).
+- [ ] 커밋 `WP-19: plugins (Golmok.uproject)`(이 파일만). 빌드 → §A1 두 번째 명령 39개 다시 `Success`(플러그인을 켠 ①).
 
 ### A3. `add-gasp` (GASP 복사, 로컬 전용)
 
