@@ -2,6 +2,7 @@
 
 import math
 import random
+import re
 import shutil
 import subprocess
 import sys
@@ -238,3 +239,28 @@ def test_volume_cpp_mirror(driver):
     assert [row[0] for row in run(driver, [f"volume {c:.17g} {t:.17g}" for c, t, _ in cases])] == [
         expected for _, _, expected in cases
     ]
+
+
+def assert_volume_wiring(source):
+    compact = re.sub(r"\s+", "", source)
+    assert (
+        "if(IsValid(Channel)&&GolmokAudioMath::ShouldSendVolume(Channel->VolumeMultiplier,Value))Channel->SetVolumeMultiplier(Value);"
+        in compact
+    )
+    assert "1.e-4f" not in source
+    for channel in ("Channels[Slot]", "RainChannel"):
+        assert compact.count(f"ApplyVolume({channel},") == 1
+    assert compact.count("SetVolumeMultiplier(") == 2
+    assert "Channels[Slot]->SetVolumeMultiplier(0);" in compact
+
+
+def test_production_volume_wiring():
+    source = (HEADER / "GolmokAmbienceSubsystem.cpp").read_text(encoding="utf-8")
+    assert_volume_wiring(source)
+    old = source.replace(
+        "GolmokAudioMath::ShouldSendVolume(Channel->VolumeMultiplier, Value)",
+        "FMath::Abs(Channel->VolumeMultiplier - Value) >= 1.e-4f",
+    )
+    assert old != source
+    with pytest.raises(AssertionError):
+        assert_volume_wiring(old)

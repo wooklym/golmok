@@ -620,7 +620,7 @@ R108-5·6: 구도 테스트는 읽기 전용 Player 소스의 CameraLagSpeed 대
 
 ### 병합 시 반영 — T30
 
-STATUS Astra WP-18 행: “T30 선택 정리 완료: Sequence 누락 fixture 전체 보고·단언 수 표시, ZoneWalk 백업 보호·T11 순서 정합성, 구도 랙 상수 소스 검증·socket 주석. Quinn baseline Locomotion 실패 0/14(K0/3·W0/3·L0/5·P0/3), W2 간섭 있음, ≈120 Hz 조건에서 14회 재현 없음·원인 미확정. 반복 종료 제안, 등록39·설정값·GUI 기록 무변경.” astra-tasks T30에 PR·게이트를 옮긴다. 새 결정 없음.
+STATUS Astra WP-18 행: “T30 선택 정리 완료: Sequence 누락 fixture 전체 보고·단언 수 표시, ZoneWalk 백업 보호·T11 순서 정합성, 구도 랙 상수 소스 검증·socket 주석. Quinn baseline Locomotion 실패 0/14(K0/3·W0/3·L0/5·P0/3), W2 간섭 있음, ≈120 Hz 조건에서 14회 재현 없음·원인 미확정. 반복 종료 제안, 등록39·설정값·런북 §14/§15 무변경.”(R129-16: 병합 커밋에서 "GUI 기록" → "런북 §14/§15"로 고침) astra-tasks T30에 PR·게이트를 옮긴다. 새 결정 없음.
 
 ### T30 최종 검증
 
@@ -635,3 +635,7 @@ STATUS Astra WP-18 행: “T30 선택 정리 완료: Sequence 누락 fixture 전
 R129-1~8 반영: FAIL(n/m)·폴더 진단 유지, 카메라 랙 enable 확인, 수동 복구 두 갈래와 해시 확인, 프로젝트 사전 존재 확인, 정상 녹화 해시·크기·mtime 출력, 런북 T30 링크, T11 옛 기록 제자리 정정, 기존 실행 행·≈120 Hz 범위 보강. R129-9~15 선택 이월, R129-16 오케스트레이터 병합 범위다. Quinn 반복 실험은 추가하지 않았다. Sequence 변경은 RHI opt-in 경로라 이번에는 컴파일만 확인하며 실제 RHI 실행은 미실행이다.
 
 R129 수정 검증: UE 빌드 성공 7.26 s, 전체39 Success(28+경고11), failed0/notRun0, 147.120 s. Sequence는 컴파일만 확인(RHI 미실행). 집중 pytest64 passed, 전체1582 passed/276 skipped/61 warnings(99.26 s). 랙 enable false·삭제 변이 거부, 런북 격리6사례(기존5+project 누락 중단) 통과. ruff·format120·check_repo·diff --check 통과. CI는 수정 push 뒤 확인.
+
+### 병합 — T30
+
+[#129](https://github.com/wooklym/golmok/pull/129) → main(오케스트레이터 결정 D-019, merge commit). 리뷰 [R129](https://github.com/wooklym/golmok/pull/129#issuecomment-6071756631)(Opus ultracode 적대 리뷰 4차원 + 발견별 독립 검증 2표 + 디자인 리뷰): (A) 0 · (B) 8 · (C) 8. (B) R129-1~8은 Astra `440ca17`에서 반영했고, 오케스트레이터가 바뀐 부분을 다시 확인했다(Sequence `FAIL(n/m)`·COMPLETE·SEQUENCE 폴더 유지, `bEnableCameraLag = true` 단언과 음성 사례, §12 `$project` 확인·정상 녹화 사후 출력·수동 복구 두 갈래, §13 T30 링크, T11 기록 제자리 정정, 기존 실행 행·≈ 120 Hz 범위). 합친 트리 pytest 1857 passed / 3 skipped, 등록 39. (C) R129-9~15는 선택 이월이다. R129-16은 이 병합 커밋에서 처리했다: 위 "병합 시 반영 — T30" 문구 정정, STATUS WP-18 병행 행에 UE 39 Success(Astra 보고)·Sequence 컴파일만·§12 스텁만·Quinn 결론 추가, Quinn 반복 종료는 DECISIONS D-018 진행 기록(오케스트레이터 결정 D-019, 재개 조건 (a) Block 단언 재실패 (b) V-12·V-15 녹화에서 25 cm 초과 올라탐)으로 기록. 캐릭터 레인은 다시 19b 경로(D-021 재확인·V-08b) 대기다.

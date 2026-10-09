@@ -278,8 +278,11 @@ namespace GolmokAudioTest
 			auto* Disabled = NewObject<UGolmokWeatherSubsystem>(World);
 			Audio->UpdateRainForTest(Disabled, 0);
 			Test->TestEqual(TEXT("uninitialized disabled weather defaults to zero rain; enabled guard not isolated"), Audio->GetRainVolumeForTest(), 0.0);
+			const auto& RainConfig = Audio->GetConfig();
+			const double FullRain = RainConfig.MasterVolume * RainConfig.RainGain(1);
+			Test->TestTrue(TEXT("rain fixture has positive full gain"), FullRain > 0);
 			Audio->UpdateRainForTest(Weather, 0);
-			Test->TestTrue(TEXT("late provider sees ongoing rain without event"), FMath::IsNearlyEqual(Audio->GetRainVolumeForTest(), .8, 1e-6));
+			Test->TestTrue(TEXT("late provider sees ongoing rain without event"), FMath::IsNearlyEqual(Audio->GetRainVolumeForTest(), FullRain, 1e-6));
 			Test->TestEqual(TEXT("rain cannot replace night bed"), Audio->GetState(), Before);
 			Weather->SetWeather(EGolmokWeather::Clear, 0, true, Message);
 			Weather->SetWeather(EGolmokWeather::Rain, 1, false, Message);
@@ -288,26 +291,29 @@ namespace GolmokAudioTest
 			Test->TestEqual(TEXT("sky first half has silent rain"), Audio->GetRainVolumeForTest(), 0.0);
 			Weather->StepWeather(Duration * .25); Audio->Tick(0);
 			const double Rising = Audio->GetRainVolumeForTest();
-			Test->TestTrue(TEXT("actual rain ramps after sky"), Rising > 0 && Rising < .8);
+			Test->TestTrue(TEXT("actual rain ramps after sky"), Weather->GetRainIntensity() > 0 && Weather->GetRainIntensity() < 1
+				&& FMath::IsNearlyEqual(Rising, RainConfig.MasterVolume * RainConfig.RainGain(Weather->GetRainIntensity()), 1e-6));
 			Weather->StepWeather(Duration); Audio->Tick(0);
-			Test->TestTrue(TEXT("full rain gain from curve"), FMath::IsNearlyEqual(Audio->GetRainVolumeForTest(), .8, 1e-6));
+			Test->TestTrue(TEXT("full rain gain from curve"), FMath::IsNearlyEqual(Audio->GetRainVolumeForTest(), FullRain, 1e-6));
 			Tod->EnterInterior(TEXT("rain_test")); Audio->UpdateRainForTest(Weather, 30);
-			Test->TestTrue(TEXT("indoor rain attenuated"), FMath::IsNearlyEqual(Audio->GetRainVolumeForTest(), .28, 1e-6));
+			Test->TestTrue(TEXT("indoor rain attenuated"), FMath::IsNearlyEqual(Audio->GetRainVolumeForTest(), FullRain * RainConfig.RainInteriorGain, 1e-6));
 			Test->TestEqual(TEXT("indoor bed still selected"), Audio->GetState(), FString(TEXT("interior")));
 			Tod->ExitInterior(TEXT("rain_test")); Audio->UpdateRainForTest(Weather, 30);
-			Test->TestTrue(TEXT("outdoor gain restored"), FMath::IsNearlyEqual(Audio->GetRainVolumeForTest(), .8, 1e-6));
+			Test->TestTrue(TEXT("outdoor gain restored"), FMath::IsNearlyEqual(Audio->GetRainVolumeForTest(), FullRain, 1e-6));
 			// Binding after an interior actor appeared must read the existing state, not await an event.
 			Tod->Destroy(); Audio->RefreshBindings();
 			Tod = AGolmokTimeOfDay::FindOrSpawn(World); Tod->EnterInterior(TEXT("rain_late")); Audio->RefreshBindings();
 			Audio->UpdateRainForTest(Weather, 30);
-			Test->TestTrue(TEXT("late interior binding attenuates"), FMath::IsNearlyEqual(Audio->GetRainVolumeForTest(), .28, 1e-6));
+			Test->TestTrue(TEXT("late interior binding attenuates"), FMath::IsNearlyEqual(Audio->GetRainVolumeForTest(), FullRain * RainConfig.RainInteriorGain, 1e-6));
 			Tod->ExitInterior(TEXT("rain_late")); Audio->UpdateRainForTest(Weather, 30);
 			Weather->SetWeather(EGolmokWeather::Clear, 0, false, Message);
 			Weather->StepWeather(Duration * .25); Audio->Tick(0);
-			Test->TestTrue(TEXT("falling rain intermediate gain"), Audio->GetRainVolumeForTest() > 0 && Audio->GetRainVolumeForTest() < .8);
+			Test->TestTrue(TEXT("falling rain intermediate gain"), Weather->GetRainIntensity() > 0 && Weather->GetRainIntensity() < 1
+				&& FMath::IsNearlyEqual(Audio->GetRainVolumeForTest(), RainConfig.MasterVolume * RainConfig.RainGain(Weather->GetRainIntensity()), 1e-6));
 			Weather->StepWeather(Duration * .25); Audio->Tick(0);
 			Test->TestEqual(TEXT("rain silent before sky settles"), Audio->GetRainVolumeForTest(), 0.0);
 			Weather->StepWeather(Duration);
+			const float SavedRainIntensity = .3f;
 			// Real save restore, isolated GUID slot; never overwrite a developer save.
 			if (auto* Save = UGolmokSaveSubsystem::Get(World))
 			{
@@ -316,22 +322,23 @@ namespace GolmokAudioTest
 				ON_SCOPE_EXIT { UGameplayStatics::DeleteGameInSlot(Save->SlotName, 0); };
 				auto* Slot = NewObject<UGolmokSaveGame>();
 				Slot->Weather.Rule = UGolmokSaveGame::WeatherRuleV1;
-				Slot->Weather.State = TEXT("rain"); Slot->Weather.Intensity = .3f;
+				Slot->Weather.State = TEXT("rain"); Slot->Weather.Intensity = SavedRainIntensity;
 				Test->TestTrue(TEXT("rain fixture slot written"), UGameplayStatics::SaveGameToSlot(Slot, Save->SlotName, 0));
 				Save->Restore(Message); Audio->Tick(0);
-				Test->TestTrue(TEXT("save restores rain instantly"), !Weather->IsTransitioning() && FMath::IsNearlyEqual(Audio->GetRainVolumeForTest(), .35, 1e-6));
+				Test->TestEqual(TEXT("save restores fixture precipitation"), Weather->GetRainIntensity(), Slot->Weather.Intensity);
+				Test->TestTrue(TEXT("save restores rain instantly"), !Weather->IsTransitioning() && FMath::IsNearlyEqual(Audio->GetRainVolumeForTest(), RainConfig.MasterVolume * RainConfig.RainGain(SavedRainIntensity), 1e-6));
 			}
 			else Test->AddError(TEXT("save subsystem missing for rain restore"));
 			Audio->SetMuted(true); Audio->Tick(0);
 			Test->TestEqual(TEXT("manual mute includes rain"), Audio->GetRainVolumeForTest(), 0.0);
 			Audio->SetMuted(false); Audio->Tick(0);
-			Test->TestTrue(TEXT("unmute restores rain gain"), FMath::IsNearlyEqual(Audio->GetRainVolumeForTest(), .35, 1e-6));
+			Test->TestTrue(TEXT("unmute restores rain gain"), FMath::IsNearlyEqual(Audio->GetRainVolumeForTest(), RainConfig.MasterVolume * RainConfig.RainGain(SavedRainIntensity), 1e-6));
 			Weather->SetWeather(EGolmokWeather::Rain, 1, true, Message); Audio->Tick(0); // Photo scenario runs in full rain.
 			{
 				auto& Config = const_cast<FGolmokAudioConfig&>(Audio->GetConfig());
 				TGuardValue<double> MasterGuard(Config.MasterVolume, .4);
 				Audio->Tick(0);
-				Test->TestTrue(TEXT("master volume scales rain"), FMath::IsNearlyEqual(Audio->GetRainVolumeForTest(), .32, 1e-6));
+				Test->TestTrue(TEXT("master volume scales rain"), FMath::IsNearlyEqual(Audio->GetRainVolumeForTest(), .4 * Config.RainGain(1), 1e-6));
 			}
 			{
 				auto& Config = const_cast<FGolmokAudioConfig&>(Audio->GetConfig());
@@ -349,7 +356,7 @@ namespace GolmokAudioTest
 					if (Test->TestTrue(TEXT("maintain photo enter"), Photo->Enter(Message)))
 					{
 						Audio->Tick(0);
-						Test->TestTrue(TEXT("maintain photo keeps rainy audio gain"), FMath::IsNearlyEqual(Audio->GetRainVolumeForTest(), .8, 1e-6));
+						Test->TestTrue(TEXT("maintain photo keeps rainy audio gain"), FMath::IsNearlyEqual(Audio->GetRainVolumeForTest(), FullRain, 1e-6));
 						Photo->Exit(TEXT("rain maintain test"));
 					}
 				}
@@ -395,7 +402,7 @@ namespace GolmokAudioTest
 			}
 			if (Phase == 2 && Audio->GetPhotoGain() > .9999)
 			{
-				Test->TestTrue(TEXT("photo exit restores rain"), FMath::IsNearlyEqual(Audio->GetRainVolumeForTest(), .8, 1e-4));
+				Test->TestTrue(TEXT("photo exit restores rain"), FMath::IsNearlyEqual(Audio->GetRainVolumeForTest(), Audio->GetConfig().MasterVolume * Audio->GetConfig().RainGain(1), 1e-4));
 				Test->AddInfo(TEXT("EXECUTED photo gain restored, including rain"));
 				Photo->PauseMode = PreviousPause; return true;
 			}
@@ -468,6 +475,10 @@ bool FGolmokAudioFootstepTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("measured quinn run stride"), Config.StrideFor(TEXT("quinn"), true), 146.0);
 	TestEqual(TEXT("unknown roster uses global stride"), Config.StrideFor(TEXT("future"), false), 70.0);
 	TestEqual(TEXT("production photo fade setting"), Config.PhotoMuteFadeSeconds, .25);
+	// C-08 hypothesis begin — update with audio.json rain
+	TestTrue(TEXT("rain hypothesis curve"), Config.RainGainCurve == TArray<FVector2D>({{0, 0}, {.3, .35}, {1, .8}}));
+	TestEqual(TEXT("rain hypothesis interior"), Config.RainInteriorGain, .35);
+	// C-08 hypothesis end
 	FString Manifest;
 	TestTrue(TEXT("read manifest for invalid date tests"), FFileHelper::LoadFileToString(Manifest, *(FPaths::ProjectConfigDir() / TEXT("Golmok/audio.json"))));
 	// R55-5/R63: reject coercion and preserve the entire credit/asset snapshot.
@@ -495,31 +506,65 @@ bool FGolmokAudioFootstepTest::RunTest(const FString& Parameters)
 		TestEqual(FString::Printf(TEXT("author=%s preserves credits"), Value), Config.Credits, PreviousCredits);
 		TestEqual(FString::Printf(TEXT("author=%s preserves asset count"), Value), Config.Assets.Num(), PreviousAssetCount);
 	}
-	// A valid string set id "1" must not make numeric 1 a valid surface mapping.
-	FString NumericSurface = Manifest.Replace(TEXT("\"sets\": {"), TEXT("\"sets\": {\"1\": [\"asphalt\"],"));
-	NumericSurface.ReplaceInline(TEXT("\"surface_sets\": {"), TEXT("\"surface_sets\": {\"4\": 1,"));
-	TestTrue(TEXT("numeric surface fixture adds string set and numeric reference"), NumericSurface != Manifest);
-	TestFalse(TEXT("numeric surface reference rejects coercion"), GolmokAudio::ParseConfig(NumericSurface, Config, Error));
-	TestEqual(TEXT("numeric surface diagnostic"), Error, FString(TEXT("audio.json footsteps.surface_sets.4: expected string")));
-	TestEqual(TEXT("numeric surface preserves credits"), Config.Credits, PreviousCredits);
-	TestEqual(TEXT("numeric surface preserves asset count"), Config.Assets.Num(), PreviousAssetCount);
+	// DOM fixtures isolate reference types from JSON formatting.
+	const int32 PreviousSets = Config.Sets.Num(), PreviousSurfaces = Config.Surfaces.Num(), PreviousPresets = Config.Presets.Num();
+	auto ReadFixture = [&Manifest]() { TSharedPtr<FJsonObject> Root; FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Manifest), Root); return Root; };
+	auto SerializeFixture = [](const TSharedPtr<FJsonObject>& Root) { FString Json; FJsonSerializer::Serialize(Root.ToSharedRef(), TJsonWriterFactory<>::Create(&Json)); return Json; };
+	if (!TestTrue(TEXT("DOM fixture parses"), ReadFixture().IsValid())) return false;
 	FGolmokAudioConfig ReferenceControl;
-	TestTrue(TEXT("string surface reference control accepted"), GolmokAudio::ParseConfig(NumericSurface.Replace(TEXT("\"4\": 1"), TEXT("\"4\": \"1\"")), ReferenceControl, Error));
-	TSharedPtr<FJsonObject> SampleObject;
-	TestTrue(TEXT("sample fixture parses"), FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Manifest), SampleObject));
-	FString CompactManifest;
-	if (!SampleObject.IsValid()) return false;
-	FJsonSerializer::Serialize(SampleObject.ToSharedRef(), TJsonWriterFactory<TCHAR, TCondensedJsonPrintPolicy<TCHAR>>::Create(&CompactManifest));
-	FString BoolSample = CompactManifest.Replace(TEXT("\"asphalt\":{"), TEXT("\"true\":{"));
-	BoolSample.ReplaceInline(TEXT("[\"asphalt\"]"), TEXT("[\"true\"]"));
-	TestTrue(TEXT("string true asset reference control accepted"), GolmokAudio::ParseConfig(BoolSample, ReferenceControl, Error));
-	BoolSample.ReplaceInline(TEXT("[\"true\"]"), TEXT("[true]"));
-	TestFalse(TEXT("boolean sample reference rejects coercion"), GolmokAudio::ParseConfig(BoolSample, Config, Error));
-	TestTrue(TEXT("sample diagnostic names indexed field/type"), Error.Contains(TEXT("footsteps.sets.")) && Error.Contains(TEXT("[0]: expected string")));
-	TestFalse(TEXT("boolean preset rejects coercion"), GolmokAudio::ParseConfig(Manifest.Replace(TEXT("\"preset_states\": {"), TEXT("\"preset_states\": {\"invalid\": true,")), Config, Error));
-	TestEqual(TEXT("preset diagnostic names field/type"), Error, FString(TEXT("audio.json preset_states.invalid: expected string")));
+	{
+		const auto Root = ReadFixture();
+		const auto Steps = Root->GetObjectField(TEXT("footsteps"));
+		Steps->GetObjectField(TEXT("sets"))->SetArrayField(TEXT("1"), {MakeShared<FJsonValueString>(TEXT("asphalt"))});
+		const auto Surfaces = Steps->GetObjectField(TEXT("surface_sets"));
+		Surfaces->SetStringField(TEXT("4"), TEXT("1"));
+		TestTrue(TEXT("string surface reference control accepted"), GolmokAudio::ParseConfig(SerializeFixture(Root), ReferenceControl, Error));
+		Surfaces->SetNumberField(TEXT("4"), 1);
+		TestFalse(TEXT("numeric surface reference rejects coercion"), GolmokAudio::ParseConfig(SerializeFixture(Root), Config, Error));
+		TestEqual(TEXT("numeric surface diagnostic"), Error, FString(TEXT("audio.json footsteps.surface_sets.4: expected string")));
+		TestTrue(TEXT("numeric surface preserves entries"), !Config.Sets.Contains(TEXT("1")) && !Config.Surfaces.Contains(4));
+	}
+	{
+		const auto Root = ReadFixture();
+		const auto Assets = Root->GetObjectField(TEXT("assets"));
+		const auto Asphalt = Assets->TryGetField(TEXT("asphalt"));
+		Assets->RemoveField(TEXT("asphalt")); Assets->SetField(TEXT("true"), Asphalt);
+		const auto Sets = Root->GetObjectField(TEXT("footsteps"))->GetObjectField(TEXT("sets"));
+		for (const TCHAR* Set : {TEXT("default"), TEXT("asphalt")}) Sets->SetArrayField(Set, {MakeShared<FJsonValueString>(TEXT("true"))});
+		TestTrue(TEXT("string true asset reference control accepted"), GolmokAudio::ParseConfig(SerializeFixture(Root), ReferenceControl, Error));
+		for (const TCHAR* Set : {TEXT("default"), TEXT("asphalt")}) Sets->SetArrayField(Set, {MakeShared<FJsonValueBoolean>(true)});
+		TestFalse(TEXT("boolean sample reference rejects coercion"), GolmokAudio::ParseConfig(SerializeFixture(Root), Config, Error));
+		TestTrue(TEXT("sample diagnostic names indexed field/type"), Error.Contains(TEXT("footsteps.sets.")) && Error.Contains(TEXT("[0]: expected string")));
+		TestTrue(TEXT("boolean sample preserves assets"), Config.Assets.Contains(TEXT("asphalt")) && !Config.Assets.Contains(TEXT("true")));
+	}
+	{
+		const auto Root = ReadFixture();
+		Root->GetObjectField(TEXT("preset_states"))->SetBoolField(TEXT("invalid"), true);
+		TestFalse(TEXT("boolean preset rejects coercion"), GolmokAudio::ParseConfig(SerializeFixture(Root), Config, Error));
+		TestEqual(TEXT("preset diagnostic names field/type"), Error, FString(TEXT("audio.json preset_states.invalid: expected string")));
+		TestFalse(TEXT("boolean preset preserves entries"), Config.Presets.Contains(TEXT("invalid")));
+	}
+	TestEqual(TEXT("reference failures preserve presets count"), Config.Presets.Num(), PreviousPresets);
+	TestEqual(TEXT("reference failures preserve sets count"), Config.Sets.Num(), PreviousSets);
+	TestEqual(TEXT("reference failures preserve surfaces count"), Config.Surfaces.Num(), PreviousSurfaces);
 	TestEqual(TEXT("reference failures preserve credits"), Config.Credits, PreviousCredits);
 	TestEqual(TEXT("reference failures preserve asset count"), Config.Assets.Num(), PreviousAssetCount);
+	{
+		const auto Root = ReadFixture();
+		Root->GetObjectField(TEXT("crossfade_seconds_by_state"))->SetNumberField(TEXT("a\nb"), 1);
+		TestFalse(TEXT("control key rejected"), GolmokAudio::ParseConfig(SerializeFixture(Root), Config, Error));
+		TestEqual(TEXT("control key diagnostic is one line"), Error, FString(TEXT("audio.json crossfade_seconds_by_state.a?b: expected known ambience state")));
+	}
+	{
+		TestFalse(TEXT("missing comma rejected"), GolmokAudio::ParseConfig(TEXT("{\"schema_version\":1 \"master_volume\":1}"), Config, Error));
+		TestTrue(TEXT("missing comma includes reader detail"), Error.StartsWith(TEXT("audio.json $: expected valid JSON object (")) && Error.Len() > 45);
+		AddInfo(TEXT("JSON reader missing comma diagnostic: ") + Error);
+		TSharedPtr<FJsonObject> TrailingObject;
+		const auto TrailingReader = TJsonReaderFactory<>::Create(TEXT("{\"a\":1,}"));
+		const bool TrailingAccepted = FJsonSerializer::Deserialize(TrailingReader, TrailingObject);
+		TestFalse(TEXT("JSON reader rejects trailing comma"), TrailingAccepted);
+		AddInfo(FString::Printf(TEXT("JSON reader trailing comma accepted=%d detail=%s"), TrailingAccepted, *TrailingReader->GetErrorMessage()));
+	}
 	for (const TCHAR* Invalid : {TEXT("null"), TEXT("true"), TEXT("-0.01"), TEXT("5.01"), TEXT("\"0.25\"")})
 	{
 		const FString InvalidJson = Manifest.Replace(TEXT("\"photo_mute_fade_seconds\": 0.25"), *FString::Printf(TEXT("\"photo_mute_fade_seconds\": %s"), Invalid));
@@ -598,8 +643,10 @@ bool FGolmokAudioFootstepTest::RunTest(const FString& Parameters)
 		}
 	}
 	TestTrue(TEXT("rain curve zero"), Config.RainGain(0) == 0);
-	TestTrue(TEXT("rain curve interpolation"), FMath::IsNearlyEqual(Config.RainGain(.15), .175, 1e-6));
-	TestTrue(TEXT("rain upper segment interpolation"), FMath::IsNearlyEqual(Config.RainGain(.65), .575, 1e-6));
+	FGolmokAudioConfig CurveFixture;
+	CurveFixture.RainGainCurve = {{0, 0}, {.5, .25}, {1, 1}};
+	TestTrue(TEXT("rain curve interpolation"), FMath::IsNearlyEqual(CurveFixture.RainGain(.25), .125, 1e-6));
+	TestTrue(TEXT("rain upper segment interpolation"), FMath::IsNearlyEqual(CurveFixture.RainGain(.75), .625, 1e-6));
 	// Independent structural/order cases; out-of-range X necessarily overlaps
 	// ordering/endpoints, so its exact range diagnostic also fixes precedence.
 	// UE accepts NaN as a number (field rejection); Infinity fails JSON parsing.
@@ -646,10 +693,15 @@ bool FGolmokAudioFootstepTest::RunTest(const FString& Parameters)
 		Mutated.InsertAt(1, FString::Printf(TEXT("\"rain\":%s,"), Case.Json));
 		FGolmokAudioConfig Parsed = Config;
 		TestFalse(FString::Printf(TEXT("rain %s rejected"), Case.Name), GolmokAudio::ParseConfig(Mutated, Parsed, Error));
-		TestEqual(FString::Printf(TEXT("rain %s diagnostic"), Case.Name), Error, FString(Case.Diagnostic));
-		TestEqual(TEXT("rain failure preserves asset"), Parsed.RainAsset, Config.RainAsset);
-		TestEqual(TEXT("rain failure preserves interior"), Parsed.RainInteriorGain, Config.RainInteriorGain);
-		TestTrue(TEXT("rain failure preserves all curve points"), Parsed.RainGainCurve == Config.RainGainCurve);
+		if (FString(Case.Name) == TEXT("inf x"))
+		{
+			TestTrue(TEXT("inf x includes reader detail"), Error.StartsWith(FString(Case.Diagnostic) + TEXT(" (")) && Error.Len() > FString(Case.Diagnostic).Len() + 3);
+			AddInfo(TEXT("JSON reader inf diagnostic: ") + Error);
+		}
+		else TestEqual(FString::Printf(TEXT("rain %s diagnostic"), Case.Name), Error, FString(Case.Diagnostic));
+		TestEqual(FString::Printf(TEXT("rain %s preserves asset"), Case.Name), Parsed.RainAsset, Config.RainAsset);
+		TestEqual(FString::Printf(TEXT("rain %s preserves interior"), Case.Name), Parsed.RainInteriorGain, Config.RainInteriorGain);
+		TestTrue(FString::Printf(TEXT("rain %s preserves all curve points"), Case.Name), Parsed.RainGainCurve == Config.RainGainCurve);
 	}
 	for (const TCHAR* Curve : {TEXT("[[0,0],[0.5,0.5],[1,0.5]]"), TEXT("[[0.0,0.0],[0.03225806451612903,0.03225806451612903],[0.06451612903225806,0.06451612903225806],[0.0967741935483871,0.0967741935483871],[0.12903225806451613,0.12903225806451613],[0.16129032258064516,0.16129032258064516],[0.1935483870967742,0.1935483870967742],[0.22580645161290322,0.22580645161290322],[0.25806451612903225,0.25806451612903225],[0.2903225806451613,0.2903225806451613],[0.3225806451612903,0.3225806451612903],[0.3548387096774194,0.3548387096774194],[0.3870967741935484,0.3870967741935484],[0.41935483870967744,0.41935483870967744],[0.45161290322580644,0.45161290322580644],[0.4838709677419355,0.4838709677419355],[0.5161290322580645,0.5161290322580645],[0.5483870967741935,0.5483870967741935],[0.5806451612903226,0.5806451612903226],[0.6129032258064516,0.6129032258064516],[0.6451612903225806,0.6451612903225806],[0.6774193548387096,0.6774193548387096],[0.7096774193548387,0.7096774193548387],[0.7419354838709677,0.7419354838709677],[0.7741935483870968,0.7741935483870968],[0.8064516129032258,0.8064516129032258],[0.8387096774193549,0.8387096774193549],[0.8709677419354839,0.8709677419354839],[0.9032258064516129,0.9032258064516129],[0.9354838709677419,0.9354838709677419],[0.967741935483871,0.967741935483871],[1.0,1.0]]")})
 	{

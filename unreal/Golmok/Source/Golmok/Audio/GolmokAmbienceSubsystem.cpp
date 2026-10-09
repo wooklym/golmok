@@ -36,6 +36,7 @@ void UGolmokAmbienceSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	Collection.InitializeDependency<UGolmokDebugSubsystem>();
 	Super::Initialize(Collection);
 	bReady = GolmokAudio::LoadConfig(Config, LoadError);
+	if (!bReady) UE_LOG(LogGolmok, Warning, TEXT("audio: %s"), *LoadError);
 	Channels.SetNum(2);
 	PhotoGain.Set(1, 0);
 	LastRealTime = FPlatformTime::Seconds();
