@@ -91,7 +91,8 @@ public:
   if(Phase==4)
   {
    for(const FString& File:Files) if(IFileManager::Get().FileSize(*File)<=0) return false;
-   Manifest+=FString::Printf(TEXT("COMPLETE frames=%d duration=%.4f assertions=%s\n"),Files.Num(),End-Start,bAssertionsPassed?TEXT("PASS"):TEXT("FAIL"));
+   const FString AssertionStatus=AssertionCount==0?FString(TEXT("none")):FString::Printf(TEXT("%s(%d/%d)"),bAssertionsPassed?TEXT("PASS"):TEXT("FAIL"),PassedCount,AssertionCount);
+   Manifest+=FString::Printf(TEXT("COMPLETE frames=%d duration=%.4f assertions=%s\n"),Files.Num(),End-Start,*AssertionStatus);
    Save(); Test->AddInfo(TEXT("SEQUENCE ")+Folder); return true;
   }
   const double Elapsed=Now-Start;
@@ -129,13 +130,13 @@ public:
   return false;
  }
 private:
- void Check(const TCHAR* Label,bool Passed,double Value){Test->TestTrue(Label,Passed);bAssertionsPassed &= Passed;Manifest+=FString::Printf(TEXT("assert sim=%.4f result=%s label=%s value=%.3f\n"),Now,Passed?TEXT("PASS"):TEXT("FAIL"),Label,Value);}
+ void Check(const TCHAR* Label,bool Passed,double Value){++AssertionCount;if(Passed) ++PassedCount;Test->TestTrue(Label,Passed);bAssertionsPassed &= Passed;Manifest+=FString::Printf(TEXT("assert sim=%.4f result=%s label=%s value=%.3f\n"),Now,Passed?TEXT("PASS"):TEXT("FAIL"),Label,Value);}
  void Save(){if(Folder.IsEmpty()) return; FFileHelper::SaveStringToFile(Manifest,*(Folder/TEXT("capture.txt")),FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);}
  double Feet()const{return Character->GetActorLocation().Z-Character->GetCapsuleComponent()->GetScaledCapsuleHalfHeight();}
  void Key(const FKey& K,bool Down){if(PC.IsValid()) PC->InputKey(FInputKeyEventArgs::CreateSimulated(K,Down?IE_Pressed:IE_Released,Down?1.f:0.f));Manifest+=FString::Printf(TEXT("input sim=%.4f key=%s %s\n"),Now,*K.ToString(),Down?TEXT("down"):TEXT("up"));}
  void Release(){Key(EKeys::W,false);Key(EKeys::S,false);Key(EKeys::LeftShift,false);}
  bool Fail(const TCHAR* Message){Test->AddError(FString::Printf(TEXT("%s course%d phase%d: %s"),*Id,Course,Phase,Message));Release();Save();return true;}
- FAutomationTestBase* Test; FString Id,Folder,Manifest; int32 Course,Phase=0; double WallStart=0,Now=0,Start=0,End=0,PhaseAt=0,NextCapture=0,OldDelta=0;
+ FAutomationTestBase* Test; FString Id,Folder,Manifest; int32 Course,Phase=0,AssertionCount=0,PassedCount=0; double WallStart=0,Now=0,Start=0,End=0,PhaseAt=0,NextCapture=0,OldDelta=0;
  bool bFraming=false;
  bool bStarted=false,bAssertionsPassed=true,bOldFixed=false,bClockChanged=false,bShift=false,bReturn=false,bStopped=false,bEntered=false,bExited=false;
  TWeakObjectPtr<APlayerController> PC; TWeakObjectPtr<AGolmokCharacter> Character; TArray<FString> Files;
@@ -143,14 +144,16 @@ private:
 void Enqueue(FAutomationTestBase* Test)
 {
  // Check all fixtures before queuing any PIE or map loads.
+ bool bMissingFixture=false;
  for(const TCHAR* Map : {TEXT("/Game/Golmok/Maps/L_Dev"), TEXT("/Game/Golmok/Maps/L_ZoneTest"), TEXT("/Game/Golmok/Zones/z_synthetic_001_interior/v1/L_z_synthetic_001_interior")})
  {
   if(!FPackageName::DoesPackageExist(Map))
   {
    Test->AddError(FString::Printf(TEXT("Sequence fixture missing: %s; prepare L_Dev and synthetic_zone first."),Map));
-   return;
+   bMissingFixture=true;
   }
  }
+ if(bMissingFixture) return;
  for(const TCHAR* Id:{TEXT("manny"),TEXT("proxy135"),TEXT("proxy110"),TEXT("quinn")}) for(int32 Course=0;Course<3;++Course)
  {
   if(FString(Id)==TEXT("manny") && !FParse::Param(FCommandLine::Get(),TEXT("GolmokCharacterFraming"))) continue;
