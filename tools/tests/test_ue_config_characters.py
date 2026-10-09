@@ -234,6 +234,8 @@ def framing_y(entry, point_x, point_z):
 
 def camera_lag_speed(source):
     code = re.sub(r"//[^\n]*", "", re.sub(r"/\*.*?\*/", "", source, flags=re.S))
+    flags = [f.strip() for f in re.findall(r"CameraBoom->bEnableCameraLag\s*=\s*([^;]+);", code)]
+    assert flags == ["true"], "expected exactly one bEnableCameraLag = true"
     values = re.findall(r"CameraBoom->CameraLagSpeed\s*=\s*([^;]+);", code)
     assert len(values) == 1, "expected exactly one CameraLagSpeed assignment"
     assert re.fullmatch(r"\d+(?:\.\d*)?f?", values[0].strip()), "expected positive numeric literal"
@@ -255,11 +257,11 @@ def camera_lag_speed(source):
 )
 def test_camera_lag_source_rejects_ambiguous_or_invalid(source):
     with pytest.raises(AssertionError):
-        camera_lag_speed(source)
+        camera_lag_speed("CameraBoom->bEnableCameraLag = true;" + source)
 
 
 def test_camera_lag_literal_reader():
-    assert camera_lag_speed("CameraBoom->CameraLagSpeed = 12.f;") == 12
+    assert camera_lag_speed("CameraBoom->bEnableCameraLag = true;CameraBoom->CameraLagSpeed = 12.f;") == 12
 
 
 def framing_margins(entry):
@@ -289,3 +291,9 @@ def test_previous_camera_framing_fails_floor_margin(character, old_z):
     entry = copy.deepcopy(next(e for e in ROSTER["characters"] if e["id"] == character))
     entry["camera"]["socket_cm"][2] = old_z
     assert framing_margins(entry)[0] < 0.12
+
+
+@pytest.mark.parametrize("flag", ["", "CameraBoom->bEnableCameraLag = false;"])
+def test_camera_lag_requires_enabled(flag):
+    with pytest.raises(AssertionError, match="bEnableCameraLag"):
+        camera_lag_speed(flag + "CameraBoom->CameraLagSpeed = 12.f;")

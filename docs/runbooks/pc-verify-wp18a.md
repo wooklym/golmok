@@ -210,7 +210,7 @@ T2 실제 실행 명령(2026-09-28, offscreen):
 
 시퀀스는 큐 등록 전 L_Dev·L_ZoneTest·합성 실내 서브레벨 패키지 존재를 확인한다. 누락이면 PIE를 시작하지 않고 경로와 준비 안내를 오류로 남긴다. 300초 타임아웃은 각 코스 latent command의 **첫 Update부터** 계산하며 큐 생성 뒤 앞 코스에서 보낸 시간은 포함하지 않는다. 0.6 s 대기·정착은 300 s에 포함한다. PIE 기동 중 첫 Update 이후 대기도 포함하되, 앞선 별도 PIE 시작 command는 포함하지 않는다. 제한 대상은 해당 command 수명이며, 별도 맵 로드/PIE 시작 command의 시간 제한은 아니다.
 
-새 capture.txt에는 실제 RHI 이름, 실행 명령줄, clear_noon 적용 성공 여부, 진단 카메라 TargetArmLength를 적는다. 조명 액터/프리셋 적용 실패는 테스트 실패다. 캡처 프레임마다(sim 0.1 s) feet(캡슐 바닥), portal_present/inside/entered/exited를 기록하고 계단 랜딩/지면 높이·포털 진입/복귀 단언은 PASS/FAIL과 값을 남긴다. COMPLETE의 assertions는 이 코스 단언 결과이며 이미지 품질 합격 표시가 아니다. 전체 명령줄이 로컬 파일에 있으므로 PR·저장소에 넣거나 외부에 전달할 때 민감한 인자가 없는지 확인하고, 필요하면 경로를 가린다. 기존 T2 시트/capture.txt는 당시 실행 근거라 소급해서 덮어쓰지 않는다.
+새 capture.txt에는 실제 RHI 이름, 실행 명령줄, clear_noon 적용 성공 여부, 진단 카메라 TargetArmLength를 적는다. 조명 액터/프리셋 적용 실패는 테스트 실패다. 캡처 프레임마다(sim 0.1 s) feet(캡슐 바닥), portal_present/inside/entered/exited를 기록하고 계단 랜딩/지면 높이·포털 진입/복귀 단언은 PASS/FAIL과 값을 남긴다. COMPLETE의 assertions는 단언 0개면 `none`(코스 0), 아니면 `PASS(n/m)`·`FAIL(n/m)`(n 통과, m 전체)이다. T30 전 capture.txt의 `assertions=PASS`는 옛 형식이다. 이는 이미지 품질 합격 표시가 아니다. 전체 명령줄이 로컬 파일에 있으므로 PR·저장소에 넣거나 외부에 전달할 때 민감한 인자가 없는지 확인하고, 필요하면 경로를 가린다. 기존 T2 시트/capture.txt는 당시 실행 근거라 소급해서 덮어쓰지 않는다.
 
 
 ## 12. T7 ZoneWalk RHI 회귀 확인 (2026-09-30)
@@ -227,6 +227,7 @@ $project = Join-Path $root 'unreal/Golmok/Golmok.uproject'
 $report = Join-Path $root ("unreal/Golmok/Saved/Automation/T11-course{0}-{1}" -f $course, [guid]::NewGuid().ToString('N'))
 $path = Join-Path $root 'unreal/Golmok/Saved/Golmok/Paths/walk_01.json'
 $backup = "$path.pre-t7"
+if (-not (Test-Path -LiteralPath $project -PathType Leaf)) { throw "project not found: $project (run from the worktree repository root)" }
 $extra = @()
 if ($course -ge 0) { $extra += "-GolmokZoneWalkCourse=$course" }
 if ($course -eq 0) { $extra += '-GolmokCharacterRenderEvidence' }
@@ -263,6 +264,7 @@ try {
       if (-not $afterExists) { throw 'normal course 4 did not write walk_01' }
       $afterHash = (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash
       $afterTime = (Get-Item -LiteralPath $path).LastWriteTimeUtc
+      Write-Host "walk_01 after: SHA256=$afterHash bytes=$((Get-Item -LiteralPath $path).Length) mtime=$($afterTime.ToString('o'))"
       if ($hadPath -and $afterHash -eq $beforeHash -and $afterTime -eq $beforeTime) { throw 'normal course 4 left hash and mtime unchanged' }
     } elseif ($hadPath) {
       if (-not $afterExists) { throw 'forced failure removed baseline' }
@@ -287,7 +289,7 @@ try {
 }
 ```
 
-수동 복구(두 파일을 검토한 뒤): `Copy-Item -LiteralPath $backup -Destination $path -Force`; 기록해 둔 `$beforeTime`도 `[IO.File]::SetLastWriteTimeUtc($path, $beforeTime)`로 복원한다.
+수동 복구는 두 파일 중 어느 것이 기준인지 검토한 뒤 선택한다. 백업이 기준이면 `Copy-Item -LiteralPath $backup -Destination $path -Force -ErrorAction Stop` 뒤 `(Get-FileHash -LiteralPath $path -Algorithm SHA256 -ErrorAction Stop).Hash -eq (Get-FileHash -LiteralPath $backup -Algorithm SHA256 -ErrorAction Stop).Hash`가 True인지 확인한다. 복사가 백업 mtime을 유지하므로 불일치한 현재 파일의 `$beforeTime`을 덧씌우지 않는다. 현재 파일이 기준이면 `Move-Item -LiteralPath $backup -Destination "$backup.$([datetime]::UtcNow.ToString('yyyyMMddTHHmmssZ'))" -ErrorAction Stop`로 옛 백업을 보관한 뒤 다시 실행한다.
 
 - 코스 0은 블록이 `-GolmokCharacterRenderEvidence`를 붙인다. ZoneWalk 우선 경고가 1회 나오는지 확인한다. Sequence 조합도 같은 경고 분기다. 코스 0·1은 성공해야 한다. `walk.txt`의 압박 1초 변위 <5 cm·장애물 접촉면 단언과 PNG 생성을 확인한다. 측정 시작 조건은 접촉면 ±5 cm **그리고** 수평 속도 <1 cm/s다. 접촉 시 캡슐 중심 y는 유리에서 `500 - BlockerThicknessCm/2 - capsule radius`, 벽에서 `500 - capsule radius`다. 유리 남면 자체는 `500 - BlockerThicknessCm/2`다.
 - 코스 4 **강제 실패 시험은 블록이 자동으로** `-GolmokZoneWalkForceInputFlush`를 붙인다. 녹화 시작 뒤 두 번째 waypoint에서 W를 누른 지 0.25 s 이후 첫 틱(실측 0.400 s)에 `FlushPressedKeys()`를 호출한다. 즉시 `input flushed (viewport focus lost)`로 실패하는 것이 기대 결과다. 정상 6코스(`$course = -1`)에는 이 플래그를 붙이지 않는다. 정상 코스 4가 저장한 시험 녹화는 전체 실행 뒤 finally에서 기준 파일로 복원한다. 코스 4를 제외한 단일 코스에 강제 flush 플래그를 주면 무시 경고가 나온다.
@@ -321,7 +323,7 @@ T11 실행(2026-09-30): 정상 6코스 1 Success·경고0·단언25 PASS·PNG37�
 
 유효 mode=gasp이고 PawnSupportsGasp 폰에서 모드 기본값이 실패하면 월드당 한 번 `GASP mode default failed` 경고가 난다. `golmok.character list`의 `last_auto_error`는 마지막 자동 적용 실패의 id·사유이며, fallback이나 이후 수동 선택이 성공해도 기록을 유지한다. 현재 적용 성공은 `current`·실제 메시와 함께 판정한다. 경고가 한 번뿐이어도 실패가 사라졌다는 뜻은 아니다. 기본값 실패를 반복시키는 계약 대역 시험은 경고 1회와 fallback/사유 보존을 검사한다.
 
-Locomotion의 Block 판정 직전에 X·Y·Feet·Speed2D·MovementMode·해당 Block 단계 최대 월드 프레임 dt를 Info로 출력한다. 최초 T12 실패의 정확한 라벨·실행 순서는 WP-18-followup T14 절을 참조한다. 콜드 반복 실험은 이번에 하지 않았고 간헐 실패 원인/해결을 주장하지 않는다.
+Locomotion의 Block 판정 직전에 X·Y·Feet·Speed2D·MovementMode·해당 Block 단계 최대 월드 프레임 dt를 Info로 출력한다. 최초 T12 실패의 정확한 라벨·실행 순서는 WP-18-followup T14 절을 참조한다. T30(2026-10-08 UTC) 반복 실험: Locomotion 실패 0/14(K0/3·W0/3·L0/5·P0/3, W2 간섭 있음), Block 프레임 dt ≈ 8.4 ms 조건에서 14회 재현 없음·원인 미확정 — [WP-18-followup T30](../plan/WP-18-followup.md#quinn-baseline-실험).
 
 GASP 보폭 67/146 cm는 **[추정] 기존 ① 값 복사**다. notify가 실제 발 타이밍을 공급하며 distance 진단 값은 V-15에서 재측정한다. 패키지 스모크에서는 `golmok.character proxy135`로 LoadObjectIfPresent의 패키지 조회·전환도 확인한다(이번 헤드리스 실행과 별개).
 

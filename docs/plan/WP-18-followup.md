@@ -275,7 +275,7 @@ Python ruff check/format103·pytest740 passed/77 skipped(33.05s)·check_repo·di
 - R52-2: 유리 접촉면을 `Zone->BlockerThicknessCm`의 절반으로 계산한다. 코스 0·1은 접촉면 ±5 cm **그리고** 속도 <1 cm/s에서만 1초 압박을 시작한다(PR #52 T4 조건 유지).
 - R52-3: 접촉 20 s 타임아웃 메시지에 y·face·수평 속도(cm/s)를 포함한다.
 - F4: W를 누른 이동 구간에서 다음 틱부터 `IsInputKeyDown`을 확인하고 소실이면 `input flushed (viewport focus lost)`로 즉시 실패한다. 입력 발행 프레임은 PlayerInput 처리 전이라 제외한다. 첫 RHI 시행에서 같은 프레임 검사 오탐을 발견했고 이 수정 후 코스 0·1이 통과했다.
-- 재현용 opt-in `-GolmokZoneWalkForceInputFlush`: 코스 4의 두 번째 waypoint에서 W 입력 후 0.25 s에 직접 `FlushPressedKeys()`를 호출한다. 평상시 및 다른 코스에는 영향이 없다. 실제 포커스 변경 대신 엔진 입력 flush 이후의 분기만 시험한다. 런북 §12에 백그라운드/포커스 ini 우회와 실패 판정 방법을 남겼다.
+- 재현용 opt-in `-GolmokZoneWalkForceInputFlush`: 코스 4의 두 번째 waypoint에서 W 입력 후 0.25 s 이후 첫 틱(T11 실측 `Now-StepAt` 0.400 s)에 직접 `FlushPressedKeys()`를 호출한다. 평상시 및 다른 코스에는 영향이 없다. 실제 포커스 변경 대신 엔진 입력 flush 이후의 분기만 시험한다. 런북 §12에 백그라운드/포커스 ini 우회와 실패 판정 방법을 남겼다.
 
 ### 실제 RHI 결과
 
@@ -321,7 +321,7 @@ Python ruff check/format103·pytest740 passed/77 skipped(33.05s)·check_repo·di
 
 ### R72-3 실제 정상 6코스 RHI
 
-UE5.8.3·D3D12 offscreen·실시간 PIE·`L_ZoneTest06`, UTC 06:37~06:41. 다른 UE 프로세스·GUI 잠금 없음 확인 뒤 자체 잠금을 생성·유지·해제했다. 기존 `walk_01.json`을 `.pre-t7`로 백업했고 아래 모든 실행 뒤 복원했다. 새 보안 창을 조작하지 않았다.
+UE5.8.3·D3D12 offscreen·실시간 PIE·`L_ZoneTest06`, 실행 순서·UTC: 정상 6코스 06:36:52→06:40:45.480 → flush4 06:40:46→06:41:13.366 → wrong-flag0 06:41:14→06:41:48.992. 다른 UE 프로세스·GUI 잠금 없음 확인 뒤 자체 잠금을 생성·유지·해제했다. 기존 `walk_01.json`을 `.pre-t7`로 1회 백업했다. 실제 RHI Python 실행기가 실행마다 finally에서 백업으로 복원한 뒤 다음 실행을 시작했다. 새 보안 창을 조작하지 않았다.
 
 정상 6코스를 **한 프로세스에서 한 번** 실행: `Golmok.Character.RenderEvidence` 1 Success, 경고0/실패0, 테스트200.83 s(프로세스233.86 s). 입력 소실 오탐 없음. 6개의 COMPLETE, 단언25개 PASS, PNG37장 전부1014×550 디코딩 확인. 코스 4 정상 녹화73.05068 s, 포털 진입·복귀·언로드·녹화 종료 통과. 코스 5 실내 3면·천장·조명 overlay 단언도 통과. 이는 엔진 입력 회귀 근거이며 키보드 지속 입력·영상·최종 품질/fps 판정이 아니다.
 
@@ -337,7 +337,7 @@ UE5.8.3·D3D12 offscreen·실시간 PIE·`L_ZoneTest06`, UTC 06:37~06:41. 다른
 보고서는 `Saved/Automation/T11-normal-six/index.json`. 정상 녹화 직후 파일은60912 bytes·SHA-256 `c6befa2e6a23084d51a5480d3f25af4eb200ddb612d0ff3acc773ae62f09a972`였으며, 실행 뒤 기준 파일 **61069 bytes·SHA-256 `fea743b0ef4f9398528396de78fe9fc99e43b8f410628294c95119ed85f5362c`·mtime_ns `1790587719792403000`**으로 복원됐다. 백업은 로컬에 보존했고 생성 에셋·녹화·PNG는 커밋하지 않았다.
 
 추가 RHI 확인:
-- `T11-flush4`: 의도된 Fail1·경고2,6.90 s. `input flushed (viewport focus lost); W seen down since press=true; Now-StepAt=0.400 s`, Deinitialize 36샘플 discarded. 복원 전에도 기준 파일 해시/mtime/크기가 동일했다.
+- `T11-flush4`: 의도된 Fail1·경고2,6.90 s. `input flushed (viewport focus lost); W seen down since press=true; Now-StepAt=0.400 s`, Deinitialize 36샘플 discarded. 복원 전에도 정상 6코스 뒤 복원된 기준 파일 `fea743b0…` 대비 해시/mtime/크기가 동일했다.
 - `T11-wrong-flag0`: Success·경고1,14.98 s. `GolmokZoneWalkForceInputFlush applies only to course 4; ignored for the selected course.` 확인. 기준 파일 불변.
 
 런북 PowerShell 블록은 Parser 검사와 임시 파일/엔진 stub로 코스0·4·-1 인자 전달, 정상 녹화 덮어쓰기 뒤 finally 복원, 기존 백업 거부(IOException)를 확인했다. 이 stub 결과를 UE 실행으로 세지 않는다. 실제 RHI는 동일 인자의 Python 실행기로 위 별도 결과를 얻었다.
@@ -346,8 +346,6 @@ UE5.8.3·D3D12 offscreen·실시간 PIE·`L_ZoneTest06`, UTC 06:37~06:41. 다른
 
 검증 게이트: UE5.8.3 빌드7.90 s 성공, `test.ps1 -SetupDevLevel` 전체32 Success(21+경고11), failed0/notRun0, 178.39 s. 기본 RenderEvidence NOT EXECUTED1을 제외한 실제31개, RHI는 위 별도 실행이다. Python1029 passed/203 skipped/208 warnings(43.09 s), ruff check·format108·check_repo·diff check 통과. 소유자 결정 필요 없음; Opus ultracode 리뷰 요청. CI는 PR에서 확인한다.
 
-
-실행 순서·UTC: 정상 6코스 06:36:52→06:40:45.480 → 백업 복원 → flush4 06:40:46→06:41:13.366 → 백업 복원 → wrong-flag0 06:41:14→06:41:48.992 → 백업 복원. 각 실행 뒤 기준 파일로 복원했다([당시 이슈 보고](https://github.com/wooklym/golmok/issues/30#issuecomment-5906483741)). flush는 0.25 s 이후 첫 틱(실측 0.400 s)에 발생했다.
 
 ### 병합 시 반영 — T11
 
@@ -582,9 +580,9 @@ STATUS/astra-tasks 문안: “T23 카메라 구도: 로스터 Socket Z를 성인
 
 ## T30 — 리뷰 잔여 정리와 Quinn 반복 실험 (2026-10-09)
 
-R42-S2~S6: Sequence는 누락 fixture를 모두 보고한 뒤 큐 등록을 중단한다. COMPLETE 단언 표시는 `none` 또는 `PASS(n/m)`이며 단언 실패는 완료로 기록하지 않는다. 캡처 진단 간격(sim 0.1 s), 타임아웃 범위, 명령줄 공유 전 검토·경로 가림을 런북 §11에 명시했다.
+R42-S2~S6: Sequence는 누락 fixture를 모두 보고한 뒤 큐 등록을 중단한다. COMPLETE 단언 표시는 `none` 또는 `PASS(n/m)`·`FAIL(n/m)`(통과/전체)이며 단언 실패도 COMPLETE·SEQUENCE 폴더 진단을 남긴다. 실패 판정은 기존 TestTrue가 유지한다. 캡처 진단 간격(sim 0.1 s), 타임아웃 범위, 명령줄 공유 전 검토·경로 가림을 런북 §11에 명시했다.
 
-R75-1~4: 런북 §12는 같은 SHA-256 백업을 재사용하고 다른 백업이면 두 해시를 표시하고 중단한다. 원래 파일이 없으면 새 녹화를 별도 이름으로 보존하고 원래 부재를 복원한다. 정상 6코스에 포함된 코스4가 파일을 썼는지 존재·해시·mtime으로 확인하고 미갱신이면 실패한다. finally 복원은 유지하며 수동 복구 문안을 넣었다. T11 당시 정상→복원→flush4→복원→wrong-flag0→복원 순서와 UTC를 추가했다. 실측 flush는 0.25 s 이후 첫 틱(0.400 s)이다.
+R75-1~4: 런북 §12는 같은 SHA-256 백업을 재사용하고 다른 백업이면 두 해시를 표시하고 중단한다. 원래 파일이 없으면 새 녹화를 별도 이름으로 보존하고 원래 부재를 복원한다. 정상 6코스에 포함된 코스4가 파일을 썼는지 존재·해시·mtime으로 확인하고 미갱신이면 실패한다. finally 복원은 유지하며 수동 복구 문안을 넣었다. T11 당시 정상→복원→flush4→복원→wrong-flag0→복원 순서와 UTC를 제자리에서 고쳤다. 실측 flush는 0.25 s 이후 첫 틱(0.400 s)이다.
 
 R108-5·6: 구도 테스트는 읽기 전용 Player 소스의 CameraLagSpeed 대입을 정확히 하나 요구한다. 양의 숫자 리터럴을 읽어 랙을 계산하며 누락·중복·0·음수·변수 대입은 거부한다. 순수 수학 socket Z가 옛 출발값이고 T23 테스트·characters.json이 우선함을 주석·스키마에 적었다. 설정값·훅·등록 39·런북 §14/§15는 무변경이다.
 
@@ -592,7 +590,9 @@ R108-5·6: 구도 테스트는 읽기 전용 Player 소스의 CameraLagSpeed 대
 
 코드 변경 전 main `4ca9e65`에서 수행했다. K=각 재빌드 뒤 전체, W=재빌드 없는 전체, L=Locomotion 단독, P=Animation+Audio+Character.Config+Locomotion 필터. K2/K3는 테스트 파일 mtime만 갱신해 다시 빌드했으며 내용 diff는 없었다. W2는 외부 프로세스 PID50604 감지로 간섭 있음(유형·출처 미확정), 이후 중단했다가 PC 조건을 다시 확인하고 W3부터 재개했다. 새 9회에는 간섭 기록이 없다.
 
-**Locomotion 실패 0/14 (K0/3 · W0/3 · L0/5 · P0/3). 14회 재현 없음, 원인 미확정.** W2 간섭을 포함한 관측이며 무간섭 14회라고 주장하지 않는다. 임계값 X<−5000·Feet<3·Speed<1은 그대로 유지한다. H1/hitch·빌드 첫 실행·H2/순서·H3/턱 오르기 원인은 이 결과로 확정하지 않는다. 반복 실험 종료를 제안한다. 화면 품질·실제 키보드·RHI 검수는 미실행이다.
+14회 모두 Quinn Block dt 0.008336~0.008539 s(≈120 Hz), 4캐릭터 최대 dt ≤0.013116 s 조건이다. ≈60 Hz(dt≈0.0167 s) 조건의 14회 재현 없음으로 확장하지 않는다.
+
+**Locomotion 실패 0/14 (K0/3 · W0/3 · L0/5 · P0/3). ≈120 Hz 조건에서 14회 재현 없음, 원인 미확정.** W2 간섭을 포함한 관측이며 무간섭 14회라고 주장하지 않는다. 임계값 X<−5000·Feet<3·Speed<1은 그대로 유지한다. H1/hitch·빌드 첫 실행·H2/순서·H3/턱 오르기 원인은 이 결과로 확정하지 않는다. 이 ≈120 Hz 조건의 반복 실험 종료를 제안한다. T12 실패 당시 dt는 진단 추가 전이라 모른다. 화면 품질·실제 키보드·RHI 검수는 미실행이다.
 
 |회|시작 UTC|필터|성공/경고/실패/미실행|Locomotion|Quinn 진단|4캐릭터 Block 최대 dt|오류|간섭|
 |---|---|---|---|---|---|---|---|---|
@@ -611,11 +611,16 @@ R108-5·6: 구도 테스트는 읽기 전용 Player 소스의 CameraLagSpeed 대
 |P2|2026-10-08T22:36:35.7092191Z|Golmok.Animation+Golmok.Audio+Golmok.Character.Config+Golmok.Character.Locomotion|6/2/0/0|Success|quinn: Block diagnostic X=-5041.909 Y=-4700.000 Feet=2.000 Speed2D=0.000 MovementMode=1 MaxFrameDt=0.008383|0.008383|없음|없음|
 |P3|2026-10-08T22:38:32.2950173Z|Golmok.Animation+Golmok.Audio+Golmok.Character.Config+Golmok.Character.Locomotion|6/2/0/0|Success|quinn: Block diagnostic X=-5041.909 Y=-4700.000 Feet=2.000 Speed2D=0.000 MovementMode=1 MaxFrameDt=0.008364|0.008442|없음|없음|
 
+|기존 실행 t14-final-index.json|보고 생성 2026.09.30-10.43.06 UTC|기존 전체 보고서|23/12/1/0|Success|quinn: Block diagnostic X=-5041.910 Y=-4700.000 Feet=2.000 Speed2D=0.000 MovementMode=1 MaxFrameDt=0.016629|기존 로그 참조|없음|당시 감시 기록 없음|
+|기존 실행 t23-full-index.json|보고 생성 2026.10.04-12.25.22 UTC|기존 전체 보고서|24/12/0/0|Success|quinn: Block diagnostic X=-5041.909 Y=-4700.000 Feet=2.000 Speed2D=0.000 MovementMode=1 MaxFrameDt=0.008350|기존 로그 참조|없음|당시 감시 기록 없음|
+
+기존 실행 두 행은 원래 worktree의 보존 보고서에서 읽었으며 새 14회 집계에 포함하지 않는다. 시작 UTC는 보존 보고서에 없어 보고 생성 UTC로 표시했다. T14는 ≈60 Hz 조건의 기존 1회 성공 근거이며 60 Hz 반복 실험 결과가 아니다.
+
 증거는 로컬 `tools/.venv/t30-quinn/`의 index·엔진 로그·meta·summary에 보존했다(커밋 제외).
 
 ### 병합 시 반영 — T30
 
-STATUS Astra WP-18 행: “T30 선택 정리 완료: Sequence 누락 fixture 전체 보고·단언 수 표시, ZoneWalk 백업 보호·T11 순서 정합성, 구도 랙 상수 소스 검증·socket 주석. Quinn baseline Locomotion 실패 0/14(K0/3·W0/3·L0/5·P0/3), W2 간섭 있음, 14회 재현 없음·원인 미확정. 반복 종료 제안, 등록39·설정값·GUI 기록 무변경.” astra-tasks T30에 PR·게이트를 옮긴다. 새 결정 없음.
+STATUS Astra WP-18 행: “T30 선택 정리 완료: Sequence 누락 fixture 전체 보고·단언 수 표시, ZoneWalk 백업 보호·T11 순서 정합성, 구도 랙 상수 소스 검증·socket 주석. Quinn baseline Locomotion 실패 0/14(K0/3·W0/3·L0/5·P0/3), W2 간섭 있음, ≈120 Hz 조건에서 14회 재현 없음·원인 미확정. 반복 종료 제안, 등록39·설정값·GUI 기록 무변경.” astra-tasks T30에 PR·게이트를 옮긴다. 새 결정 없음.
 
 ### T30 최종 검증
 
@@ -624,3 +629,9 @@ STATUS Astra WP-18 행: “T30 선택 정리 완료: Sequence 누락 fixture 전
 - UE 빌드 성공, 53.78 s. 전체 39 Success = 28 + 경고 11, 실패 0 / notRun 0, 147.194 s. 경고는 미설치 fixture/GASP 등의 기존 조건이다.
 - 런북 백업 블록을 추출해 UE 호출만 스텁한 격리 5사례(same backup, different backup, original absence, unchanged normal recording, forced failure preservation) 통과. 실제 RHI 코스는 미실행.
 - CI는 draft PR 생성 뒤 확인한다. Opus ultracode 리뷰 요청 후 push 정지.
+
+### T30 R129 필수 리뷰 수정
+
+R129-1~8 반영: FAIL(n/m)·폴더 진단 유지, 카메라 랙 enable 확인, 수동 복구 두 갈래와 해시 확인, 프로젝트 사전 존재 확인, 정상 녹화 해시·크기·mtime 출력, 런북 T30 링크, T11 옛 기록 제자리 정정, 기존 실행 행·≈120 Hz 범위 보강. R129-9~15 선택 이월, R129-16 오케스트레이터 병합 범위다. Quinn 반복 실험은 추가하지 않았다. Sequence 변경은 RHI opt-in 경로라 이번에는 컴파일만 확인하며 실제 RHI 실행은 미실행이다.
+
+R129 수정 검증: UE 빌드 성공 7.26 s, 전체39 Success(28+경고11), failed0/notRun0, 147.120 s. Sequence는 컴파일만 확인(RHI 미실행). 집중 pytest64 passed, 전체1582 passed/276 skipped/61 warnings(99.26 s). 랙 enable false·삭제 변이 거부, 런북 격리6사례(기존5+project 누락 중단) 통과. ruff·format120·check_repo·diff --check 통과. CI는 수정 push 뒤 확인.
