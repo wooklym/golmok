@@ -349,7 +349,7 @@ def test_package_argv_warning_and_failure(env):
     assert call["exe"].endswith("Engine/Build/BatchFiles/RunUAT.sh")
     assert call["argv"] == [
         "BuildCookRun", f"-project={env.project}", "-platform=Mac", "-clientconfig=Shipping", "-build",
-        "-cook", "-stage", "-pak", "-archive", f"-archivedirectory={env.repo}/build/Mac", "-utf8output",
+        "-cook", "-stage", "-pak", "-package", "-archive", f"-archivedirectory={env.repo}/build/Mac", "-utf8output",
         "-ubtargs=-NoHotReloadFromIDE",
     ]  # fmt: skip
     assert "GASP" not in result.stderr

@@ -42,8 +42,10 @@ if [ -e "$RepoRoot/unreal/Golmok/Content/GASP" ]; then
 fi
 # -NoHotReloadFromIDE (as in build.sh): any running editor/-game of this engine install with Live Coding
 # otherwise fails the editor-target build with "Unable to build while Live Coding is active" (V-10).
+# -package (Mac only; package.ps1 has none): without it the archived Golmok.app holds only the executable and
+# fails at launch with "Library not loaded: @rpath/libtbb.12.dylib" (measured 2026-11-27, UE 5.8.4).
 rc=0
 "$UERunUAT" BuildCookRun \
     "-project=$Project" -platform=Mac "-clientconfig=$Config" \
-    -build -cook -stage -pak -archive "-archivedirectory=$OutDir" -utf8output "-ubtargs=-NoHotReloadFromIDE" || rc=$?
+    -build -cook -stage -pak -package -archive "-archivedirectory=$OutDir" -utf8output "-ubtargs=-NoHotReloadFromIDE" || rc=$?
 if [ "$rc" -ne 0 ]; then golmok_die "Packaging failed ($rc)"; fi
