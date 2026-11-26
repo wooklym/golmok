@@ -61,6 +61,24 @@ cd tools && python -m pytest -q tests/test_viewer_server.py tests/test_viewer_zo
 - `tests/test_viewer_server.py`: 라우팅, `--zone` 마운트, 경로 탈출(`..`·절대·드라이브·백슬래시·NUL·Windows 예약 장치 이름·심볼릭 링크) 거절, zone_id 64자 제한, CORS 헤더 없음.
 - `test/smoke.mjs`(헤드리스 Chromium, `PLAYWRIGHT_BROWSERS_PATH`; `playwright install`은 하지 않는다): 합성 베이스맵(18타일) + WP-02 픽스처 zone(`/data/zones/…`, 생성기 collision.glb와 `golmok-mesh blockers build`로 만든 blockers.glb; `GOLMOK_DATA`로 실제 베이스맵을 주면 픽스처는 `test/out/`에 복사해 `--zone`으로 마운트하므로 그 폴더에는 쓰지 않는다) + WP-06 생성기 zone(`make_synthetic_zone.py`, `--zone` 마운트). collision·blockers 모델 4개 생성, 배치(bounding sphere 중심 vs manifest bbox·blockers.json), 체크박스 토글·zone 행 토글·와이어프레임, `errors`·`warnings`·콘솔 오류 0. 생성물은 `test/out/`(git 무시). 환경변수 `GOLMOK_DATA`(베이스맵 폴더), `GOLMOK_PORT`, `GOLMOK_SHOT`, `PLAYWRIGHT_PROXY`, `PLAYWRIGHT_CHROMIUM`.
 
+## macOS에서 실행
+
+Mac(Apple Silicon, arm64)에서는 다음 순서로 돌린다. 2026-11-27 macOS 27.2.1·M5 Max에서 확인했다(D-022).
+
+```bash
+cd tools
+~/.local/bin/uv venv --python 3.12 .venv && source .venv/bin/activate
+~/.local/bin/uv pip install -e ".[basemap,zone,mesh,splat,align,dev]"
+cd viewer && npm install
+npx playwright install chromium --only-shell   # 스모크는 헤드리스 셸만 쓴다(공식 배포본)
+npm test
+```
+
+- 겪은 문제 ①: `test/smoke.mjs`가 서버 stdout에서 `viewer:` 줄을 기다리는데 `viewer_server.py`의 `print`에 flush가 없어 파이프로 읽을 때 무한 대기했다(CI는 `PYTHONUNBUFFERED=1`이라 통과). `flush=True`로 고쳤다.
+- 겪은 문제 ②: `npx playwright install chromium`은 전체 Chromium만 받고 헤드리스 셸을 안 준다(1.56.1, macOS). `--only-shell`로 따로 받아야 `chromium.launch({headless:true})`가 뜬다.
+- 실제 결과: 단위 테스트 5/5 통과(3.7 ms). 스모크 통과 — 합성 베이스맵 18타일 + zone 2개(collision·blockers GLB), 배치 오차 6e-9 m(전체)/0 m, Cesium 기본 축 보정 오차 10.6 m 판별, 토글 9종 전부 참, 콘솔 오류 0. `npm test` 전체 25.8초(M5 Max). 합성 베이스맵 빌드와 `make_synthetic_zone.py`는 Mac에서 그대로 돈다.
+- [미확인]: `GOLMOK_DATA`로 실제 베이스맵을 물린 스모크, `golmok-viewer` GUI 브라우저 자동 열기(macOS `webbrowser.open`) 정상 동작 여부.
+
 ## 라이선스
 
 CesiumJS 1.145(Apache-2.0)와 테스트용 Playwright(Apache-2.0)만 쓴다(D-002). 다른 npm 의존성은 없다.

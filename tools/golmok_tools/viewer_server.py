@@ -179,9 +179,10 @@ def main(argv: list[str] | None = None) -> int:
     query = [f"tileset=/data/{args.tileset}"] if data_dir is not None else []
     query += [f"zone=/zones/{prefix}/manifest.json" for prefix in zones]
     url = f"http://127.0.0.1:{args.port}/?" + "&".join(query)
-    print(f"viewer: {url}")
+    # smoke.mjs reads the readiness line through a pipe: block-buffered stdout would hang it
+    print(f"viewer: {url}", flush=True)
     source = "local node_modules" if CESIUM_BUILD.exists() else "CDN (internet needed)"
-    print(f"cesium: {source}  (Ctrl+C to stop)")
+    print(f"cesium: {source}  (Ctrl+C to stop)", flush=True)
     if not args.no_browser:
         threading.Timer(0.5, webbrowser.open, args=(url,)).start()
     try:
