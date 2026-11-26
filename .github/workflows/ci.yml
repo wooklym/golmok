@@ -28,6 +28,8 @@ jobs:
           - { os: ubuntu-latest, python: "3.12" }
           # Same OS as the user's PC: catches path and encoding problems
           - { os: windows-latest, python: "3.12" }
+          # [WP-20 hook] D-022: the only dev/verification machine is now an Apple Silicon Mac
+          - { os: macos-latest, python: "3.12" }
     defaults:
       run:
         working-directory: tools
