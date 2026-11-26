@@ -21,18 +21,20 @@
 | uv 0.13.10 | `~/.local/bin/uv`(sudo·Homebrew 없이 공식 설치 스크립트) | `~/.local/bin/uv --version` |
 | Python 3.12.16 | uv가 관리(`uv python install 3.12`) | `tools/.venv/bin/python --version` |
 | git-lfs 3.8.1 | `~/.local/bin/git-lfs`(darwin arm64 릴리스 바이너리) | `git lfs version` |
-| gh 2.106.0 | `~/.local/bin/gh`(로그인 전) | `gh --version` |
+| gh 2.106.0 | `~/.local/bin/gh`. 소유자가 `gh auth login` 완료(§1 #5) | `gh auth status` |
 | tools venv | `tools/.venv`(Python 3.12, CI와 같은 extras) | 아래 재현 명령 |
 | LFS | `git lfs install` 뒤 `git lfs pull` 완료(`.uasset`/`.umap`/jpg가 포인터가 아님) | `git lfs ls-files \| head` |
 | Epic Games Launcher | `/Applications/Epic Games Launcher.app`. 서명 "Developer ID Application: Epic Games International, S.a.r.l. (96DBZ92D3Y)", 공증됨 | `codesign -dv --verbose=2 "/Applications/Epic Games Launcher.app"`, `spctl -a -vv "/Applications/Epic Games Launcher.app"` |
-| Xcode 27.2 | App Store 다운로드 시작(진행 중, `/Applications/Xcode.appdownload`) | `ls /Applications \| grep -i xcode` |
+| Xcode 27.2(빌드 27B52) | 설치됨. 소유자가 `sudo xcodebuild -license accept`·`sudo xcodebuild -runFirstLaunch` 완료(§1 #2·#3). 첫 실행 전에는 `xcodebuild`가 CoreSimulator를 못 읽었고 `-checkFirstLaunchStatus`가 69였다. 뒤에는 0 | `xcodebuild -version`, `xcodebuild -checkFirstLaunchStatus; echo $?` |
+| Metal Toolchain | `xcodebuild -downloadComponent MetalToolchain`(838.9 MB, sudo 불필요)로 받았다. 없으면 쿡이 실패한다(§8 #3) | `xcrun metal --version`(Apple metal version 32023.922) |
 | Command Line Tools | `/Library/Developer/CommandLineTools`(Apple clang 21) | `xcode-select -p` |
-| Unreal Engine | **미설치** | — |
+| Unreal Engine 5.8.4 | Launcher 빌드 CL 58902052, `"/Users/Shared/Epic Games/UE_5.8"`. 소유자가 Epic 로그인 뒤 설치(§1 #4). 옵션: core + templates + engine source. 다운로드 14.7 GB, 설치 약 43 GB | `cat "/Users/Shared/Epic Games/UE_5.8/Engine/Build/Build.version"` |
 
 **CI 검사(Mac에서 실행, 2026-11-27)**
 - `ruff check .`·`ruff format --check .`·`python scripts/check_repo.py`: 통과
 - `pytest -q`: 처음에는 1854 통과 + 실패 3이었다. 실패 3은 arm64에서만 나는 C++ 교차검증 수치 허용오차 문제였고 WP-20에서 고쳤다(결과는 [WP-20](../plan/WP-20-mac-dev-env.md) "결과").
-- **Xcode 라이선스 전 우회(sudo 없음)**: Xcode 다운로드가 시작된 뒤로 `/usr/bin/git`·`/usr/bin/g++`·`clang++` 셈(shim)이 "You have not agreed to the Xcode license agreements"를 내고 종료 코드 69로 멈춘다. §1 #2 전에는 git과 pytest 앞에 **`export DEVELOPER_DIR=/Library/Developer/CommandLineTools`**를 준다. 셈이 이미 설치된 Command Line Tools를 쓰고, CLT에는 Xcode 라이선스 관문이 없다. 이 상태로 위 CI 검사 전부가 통과한다: `ruff check .`·`ruff format --check .` 통과, `pytest -q` **1906 통과·3 건너뜀**(80 s), `check_repo.py` "OK (uproject, ini, json, links, gitattributes, conflicts, gasp)"(2026-11-27, git 2.54.0 Apple Git-157). §1 #2 뒤에는 이 export가 필요 없다.
+- **Xcode 라이선스 전 우회(sudo 없음)**: Xcode 다운로드가 시작된 뒤로 `/usr/bin/git`·`/usr/bin/g++`·`clang++` 셈(shim)이 "You have not agreed to the Xcode license agreements"를 내고 종료 코드 69로 멈춘다. §1 #2 전에는 git과 pytest 앞에 **`export DEVELOPER_DIR=/Library/Developer/CommandLineTools`**를 준다. 셈이 이미 설치된 Command Line Tools를 쓰고, CLT에는 Xcode 라이선스 관문이 없다. 이 상태로 위 CI 검사 전부가 통과한다: `ruff check .`·`ruff format --check .` 통과, `pytest -q` **1906 통과·3 건너뜀**(80 s), `check_repo.py` "OK (uproject, ini, json, links, gitattributes, conflicts, gasp)"(2026-11-27, git 2.54.0 Apple Git-157). §1 #2 뒤에는 이 export가 필요 없다. 2026-11-27 소유자가 동의해 지금은 쓰지 않는다. 동의 전까지는 `/usr/bin/git`·`clang++`·`python3` 셈이 라이선스 메시지를 내고 멈췄고, 이 우회로 작업했다.
+- **Xcode 동의 뒤 CI 검사(2026-11-27)**: ruff 두 검사·`check_repo.py` 통과, `pytest -q` **1928 통과·3 건너뜀**. GitHub CI(PR #130)는 새 `macos-latest` 행을 포함해 전부 통과했다.
 
 **재현 명령**(새 Mac이나 venv를 다시 만들 때)
 ```bash
@@ -54,7 +56,7 @@ source .venv/bin/activate
 uv pip install -e ".[basemap,zone,mesh,splat,align,dev]"
 ruff check . && ruff format --check . && pytest -q && python scripts/check_repo.py
 ```
-- 웹 뷰어 스모크(`cd tools/viewer && npm install && npm test`)는 Playwright Chromium 다운로드가 필요하다. 아직 돌리지 않았다.
+- 웹 뷰어 스모크(`cd tools/viewer && npm install && npm test`)는 Playwright Chromium 다운로드가 필요하다. **알려진 문제**(Node 26.13.1, Playwright 1.56.1): `npx playwright install chromium`이 압축 풀기에서 멈춘다(2회). 받은 zip을 손으로 `~/Library/Caches/ms-playwright`에 풀어 우회했다. Mac 확인은 [PR #131](https://github.com/wooklym/golmok/pull/131)(로컬 LLM 세션 재환, Opus 리뷰 중)이다.
 - **커밋 정보**: 이 Mac의 Claude 세션은 `git -c user.name=Claude -c user.email=noreply@anthropic.com commit …`으로 커밋한다(pc-setup §0과 같다).
 
 ## 1. 소유자만 하는 일 (D-019)
@@ -65,7 +67,7 @@ D-019는 약관 동의·계정 가입·로그인·지출을 소유자 몫으로 
 |---|---|---|---|
 | 1 | **Apple ID로 App Store에서 Xcode 27.2 설치 마무리**(이미 시작함) | Apple 계정 로그인, App Store 약관(D-019 ②) | `ls /Applications/Xcode.app`, `xcodebuild -version` |
 | 2 | 터미널에서 **`sudo xcodebuild -license accept`**, 이어서 `sudo xcode-select -s /Applications/Xcode.app/Contents/Developer` | Xcode·Apple SDK 라이선스 동의(②)와 관리자 암호. 동의 전에는 `/usr/bin/git`까지 "You have not agreed to the Xcode license agreements"를 내고 멈춘다(2026-11-27 관찰). 그동안 git·pytest는 §0의 `DEVELOPER_DIR` 우회로 돌린다. UE 빌드에는 동의가 필요하다 | `xcode-select -p`가 `/Applications/Xcode.app/Contents/Developer`, `git status`가 정상 |
-| 3 | Xcode를 한 번 열어 **첫 실행 구성요소** 설치. Settings → Components에서 **Metal Toolchain**을 받는다(macOS 플랫폼만 있으면 된다. iOS 시뮬레이터는 필요 없다) | 첫 실행 동의 창과 Apple 다운로드 약관(②). Metal Toolchain이 따로 받는 구성요소라는 것은 검색 요약 수준이다 [미확인, §8 #3] | `xcrun -f metal`이 경로를 낸다 |
+| 3 | Xcode를 한 번 열어 **첫 실행 구성요소** 설치. Settings → Components에서 **Metal Toolchain**을 받는다(macOS 플랫폼만 있으면 된다. iOS 시뮬레이터는 필요 없다) | 첫 실행 동의 창과 Apple 다운로드 약관(②). Metal Toolchain은 따로 받는 구성요소다(2026-11-27 확인, §8 #3). 첫 실행은 `sudo xcodebuild -runFirstLaunch`로 했고, Metal Toolchain은 `xcodebuild -downloadComponent MetalToolchain`(sudo 불필요)으로 받았다 | `xcrun metal --version`이 버전을 낸다 |
 | 4 | **Epic Games Launcher 로그인 → UE EULA 동의 → UE 5.8.x 설치**(Launcher가 주는 5.8 최신, §2 결정). 설치 옵션은 기본값에 "Editor symbols for debugging"은 끈다. 설치 위치는 기본값(`/Users/Shared/Epic Games`)을 권한다 | Epic 계정 로그인과 엔진 EULA(②) | `ls "/Users/Shared/Epic Games/UE_5.8/Engine/Binaries/Mac"`, `Engine/Build/Build.version`의 `PatchVersion`이 4 이상 |
 | 5 | **`gh auth login`**(GitHub.com → HTTPS → 브라우저) | GitHub 계정 로그인·자격 증명 저장(②) | `gh auth status`, `git push` 시험(작업 브랜치) |
 | 6 | (선택) **Homebrew 설치**와 `brew install ffmpeg exiftool colmap` | Homebrew 설치 스크립트가 sudo를 요구한다. ffmpeg·exiftool은 V-01 §3·V-08b·V-17 캡처에, colmap은 §7 스파이크에 쓴다. 설치 자체는 무료다 | `ffmpeg -version`, `exiftool -ver`, `colmap -h` |
@@ -122,8 +124,8 @@ D-019는 약관 동의·계정 가입·로그인·지출을 소유자 몫으로 
 | `.\tools\ue\package.ps1 [-Config C] [-OutDir D]` | `tools/ue/package.sh [Config] [--out-dir DIR]` | `RunUAT.sh BuildCookRun -platform=Mac`, 기본 출력 `build/Mac`. `GOLMOK_PKG_DIR` 규칙은 같다(끝의 `/`를 뗀다) |
 | `.\tools\ue\add-mannequin.ps1` | `tools/ue/add-mannequin.sh` | 같은 템플릿 폴더(`Templates/TemplateResources/High/Characters/Content`)를 `cp -R` |
 | `.\tools\ue\add-gasp.ps1 -GaspProject … [-Verify] [-Force] [-LocalFiles] [-Manifest]` | `tools/ue/add-gasp.sh [--gasp-project DIR] [--verify] [--force] [--local-files] [--manifest]` | `--gasp-project` 기본값은 `~/UE/GASP_58`(`$HOME/UE/GASP_58`)이다. 편집기 실행 확인은 `ps -axo pid=,comm=`. **저장소 경로에 공백이 있으면 거부한다**(`-ExecutePythonScript=`가 첫 공백에서 끊긴다) — 공백 없는 경로에 클론한다. `--rhi` 플래그는 없다. `-nullrhi`를 빼려면 `GOLMOK_TEST_RHI=1`을 준다(`test.sh`도 같은 변수를 읽는다, §8 #5) |
-| `UnrealEditor-Cmd.exe <uproject> -ExecutePythonScript=… -nullrhi -unattended` | `"$UE_ROOT/Engine/Binaries/Mac/UnrealEditor.app/Contents/MacOS/UnrealEditor-Cmd" "<uproject>" -ExecutePythonScript=… -nullrhi -unattended` | `-Cmd` 바이너리 위치와 Mac `-nullrhi` [미확인, §8 #2·#5] |
-| `UnrealEditor.exe <uproject> <맵> -game -RenderOffscreen …` | `".../UnrealEditor.app/Contents/MacOS/UnrealEditor" "<uproject>" <맵> -game -RenderOffscreen …` | Mac `-RenderOffscreen` [미확인, §8 #6] |
+| `UnrealEditor-Cmd.exe <uproject> -ExecutePythonScript=… -nullrhi -unattended` | `"$UE_ROOT/Engine/Binaries/Mac/UnrealEditor-Cmd" "<uproject>" -ExecutePythonScript=… -nullrhi -unattended` | `-Cmd`는 `.app` 안이 아니라 옆에 있다. Mac `-nullrhi` 동작(2026-11-27 확인, §8 #2·#5) |
+| `UnrealEditor.exe <uproject> <맵> -game -RenderOffscreen …` | `".../UnrealEditor.app/Contents/MacOS/UnrealEditor" "<uproject>" <맵> -game -RenderOffscreen …` | Mac `-RenderOffScreen` 동작(2026-11-27 확인, §8 #6) |
 
 **Windows 관습**
 
@@ -167,7 +169,7 @@ tools/ue/package.sh                    # 5. Mac Development 패키지 → $GOLMO
 ```
 
 **기대 결과**
-1. `build.sh`: 성공(종료 코드 0). 실패하면 아래 "첫 컴파일 체크리스트"를 보고 **C++를 고쳐 다시 빌드한다**(pc-setup §2와 같은 원칙). Astra 레인 파일(`Characters/`, `Audio/`, `Tests/GolmokCharacterRoster*`)에서 나면 고치지 않고 이슈 #30·PR로 알린다.
+1. `build.sh`: 성공(종료 코드 0). **2026-11-27 열린 막힘**: main 그대로는 Astra 레인 `Tests/GolmokCharacterRosterZoneWalk.cpp:61` 한 곳이 `-Wunreachable-code-loop-increment`로 실패한다. Astra가 고치기 전까지 로컬 전용 우회(§9 §4-1)를 쓰고 커밋하지 않는다. 실패하면 아래 "첫 컴파일 체크리스트"를 보고 **C++를 고쳐 다시 빌드한다**(pc-setup §2와 같은 원칙). Astra 레인 파일(`Characters/`, `Audio/`, `Tests/GolmokCharacterRoster*`)에서 나면 고치지 않고 이슈 #30·PR로 알린다.
 2. `add-mannequin.sh`: `Content/Characters/Mannequins/…`가 생기고 `git status`에 추적 파일 변화가 없다(`.gitignore` 대상).
 3. `test.sh --setup-dev-level`: 자동화 **39개** 전부 `Success`(V-16 기준 목록, [pc-verify-wp16a.md](pc-verify-wp16a.md) §3 "세 번째 명령"). 판정은 상태 열로 한다(`Succeeded:`는 Warning 있는 테스트를 따로 센다). `-nullrhi`에서 렌더 의존 테스트가 실패하면 `--rhi`로 다시 돌려 비교하고 둘 다 적는다.
 4. `open-editor.sh`: 창이 안 보이면 §2 알려진 문제 5의 우회를 쓴다. 시작 직후 크래시면 `-BindlessOff`(§2 #4)를 시험한다. L_Dev PIE에서 걷기·달리기(Shift)·점프·카메라 충돌이 동작한다. `Saved/Logs/Golmok.log`에 Error가 없다. 스크린샷 1장(960×540 JPEG)을 `docs/runbooks/mac-setup-L_Dev-pie.jpg`로 남긴다(LFS).
@@ -181,7 +183,7 @@ tools/ue/package.sh                    # 5. Mac Development 패키지 → $GOLMO
 
 **첫 컴파일 체크리스트**(WP-20 감사, 소스 스캔만 했고 컴파일은 못 했다)
 - (A) 빌드 전 확인
-  - `Config/DefaultEngine.ini`에는 `[/Script/WindowsTargetPlatform.WindowsTargetSettings]`(DX12 SM5/SM6)만 있다. Mac은 엔진 기본 RHI를 쓴다. Lumen·Nanite·VSM·VT가 SM6 Metal을 요구하면 `[/Script/MacTargetPlatform.MacTargetSettings]`에 `+TargetedRHIs=SF_METAL_SM6`을 `; [WP-20 hook]` 블록으로 더한다. 키 이름은 엔진의 `Engine/Config/Mac/*Engine.ini`·`BaseEngine.ini`로 먼저 확인한다 [미확인, §8 #16]. Windows 줄은 고치지 않는다.
+  - `Config/DefaultEngine.ini`에는 `[/Script/WindowsTargetPlatform.WindowsTargetSettings]`(DX12 SM5/SM6)만 있다. Mac은 엔진 기본 RHI를 쓴다. 엔진 `BaseEngine.ini`의 `[/Script/MacTargetPlatform.MacTargetSettings]`에 이미 `MetalLanguageVersion=7`, `+TargetedRHIs=SF_METAL_SM5`·`SF_METAL_SM6`이 있어 프로젝트 ini는 고치지 않는다(2026-11-27 확인, §8 #16). Windows 줄은 고치지 않는다.
   - UBT가 프로젝트 루트에 `Golmok (Mac).xcworkspace`를 만든다. WP-20이 `.gitignore`의 `[WP-20 hook]` 블록에 `unreal/Golmok/*.xcworkspace`와 `.DS_Store`를 넣었다. `generate-project-files.sh` 뒤 `git status`에 워크스페이스가 안 보이는지만 확인한다.
 - (B) clang 경고 위험(스캔에서는 발견 없음, 컴파일로 확인)
   - `-Wshadow`(MSVC C4456~4459가 이미 오류라 위험 낮음), `-Wsometimes-uninitialized`, `-Wunused-but-set-variable`, `-Wreorder-ctor`
@@ -282,23 +284,23 @@ tools/ue/package.sh                    # 5. Mac Development 패키지 → $GOLMO
 
 | # | 항목 | 지금 적어 둔 값 | UE 설치 뒤 확인 방법 | 확인 결과 |
 |---|---|---|---|---|
-| 1 | Launcher 엔진 루트 | `"/Users/Shared/Epic Games/UE_5.8"` | Launcher → 라이브러리 → 엔진 버전 ▾ → "Show in Finder" / `ls` | |
-| 2 | 에디터·`-Cmd` 바이너리 | `Engine/Binaries/Mac/UnrealEditor.app/Contents/MacOS/UnrealEditor`, 같은 폴더의 `UnrealEditor-Cmd` | `ls "$UE_ROOT/Engine/Binaries/Mac" "$UE_ROOT/Engine/Binaries/Mac/UnrealEditor.app/Contents/MacOS"` | |
-| 3 | Metal Toolchain 별도 구성요소 | Xcode Settings → Components | `xcrun -f metal`, 첫 셰이더 컴파일 로그 | |
-| 4 | 빌드 명령 | `Engine/Build/BatchFiles/Mac/Build.sh GolmokEditor Mac Development -Project=… -WaitMutex`(아키텍처 기본 arm64) | `build.sh` 실행 로그, `file unreal/Golmok/Binaries/Mac/*.dylib` | |
-| 5 | Mac `-nullrhi` 헤드리스 실행 | `test.sh`·`add-gasp.sh` 기본값. 끄는 방법은 `test.sh --rhi` 또는 환경 변수 `GOLMOK_TEST_RHI=1`(`add-gasp.sh`는 변수만 받는다) | `test.sh` 결과 39/39, 실패 시 `--rhi`와 비교. `add-gasp.sh`가 `-nullrhi`에서 실패하면 `GOLMOK_TEST_RHI=1 tools/ue/add-gasp.sh …` | |
-| 6 | Mac `-game -RenderOffscreen` | pc-setup §5·V-17 §5 방식 | 짧은 `-game` 실행 1회, 창 없이 CSV가 남는지 | |
-| 7 | 실제 설치 패치 버전 | 5.8.4 이상 | `Engine/Build/Build.version` | |
+| 1 | Launcher 엔진 루트 | `"/Users/Shared/Epic Games/UE_5.8"` | Launcher → 라이브러리 → 엔진 버전 ▾ → "Show in Finder" / `ls` | 확인(2026-11-27): `"/Users/Shared/Epic Games/UE_5.8"` 그대로 |
+| 2 | 에디터·`-Cmd` 바이너리 | (작성 때 값) `Engine/Binaries/Mac/UnrealEditor.app/Contents/MacOS/UnrealEditor`, 같은 폴더의 `UnrealEditor-Cmd` | `ls "$UE_ROOT/Engine/Binaries/Mac" "$UE_ROOT/Engine/Binaries/Mac/UnrealEditor.app/Contents/MacOS"` | 확인(2026-11-27): `UnrealEditor-Cmd`는 `Engine/Binaries/Mac/UnrealEditor-Cmd`(`.app` 옆, 안이 아님). `test.sh`가 이 경로로 돈다 |
+| 3 | Metal Toolchain 별도 구성요소 | Xcode Settings → Components | `xcrun -f metal`, 첫 셰이더 컴파일 로그 | 확인(2026-11-27): 별도 구성요소다. 없으면 `package.sh` 쿡이 METAL_SM5 글로벌 셰이더 오류 7,856개로 실패한다("cannot execute tool 'metal' due to missing Metal Toolchain; use: xcodebuild -downloadComponent MetalToolchain"). `xcodebuild -downloadComponent MetalToolchain`(838.9 MB, sudo 불필요) 뒤 `xcrun metal --version` = Apple metal version 32023.922 |
+| 4 | 빌드 명령 | `Engine/Build/BatchFiles/Mac/Build.sh GolmokEditor Mac Development -Project=… -WaitMutex`(아키텍처 기본 arm64) | `build.sh` 실행 로그, `file unreal/Golmok/Binaries/Mac/*.dylib` | 확인(2026-11-27): `build.sh` → GolmokEditor Mac Development, 액션 57개, 약 31 s. Astra 레인 파일 1곳 컴파일 오류(§9 §4-1). dylib 아키텍처(`file`)는 [미확인] |
+| 5 | Mac `-nullrhi` 헤드리스 실행 | `test.sh`·`add-gasp.sh` 기본값. 끄는 방법은 `test.sh --rhi` 또는 환경 변수 `GOLMOK_TEST_RHI=1`(`add-gasp.sh`는 변수만 받는다) | `test.sh` 결과 39/39, 실패 시 `--rhi`와 비교. `add-gasp.sh`가 `-nullrhi`에서 실패하면 `GOLMOK_TEST_RHI=1 tools/ue/add-gasp.sh …` | 확인(2026-11-27): `-nullrhi`·`-unattended`·Automation RunTests·`py` ExecCmds가 Mac에서 돈다. 39개 전부 Success. `add-gasp.sh`는 [미확인] |
+| 6 | Mac `-game -RenderOffscreen` | pc-setup §5·V-17 §5 방식 | 짧은 `-game` 실행 1회, 창 없이 CSV가 남는지 | 확인(2026-11-27): `UnrealEditor <uproject> /Game/Golmok/Maps/L_Dev -game -RenderOffScreen -ResX=1920 -ResY=1080`가 돌고 로그의 CSV 메타데이터가 `shaderplatform="METAL_SM6"`다. CSV 파일 위치는 #13 [미확인] |
+| 7 | 실제 설치 패치 버전 | 5.8.4 이상 | `Engine/Build/Build.version` | 확인(2026-11-27): 5.8.4, CL 58902052 |
 | 8 | `DEVELOPER_DIR` 전달 | `tools/ue/*.sh`가 덮어쓰지 않는다 | 스크립트 읽기 + `DEVELOPER_DIR=… tools/ue/build.sh` 로그의 Xcode 경로 | |
-| 9 | 패키지 `.app` 위치 | `$GOLMOK_PKG_DIR` 아래 `Golmok.app`(깊이 미정) | `find "$GOLMOK_PKG_DIR" -maxdepth 3 -name '*.app'` | |
+| 9 | 패키지 `.app` 위치 | `$GOLMOK_PKG_DIR` 아래 `Golmok.app`(깊이 미정) | `find "$GOLMOK_PKG_DIR" -maxdepth 3 -name '*.app'` | 확인(2026-11-27): 기본 출력 `build/Mac/Golmok.app`, 실행 파일 `Golmok.app/Contents/MacOS/Golmok`. `-package`가 있어야 `Contents/UE/…`가 들어간다(9f3b64d) |
 | 10 | 패키지 매니페스트·utoc 이름 | `Manifest_UFSFiles_Mac.txt`, `Golmok-Mac.utoc`, `Engine/Binaries/Mac/UnrealPak` | 패키지 폴더 `find … -name 'Manifest_*' -o -name '*.utoc'` | |
-| 11 | macOS 방화벽과 TraceLog 1985 | 기본 꺼짐이면 창 없음, 켜져 있으면 거부 | `/usr/libexec/ApplicationFirewall/socketfilterfw --getglobalstate`, 패키지 실행 중 `lsof -nP -iTCP:1985 -sTCP:LISTEN` | |
+| 11 | macOS 방화벽과 TraceLog 1985 | 기본 꺼짐이면 창 없음, 켜져 있으면 거부 | `/usr/libexec/ApplicationFirewall/socketfilterfw --getglobalstate`, 패키지 실행 중 `lsof -nP -iTCP:1985 -sTCP:LISTEN` | 부분(2026-11-27): 패키지 실행 중 `lsof`에 TCP `*:37678` LISTEN이 보였고 1985는 그 확인에서 안 보였다. macOS 방화벽 창은 관찰되지 않았다. `socketfilterfw --getglobalstate`는 안 돌렸다 → 방화벽 상태 [미확인] |
 | 12 | 패키지 게임 Saved | `~/Library/Application Support/Epic/Golmok/Saved` | 패키지 실행 뒤 `ls` | |
 | 13 | `-game` CSV 위치 | 프로젝트 `Saved/Profiling/CSV` 또는 `~/Library/Application Support/Epic/UnrealEngine/5.8/Saved/Profiling/CSV` | `-csvCaptureFrames` 실행 뒤 `find ~/Library/Application\ Support/Epic unreal/Golmok/Saved -name 'Profile*.csv' -newer <표식>` | |
-| 14 | 에디터 로그 위치 | 프로젝트 `Saved/Logs/Golmok.log`, `~/Library/Logs/Unreal Engine/GolmokEditor/` | 에디터 실행 뒤 `ls` | |
-| 15 | `.uproject` `TargetPlatforms` | WP-20에서 `"Mac"` 추가함(`["Windows", "Mac"]`) | `package.sh`가 이 목록으로 통과하는지 | |
-| 16 | Mac RHI ini 키 | `[/Script/MacTargetPlatform.MacTargetSettings]` `+TargetedRHIs=SF_METAL_SM6` | `grep -rn TargetedRHIs "$UE_ROOT/Engine/Config"`, Project Settings → Platforms → Mac | |
-| 17 | `-BindlessOff` 필요 여부 | 크래시가 나면만 | 에디터 실행 1회 | |
+| 14 | 에디터 로그 위치 | 프로젝트 `Saved/Logs/Golmok.log`, `~/Library/Logs/Unreal Engine/GolmokEditor/` | 에디터 실행 뒤 `ls` | 확인(2026-11-27): 에디터 로그가 `~/Library/Logs/Unreal Engine/GolmokEditor/`에도 남고 프로젝트 `Saved/Logs`도 있다 |
+| 15 | `.uproject` `TargetPlatforms` | WP-20에서 `"Mac"` 추가함(`["Windows", "Mac"]`) | `package.sh`가 이 목록으로 통과하는지 | 확인(2026-11-27): `["Windows", "Mac"]`로 `package.sh`가 통과한다 |
+| 16 | Mac RHI ini 키 | `[/Script/MacTargetPlatform.MacTargetSettings]` `+TargetedRHIs=SF_METAL_SM6` | `grep -rn TargetedRHIs "$UE_ROOT/Engine/Config"`, Project Settings → Platforms → Mac | 확인(2026-11-27): 엔진 `BaseEngine.ini`에 이미 `MetalLanguageVersion=7`, `+TargetedRHIs=SF_METAL_SM5`·`SF_METAL_SM6`. 프로젝트 ini 변경 불필요(`DefaultEngine.ini` 그대로) |
+| 17 | `-BindlessOff` 필요 여부 | 크래시가 나면만 | 에디터 실행 1회 | [미확인]: GUI 에디터를 아직 안 띄웠다. 오프스크린 `-game`과 패키지 실행은 `-BindlessOff` 없이 돌았다 |
 | 18 | 메인 창 화면 밖 문제(5.8.4+) | 우회만 적음 | 에디터 실행 1회 | |
 | 19 | Niagara GPUCompute·VT on Metal | 지원으로 가정 | V-16 §4 PIE | |
 | 20 | `RHIGetGPUFrameCycles`가 Metal에서 유효한지 | 미정 | HUD GPU 값과 `stat gpu` 합계 비교 | |
@@ -314,13 +316,14 @@ tools/ue/package.sh                    # 5. Mac Development 패키지 → $GOLMO
 | 단계 | 날짜 | 세션·모델 | 결과 | 메모 |
 |---|---|---|---|---|
 | §0 기반 도구 | 2026-11-27 | WP-20 세션 | 완료 | 위 §0 표 |
-| §1 소유자 항목 1~5 | | | | |
-| §2 엔진 버전(`Build.version`) | | | | |
-| §4-1 `build.sh` | | | | |
-| §4-2 `add-mannequin.sh` | | | | |
-| §4-3 `test.sh --setup-dev-level`(39) | | | | |
-| §4-4 `open-editor.sh`·L_Dev PIE | | | | |
-| §4-5 `package.sh`·`.app` 실행 | | | | |
+| §1 소유자 항목 1~5 | 2026-11-27 | 소유자 | 완료 | Xcode 27.2(27B52) 설치, `sudo xcodebuild -license accept`, `sudo xcodebuild -runFirstLaunch`(전: CoreSimulator 로드 실패·`-checkFirstLaunchStatus` 69, 뒤: 0), Epic 로그인·UE 5.8.4 설치, `gh auth login`. Metal Toolchain은 §4-5 때 받았다(sudo 불필요) |
+| §2 엔진 버전(`Build.version`) | 2026-11-27 | 로컬 Mac 세션 765a7a7d | 5.8.4 | Launcher 빌드 CL 58902052, `"/Users/Shared/Epic Games/UE_5.8"`, 다운로드 14.7 GB·설치 약 43 GB(core + templates + engine source) |
+| §4-1 `build.sh` | 2026-11-27 | 로컬 Mac 세션 765a7a7d | 🔴 **main 그대로는 실패**(로컬 우회로 통과) | GolmokEditor Mac Development, 액션 57개, 약 31 s. 컴파일 오류는 정확히 1개, Astra 레인 `Tests/GolmokCharacterRosterZoneWalk.cpp:61` `for(TActorIterator<APlayerStart> It(World);It;++It){Start=*It;break;}` → `error: loop will run at most once (loop increment never executed) [-Werror,-Wunreachable-code-loop-increment]`. 로컬 전용 한 줄 변경 `if(TActorIterator<APlayerStart> It(World);It){Start=*It;}`(커밋 안 함)으로 빌드 성공. Astra에 요청함([#30](https://github.com/wooklym/golmok/issues/30#issuecomment-7197857386)). **Astra가 고치기 전에는 main 새 체크아웃이 Mac에서 빌드되지 않는다** — 그동안 같은 한 줄을 로컬에서만 바꾸고 커밋하지 않는다 |
+| §4-2 `add-mannequin.sh` | 2026-11-27 | 로컬 Mac 세션 765a7a7d | 통과 | 팩 복사 |
+| §4-3 `test.sh --setup-dev-level`(39) | 2026-11-27 | 로컬 Mac 세션 765a7a7d | 통과 | L_Dev 생성, `-nullrhi` 헤드리스. 39개 목록, 상태 전부 Success, Failed 0, Not run 0. 보고서 `succeeded` 칸은 23이었다 — 나머지 16은 Warning 있는 성공이다(나뉜 원인은 "Warning" 이상 [미확인]) |
+| §4-4 `open-editor.sh`·L_Dev PIE | | | ⚪ 안 함 | 창 모드 에디터 GUI·PIE·모습 확인 남음. 오프스크린 렌더만 확인: `UnrealEditor <uproject> /Game/Golmok/Maps/L_Dev -game -RenderOffScreen -ResX=1920 -ResY=1080` 로그 CSV 메타데이터 `shaderplatform="METAL_SM6"` |
+| §4-5 `package.sh`·`.app` 실행 | 2026-11-27 | 로컬 Mac 세션 765a7a7d | 통과(수정 2개 뒤) | ① 첫 실행: 쿡에서 METAL_SM5 글로벌 셰이더 오류 7,856개(Metal Toolchain 없음) → `xcodebuild -downloadComponent MetalToolchain`(§8 #3). 게임 타깃 C++ 빌드는 Xcode 27.2 + 5.8.4에서 통과(UE-396802 안 남). ② 두 번째: BUILD SUCCESSFUL이지만 `build/Mac/Golmok.app`(413 MB)에 실행 파일만 있어 실행 때 "Library not loaded: @rpath/libtbb.12.dylib" → `package.sh`에 `-package` 추가(9f3b64d). ③ 뒤: `Golmok.app` 903 MB(`Contents/UE/…`). `Golmok.app/Contents/MacOS/Golmok -RenderOffScreen -ResX=1280 -ResY=720 -unattended -nosound`가 `/Game/Golmok/Maps/L_Dev`를 읽는다(LoadMap 0.28 s, Golmok 서브시스템 초기화). 예상 Warning: 날씨 MPC·비 FX 에셋 없음(V-16 미실행). 첫 쿡 뒤 패키징 약 1~2.5분. 실행 중 TCP `*:37678` LISTEN, 1985는 안 보임, 방화벽 창 없음(§8 #11). 창 모드에서 걷기 확인은 안 함 |
 | §4-6 빈 L_Dev Mac 기준선(1080p, `stat unit`/`stat gpu`, CsvProfile) | | | | fps·GPU ms·디스플레이·창 설정 |
 | §5 PC 자료 복사 | | | | |
-| §8 미확인 해소 | | | | |
+| §8 미확인 해소 | 2026-11-27 | 로컬 Mac 세션 765a7a7d | 부분 | #1~#7·#9·#14~#16 확인, #11 부분. 남은 것: #8·#10·#12·#13·#17~#26(#26은 WP-21에서 확인) |
+| FMA(부동소수 축약) | 2026-11-27 | 로컬 Mac 세션 765a7a7d | 확인 | UE Mac 툴체인이 `-ffp-contract=off`를 준다(`Engine/Source/Programs/UnrealBuildTool/Platform/Mac/MacToolChain.cs:209`, `Clang/ClangToolChain.cs:796`). 런타임 헤더도 Mac에서 축약 없이 컴파일된다 |

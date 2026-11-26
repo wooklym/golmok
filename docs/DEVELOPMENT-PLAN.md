@@ -159,7 +159,7 @@ UE 에디터와 실데이터 없이도 만들 수 있고, 합성 데이터로 �
 | V-16 | WP-16a 날씨 검증(MPC·NS 에셋 저작 포함) | `runbooks/pc-verify-wp16a.md` | WP-16a | ⚪ 카드 발행(2026-10-04), PC 대기 |
 | V-17 | 2026-10-04 후속 묶음(도착 카메라·카메라 구도·Full Precision UV·베이스맵 성능·패키지 재실행·TraceLog 인자) | `runbooks/pc-verify-v17.md` | [#107](https://github.com/wooklym/golmok/pull/107), [#108](https://github.com/wooklym/golmok/pull/108) | ⚪ 카드 발행(2026-10-04). §6·§5 ①② ✅(2026-10-09), §5 ③ quinn 재확인·§1~§4 남음 |
 | V-18 | WP-13 빗소리 레이어 검증(Astra T24~T29) | `runbooks/pc-verify-v18.md` | V-16 | ⚪ 카드 발행(2026-10-05), PC 대기 |
-| V-19 | Mac 셋업·빌드·헤드리스 테스트·검증용 패키지·빈 L_Dev Mac 기준선(D-022) | `runbooks/mac-setup.md`(WP-20에서 작성) | WP-20, 소유자 Xcode·Epic·UE 설치 | ⚪ 카드 발행(2026-11-27), UE 미설치 |
+| V-19 | Mac 셋업·빌드·헤드리스 테스트·검증용 패키지·빈 L_Dev Mac 기준선(D-022) | `runbooks/mac-setup.md`(WP-20에서 작성) | WP-20, 소유자 Xcode·Epic·UE 설치 | 🔵 진행 중(2026-11-27): 빌드·자동화 39 Success·패키지 `.app` 통과, Astra 레인 빌드 막힘(#30)·창 모드 에디터·PIE 확인 남음 |
 
 상태 칸은 2026-10-09 기준 요약이다. 정본은 `plan/STATUS.md` 트랙 1B·병행 트랙이다.
 
