@@ -221,7 +221,11 @@ def main(argv: list[str] | None = None) -> int:
         default=4032,
         help="검출용 축소 긴 변 픽셀 (0=원본). 블러는 항상 원본 해상도에 적용",
     )
-    ap.add_argument("--device", default="auto", help="auto | cpu | cuda:0")
+    ap.add_argument(
+        "--device",
+        default="auto",
+        help="auto (CUDA, 없으면 CPU) | cpu | cuda:0 | mps (Apple GPU, 수동 지정만; EgoBlur 결과 미검증)",
+    )
     ap.add_argument("--no-preview", action="store_true")
     ap.add_argument("--overwrite", action="store_true")
     args = ap.parse_args(argv)

@@ -38,6 +38,46 @@ python -c "import torch; print(torch.cuda.is_available(), torch.cuda.get_device_
 
 EgoBlur 모델(`ego_blur_face.jit`, `ego_blur_lp.jit`)은 https://www.projectaria.com/tools/egoblur 에서 라이선스에 동의하고 **Gen1** 모델을 받아 `tools\models\`에 둔다(git에는 올라가지 않는다).
 
+## 설치 (macOS, 한 번만)
+
+2026-11-27부터 개발 머신은 Mac(Apple Silicon)이다([D-022](../docs/DECISIONS.md)). macOS 기본 Python(3.9)은 `requires-python >=3.11`을 못 맞추므로 uv로 Python 3.12를 쓴다. 전체 셋업은 [mac-setup 런북](../docs/runbooks/mac-setup.md).
+
+```bash
+# uv가 없으면: https://docs.astral.sh/uv/ 설치 안내대로 (~/.local/bin에 설치된다)
+cd golmok/tools
+uv venv --python 3.12 .venv
+source .venv/bin/activate
+uv pip install -e ".[raw,heic,basemap,zone,mesh,splat,align,dev]"
+```
+
+블러까지 쓰려면 `uv pip install -e ".[blur]"`로 PyPI 기본 torch 휠을 받는다. CUDA 인덱스(`cu128`)는 쓰지 않는다. Mac에는 CUDA가 없어 `golmok-blur --device auto`가 **CPU**를 고른다. EgoBlur README도 Mac은 CPU 전용이라 느리다고 적는다([EgoBlur](https://github.com/facebookresearch/EgoBlur)). `--device mps`가 EgoBlur TorchScript에서 되는지와 처리 속도는 [미확인]이다.
+
+```bash
+python -c "import torch; print(torch.__version__, torch.backends.mps.is_available())"
+```
+
+EgoBlur 모델은 Windows와 같이 받아(라이선스 동의는 소유자) `tools/models/`에 둔다. ffmpeg·exiftool은 선택이고 설치 방법은 런북을 본다. 아래 사용 예는 PowerShell 문법이라 bash에서 그대로 붙여 넣으면 안 된다. 세 가지를 바꾼다: 줄 끝의 백틱(`` ` ``) 줄 이음은 `\`로 바꾼다(bash에서 백틱은 명령 치환이라 다음 줄이 명령으로 실행된다), `$env:VAR="…"; cmd`는 `VAR="…" cmd` 또는 `export VAR="…"`로 바꾼다, `D:\…` 경로는 Mac 경로(`/`)로 바꾸고 공백이 있으면 따옴표로 감싼다. 예:
+
+```bash
+golmok-blur ~/golmok_capture/…/photos ~/golmok_capture/…/photos_blurred \
+  --face-model tools/models/ego_blur_face.jit --lp-model tools/models/ego_blur_lp.jit
+GOLMOK_DATA="$HOME/golmok_basemap/yeonnam" npm test   # 7) 검수 뷰어의 $env:GOLMOK_DATA 줄
+```
+
+### Mac 재구성 도구 (WP-21, D-023)
+
+RealityScan·Postshot은 macOS를 지원하지 않는다. 무료 대체 도구를 스파이크 후보로 쓴다(품질 판정은 V-05). 절차·라이선스·미확인 표는 [mac-recon 런북](../docs/runbooks/mac-recon.md).
+
+```bash
+tools/mac/install-recon-tools.sh                 # ~/golmok-tools에 COLMAP 4.2.1(cpu_lgpl)·ffmpeg(lgpl)·exiftool·Brush v0.3.0 (sudo·Homebrew 없음)
+. ~/golmok-tools/env.sh
+tools/mac/recon-smoke.sh <이미지 폴더> [작업 폴더]  # COLMAP → undistort → Brush → golmok-splat, 작업 폴더는 저장소 밖
+cd tools/mac/objcap && swift build -c release --scratch-path ~/golmok-tools/objcap/build   # golmok-objcap (Object Capture)
+```
+
+- `golmok-objcap` 사용법·좌표·약관 메모: [tools/mac/objcap/README.md](mac/objcap/README.md).
+- 데이터·PLY·바이너리는 저장소 밖(`~/golmok_data`, `~/golmok-tools`)에 둔다. Brush는 현재 폴더에 `./target/`을 쓰므로 저장소에서 직접 돌리지 않는다.
+
 ## 사용 예
 
 **1) 리허설 점검** (가이드 §4-C)
@@ -174,5 +214,6 @@ pytest -q               # 단위 테스트
 python scripts/check_repo.py   # 저장소 점검: uproject·ini·json 파싱, 문서 상대 링크, .gitattributes LFS
 ```
 
+- Mac에서는 `source .venv/bin/activate` 뒤 같은 명령을 bash에서 돌린다(D-022). C++ 교차검증 테스트는 Command Line Tools의 Apple clang++를 쓴다.
 - CI는 ubuntu(Python 3.11/3.12)와 windows(3.12)에서 위 검사를 돌리고, 선택 잡으로 합성 베이스맵을 `3d-tiles-validator`로 검증한다(실패해도 전체 실패 아님).
 - `GOLMOK_BASEMAP_OUT=<폴더>`를 주고 `pytest tests/test_basemap.py`를 실행하면 합성 베이스맵 출력이 그 폴더에 남는다.

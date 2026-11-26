@@ -24,6 +24,9 @@ class Detector(Protocol):
 
 
 def resolve_device(device: str) -> str:
+    """ "auto" -> the current CUDA device, else "cpu"; anything else (cpu, cuda:N, mps) is used as given.
+    WP-20 (D-022, Apple silicon Mac): "auto" never picks MPS - whether the EgoBlur TorchScript runs correctly
+    on MPS is unverified ([미확인]), so MPS is opt-in with --device mps only."""
     import torch
 
     if device != "auto":

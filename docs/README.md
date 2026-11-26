@@ -6,7 +6,7 @@
 | [plan/STATUS.md](plan/STATUS.md) | 진행 상태 보드(WP·PC 검증·사용자 작업). 세션마다 갱신 |
 | [plan/WP-01…08](plan/) | 작업 패키지 상세 스펙(산출물·완료 기준·주의·결과) |
 | [ROADMAP.md](ROADMAP.md) | 진행 상황과 다음 단계 |
-| [DECISIONS.md](DECISIONS.md) | 결정 기록(D-001~D-012 승인. 남은 확인: PC 업그레이드 여부, 홈 Zone 선택) |
+| [DECISIONS.md](DECISIONS.md) | 결정 기록(D-001~D-023. 남은 확인: 홈 Zone 선택, 재구성 파이프라인의 지출 대안·약관 확인(D-023; 무료 Mac 대체는 스파이크 후보로 들임). PC 업그레이드는 D-022로 취소) |
 | [spec/zone-manifest.md](spec/zone-manifest.md) | **Zone 데이터 계약**: manifest·blockers·Zone Index JSON Schema, 좌표 규약(ENU m ↔ UE cm), UE 매핑 규약, 변환 수치 예제 |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | 전체 아키텍처: 촬영 → 파이프라인 → 지리 타일 저장 → 클라이언트 스트리밍, 구역 교체 규칙 |
 | [research/01-basemap-data.md](research/01-basemap-data.md) | 서울 3D 베이스맵 데이터 소스 비교(S-Map, V-World, OSM, Google, Cesium 등) |
@@ -23,8 +23,10 @@
 | [captures/INDEX.md](captures/INDEX.md) | 촬영 목록(Zone 백로그) |
 | [runbooks/recon-postprocess.md](runbooks/recon-postprocess.md) | RealityScan·Postshot 결과 → Zone 폴더(청크·충돌·blocker·splat 3D Tiles) 후처리 절차 |
 | [runbooks/pc-setup.md](runbooks/pc-setup.md) | 사용자 PC 셋업·검증 런북(로컬 Claude 세션용) |
+| [runbooks/mac-setup.md](runbooks/mac-setup.md) | Mac 셋업·검증 런북(V-19, D-022; 2026-11-27부터 로컬 검증 머신): 설치, `.ps1` → `.sh` 대응표, 미확인 항목 |
 | [runbooks/pc-verify-wp04.md](runbooks/pc-verify-wp04.md) · [pc-verify-wp05.md](runbooks/pc-verify-wp05.md) · [pc-verify-wp06.md](runbooks/pc-verify-wp06.md) | PC 검증 런북(V-03·V-04): UE C++ Geo·Zone / 포털·조명·디버그 / 에디터 Python(합성 zone 임포트·실내·스파이크 리허설) |
 | [runbooks/pc-spike.md](runbooks/pc-spike.md) | 스파이크 1.1 전체 절차(촬영 → 블러 → RealityScan → Postshot → 후처리 → UE 임포트 → 캡처·성능 → research/08 → D-010) |
+| [runbooks/mac-recon.md](runbooks/mac-recon.md) | Mac 재구성 파이프라인(D-023·WP-21, V-05 Mac판): 설치, 블러 → COLMAP → Object Capture 메시 → Brush splat → 후처리 → UE 임포트, Windows 도구 → Mac 대체표, 스모크 결과, 미확인 표 |
 | [runbooks/align.md](runbooks/align.md) | Zone 정합 `golmok-align` 런북(WP-07) |
 
 과업 목록의 4번(전체 아키텍처)은 `ARCHITECTURE.md`로 따로 두었다.

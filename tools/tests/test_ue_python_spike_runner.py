@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import sys
 import time
 from pathlib import Path
 from types import SimpleNamespace
@@ -24,6 +25,14 @@ from golmok import _pure as pure
 LEVEL_NAME = "L_ZoneTest"
 L_SPIKE = "/Game/Golmok/Maps/L_Spike_"
 PLAY_KINDS = ("begin_play", "end_play", "console", "set_visual_visible", "play_settings", "quit_editor")
+
+
+@pytest.fixture(autouse=True)
+def _windows_host(monkeypatch):
+    """WP-20: spike_runner picks the script and Saved candidates by sys.platform. The tests below were written
+    for the Windows host (.ps1, %LOCALAPPDATA%), so they pin win32 and pass on every OS; the macOS tests
+    switch to darwin themselves."""
+    monkeypatch.setattr(sr, "_platform", lambda: "win32")
 
 
 @pytest.fixture
@@ -1249,6 +1258,54 @@ def test_game_scripts_no_self_copy_and_index_isolation(fake, unreal, monkeypatch
         assert run.count("-ini:") == 1 and run.count("-ExecCmds") == 1
     assert fake.logs[-1] == ("log", f"spike_runner: -game script -> {script} (2 runs)")
     assert "-ini:" not in Path(sr.game_scripts(paths=("walk_01",), tags=("a",))).read_text("utf-8-sig")
+
+
+def test_platform_is_sys_platform(monkeypatch):
+    monkeypatch.undo()  # drop the autouse win32 pin
+    assert sr._platform() == sys.platform
+
+
+def test_game_scripts_written_on_mac(fake, unreal, monkeypatch, tmp_path):
+    """WP-20 (D-022): on darwin game_scripts writes run_game_perf.sh (LF, no BOM, executable) from
+    pure.shell_script, with the editor binary inside UnrealEditor.app and the $HOME candidate ([미확인])."""
+    monkeypatch.setattr(sr, "_platform", lambda: "darwin")
+    home = tmp_path / "home"
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.setenv("LOCALAPPDATA", "C:/Users/me/AppData/Local")  # ignored off Windows
+    walk = _write_walk(fake, "walk_01")
+    script = sr.game_scripts(paths=("walk_01",), tags=("a", "b"), presets=("clear_noon",))
+    saved = os.path.normpath(fake.saved_dir)
+    spike = os.path.join(saved, "Golmok", "spike")
+    assert script == os.path.join(spike, "run_game_perf.sh")
+    assert not os.path.exists(os.path.join(spike, "run_game_perf.ps1"))
+    raw = Path(script).read_bytes()
+    assert raw.startswith(b"#!/bin/sh\n") and b"\r" not in raw and not raw.startswith(b"\xef\xbb\xbf")
+    if sys.platform != "win32":
+        assert os.stat(script).st_mode & 0o111 == 0o111
+    engine = os.path.normpath(str(fake.root / "Engine"))
+    exe = os.path.join(engine, "Binaries", "Mac", "UnrealEditor.app", "Contents", "MacOS", "UnrealEditor")
+    assert sr._editor_exe() == exe
+    candidates = pure.platform_saved_dir_candidates(saved, {"HOME": str(home)}, "darwin")
+    assert (
+        candidates[1] == f"{pure._posix(str(home))}/Library/Application Support/Epic/UnrealEngine/5.8/Saved"
+    )
+    runs = []
+    for tag, level in (("a", DEFAULT_LEVEL), ("b", f"{L_SPIKE}b")):
+        label = f"{tag}_clear_noon_walk_01"
+        argv = pure.game_command_line(
+            exe, sr._uproject(), level, walk="walk_01", preset="clear_noon",
+            log_path=os.path.join(spike, f"game_{label}.log"),
+        )  # fmt: skip
+        runs.append({"label": label, "argv": argv})
+    expected = pure.shell_script(
+        runs, [os.path.normpath(str(walk))], candidates, os.path.join(spike, "csv"), 900
+    )
+    assert raw.decode("utf-8") == expected
+    assert expected.count("\ngolmok_run ") == 2 and "Application Support" in expected
+    assert fake.logs[-1] == ("log", f"spike_runner: -game script -> {script} (2 runs)")
+    # the editor poller searches the same candidates
+    perf = sr.perf_all(paths=("walk_01",), tags=("a",), presets=("clear_noon",))
+    assert perf.csv_dirs == pure.csv_dirs(candidates)
 
 
 # ---- contact sheet, report ---------------------------------------------------------------------------------

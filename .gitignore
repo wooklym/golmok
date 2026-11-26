@@ -78,3 +78,8 @@ unreal/Golmok/Content/*
 unreal/Golmok/Config/Golmok/local/
 unreal/Golmok/Config/Tags/GASP*.ini
 # [/WP-19 hook]
+
+# [WP-20 hook] D-022 Mac dev: Xcode workspace from tools/ue/generate-project-files.sh, Finder metadata
+unreal/Golmok/*.xcworkspace
+.DS_Store
+# [/WP-20 hook]

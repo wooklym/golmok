@@ -15,9 +15,9 @@
 |---|---|
 | 제품 | 실제 서울 골목을 촬영해 3D로 재구성하고, 그 안을 걷고 뛰며 건물 안까지 들어가는 PC 게임 |
 | 최우선 원칙 | **게임 퀄리티**(D-003). 난이도·비용보다 최종 화면 품질 |
-| 엔진·스택 | UE 5.8.3 + Cesium for Unreal, C++ 로직, Unreal Python 자동화, Python 도구, Git LFS |
-| 재구성 | RealityScan(메시) + Postshot(splat), 사용자 PC 처리, 얼굴·번호판 블러 필수 |
-| 실행 주체 3곳 | **클라우드 Claude 세션**(코드·도구·문서, UE 없음) / **PC Claude 세션**(UE 빌드·에디터·재구성 실행) / **사용자**(촬영·구매·계정·판단) |
+| 엔진·스택 | UE 5.8.x 최신 패치(≥ 5.8.4, D-022; 2026-11-27까지 5.8.3) + Cesium for Unreal, C++ 로직, Unreal Python 자동화, Python 도구, Git LFS |
+| 재구성 | RealityScan(메시) + Postshot(splat), 얼굴·번호판 블러 필수. 둘 다 macOS 미지원이라 Mac에서의 처리 방식은 소유자 결정 대기(D-022 ④) |
+| 실행 주체 3곳 | **클라우드 Claude 세션**(코드·도구·문서, UE 없음) / **로컬 Mac Claude 세션**(UE 빌드·에디터·패키징·테스트, D-022 2026-11-27; 그전에는 Windows PC 세션) / **사용자**(촬영·구매·계정·판단) |
 | Phase 1 목표 | 베이스맵 위 3인칭 이동 + 고품질 실촬영 골목 1곳 + 실내 1곳 (품질 목표 fps는 ROADMAP) |
 | 진행 방식 | 클라우드에서 **작업 패키지(WP) 단위로 순차 개발** → PC에서 검증 게이트 통과 → 실데이터로 통합 |
 | 다음 Phase | 2: 서버 파이프라인·크라우드 촬영 앱 / 3: 법률 자문·공개 베타 |
@@ -42,7 +42,7 @@
 - **게임 기능 제안**: D-013~D-017 승인(2026-09-25, `design/game-features-proposal.md`) — 포토 모드, Zone 지도·이동, 시간대·날씨, 환경음, 세이브. **D-018 ① 승인(2026-09-27)**: Phase1의 캐릭터 로스터·콘솔 검증(WP-18a), 최종 에셋은V-08/V-12·② 이후, 선택 UI·세이브·커스터마이즈는Phase2 초반. 수집 요소는 미등록. 위 "안 들어감"의 MVP 범위를 바꾸지 않는다.
 
 ### 1.4 품질 정의
-ROADMAP "품질 목표"를 그대로 쓴다. 요약하면 (1) 고사양에서 4K 60fps, (2) 중급에서 1440p 60fps, (3) 사용자 PC(RTX 5060, 1080p) 30fps 이상, (4) 근경 0.5m 텍스처 유지, (5) 캐릭터 그림자 자연스러움. 품질은 **스크린샷 비교 + `golmok-perf` 수치**로 판단하고 결과를 `research/08`에 남긴다.
+ROADMAP "품질 목표"를 그대로 쓴다. 요약하면 (1) 고사양에서 4K 60fps, (2) 중급에서 1440p 60fps, (3) 사용자 PC(RTX 5060, 1080p) 30fps 이상(2026-11-27 D-022로 이 PC가 빠져 하한 측정기는 비어 있다. Mac 수치는 같은 세션 기준선으로만 비교한다), (4) 근경 0.5m 텍스처 유지, (5) 캐릭터 그림자 자연스러움. 품질은 **스크린샷 비교 + `golmok-perf` 수치**로 판단하고 결과를 `research/08`에 남긴다.
 
 ---
 
@@ -51,7 +51,7 @@ ROADMAP "품질 목표"를 그대로 쓴다. 요약하면 (1) 고사양에서 4K
 2. **조사·설계 → 승인 → 코드.** 돈이 들거나 되돌릴 수 없는 일(지출·라이선스 약정·외부 공개·이력 삭제·되돌리기 비용이 큰 스택/데이터 소스 변경, [D-019](DECISIONS.md) 목록)만 사용자 승인. 그 밖의 결정은 오케스트레이터가 내려 DECISIONS에 기록하고 끝까지 진행한다(2026-09-27 소유자 지시). 라이선스는 원문 확인 후 기록(D-002).
 3. **로직은 C++, 에디터 작업은 Unreal Python, Blueprint 최소.** 바이너리 에셋은 LFS. 원본 촬영물·.ply·RealityScan 프로젝트·모델 가중치는 git 금지.
 4. **프라이버시 우선.** 모든 이미지는 `golmok-blur` 후 재구성. 블러 전 데이터는 외부 서비스 업로드 금지(D-007).
-5. **검증되지 않은 것은 완료가 아니다.** 클라우드에서 쓴 UE 코드는 PC 게이트(§6)를 통과해야 "완료". 클라우드 산출물은 `plan/STATUS.md`에 "🟡 코드 완료·검증 대기"로 표기한다.
+5. **검증되지 않은 것은 완료가 아니다.** 클라우드에서 쓴 UE 코드는 로컬 검증 머신(2026-11-27부터 Mac, D-022)의 게이트(§6)를 통과해야 "완료". 클라우드 산출물은 `plan/STATUS.md`에 "🟡 코드 완료·검증 대기"로 표기한다.
 6. **문서가 상태의 원본.** 결정은 `DECISIONS.md`, 진행은 `ROADMAP.md` + `plan/STATUS.md`, 작업 상세는 `plan/WP-*.md`.
 
 ---
@@ -63,6 +63,7 @@ Phase 0  조사·설계 ──────────────────�
 Phase 1  MVP
   ├ 1A  클라우드 코드 트랙   WP-01~08 ✅ M1 (2026-09-25) → 후속 WP-09~13·14a·15a·16a·17·18a·19a 병합 (13·17·18a는 Astra)
   ├ 1B  PC 셋업·검증 트랙    V-01~V-18 (PC Claude 세션 + 사용자) — M2 🟢(2026-10-09), WP별 PC 검증 계속   ← 지금 여기
+  │     └ 2026-11-27 D-022: 검증 머신을 Mac으로 → WP-20·V-19(mac-setup.md) 뒤 열린 카드를 Mac에서 실행
   ├ 1C  촬영·데이터 트랙     C-01~C-06 (사용자) — C-01 리허설·C-02 촬영 대기(1D의 선행)
   ├ 1D  스파이크 1.1 → D-010 (환경 표현 방식 확정)
   ├ 1E  통합: 골목 Zone + 실내 Zone + 조명·폴리시
@@ -88,11 +89,12 @@ Phase 3  법률 자문 · 약관·신고 · 공개 베타 · 배포
 | 주체 | 할 수 있는 것 | 할 수 없는 것 |
 |---|---|---|
 | **클라우드 Claude 세션** (Opus, 이 저장소만 있음) | Python 도구·테스트, UE C++/Python 소스 작성, 문서, CI, 웹 뷰어, 합성 데이터 테스트 | UE 빌드·에디터 실행, GPU 학습, 실데이터 접근, 결제·로그인 |
-| **PC Claude 세션** (사용자 Windows PC, Claude Desktop/`claude remote-control`) | UE 빌드·PIE·패키징, 에디터 Python 실행, RealityScan/Postshot 실행, 실데이터 빌드, fps 측정 | 결제·약관 동의·계정 로그인(사용자 확인 필요, `runbooks/pc-setup.md` 규칙) |
+| **로컬 Mac Claude 세션** (2026-11-27부터, D-022; 소유자 Mac M5 Max·macOS 27, Claude Desktop) | UE 빌드·PIE·헤드리스 테스트·검증용 Mac 패키징(`tools/ue/*.sh`), 에디터 Python 실행, 실데이터 빌드, `golmok-blur`(CPU), fps 측정(Mac 기준선) | RealityScan/Postshot·XGRIDS LCC4Unreal(macOS 미지원, D-022 ④), DLSS, 결제·약관 동의·계정 로그인(소유자, `runbooks/mac-setup.md` 규칙) |
+| ~~**PC Claude 세션** (사용자 Windows PC, Claude Desktop/`claude remote-control`)~~ — 2026-11-27 D-022로 Mac 세션이 대신한다(이력) | UE 빌드·PIE·패키징, 에디터 Python 실행, RealityScan/Postshot 실행, 실데이터 빌드, fps 측정 | 결제·약관 동의·계정 로그인(사용자 확인 필요, `runbooks/pc-setup.md` 규칙) |
 | **사용자** | 촬영, 하드웨어·소프트웨어 구매, 계정·약관, 데이터 다운로드(로그인), 동의서 서명, 품질 채점, 결정 승인 | — |
 
 **핸드오프 규칙**
-- 클라우드 → PC: WP마다 `runbooks/pc-verify-<wp>.md`를 남긴다. PC 세션은 그 체크리스트대로 검증하고 결과(통과/수정/스크린샷)를 같은 파일 하단 "결과"에 적는다. 수정한 코드는 같은 브랜치에 커밋한다.
+- 클라우드 → PC: WP마다 `runbooks/pc-verify-<wp>.md`를 남긴다. 2026-11-27 D-022부터 "PC"는 로컬 검증 머신(Mac)이고, 이름은 그대로 쓴다. Mac 세션은 `.ps1` 명령을 `runbooks/mac-setup.md` 대응표의 `.sh`로 바꿔 실행한다. PC 세션은 그 체크리스트대로 검증하고 결과(통과/수정/스크린샷)를 같은 파일 하단 "결과"에 적는다. 수정한 코드는 같은 브랜치에 커밋한다.
 - PC → 클라우드: 검증에서 나온 API 수정·설계 변경은 커밋 메시지와 `plan/STATUS.md`에 남긴다. 다음 클라우드 세션은 시작 시 STATUS를 읽는다.
 - 사용자 → 세션: 촬영물은 `captures/INDEX.md`에 등록, 결정은 `DECISIONS.md`에 승인 표기.
 
@@ -123,6 +125,8 @@ UE 에디터와 실데이터 없이도 만들 수 있고, 합성 데이터로 �
 | **WP-16a** | 날씨(비) 16a — 상태·조명 수정자·빗줄기·젖음/오디오 계약(D-015 (b) 중 D-010 독립 부분; 2026-10-04 D-019, 설계 Opus) | `Weather/`(순수 헤더 `GolmokWeatherMath.h` g++ 교차검증, `UGolmokWeatherSubsystem`: clear/overcast/rain + 비 강도·fixed/schedule(시간대 시계 분 기준 결정적 일정)·월드 초 20 s 전환·강수 지연·젖음/웅덩이 적분, `GolmokWeatherRainFx` Niagara 빗줄기 — 카메라 추종·실내 끔), `Config/Golmok/weather.json`, `AGolmokTimeOfDay` 합성 단계(기저 → 날씨 → 실내 오버레이, clear = 항등), MPC `MPC_GolmokWeather`(RainIntensity·Wetness·PuddleAmount, 값만), 오디오 계약 `OnWeatherChanged`·`GetRainIntensity()`(소비는 Astra), 세이브 `FGolmokSaveWeather`(Rule 0/1), `golmok.weather`·HUD 공급자, 사진 메타 `weather`, 훅(`.uproject` Niagara·Build.cs·DefaultGame.ini 쿡·등록부), 런북 `pc-verify-wp16a.md`; 스펙 `plan/WP-16-weather.md`. 16b(젖은 표면·반사·빗줄기 룩·look-dev)는 D-010 뒤 PC | UE 자동화 `Golmok.Weather.Config/Lighting/Runtime`(+ `Save.RoundTrip` 날씨 단계), pytest(g++ 교차검증·스키마·MPC 셋업·훅), 런북 | **빌드 + PIE**(V-16) — 상태 🟡 코드 완료(2026-10-04, [#112](https://github.com/wooklym/golmok/pull/112))·V-16 대기 | WP-14a(V-13), WP-15a(V-14), WP-12, WP-05(실내), WP-13(빗소리는 Astra 과제) |
 | **WP-19** | GASP 모션 매칭 로코모션 통합([D-021](DECISIONS.md); 2026-09-30 설계 확정 Opus) — 19a 클라우드 기반 / 19b PC GUI 바인딩 / 19c Astra 로스터·발소리 | 19a(Claude 레인): `Animation/`(순수 헤더 `GolmokLocomotionMath.h` g++ 교차검증, 상태 공급 컴포넌트 `UGolmokLocomotionStateComponent`, `AGolmokGaspCharacter`, `GolmokAnimationConfig`), `Config/Golmok/animation.json`(mode abp/gasp, ① 폴백 규칙), `golmok.anim`, `tools/ue/add-gasp.ps1`·`gasp_import.py`, GASP 경로 가드(`check_repo`), GameMode 훅, 런북 `pc-verify-wp19.md`(A절 19b·B절 V-15). 19b(PC): `BPI_SandboxCharacter_Pawn` 구현 BP(로컬 전용)·T3D 텍스트·`animation.json` 확정 값. 19c(Astra): 로스터 GASP 항목·노티파이 구동 발소리. GASP 원본은 커밋하지 않는다(Fab EULA §5(a)); 스펙 `plan/WP-19-gasp-locomotion.md` | UE 자동화 `Golmok.Animation.Config/StateProvider/Fallback/GaspSmoke`(GASP 없으면 Info skip), pytest, ① 불변(기본 mode abp) | 19b 런북 A절 → **V-15**(B절) — 상태 🟡 19a 코드 완료·PC 대기(2026-09-30, [#76](https://github.com/wooklym/golmok/pull/76)·[#78](https://github.com/wooklym/golmok/pull/78)) · 19b ⚪ D-021 발효·V-08b 뒤 · 19c Astra T12~T17 병합(19b 확정 경로 반영은 19b 뒤) | V-08([D-021](DECISIONS.md)), V-08b, WP-18a(로스터), WP-13(발소리) |
 | **WP-11** | 웹 검수 뷰어 2차: 충돌·blocker 오버레이 | `tools/viewer` collision.glb/blockers.glb 오버레이·토글(Cesium.Model, glTF Y-up 변환), 서버 GLB 서빙(경로 탈출 금지), Playwright 스모크 | `npm test`, pytest | 브라우저 | WP-03, WP-06, WP-08 |
+| **WP-20** | Mac 단독 개발 환경 전환([D-022](DECISIONS.md); 2026-11-27, 로컬 Mac 세션) | `tools/ue/{common,build,generate-project-files,open-editor,package,test,add-mannequin,add-gasp}.sh`(`.ps1`과 1:1, Windows 파일은 그대로), `runbooks/mac-setup.md`(설치·`.ps1` → `.sh` 대응표·미확인 표), 공유 문서 Mac 줄, `plan/WP-20-mac-dev-env.md` | pytest·ruff·`check_repo.py` 통과(Mac 로컬), 스크립트 정적 검사 | V-19(Mac: 빌드·헤드리스 테스트·PIE·검증용 패키지) | D-022, 소유자 Xcode·Epic·UE 설치 |
+| **WP-21** | Mac 재구성 파이프라인 대체([D-023](DECISIONS.md); 2026-11-27, 로컬 Mac 세션) | `tools/mac/install-recon-tools.sh`(micromamba·COLMAP 4.2.1 `cpu_lgpl`·ffmpeg/libheif `lgpl`·exiftool·Brush v0.3.0, sha256 고정, 저장소 밖 `~/golmok-tools`), `tools/mac/recon-smoke.sh`, `tools/mac/objcap`(`golmok-objcap`, Apple Object Capture), Cesium for Unreal 2.31.0 Mac 렌더 스모크, `runbooks/mac-recon.md`, `plan/WP-21-mac-recon-pipeline.md` | 스크립트·objcap 정적 테스트(20), 공개 데이터 스모크(COLMAP → Brush → `golmok-splat`, objcap 메시, Cesium on Metal) — 품질 근거 아님 | V-05(Mac판 재구성 절차, 실촬영 C-02 뒤 품질 판정) | D-022 ④, WP-20 |
 
 - **후속(M1 이후, 2026-09-25 등록)**: 계획서에 남아 있던 항목을 WP-09(Zone Index 런타임 발견·비동기 로드 + V-03 디버그 표시 정리, Fable ultracode), WP-11(뷰어 충돌·blocker 오버레이, Opus), WP-10(애니메이션 평가·게임 기능 제안 문서, Opus)으로 묶었다. 순서 WP-09 → WP-11 → WP-10. `replaces.building_ids` 단위 런타임 숨김은 제외(베이스맵 타일이 건물을 병합하므로 빌드 단계 `golmok-zone exclude`가 정본, D-012).
 - **게임 기능(D-013~D-017 승인 2026-09-25, 권장 우선순위대로)**: WP-12 포토 모드 → WP-13 환경음 기본(둘 다 Fable ultracode, 1.6 폴리시의 선택 항목이며 MVP 범위 §1.3은 그대로) → **WP-14** 시간대 폴리시(D-015 (a); 2026-09-28 오케스트레이터 결정 D-019로 분할 — **14a** 연속 시각·시계 모드는 D-010과 무관해 먼저(클라우드, `plan/WP-14-time-of-day-policy.md`), **14b** night look-dev·발광 에셋은 D-010 확정 뒤 PC) → **WP-15** Zone 지도·이동 + 세이브(D-014·D-017; 2026-09-28 D-019로 분할 — **15a** 이동·세이브·manifest v2는 V-07 통과·합성 zone 2곳으로 먼저(클라우드, `plan/WP-15-zone-travel-save.md`), **15b** 지도 UI·정사영상 텍스처는 D-009 자문·실제 zone 뒤 PC) → **WP-16** 날씨 비(D-015 (b); 2026-10-04 오케스트레이터 결정 D-019로 분할 — **16a** 상태·조명 수정자·빗줄기·젖음/오디오 계약은 표현 방식과 무관해 V-13·V-14 통과 뒤 먼저(클라우드, `plan/WP-16-weather.md` 설계 확정), **16b** 젖은 표면·반사·look-dev는 D-010 뒤 PC) → **WP-17** 현장 녹음 절차·Zone별 소리(D-016 (b), 문서·촬영 가이드, Opus). WP-14 이후 스펙은 착수 조건이 충족될 때 쓴다.
@@ -132,13 +136,15 @@ UE 에디터와 실데이터 없이도 만들 수 있고, 합성 데이터로 �
 
 ### 5.2 트랙 1B — PC 셋업·검증 (PC Claude 세션 + 사용자)
 
+2026-11-27 D-022부터 이 트랙은 소유자 Mac의 로컬 Claude 세션이 실행한다. 셋업은 V-19(`runbooks/mac-setup.md`)이고, V-01~V-18의 Windows PC 기록은 이력이다.
+
 | V | 내용 | 런북 | 의존 | 상태(2026-10-09) |
 |---|---|---|---|---|
 | V-01 | PC 셋업: Git LFS, Python 도구, UE 5.8.3, VS 2026, 빌드, L_Dev, 리허설 사진 점검 | `runbooks/pc-setup.md` §0~§4 (기존) | 사용자 설치 | 🔵 §0~2 🟢(2026-09-24), §3 리허설은 C-01 사진·EgoBlur 모델 동의 대기 |
 | V-02 | 베이스맵 실데이터 빌드·임포트 | `runbooks/pc-setup.md` §5 (기존) | V-01, C-03 | 🟢 |
 | V-03 | WP-04/05 C++ 빌드·PIE 검증(합성 Zone, 포털, 조명, 디버그) | `runbooks/pc-verify-wp04.md`, `pc-verify-wp05.md` | V-01, M1 | 🟢 2026-09-25 |
 | V-04 | WP-06 에디터 Python 검증(합성 청크 임포트, 실내 서브레벨) | `runbooks/pc-verify-wp06.md` | V-03 | 🟢 2026-09-28(V-04b 2026-09-29·V-04c 2026-10-04 🟢) |
-| V-05 | RealityScan/Postshot 실행 → WP-03·07 도구로 후처리·정합 → 스파이크 1.1 측정 | `runbooks/pc-spike.md`(WP-06에서 작성) | V-04, C-01, C-02 | ⚪ C-01·C-02·C-04·EgoBlur 모델 동의 대기 |
+| V-05 | RealityScan/Postshot 실행 → WP-03·07 도구로 후처리·정합 → 스파이크 1.1 측정 | `runbooks/pc-spike.md`(WP-06에서 작성) | V-04, C-01, C-02 | ⚪ C-01·C-02·EgoBlur 모델 동의 대기. Mac 재구성 절차는 `runbooks/mac-recon.md`(D-023·WP-21: COLMAP·Object Capture·Brush·Cesium 무료 후보, 스모크 통과; 조밀 MVS 메시·LCC는 Mac 대체 없음, 지출 대안은 소유자). C-04 PC 업그레이드는 취소 |
 | V-06 | 골목 Zone·실내 Zone 통합, 성능 튜닝, 패키징 | `runbooks/pc-integrate.md`(M4 이후 작성) | M4 | ⚪ D-010 뒤 |
 | V-07 | WP-09 Zone Index 발견·비동기 로드 검증(배치 액터 없이 발견·로드, 히치 비교) | `runbooks/pc-verify-wp09.md`(WP-09에서 작성) | V-04 | 🟢 2026-09-26 |
 | V-08 | 애니메이션 3안 PC 평가(L_Dev, 게임패드) | `runbooks/pc-verify-animation.md`(WP-10에서 작성) | V-01 | 🟢 2026-09-30 → [D-021](DECISIONS.md) ② GASP 방향 |
@@ -153,6 +159,7 @@ UE 에디터와 실데이터 없이도 만들 수 있고, 합성 데이터로 �
 | V-16 | WP-16a 날씨 검증(MPC·NS 에셋 저작 포함) | `runbooks/pc-verify-wp16a.md` | WP-16a | ⚪ 카드 발행(2026-10-04), PC 대기 |
 | V-17 | 2026-10-04 후속 묶음(도착 카메라·카메라 구도·Full Precision UV·베이스맵 성능·패키지 재실행·TraceLog 인자) | `runbooks/pc-verify-v17.md` | [#107](https://github.com/wooklym/golmok/pull/107), [#108](https://github.com/wooklym/golmok/pull/108) | ⚪ 카드 발행(2026-10-04). §6·§5 ①② ✅(2026-10-09), §5 ③ quinn 재확인·§1~§4 남음 |
 | V-18 | WP-13 빗소리 레이어 검증(Astra T24~T29) | `runbooks/pc-verify-v18.md` | V-16 | ⚪ 카드 발행(2026-10-05), PC 대기 |
+| V-19 | Mac 셋업·빌드·헤드리스 테스트·검증용 패키지·빈 L_Dev Mac 기준선(D-022) | `runbooks/mac-setup.md`(WP-20에서 작성) | WP-20, 소유자 Xcode·Epic·UE 설치 | 🔵 진행 중(2026-11-27): 빌드·자동화 39 Success·패키지 `.app` 통과, Astra 레인 빌드 막힘(#30)·창 모드 에디터·PIE 확인 남음 |
 
 상태 칸은 2026-10-09 기준 요약이다. 정본은 `plan/STATUS.md` 트랙 1B·병행 트랙이다.
 
@@ -188,9 +195,9 @@ C-01 → C-02 (촬영) ─────────────┴→ V-05 (스�
 | 게이트 | 어디서 | 통과 조건 | 실패 시 |
 |---|---|---|---|
 | **G1 클라우드** | GitHub Actions + 세션 내 pytest | pytest·ruff 통과, 설정 파일 유효, 문서 링크 유효 | 같은 세션에서 수정 후 재실행 |
-| **G2 빌드·PIE** | PC 세션 | `build.ps1` 성공, PIE에서 런북 체크리스트 전부 통과, `Golmok.log` 에러 0 | PC 세션이 수정·커밋. 설계 변경이 필요하면 STATUS에 기록 → 다음 클라우드 세션 |
-| **G3 실데이터** | PC 세션 | 실 SHP/DEM/사진/PLY로 도구 실행 성공, 결과 육안 확인 | 도구 수정 |
-| **G4 품질·성능** | PC 세션 + 사용자 채점 | ROADMAP 품질 목표 fps, 스크린샷 채점표(`research/08`) | 튜닝 반복, 필요하면 D-010 재검토 |
+| **G2 빌드·PIE** | PC 세션(2026-11-27부터 Mac 세션, D-022) | `build.ps1` 성공(Mac: `./tools/ue/build.sh`·`./tools/ue/test.sh` 성공), PIE에서 런북 체크리스트 전부 통과, `Golmok.log` 에러 0 | PC 세션이 수정·커밋. 설계 변경이 필요하면 STATUS에 기록 → 다음 클라우드 세션 |
+| **G3 실데이터** | PC 세션(Mac 세션; 재구성 도구는 D-022 ④ 결정 뒤) | 실 SHP/DEM/사진/PLY로 도구 실행 성공, 결과 육안 확인 | 도구 수정 |
+| **G4 품질·성능** | PC 세션(Mac 세션) + 사용자 채점 | ROADMAP 품질 목표 fps(Mac은 같은 세션 기준선 비교, RTX 5060 수치는 이력), 스크린샷 채점표(`research/08`) | 튜닝 반복, 필요하면 D-010 재검토 |
 | **G5 프라이버시·법** | 사용자 + 세션 | 렌더 결과 얼굴·번호판 누락 0(재검사 도구), 동의서 기록, 보안시설 회피 확인 | 재블러·재촬영·Zone 보류 |
 
 ---
@@ -240,10 +247,10 @@ docs/plan/STATUS.md, docs/plan/WP-0N-<name>.md를 먼저 읽고, WP-0N을 처음
 | | Claude(Opus 5.5 — ultracode 코딩·리뷰·설계·품질 판단 전부, D-020) | ChatGPT Astra |
 |---|---|---|
 | 맡는 일 | 기존 WP 순서(WP-12~17), Astra PR 적대적 리뷰와 병합, 엔진 안 품질 판단(룩 검증·스파이크·폴리시), 공유 문서 갱신 | 배정받은 레인의 WP(조사·설계·코드·테스트·런북, UE C++ 포함), 컨셉 이미지 |
-| 브랜치 | `claude/*`(WP 통합 브랜치 `claude/hopeful-allen-f0a0jb`), PC는 `pc/*` | `astra/<wp>-<주제>`(예: `astra/wp-18-design`) |
+| 브랜치 | `claude/*`(WP 통합 브랜치 `claude/hopeful-allen-f0a0jb`), 로컬 검증 머신(2026-11-27부터 Mac, D-022)은 이름 그대로 `pc/*` | `astra/<wp>-<주제>`(예: `astra/wp-18-design`) |
 | 병합 | §7.4 오케스트레이션 | 스스로 병합하지 않는다. Claude 리뷰(Opus 코드 + 필요 시 Opus 설계) → (A) 해소·CI 초록 → 병합 세션이 merge commit으로 병합. 사용자 승인은 되돌릴 수 없는 일이 얽힌 PR에만(D-019, 2026-09-27) |
 
-**레인(파일 소유)**: 레인 주인만 그 파일을 고친다. 새 레인은 사용자나 오케스트레이터가 WP를 배정할 때 이 표에 더한다. 예외(D-019, 2026-09-28): PC 검증 세션은 레인 런북(`docs/runbooks/pc-verify-*.md`)의 결과 칸·확인 명령·실행 기록 절을 고칠 수 있다(코드·설정·에셋은 아님).
+**레인(파일 소유)**: 레인 주인만 그 파일을 고친다. 새 레인은 사용자나 오케스트레이터가 WP를 배정할 때 이 표에 더한다. 예외(D-019, 2026-09-28): PC 검증 세션은 레인 런북(`docs/runbooks/pc-verify-*.md`)의 결과 칸·확인 명령·실행 기록 절을 고칠 수 있다(코드·설정·에셋은 아님). D-022(2026-11-27) 뒤에는 Mac 검증 세션에 같은 예외가 적용된다. 확인 명령 절에 Mac 명령을 덧붙이는 것도 여기에 든다.
 
 | 레인 | 주인 | 경로 |
 |---|---|---|
@@ -287,7 +294,7 @@ docs/plan/STATUS.md, docs/plan/WP-0N-<name>.md를 먼저 읽고, WP-0N을 처음
 | 생성물·픽스처 | 손으로 합치지 않고 생성기로 다시 만든다(예: `tools/scripts/make_index_fixture.py`, `make_synthetic_zone.py`) |
 | 번호 | 먼저 병합된 쪽이 갖는다. 나중 쪽이 번호를 바꾼다 |
 
-해결한 뒤에는 게이트를 다시 돌린다: `ruff check`, `ruff format --check`, `pytest -q`, `check_repo.py`. C++을 건드렸으면 가능할 때 `tools/ue/build.ps1`과 `tools/ue/test.ps1`도 돌린다. 해결 커밋 메시지는 `merge origin/main: <충돌 파일> — <해결 방법>`이다.
+해결한 뒤에는 게이트를 다시 돌린다: `ruff check`, `ruff format --check`, `pytest -q`, `check_repo.py`. C++을 건드렸으면 가능할 때 `tools/ue/build.ps1`과 `tools/ue/test.ps1`도 돌린다(Mac은 `./tools/ue/build.sh`와 `./tools/ue/test.sh`, D-022). 해결 커밋 메시지는 `merge origin/main: <충돌 파일> — <해결 방법>`이다.
 
 **Astra PR 리뷰·병합**
 - **소통 채널(2026-09-27)**: 고정 이슈 [#30](https://github.com/wooklym/golmok/issues/30) + PR 코멘트(AGENTS.md §10). 오케스트레이터는 과제·리뷰 요약·병합 알림을 이슈 코멘트 `[오케스트레이터 → Astra]`로, Astra는 push/완료/질문/세션 종료를 `[Astra → 오케스트레이터]`로 남긴다. 소유자 승인은 되돌릴 수 없는 일(D-019)이 얽힌 PR에만 필요하고, Claude 세션의 말 또는 PR의 `[소유자 승인]` 코멘트로 온다(Astra는 쓰지 않음); 그 밖의 PR은 리뷰 (A) 해소·CI 초록이면 오케스트레이터가 바로 병합한다. 리뷰·승인·병합은 비동기이며 Astra는 기다리지 않고 다음 과제를 시작한다. 오케스트레이터는 체크인(약 1시간)마다 이슈 #30을 읽는다.
@@ -316,7 +323,7 @@ AGENTS.md, 브랜치 astra/<…>의 WP 문서와 diff를 읽는다. 레인·훅 
 | # | 리스크 | 영향 | 대응 | 트리거 |
 |---|---|---|---|---|
 | R1 | 클라우드에서 쓴 UE C++가 5.8 API와 안 맞음 | 빌드 실패 | 보수적 API만 사용, PC 검증 런북, PC 세션이 수정 권한 | 빌드 에러 |
-| R2 | 사용자 PC 사양(RTX 5060 8GB)으로 Postshot 최고 품질 불가 | 스파이크 지연 | AWS g6e 대안(D-006), GPU 업그레이드 결정 | Postshot OOM |
+| R2 | 재구성 도구(RealityScan·Postshot)와 XGRIDS LCC4Unreal이 macOS 미지원(2026-11-27 D-022; 이전 리스크는 RTX 5060 8GB의 Postshot 품질 한계). 2026-11-27 D-023 무료 Mac 대체(COLMAP·Object Capture·Brush·Cesium)는 공개 데이터 스모크만 통과 — 골목 규모 품질·시간·좌표 공유는 [미확인] | 스파이크·D-010 지연, Mac 경로의 품질이 Windows 경로에 못 미칠 수 있음 | D-023: 무료 후보로 V-05 진행([mac-recon.md](runbooks/mac-recon.md)). 품질 미달이면 지출 대안(Metashape, 클라우드 Windows GPU, NVIDIA 머신) — 소유자 결정 | V-05 측정 결과 |
 | R3 | 촬영 지연(날씨·시간) | 핵심 경로 지연 | 클라우드 트랙을 먼저 끝내 대기 시간 최소화. 리허설로 재촬영 방지 | C-02 미완 |
 | R4 | XGRIDS 배포 라이선스 불명 | D-010 (c) 채택 불가 | 문의(D-009), 대안 Volinga, 최악은 (a) 메시 단독 | 회신 없음 |
 | R5 | 메시 경로 텍스처에 구운 조명 → Lumen 부자연 | 품질 | 흐린 날 촬영, delight 도구 평가(스파이크) | 채점 저조 |
@@ -358,12 +365,12 @@ AGENTS.md, 브랜치 astra/<…>의 WP 문서와 diff를 읽는다. 레인·훅 
 
 ---
 
-## 11. 사용자 결정·행동 대기 목록 (2026-10-09 기준; 처음 작성 2026-09-24)
+## 11. 사용자 결정·행동 대기 목록 (2026-11-27 기준; 처음 작성 2026-09-24)
 
 | # | 항목 | 어디에 기록 |
 |---|---|---|
 | 1 | ~~PR #1 병합(merge commit 권장) → 이 PR 리뷰~~ → 2026-09-24 PR #1·#2 병합(merge commit) | GitHub |
-| 2 | PC 업그레이드 여부(GPU → 저장장치 → RAM) | D-006 |
+| 2 | ~~PC 업그레이드 여부(GPU → 저장장치 → RAM)~~ → 2026-11-27 D-022로 Windows PC를 쓰지 않아 취소. 대신 재구성 파이프라인 Mac 대체(#12) | D-006, D-022 |
 | 3 | 홈 Zone 선택(첫 촬영 후) | D-008 |
 | 4 | Postshot Studio 구독, XGRIDS 문의 발송 | D-005, D-009 |
 | 5 | S-Map 문의 발송 | 1.0e |
@@ -372,6 +379,8 @@ AGENTS.md, 브랜치 astra/<…>의 WP 문서와 diff를 읽는다. 레인·훅 
 | 8 | ~~애니메이션: GASP 라이선스 원문 확인(Fab 리스팅·Fab EULA·UE EULA — 클라우드에서 403) → V-08 평가 뒤 3안 중 채택~~ → 2026-09-30 V-08 완료, [D-021](DECISIONS.md) ② GASP 방향 채택(오케스트레이터 결정, D-019). 남은 소유자 항목: 라이선스 원문 재확인(사실 확인 — 확인 전에는 D-021 미발효), GASP 에셋 보관 방식(비공개 저장소는 D-018 ②와 같은 결정), (선택) 녹화 재채점 | `runbooks/pc-verify-animation.md` §0·§8, D-002, [D-021](DECISIONS.md), STATUS 결정 필요 |
 | 9 | ~~night 프리셋 look-dev 조합 선택(D-010 뒤 폴리시)~~ → 2026-09-27 D-019로 소유자 항목에서 빠졌다. 오케스트레이터(Opus, D-020)가 D-010 스파이크 뒤 WP-14b에서 정한다 | `design/lighting-night-lookdev.md`, [D-019](DECISIONS.md) 재분류 |
 | 10 | D-018 ①(캐릭터 제작 가설·18a) 승인. **② 대기**: V-08/V-12 뒤 최종 룩/명칭·외주 예산/권리 계약·비공개 저장소·필요 라이선스/출시 표시. 지출은② 이후 | [D-018](DECISIONS.md), [WP-18](plan/WP-18-characters.md) |
-| 11 | PC 방화벽(C-07) 보안 조치: 2026-10-09 PC 확인에서 워크트리 3곳의 패키지 `Golmok.exe` 인바운드 규칙이 **허용**(Public, 모든 포트)이었다 → 세 규칙을 **차단**으로 바꾼다(삭제하면 창이 다시 뜨므로 차단). 새 경로에서 창이 뜨면 **취소**하거나 차단 규칙을 미리 만든다. `setx GOLMOK_PKG_DIR`는 다음 PC 카드 §0에서 PC 세션이 한 번 실행한다(소유자 일 아님) | STATUS C-07, `runbooks/pc-setup.md` §2a |
+| 11 | ~~PC 방화벽(C-07) 보안 조치: 2026-10-09 PC 확인에서 워크트리 3곳의 패키지 `Golmok.exe` 인바운드 규칙이 **허용**(Public, 모든 포트)이었다 → 세 규칙을 **차단**으로 바꾼다(삭제하면 창이 다시 뜨므로 차단). 새 경로에서 창이 뜨면 **취소**하거나 차단 규칙을 미리 만든다. `setx GOLMOK_PKG_DIR`는 다음 PC 카드 §0에서 PC 세션이 한 번 실행한다(소유자 일 아님)~~ → 2026-11-27 D-022로 Windows PC를 쓰지 않아 닫는다. 남은 소유자 조치: 옛 PC를 켜 두거나 네트워크에 붙여 두면 세 허용 규칙을 차단하거나 삭제한다(폐기·오프라인이면 없음). macOS 방화벽 창 대응은 [미확인], V-19에서 확인 | STATUS C-07, `runbooks/pc-setup.md` §2a |
+| 12 | D-022 Mac 전환의 소유자 항목: ~~재구성 파이프라인 Mac 대체~~ → 2026-11-27 소유자 지시("대체할 수 있는 것들은 대체해.")로 무료 대체를 들임([D-023](DECISIONS.md)), Xcode 라이선스·Epic 로그인·UE EULA·UE 5.8.x 설치, `gh auth login`, Fab GASP, EgoBlur 모델 동의, PC 자료 이전, PC 없는 Windows 빌드 경로 | [D-022](DECISIONS.md), STATUS 결정 필요 |
+| 13 | D-023 재구성 소유자 항목: V-05 뒤 제품 재구성 스택 확정(D-005/D-006 스택 변경, D-019 ⑤), V-05에서 무료 경로가 품질 기준에 못 미칠 때의 지출 대안(Metashape·클라우드 Windows GPU·NVIDIA 머신), Apple Object Capture 출력 약관 사실 확인(SDK 계약 §2.2 C(2)·상업 사용) | [D-023](DECISIONS.md), STATUS 결정 필요 |
 
 이 표는 요약이다. 최신 소유자 항목의 정본은 `plan/STATUS.md` "결정 필요"와 트랙 1C다(Freesound 계정 가입 여부, C-08 청취, C-09 게임패드 등).

@@ -1,9 +1,9 @@
 # 로드맵 / 진행 상황
 
-마지막 갱신: 2026-10-09 (2026-09-25 이후: 게임 기능·캐릭터 WP-12·13·14a·15a·18a 🟢·16a 🟡, D-021 GASP 방향·WP-19a 🟡, PC 검증 V-04·V-07~V-11·V-13·V-14 결과, V-11 패키지 재실행·quinn 쿡 훅 [#121](https://github.com/wooklym/golmok/pull/121)·[#123](https://github.com/wooklym/golmok/pull/123), `zone_import` 헤드리스 UDIM 판정 Dimensions 태그 [#122](https://github.com/wooklym/golmok/pull/122))
+마지막 갱신: 2026-11-27 ([D-023](DECISIONS.md) 소유자 지시 "대체할 수 있는 것들은 대체해.": 재구성 무료 Mac 대체(COLMAP·Object Capture·Brush·Cesium 2.31.0)를 스파이크 후보로 설치·스모크, WP-21 착수, 품질 판정은 V-05); 이전: 2026-11-27 ([D-022](DECISIONS.md) 소유자 지시: 개발·검증 머신을 Windows PC에서 Mac(M5 Max)으로, WP-20·V-19 착수, 엔진 5.8.x 최신(≥ 5.8.4)); 이전: 2026-10-09 (2026-09-25 이후: 게임 기능·캐릭터 WP-12·13·14a·15a·18a 🟢·16a 🟡, D-021 GASP 방향·WP-19a 🟡, PC 검증 V-04·V-07~V-11·V-13·V-14 결과, V-11 패키지 재실행·quinn 쿡 훅 [#121](https://github.com/wooklym/golmok/pull/121)·[#123](https://github.com/wooklym/golmok/pull/123), `zone_import` 헤드리스 UDIM 판정 Dimensions 태그 [#122](https://github.com/wooklym/golmok/pull/122))
 최우선 원칙: **게임 퀄리티**(DECISIONS.md 참고)
 
-> **실행 계획**: Phase 1을 작업 패키지(WP-01~19)·PC 검증(V-01~V-18)·사용자 작업(C-01~06)으로 풀어 쓴 문서가 [`DEVELOPMENT-PLAN.md`](DEVELOPMENT-PLAN.md)이고, 현재 상태는 [`plan/STATUS.md`](plan/STATUS.md)에 있다. 아래 1.x 단계와 WP의 대응은 DEVELOPMENT-PLAN §5.1 표를 본다.
+> **실행 계획**: Phase 1을 작업 패키지(WP-01~21)·로컬 검증(V-01~V-19; 2026-11-27 D-022부터 Mac에서, V-01~V-18의 Windows PC 기록은 이력)·사용자 작업(C-01~06)으로 풀어 쓴 문서가 [`DEVELOPMENT-PLAN.md`](DEVELOPMENT-PLAN.md)이고, 현재 상태는 [`plan/STATUS.md`](plan/STATUS.md)에 있다. 아래 1.x 단계와 WP의 대응은 DEVELOPMENT-PLAN §5.1 표를 본다.
 
 ## Phase 0 — 조사 및 설계 ✅ 완료
 
@@ -18,7 +18,7 @@
 | + | UE5 툴체인 검증 | `research/07-ue5-toolchain.md` | 완료 |
 | + | S-Map 문의 초안 | `outreach/smap-inquiry-draft.md` | 완료(사용자 발송) |
 | + | 촬영 가이드 #1 (골목) | `capture/01-alley-capture-guide.md` | 완료 |
-| – | 결정 | `DECISIONS.md` D-001~D-011 | **승인 완료.** 남은 것: 사용자 PC 사양 확인(D-006), 홈 Zone 선택(D-008) |
+| – | 결정 | `DECISIONS.md` D-001~D-011 | **승인 완료.** 남은 것: 홈 Zone 선택(D-008). 사용자 PC 사양 확인(D-006)은 2026-11-27 D-022(Mac 전환)로 대체, 재구성 파이프라인은 2026-11-27 D-023으로 무료 Mac 대체를 스파이크 후보로 들였다(지출 대안·Object Capture 약관 확인은 소유자) |
 
 ---
 
@@ -36,6 +36,7 @@
 - RTX 5090, 4K, DLSS Quality에서 60fps 이상
 - RTX 4070 Ti급, 1440p, DLSS Quality에서 60fps 이상
 - (측정 하한선) 사용자 PC RTX 5060 8GB, 1080p에서 플레이 가능 수준(30fps 이상)
+  - 2026-11-27 D-022로 이 PC가 빠져 하한 측정기는 비어 있다. Mac(M5 Max, Metal) 수치는 같은 세션 기준선끼리만 비교하고, 위 목표 GPU 측정은 Windows 빌드 경로가 정해진 뒤에 한다 [미확인]
 - 근경 0.5m에서 텍스처가 뭉개지지 않을 것
 - 캐릭터 그림자가 골목 바닥과 벽에 자연스럽게 떨어질 것
 
@@ -46,6 +47,7 @@
 | # | 작업 | 담당 | 완료 기준 |
 |---|---|---|---|
 | 1.0a | **사용자 PC**: 사양 확인 완료(7500F / 32GB / RTX 5060 8GB / 1TB, D-006) → **업그레이드 여부 결정**(GPU → 저장장치 → RAM 순). 결정 전까지 Postshot 최종 학습은 AWS에서. 툴 설치: UE 5.8.3, VS 2026, Git LFS, RealityScan 2.2, Postshot(Studio), XGRIDS LCC4Unreal. 로컬 Claude Code 세션 준비(D-006) — 🟡 **UE 개발 환경 완료(2026-09-24, PC 세션)**: UE 5.8.3(2026-09-24 기준 최신 핫픽스), VS 2026 Community 18.10.2(C++ 게임 개발 워크로드, MSVC 14.51, Windows SDK 10.0.26100), Git LFS 3.7.1, Python 3.12.10, ffmpeg 9.0.2, ExifTool, **NVIDIA 드라이버 617.14 WHQL**(2026-09-25 591.86에서 업데이트, 사용자 요청. UE 로그의 "610 미만 TSR 16-bit 꺼짐" 경고 사라짐, CUDA·UE 확인). 에디터 실행·C++ 빌드 성공. GitHub 로그인 완료(PC 세션 push 가능). **추가 설치(2026-09-25, PC 세션)**: Postshot 1.1.69(사용자 승인으로 EULA 동의, 무료판 상태 — Studio 구독은 C-04), Cesium for Unreal 2.29.1(GitHub 공식 zip, SHA-256 일치, Apache-2.0), XGRIDS LCC4Unreal 3.4.0(사용자가 developer.xgrids.com에서 받음, UE 5.8 빌드), Node.js 24.19.0 LTS(뷰어·3d-tiles-validator용). Cesium·LCC는 **엔진 플러그인 폴더**(`Engine\Plugins\Marketplace`)에 설치해 저장소는 그대로이고, 프로젝트에서는 아직 켜지 않았다(스파이크 1.1에서 켬). 두 플러그인 모두 UE에서 로드 확인. Cesium은 로드 시 `LogClass: Error: FCesiumMetadataPropertyStatisticValue::Semantic` 1줄을 남긴다(플러그인 내부, 프로젝트 무관). **남은 것(👤)**: 업그레이드 결정, RealityScan 2.2 설치(Epic 런처 → 언리얼 엔진 → 리얼리티스캔 탭, Epic 약관 동의) | 👤 | UE 에디터 실행, C++ 빌드 성공 |
+| 1.0a-Mac | **Mac 단독 개발 환경**(D-022, 2026-11-27): 소유자 Mac(M5 Max·128 GB·macOS 27.2). uv·Python 3.12·git-lfs·gh·tools venv 설치, Xcode·UE 5.8.x(≥ 5.8.4) 설치(소유자 약관·로그인 뒤), `tools/ue/*.sh`, 런북 [`runbooks/mac-setup.md`](runbooks/mac-setup.md) — 🔵 WP-20 진행 중 | 로컬 Mac 세션 + 사용자 | V-19 통과: `build.sh`·`test.sh`(자동화 39)·L_Dev PIE·검증용 패키지 |
 | 1.0b | **저장소·UE 프로젝트 골격** (아래 "구조" 참고) — ✅ **사용자 PC에서 검증 완료(2026-09-24)**. UE 5.8.3에서 C++ 빌드 무수정 통과(5.8 API 변경 영향 없음, 경고는 엔진 헤더의 deprecation뿐). `setup_dev_level`로 L_Dev 생성 → PIE에서 `GolmokGameMode`가 `GolmokCharacter` + 마네킹(`SKM_Manny_Simple`, `ABP_Unarmed`)을 스폰한다(`DefaultGame.ini` 경로 그대로 맞음). **자동 테스트 `Golmok.Player.Movement`**(`tools/ue/test.ps1`, 실제 키 입력 주입): 걷기 W/A/S/D 180 cm/s·방향 일치, Shift 달리기 500 cm/s → 떼면 180, 점프 정점 90 cm·0.87초 후 착지, 마우스 시점(오른쪽→오른쪽, 위→위), 골목 벽 카메라 충돌(벽면 y=−250, 카메라 y=−236). `Golmok.log`에 프로젝트 에러 없음. 스크린샷 `runbooks/pc-setup-L_Dev-pie.jpg`. 남은 것(👤, 선택): 직접 1분 플레이해 조작감 확인 | 🤖 / 👤 검증 | 에디터에서 L_Dev가 뜨고, 캐릭터가 걷고 뛰고 점프한다 |
 | 1.0c | **촬영 도구**: `golmok-exif`(EXIF 점검), `golmok-frames`(선명 프레임 추출), `golmok-blur`(EgoBlur 얼굴·번호판 블러, 로그·GPS·미리보기) — 🟡 코드·단위테스트 완료. PC 환경 준비 완료(2026-09-24): `pytest` 34개 통과, torch 2.11 + CUDA 12.8에서 `cuda.is_available()` True(RTX 5060). ⚠ **발견**: rawpy 0.27.1(LibRaw 0.22.1)은 Adobe DNG SDK 없이 빌드돼 **JPEG-XL ProRAW(DNG 1.7)를 현상하지 못한다**. iPhone 16 Pro/17 Pro는 ProRAW 형식으로 JPEG 무손실 / JPEG-XL 무손실 / JPEG-XL 손실을 고를 수 있다 → `golmok-exif`가 ProRAW 압축 형식을 세어 경고하고, `golmok-blur`의 `decode_error`가 원인을 적는다. → ProRAW 형식 **JPEG 무손실**로 결정(D-011 승인, 가이드 #1 v3). **남은 것**: EgoBlur Gen1 모델(👤 라이선스 동의 후 `tools\models\`), 실제 리허설 사진으로 검증 | 🤖 / 👤 검증 | 리허설 사진에서 EXIF 리포트가 나오고, 블러가 적용되고, 누락률을 육안으로 점검 |
 | 1.0d | **아이폰 리허설**(가이드 §4-C): 사진 20장 + 영상 1분 → 셔터 속도와 선명도 확인 — ⏳ 사진이 아직 PC에 없음(2026-09-24). ProRAW 형식은 **JPEG 무손실**로 찍는다(D-011 승인, 가이드 #1 v3 §4-A) | 👤 촬영 / 🤖 EXIF 점검 스크립트 | 대부분의 컷이 1/200s 이상이고 흔들림 없음 |
@@ -63,6 +65,8 @@
 | (b) | Postshot splat(원본 해상도, SH3) → 3D Tiles(로컬 변환기) → **Cesium for Unreal splat LOD** |
 | (c) | 같은 .ply → **XGRIDS LCC4Unreal(LCC2, Lit + ProxyMesh = (a)의 메시)**. 여유가 있으면 Volinga도 |
 | (a+c) | 하이브리드: (a) 메시를 기본으로 두고, 전선·식생·간판 부분만 (c) splat로 보강 |
+
+> **Mac 경로(2026-11-27 [D-023](DECISIONS.md), [WP-21](plan/WP-21-mac-recon-pipeline.md))**: (a) 메시는 Apple Object Capture(`golmok-objcap`) 후보, (b) splat은 COLMAP 포즈 → Brush → 3D Tiles → Cesium for Unreal 2.31.0(Metal), (c) LCC4Unreal은 macOS 미지원이라 "해당 없음". 공개 데이터 스모크만 통과했고 품질은 실촬영 뒤 V-05가 판정한다. 절차 [`runbooks/mac-recon.md`](runbooks/mac-recon.md).
 
 **측정 항목**(자동화: Unreal Python으로 고정 카메라 경로 재생, 스크린샷, `stat unit`/`stat gpu` 로그)
 
@@ -168,13 +172,13 @@ golmok/
   tools/
     golmok_tools/                Python 패키지: exif_report, extract_frames, privacy/blur (1.0c)
                                  (이후 basemap: SHP·DEM → 3D Tiles, splat: ply → 3D Tiles 추가 예정)
-    ue/                          UE 빌드·에디터·패키징 PowerShell 스크립트
+    ue/                          UE 빌드·에디터·패키징 PowerShell 스크립트(.ps1)와 Mac용 bash 스크립트(.sh, D-022)
   .gitattributes                 LFS: *.uasset *.umap (lockable), 텍스처·메시
   .gitignore                     Binaries/ Intermediate/ Saved/ DerivedDataCache/ data/
 ```
 
 - 원천 데이터(사진, 영상, .ply 원본, RealityScan 프로젝트)는 저장소 **밖**에 둔다. 외장 디스크와 비공개 버킷에 보관한다.
-- UE 에디터가 없는 클라우드 세션에서는 C++ 컴파일과 에디터 실행 검증을 할 수 없다. 그래서 **빌드 검증은 사용자 PC(Claude Desktop 세션)에서** 한다. 빌드 방법은 루트 README와 `tools/ue/*.ps1`에 있다.
+- UE 에디터가 없는 클라우드 세션에서는 C++ 컴파일과 에디터 실행 검증을 할 수 없다. 그래서 **빌드 검증은 로컬 검증 머신(2026-11-27부터 소유자 Mac의 Claude Desktop 세션, D-022)에서** 한다. 빌드 방법은 루트 README와 `tools/ue/*.sh`(Mac)·`tools/ue/*.ps1`(Windows, 이력)에 있다.
 
 ## Phase 2 이후 (방향)
 - 서버 자동화 파이프라인(COLMAP + gsplat, D-002 준수, RunPod/국내 클라우드)
