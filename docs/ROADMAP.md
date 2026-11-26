@@ -1,9 +1,9 @@
 # 로드맵 / 진행 상황
 
-마지막 갱신: 2026-11-27 ([D-022](DECISIONS.md) 소유자 지시: 개발·검증 머신을 Windows PC에서 Mac(M5 Max)으로, WP-20·V-19 착수, 엔진 5.8.x 최신(≥ 5.8.4)); 이전: 2026-10-09 (2026-09-25 이후: 게임 기능·캐릭터 WP-12·13·14a·15a·18a 🟢·16a 🟡, D-021 GASP 방향·WP-19a 🟡, PC 검증 V-04·V-07~V-11·V-13·V-14 결과, V-11 패키지 재실행·quinn 쿡 훅 [#121](https://github.com/wooklym/golmok/pull/121)·[#123](https://github.com/wooklym/golmok/pull/123), `zone_import` 헤드리스 UDIM 판정 Dimensions 태그 [#122](https://github.com/wooklym/golmok/pull/122))
+마지막 갱신: 2026-11-27 ([D-023](DECISIONS.md) 소유자 지시 "대체할 수 있는 것들은 대체해.": 재구성 무료 Mac 대체(COLMAP·Object Capture·Brush·Cesium 2.31.0)를 스파이크 후보로 설치·스모크, WP-21 착수, 품질 판정은 V-05); 이전: 2026-11-27 ([D-022](DECISIONS.md) 소유자 지시: 개발·검증 머신을 Windows PC에서 Mac(M5 Max)으로, WP-20·V-19 착수, 엔진 5.8.x 최신(≥ 5.8.4)); 이전: 2026-10-09 (2026-09-25 이후: 게임 기능·캐릭터 WP-12·13·14a·15a·18a 🟢·16a 🟡, D-021 GASP 방향·WP-19a 🟡, PC 검증 V-04·V-07~V-11·V-13·V-14 결과, V-11 패키지 재실행·quinn 쿡 훅 [#121](https://github.com/wooklym/golmok/pull/121)·[#123](https://github.com/wooklym/golmok/pull/123), `zone_import` 헤드리스 UDIM 판정 Dimensions 태그 [#122](https://github.com/wooklym/golmok/pull/122))
 최우선 원칙: **게임 퀄리티**(DECISIONS.md 참고)
 
-> **실행 계획**: Phase 1을 작업 패키지(WP-01~20)·로컬 검증(V-01~V-19; 2026-11-27 D-022부터 Mac에서, V-01~V-18의 Windows PC 기록은 이력)·사용자 작업(C-01~06)으로 풀어 쓴 문서가 [`DEVELOPMENT-PLAN.md`](DEVELOPMENT-PLAN.md)이고, 현재 상태는 [`plan/STATUS.md`](plan/STATUS.md)에 있다. 아래 1.x 단계와 WP의 대응은 DEVELOPMENT-PLAN §5.1 표를 본다.
+> **실행 계획**: Phase 1을 작업 패키지(WP-01~21)·로컬 검증(V-01~V-19; 2026-11-27 D-022부터 Mac에서, V-01~V-18의 Windows PC 기록은 이력)·사용자 작업(C-01~06)으로 풀어 쓴 문서가 [`DEVELOPMENT-PLAN.md`](DEVELOPMENT-PLAN.md)이고, 현재 상태는 [`plan/STATUS.md`](plan/STATUS.md)에 있다. 아래 1.x 단계와 WP의 대응은 DEVELOPMENT-PLAN §5.1 표를 본다.
 
 ## Phase 0 — 조사 및 설계 ✅ 완료
 
@@ -18,7 +18,7 @@
 | + | UE5 툴체인 검증 | `research/07-ue5-toolchain.md` | 완료 |
 | + | S-Map 문의 초안 | `outreach/smap-inquiry-draft.md` | 완료(사용자 발송) |
 | + | 촬영 가이드 #1 (골목) | `capture/01-alley-capture-guide.md` | 완료 |
-| – | 결정 | `DECISIONS.md` D-001~D-011 | **승인 완료.** 남은 것: 홈 Zone 선택(D-008). 사용자 PC 사양 확인(D-006)은 2026-11-27 D-022(Mac 전환)로 대체, 재구성 파이프라인 Mac 대체는 소유자 결정 대기 |
+| – | 결정 | `DECISIONS.md` D-001~D-011 | **승인 완료.** 남은 것: 홈 Zone 선택(D-008). 사용자 PC 사양 확인(D-006)은 2026-11-27 D-022(Mac 전환)로 대체, 재구성 파이프라인은 2026-11-27 D-023으로 무료 Mac 대체를 스파이크 후보로 들였다(지출 대안·Object Capture 약관 확인은 소유자) |
 
 ---
 
@@ -65,6 +65,8 @@
 | (b) | Postshot splat(원본 해상도, SH3) → 3D Tiles(로컬 변환기) → **Cesium for Unreal splat LOD** |
 | (c) | 같은 .ply → **XGRIDS LCC4Unreal(LCC2, Lit + ProxyMesh = (a)의 메시)**. 여유가 있으면 Volinga도 |
 | (a+c) | 하이브리드: (a) 메시를 기본으로 두고, 전선·식생·간판 부분만 (c) splat로 보강 |
+
+> **Mac 경로(2026-11-27 [D-023](DECISIONS.md), [WP-21](plan/WP-21-mac-recon-pipeline.md))**: (a) 메시는 Apple Object Capture(`golmok-objcap`) 후보, (b) splat은 COLMAP 포즈 → Brush → 3D Tiles → Cesium for Unreal 2.31.0(Metal), (c) LCC4Unreal은 macOS 미지원이라 "해당 없음". 공개 데이터 스모크만 통과했고 품질은 실촬영 뒤 V-05가 판정한다. 절차 [`runbooks/mac-recon.md`](runbooks/mac-recon.md).
 
 **측정 항목**(자동화: Unreal Python으로 고정 카메라 경로 재생, 스크린샷, `stat unit`/`stat gpu` 로그)
 

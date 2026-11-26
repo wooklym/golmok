@@ -64,6 +64,20 @@ golmok-blur ~/golmok_capture/…/photos ~/golmok_capture/…/photos_blurred \
 GOLMOK_DATA="$HOME/golmok_basemap/yeonnam" npm test   # 7) 검수 뷰어의 $env:GOLMOK_DATA 줄
 ```
 
+### Mac 재구성 도구 (WP-21, D-023)
+
+RealityScan·Postshot은 macOS를 지원하지 않는다. 무료 대체 도구를 스파이크 후보로 쓴다(품질 판정은 V-05). 절차·라이선스·미확인 표는 [mac-recon 런북](../docs/runbooks/mac-recon.md).
+
+```bash
+tools/mac/install-recon-tools.sh                 # ~/golmok-tools에 COLMAP 4.2.1(cpu_lgpl)·ffmpeg(lgpl)·exiftool·Brush v0.3.0 (sudo·Homebrew 없음)
+. ~/golmok-tools/env.sh
+tools/mac/recon-smoke.sh <이미지 폴더> [작업 폴더]  # COLMAP → undistort → Brush → golmok-splat, 작업 폴더는 저장소 밖
+cd tools/mac/objcap && swift build -c release --scratch-path ~/golmok-tools/objcap/build   # golmok-objcap (Object Capture)
+```
+
+- `golmok-objcap` 사용법·좌표·약관 메모: [tools/mac/objcap/README.md](mac/objcap/README.md).
+- 데이터·PLY·바이너리는 저장소 밖(`~/golmok_data`, `~/golmok-tools`)에 둔다. Brush는 현재 폴더에 `./target/`을 쓰므로 저장소에서 직접 돌리지 않는다.
+
 ## 사용 예
 
 **1) 리허설 점검** (가이드 §4-C)

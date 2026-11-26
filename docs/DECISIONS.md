@@ -66,6 +66,7 @@
 - 출처 표시(공공누리 1유형)는 크레딧에 넣는다.
 
 ### D-005 | 승인(수정) | 2026-09-24 — 재구성 파이프라인
+> D-023(2026-11-27): Mac에서는 무료 대체 도구(COLMAP·Brush·Object Capture·Cesium)를 스파이크 후보로 쓴다. 아래 본문은 Windows 경로·이력으로 둔다.
 - **MVP(Phase 1, 사용자가 직접 처리)**
   - 메시: **RealityScan 2.x**. 연매출 $1M 미만 무료이며, 약관 원문은 설치 시 확인한다.
   - splat 학습: **Postshot**. 상업 사용과 PLY 내보내기에는 Indie 이상, 4K 초과 이미지와 CLI에는 **Studio**가 필요하다. **최고 품질 설정을 위해 Studio**로 한다.
@@ -77,6 +78,7 @@
 
 ### D-006 | 승인(수정 2) | 2026-09-24 — 연산 환경: **사용자의 Windows PC를 주 처리 머신으로 쓴다**
 > D-022로 대체(2026-11-27). 아래 본문은 이력으로 둔다. 재구성 도구의 Mac 대체는 D-022 ④에서 소유자 결정을 기다린다.
+> D-023(2026-11-27): 재구성 도구의 무료 Mac 대체는 소유자 지시로 스파이크 후보로 들였다. V-05 뒤 최종 스택 변경과 지출·약관·사실 확인 항목은 소유자에게 남는다.
 - **원칙**: 학습 해상도와 반복 수를 줄이지 않는다.
   - Postshot: `max-image-size 0`(원본), SH 3, AA 켬, 수렴할 때까지 스텝을 늘린다.
   - RealityScan: High detail, 원본 해상도.
@@ -308,6 +310,7 @@
     - (e) 보류한다. V-05(스파이크 1.1)와 D-010은 이 결정 뒤로 밀린다.
     - 금지 확인: gsplat-mps·OpenSplat·OpenMVS(AGPL), Inria 3DGS(비상업)는 D-002에 따라 쓰지 않는다. 출처는 r5 조사([EgoBlur](https://github.com/facebookresearch/EgoBlur)·[COLMAP FAQ](https://colmap.github.io/faq.html)·[Brush](https://github.com/ArthurBrussee/brush)·[msplat](https://github.com/rayanht/msplat)·[gsplat-mps](https://github.com/iffyloop/gsplat-mps)·[Metashape](https://www.agisoft.com/buy/online-store/))다.
     - 블러는 결정과 무관하게 Mac에서 돈다. EgoBlur README는 Mac에서 CPU 전용이고 느리다고 적는다 [확인, [EgoBlur](https://github.com/facebookresearch/EgoBlur)]. `golmok-blur --device auto`는 CUDA가 없으면 CPU를 고른다. MPS와 처리 속도는 [미확인].
+    - → 2026-11-27 D-023: 소유자 지시 "대체할 수 있는 것들은 대체해."로 (b)의 무료 도구를 스파이크 후보로 설치·스모크했다. (a)·(c)·(d)는 지출이라 소유자 항목으로 남는다.
   - ⑤ **RTX 5060에서 잰 성능 기준선은 이력이다.** V-02·V-03·V-08·V-13·V-14·research/08 수치와 각 런북의 "RTX 5060 8 GB 1080p" 한도는 그대로 둔다. 열린 카드는 Mac에서 같은 세션 기준선을 다시 잰다. 저사양 하한 측정기 역할(D-006, ROADMAP 측정 하한선)은 비어 있다. Metal에서 HUD GPU 시간이 PC 값과 비교되는지는 [미확인].
   - ⑥ **이름**: `pc-verify-*.md` 런북과 `pc/*` 브랜치는 이름을 유지한다. 이제 "PC"는 로컬 검증 머신(Mac)을 뜻한다. 상태 기호 🟡 "코드 완료·PC 검증 대기"도 같은 뜻으로 읽는다.
   - ⑦ D-006 본문 위에 "D-022로 대체" 한 줄만 달고 본문은 그대로 둔다.
@@ -316,4 +319,39 @@
 - **되돌릴 수 있게**: Windows 경로(`tools/ue/*.ps1`, `runbooks/pc-setup.md`·`pc-verify-*.md`, ini의 Windows 절)는 지우지도 고치지도 않는다. Mac 쪽은 추가만 한다.
 - **이력**: D-006·V-01~V-18의 PC 기록, 세션 로그, 기준선 수치는 기록대로 둔다. D-011의 rawpy 확인(`rawpy.flags`)은 Mac arm64 휠에서 다시 한다 [미확인].
 - 반영: CLAUDE.md, AGENTS.md, DEVELOPMENT-PLAN §3·§4·§5.1·§5.2·§6·§7.6·§8·§11, STATUS, ROADMAP, README, tools/README, docs/README, 이슈 #30.
+- 이 결정은 소유자가 언제든 뒤집을 수 있다.
+
+### D-023 | 승인(소유자 지시) — 품질 판정은 V-05 | 2026-11-27 — 재구성 파이프라인: 무료 Mac 대체 도구를 스파이크 후보로 들인다
+- **소유자 지시 원문**: "대체할 수 있는 것들은 대체해." (2026-11-27, 로컬 Mac 오케스트레이터 세션, D-022 ④의 재구성 도구 선택지에 대해)
+- **범위**: 무료이고, 라이선스를 원문으로 확인할 수 있고, 되돌릴 수 있는 Mac 대체만 설치·스모크·기록한다. 돈이 드는 것, 소유자의 계정·약관 동의가 필요한 것, 확인할 수 없는 것은 소유자 항목으로 남긴다. 작업은 [WP-21](plan/WP-21-mac-recon-pipeline.md), 절차는 [runbooks/mac-recon.md](runbooks/mac-recon.md)다.
+- **결정**:
+  - ① **Mac 스파이크(V-05) 후보로 채택한다.** 최종 품질 결정이 아니다. **D-010은 예약 그대로**이고, 어느 도구를 최종 파이프라인으로 둘지는 실촬영(C-02) 뒤 V-05 결과를 근거로 **소유자가 정한다**(D-005/D-006 스택 변경, D-019 ⑤ — ④). 소유자 지시는 "대체할 수 있는 것"을 들이라는 것이고 최종 제품 스택 확정까지 넘긴 것으로 읽지 않는다.
+    - SfM·포즈: **COLMAP 4.2.1**(conda-forge `cpu_lgpl` 빌드, CPU; 증분 `mapper`, 비교용 `global_mapper`/GLOMAP). 설치는 **micromamba 2.10.0-0**(사용자 공간 `~/golmok-tools`, sudo·Homebrew 없음, sha256 고정).
+    - splat 학습: **Brush v0.3.0**(`brush-app-aarch64-apple-darwin`, Metal).
+    - 메시·텍스처: **`golmok-objcap`**(저장소 `tools/mac/objcap`, Apple Object Capture `PhotogrammetrySession`). 출력 약관 사실 확인(④) 전에는 그 결과물을 커밋·배포하지 않는다.
+    - splat 렌더(스파이크 (b)): **Cesium for Unreal 2.31.0**(GitHub 릴리스 Mac universal 바이너리). D-003의 "2.29.x" 고정은 Mac 스파이크에 한해 2.31.0으로 올린다(오케스트레이터 판단, 되돌릴 수 있음). 저장소 `.uproject` 활성화는 아직 하지 않았다 — WP-21 후속 `[WP-21 hook]` 별도 커밋.
+    - 보조: conda-forge **ffmpeg 9.1 `lgpl`**, **exiftool 13.64**(mac-setup §1 #6의 Homebrew 항목을 대신한다).
+    - 블러: `golmok-blur` CPU(D-022 ④ 그대로).
+  - ② **스모크 결과(공개 데이터, 품질 근거 아님)**: AliceVision Buddha 67장(CC-BY-4.0)으로 COLMAP → undistort → Brush(Metal) → PLY → `golmok-splat inspect/clean/tiles`가 끝까지 돌았다(67/67 등록, 재투영 0.320 px; Brush 30k스텝 926 s, PSNR 20.77, 128,783 splat). `golmok-objcap`은 Buddha와 Tyrol 교회 드론 76장(CC BY 4.0)으로 메시·포즈·점군을 냈다(Tyrol full 645 s, 33.0 GB, 250,000 tri). Brush PLY → 3D Tiles → Cesium이 Metal `-game`에서 렌더됐다(저장소 밖 프로젝트 사본). 수치는 WP-21 "결과".
+  - ③ **대체하지 못한 것**: 조밀 MVS·Delaunay 메시(COLMAP `patch_match_stereo`는 CUDA 필요, `delaunay_mesher`는 CGAL 필요 — 설치 바이너리에서 확인; OpenMVS는 AGPL 금지), 스파이크 (c) XGRIDS LCC4Unreal(Mac 미지원 — Mac에서는 "해당 없음"), Postshot과의 품질 대등성(V-05).
+  - ④ **소유자 항목으로 남는 것**:
+    - 스택 변경(D-019 ⑤): V-05 뒤 D-005/D-006의 제품 재구성 스택을 COLMAP·Brush·Object Capture·Cesium(또는 아래 지출 대안)으로 확정하는 것. 그 전까지 이 도구들은 스파이크 후보일 뿐이고 D-010은 예약 그대로다.
+    - 지출(D-019 ①): Agisoft Metashape, 클라우드 Windows GPU(AWS g6e 등의 RealityScan·Postshot), NVIDIA Windows 머신. V-05에서 무료 경로가 품질 기준에 못 미치면 이 중에서 고른다.
+    - 계정·약관(D-019 ②): EgoBlur 모델 라이선스 동의와 다운로드, Fab(GASP).
+    - 사실 확인(법률 판단 아님): Apple Object Capture 출력 — Xcode and Apple SDKs Agreement(Xcode 27.2 동봉본) §2.2 C(2)의 "output generated from an Apple model to train … another artificial intelligence model" 금지가 splat 학습에 걸리는지 [미확인], 출력의 상업 사용을 명시한 Apple 공식 문서를 찾지 못함 [미확인]. 같은 계약 §2.2 A(ii)는 SDK로 소프트웨어 개발을 허용하고 §2.11 F(Your Responsibility)는 "Apple Software and Services" 사용으로 생성된 콘텐츠의 소유권을 주장하지 않는다(이 조항이 Object Capture 출력에 적용되는지 [미확인]).
+- **D-002 라이선스 확인**(모두 별도 프로그램으로 우리 데이터에 실행하고 게임에 링크하지 않는다. 출력은 우리 데이터다. Cesium은 예외로 게임에 들어가는 런타임 플러그인이다):
+  - COLMAP — new BSD, 의존성과 빌드하면 "may affect the resulting COLMAP license"라는 단서 [확인: [LICENSE](https://raw.githubusercontent.com/colmap/colmap/main/LICENSE)]. conda-forge는 `cpu_gpl`(SuiteSparse/CHOLMOD·CGAL)과 `cpu_lgpl`(CGAL 끔, CHOLMOD 패치로 제거, Eigen simplicial 솔버) 두 변형을 낸다 [확인: [recipe.yaml](https://github.com/conda-forge/colmap-feedstock/blob/main/recipe/recipe.yaml)·`recipe/build.sh`]. **lgpl 변형을 쓴다.** 링크 라이브러리(otool, conda 메타데이터): PoseLib BSD-3, faiss MIT, GLEW BSD-3, onnxruntime MIT, boost BSL, ceres 2.2.0 `cpulgpl` BSD-3, glog BSD, OpenSSL 3 Apache-2.0, metis Apache-2.0, OpenImageIO Apache-2.0, Qt6 LGPL-3.0(동적 링크, `colmap gui`), curl·sqlite·llvm-openmp, Apple OpenGL.framework. env의 이중 라이선스 패키지: FreeImage(GPL-2/3 OR FIPL), freetype(GPL-2 OR FTL), gmp(GPL-2 OR LGPL-3). libgfortran은 GCC 런타임 예외, libheif는 x265(GPL)를 뺀 lgpl 변형으로 고정. **env에 GPL 전용 패키지 없음**(설치 스크립트가 검사). ALIKED ONNX 특징 모델은 가중치 라이선스 [미확인]이라 SIFT만 쓴다.
+  - micromamba — BSD-3-Clause [확인: [LICENSE](https://raw.githubusercontent.com/mamba-org/mamba/main/LICENSE)].
+  - ffmpeg 9.1 `lgpl` — `--disable-gpl --enable-version3`, `ffmpeg -L` "LGPL v3 or later". 기본 해석이 고른 gpl 빌드(x264/x265)는 쓰지 않는다.
+  - exiftool 13.64 — POD "same terms as Perl itself"(GPL-1.0-or-later OR Artistic). 별도 도구이고 기존 파이프라인(tools/README)과 같은 쓰임이다.
+  - Brush v0.3.0 — Apache-2.0 [확인: 릴리스 타르볼 동봉 LICENSE, [LICENSE](https://raw.githubusercontent.com/ArthurBrussee/brush/main/LICENSE)]. 바이너리는 Apple 시스템 프레임워크만 링크한다(Mach-O arm64, ad-hoc 서명, 공증 안 됨). v0.3.0 `deny.toml`이 permissive 허용 목록(Apache/MIT/BSD/ISC/Zlib/MPL-2.0 등, GPL 없음)과 openssl 금지를 강제한다. README는 커널 참고로 gsplat(Apache-2.0)을 적고 Inria 코드를 적지 않는다 [확인: [README](https://github.com/ArthurBrussee/brush)]. 크레이트 전체 감사는 하지 않았다 [미확인].
+  - Cesium for Unreal 2.31.0 — Apache-2.0 [확인: 배포본 LICENSE; [releases](https://github.com/CesiumGS/cesium-unreal/releases) "for Windows, Linux, macOS, Android, and iOS"]. `ThirdParty.json`: cesium-native Apache-2.0, MikkTSpace Zlib, HTML Tidy, Font Awesome CC BY 4.0(에디터 아이콘). 정적 링크 서드파티(abseil·draco·spz·libwebp·s2·blend2d·asmjit·libjpeg-turbo·ktx·zstd·sqlite·tidy 등)의 개별 LICENSE 원문 [미확인]. 출시 전에 NOTICE 고지가 필요하다.
+  - `golmok-objcap` — 패키지 의존성 없이 Apple 프레임워크(RealityKit·Foundation·ImageIO·CoreGraphics·simd)만 쓴다. 약관은 ④.
+  - 시험 데이터: AliceVision Buddha CC-BY-4.0 [확인: [dataset_buddha](https://github.com/alicevision/dataset_buddha) LICENSE.md, DOI 10.5281/zenodo.1203283], Tyrol Church CC BY 4.0 [확인: [Tyrol-Church-Photogrammetry-Dataset](https://github.com/IRCSS/Tyrol-Church-Photogrammetry-Dataset) LICENSE.md]. 저장소 밖(`~/golmok_data/recon-smoke/`)에만 둔다.
+  - 금지 확인: Inria 3DGS, MASt3R/DUSt3R, OpenMVS·OpenSplat·gsplat-mps(AGPL), Ultralytics는 쓰지 않았다(`test_mac_recon_scripts.py`가 스크립트의 금지 이름을 검사).
+- **좌표(측정, 일반화 [미확인])**: Brush는 COLMAP world 좌표를 그대로 쓴다(재중심·재스케일 없음; splat → SfM 점 거리 중앙값 0.0049 단위). 메시와 splat이 좌표를 공유하려면 하나의 COLMAP 희소 모델에서 나와야 하고, 미터·ENU 정합은 그 모델에서 먼저 한 번 한다 [미확인, 끝까지 해 보지 않음]. Object Capture는 실행마다 자기 좌표계를 만든다(같은 76장이 실행 사이에 중앙값 0.116 단위 이동).
+- **D-007**: 모든 도구가 로컬에서 돈다. Cesium 타일셋은 `file://`로 읽는다. 부수 발견: UE CrashReportClient가 크래시 리포트(로컬 경로 포함)를 Epic으로 자동 업로드한다. 프로젝트 설정에서 끄는 것을 WP-21 후속으로 둔다(핫스팟 ini, `[WP-21 hook]`).
+- **되돌릴 수 있게**: 도구는 저장소 밖(`~/golmok-tools`)에 있어 폴더를 지우면 없어진다. Windows 경로 문서([pc-spike.md](runbooks/pc-spike.md)·[recon-postprocess.md](runbooks/recon-postprocess.md))는 그대로 두고 Mac판을 더했다. 제품 코드·`.uproject`는 바뀌지 않았다.
+- **이력**: D-005·D-006 본문은 그대로 두고 위에 D-023 한 줄씩만 달았다. D-022 ④에도 한 줄을 더했다.
+- 반영: WP-21, `runbooks/mac-recon.md`, mac-setup §7, STATUS, DEVELOPMENT-PLAN §5.1·§5.2 V-05·§8 R2·§11, ROADMAP, tools/README, docs/README.
 - 이 결정은 소유자가 언제든 뒤집을 수 있다.

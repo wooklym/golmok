@@ -247,6 +247,12 @@ tools/ue/package.sh                    # 5. Mac Development 패키지 → $GOLMO
 
 ## 7. 재구성 파이프라인 (Mac)
 
+> **2026-11-27 갱신([D-023](../DECISIONS.md), [WP-21](../plan/WP-21-mac-recon-pipeline.md))**: 소유자 지시("대체할 수 있는 것들은 대체해.")로 무료 대체 도구를 스파이크 후보로 설치·스모크했다. 절차와 대체표·미확인 표는 **[mac-recon.md](mac-recon.md)**다. 아래 본문은 그 전의 조사 기록이다.
+> - 설치: `tools/mac/install-recon-tools.sh`(sudo·Homebrew 없음, `~/golmok-tools`) — COLMAP 4.2.1 conda-forge `cpu_lgpl`, ffmpeg 9.1 `lgpl`, exiftool 13.64, Brush v0.3.0. §1 #6(Homebrew)은 재구성용으로는 필요 없다. `golmok-objcap`(Object Capture)은 `swift build`, Cesium for Unreal 2.31.0은 GitHub 릴리스.
+> - 스모크(공개 데이터, 품질 근거 아님): Buddha 67장 COLMAP → Brush(Metal) → `golmok-splat` 끝까지 통과, objcap 메시(Buddha·Tyrol 76장) 통과, Brush PLY → 3D Tiles → Cesium on Metal 렌더 통과(저장소 밖 프로젝트 사본).
+> - Mac에서 대체하지 못한 것: 조밀 MVS 메시(COLMAP은 CUDA·CGAL 필요), XGRIDS LCC4Unreal. 지출 대안(Metashape·클라우드 GPU)과 EgoBlur 모델 동의, Object Capture 출력 약관 확인은 소유자 항목이다.
+> - §8 #26 Object Capture 상한은 확인됐다: 2000장·16384 px(`golmok-objcap limits`).
+
 **지금 파이프라인(D-005)은 Mac에서 돌지 않는다.**
 - RealityScan 2.x: Epic 요구 사항 페이지가 "RealityScan runs primarily on Windows"라고 쓰고, Linux는 CLI 전용으로만 권한다. macOS는 없다. NVIDIA CUDA GPU(CC ≥ 3.5)가 없으면 모델·텍스처를 만들 수 없다. Mac의 Windows ARM VM에도 CUDA가 없다. [F] [RealityScan hardware and software requirements](https://dev.epicgames.com/documentation/realityscan/hardware-and-software-requirements)
 - Postshot(Jawset): "Windows 10 or later, Nvidia GPU CC 7.5 or higher". macOS 빌드가 없다. [F] [jawset.com](https://www.jawset.com/), [research/07](../research/07-ue5-toolchain.md)
@@ -261,7 +267,7 @@ tools/ue/package.sh                    # 5. Mac Development 패키지 → $GOLMO
 | 메시·텍스처 | Apple Object Capture(RealityKit `PhotogrammetrySession`, OBJ/USDZ, `poses` 요청) | OS API, 무료. 출력 이용 조건 [미확인] [F] [PhotogrammetrySession](https://developer.apple.com/documentation/realitykit/photogrammetrysession.md) | 장당·해상도 상한이 기기별이다(M5 Max 값 [미확인]). 골목 규모(약 1,300장·48MP) 품질 [미확인], 영역 모드 오류 보고 있음 |
 | 메시·텍스처 | Agisoft Metashape(Apple M1/M2 CPU 지원 명시) | 유료: Standard $179, Pro $3,499 [F] [store](https://www.agisoft.com/buy/online-store/). 서비스 연동은 별도 라이선스(research/02) | Metal 가속·macOS 27 빌드 [미확인]. **지출** |
 | 스플랫 학습 | Brush(arm64 바이너리 `brush-app-aarch64-apple-darwin`, COLMAP 입력) | Apache-2.0 [F] [LICENSE](https://raw.githubusercontent.com/ArthurBrussee/brush/main/LICENSE), [README](https://github.com/ArthurBrussee/brush) | PLY 출력 세부·Postshot 품질 대등(전체 해상도·SH3·AA) [미확인] |
-| 스플랫 학습 | msplat(Metal 전용, COLMAP 입력, PLY 출력) | Apache-2.0 [F] [LICENSE](https://raw.githubusercontent.com/rayanht/msplat/main/LICENSE) | 작은 저장소(커밋 12, 릴리스 없음). Inria 파생 코드 여부를 **소스 감사한 뒤에만** 쓴다 |
+| 스플랫 학습 | msplat(Metal 전용, COLMAP 입력, PLY 출력) | Apache-2.0 [F] [LICENSE](https://raw.githubusercontent.com/rayanht/msplat/main/LICENSE) | 작은 저장소. 릴리스 v1.1.4(2026-08-25, macOS arm64 휠) 있음(2026-11-27 재확인, r5의 "릴리스 없음"은 정정). Inria 파생 코드 여부를 **소스 감사한 뒤에만** 쓴다 |
 | (대안) 클라우드 Windows GPU | AWS g6e(L40S 48 GB) 원격 데스크톱 + RealityScan·Postshot 그대로 | 시간당 비용·계정 = **지출**. 서울 리전·Windows AMI [미확인] [F] [g6e](https://aws.amazon.com/ec2/instance-types/g6e/) | 블러된 이미지(`*_blurred`)만 올린다(D-007). 지금 파이프라인과 좌표계 공유 방식을 그대로 쓴다 |
 
 **쓰지 않는 것(D-002)**: gsplat-mps(AGPLv3, OpenSplat 파생) [F] [gsplat-mps](https://github.com/iffyloop/gsplat-mps), OpenSplat(AGPL), OpenMVS(AGPL), Inria 3DGS 계열(비상업). gsplat 본체는 Apache-2.0이지만 CUDA 커널이라 Mac에서 쓸 수 없다 [F] [gsplat](https://github.com/nerfstudio-project/gsplat).
