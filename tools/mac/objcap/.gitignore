@@ -1,0 +1,4 @@
+# SwiftPM build products and caches (README builds with --scratch-path outside the repo; this covers a plain `swift build`)
+.build/
+.swiftpm/
+Package.resolved
