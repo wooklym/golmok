@@ -11,7 +11,8 @@ What lives here (docs/plan/WP-06-ue-python-automation.md, "설계 (확정)" §3-
 - importer pre-transform of OBJ and GLB copies (D3): A = (s M)^-1 TARGET, normals by U = A / k, winding flip
 - the log formats LOG (§4-6), import_result.json (§4-3), the importer mapping cache check
 - interior portal round trip check and the sublevel light spec (D9, D10)
-- spike helpers: dwell path JSON (§4-7), -game command line and PowerShell script (§4-8), contact sheet
+- spike helpers: dwell path JSON (§4-7), -game command line and PowerShell / POSIX sh script (§4-8, WP-20),
+  contact sheet
   HTML (§4-9) and the research/08 report template (§4-10)
 - WP-09 Zone Index sync (docs/plan/WP-09-ue-zone-index-async.md §3-7): cell file names, the index check
   (spec §6 / zone-index.schema.json rules), the copy / remove plan into Content/Golmok/Zones/index and the
@@ -28,6 +29,7 @@ import ntpath
 import os
 import posixpath
 import re
+import shlex
 import struct
 import time
 from collections.abc import Callable, Iterable, Iterator
@@ -1773,6 +1775,41 @@ def saved_dir_candidates(
     return out
 
 
+# WP-20 (D-022, Mac-only dev machine): per-user engine folder of a Launcher-build -game run on macOS, under
+# $HOME. [미확인] assumed from FMacPlatformProcess::UserSettingsDir (~/Library/Application Support/Epic/);
+# check it on the first Mac -game CSV run and correct it here. An absent folder is harmless: the editor
+# poller finds no CSV there and run_game_perf.sh only creates the Golmok/Paths copy folder.
+MAC_USER_SETTINGS_REL = "Library/Application Support/Epic"
+
+
+def editor_exe(engine_dir: str, platform: str) -> str:
+    """UnrealEditor binary of a Launcher build for sys.platform: Win64 .exe on win32, the binary inside
+    UnrealEditor.app on darwin (Launcher layout, [미확인] until the first Mac install), Binaries/Linux
+    otherwise."""
+    if platform == "win32":
+        return os.path.join(engine_dir, "Binaries", "Win64", "UnrealEditor.exe")
+    if platform == "darwin":
+        return os.path.join(
+            engine_dir, "Binaries", "Mac", "UnrealEditor.app", "Contents", "MacOS", "UnrealEditor"
+        )
+    return os.path.join(engine_dir, "Binaries", "Linux", "UnrealEditor")
+
+
+def platform_saved_dir_candidates(
+    project_saved_dir: str, environ, platform: str, engine_version: str = ENGINE_VERSION_KEY
+) -> list[str]:
+    """saved_dir_candidates for sys.platform: win32 = the project + %LOCALAPPDATA% (unchanged); darwin = the
+    project + $HOME/MAC_USER_SETTINGS_REL/UnrealEngine/<key>/Saved ([미확인], see MAC_USER_SETTINGS_REL);
+    other platforms = the project only."""
+    if platform == "win32":
+        return saved_dir_candidates(project_saved_dir, environ.get("LOCALAPPDATA"), engine_version)
+    out = saved_dir_candidates(project_saved_dir, None, engine_version)
+    home = environ.get("HOME")
+    if platform == "darwin" and home:
+        out.append(f"{_posix(home).rstrip('/')}/{MAC_USER_SETTINGS_REL}/UnrealEngine/{engine_version}/Saved")
+    return out
+
+
 def csv_dirs(candidates: list[str]) -> list[str]:
     return [f"{c}/Profiling/CSV" for c in candidates]
 
@@ -1869,11 +1906,20 @@ def _win_key(path: str) -> str:
     return ntpath.normpath(_win(path)).rstrip("\\").casefold()
 
 
-def copy_path_dirs(path_files: list[str], candidates: list[str]) -> list[str]:
+def _posix_key(path: str) -> str:
+    """Comparison key of a POSIX path: '\\' -> '/', posixpath.normpath, no trailing separator (case kept)."""
+    return posixpath.normpath(_posix(path)).rstrip("/") or "/"
+
+
+def copy_path_dirs(path_files: list[str], candidates: list[str], posix: bool = False) -> list[str]:
     """path_dirs(candidates) the path JSONs are copied into: a folder that already holds every path file
     (Windows paths, normalized, case-insensitive) is left out - Copy-Item of a file onto itself only warns
     (V-04 T5, runbook §11). game_scripts' path files all live in the project Saved/Golmok/Paths, so only the
-    %LOCALAPPDATA% candidate stays; path files from several folders keep every candidate."""
+    %LOCALAPPDATA% candidate stays; path files from several folders keep every candidate. posix=True
+    (run_game_perf.sh, WP-20) compares POSIX keys instead."""
+    if posix:
+        sources = {_posix_key(posixpath.dirname(_posix(p))) for p in path_files}
+        return [d for d in path_dirs(candidates) if not (sources and sources == {_posix_key(d)})]
     sources = {_win_key(ntpath.dirname(_win(p))) for p in path_files}
     return [d for d in path_dirs(candidates) if not (sources and sources == {_win_key(d)})]
 
@@ -1930,6 +1976,93 @@ def powershell_script(
     perf = "golmok-perf " + " ".join(f'"{out_dir_w}\\{label}.csv"' for label in labels)
     perf += "".join(f" --label {label}" for label in labels) + " --markdown"
     lines.append(f"Write-Output {_ps_str(perf)}")
+    return "\n".join(lines) + "\n"
+
+
+def sh_arg(arg: str) -> str:
+    """One argv element of run_game_perf.sh, shell-quoted. The quotes powershell_script needs for
+    Start-Process (exec_cmds' -ExecCmds="a, b") are taken off: each element reaches the engine as one argv
+    entry, and the Mac launcher quotes an entry with spaces itself when it rebuilds the command line
+    ([미확인]: LaunchMac.cpp, check on the first Mac -game run; correct only this function)."""
+    if arg.startswith("-") and "=" in arg:
+        key, value = arg.split("=", 1)
+        if len(value) >= 2 and value[0] == value[-1] == '"':
+            arg = f"{key}={value[1:-1]}"
+    elif len(arg) >= 2 and arg[0] == arg[-1] == '"':
+        arg = arg[1:-1]
+    return shlex.quote(arg)
+
+
+def shell_script(
+    runs: list[dict], path_files: list[str], candidates: list[str], out_dir: str, timeout_s: int
+) -> str:
+    """run_game_perf.sh (WP-20, D-022: the macOS counterpart of powershell_script; LF, no BOM, the caller
+    sets the exec bit). Same steps: copy the path JSONs into the other Saved candidates (copy_path_dirs
+    posix=True), run each {'label', 'argv'} in the background and kill it after timeout_s (no GNU timeout on
+    macOS), copy the newest Profile*.csv newer than a marker file made before the start to
+    out_dir/<label>.csv, check the log for the 'GolmokDebugSubsystem: csv:' line and echo the golmok-perf
+    line."""
+    out_dir_p = _posix(out_dir).rstrip("/")
+    copy_dirs = copy_path_dirs(path_files, candidates, posix=True)
+    finds = " ".join(shlex.quote(d) for d in csv_dirs(candidates))
+    lines = [
+        "#!/bin/sh",
+        "# generated by golmok.spike_runner.game_scripts - do not edit",
+    ]
+    if copy_dirs:
+        lines.append(
+            "for d in "
+            + " ".join(shlex.quote(d) for d in copy_dirs)
+            + '; do mkdir -p "$d" && cp -f '
+            + " ".join(shlex.quote(_posix(p)) for p in path_files)
+            + ' "$d/"; done'
+        )
+    lines += [
+        f"mkdir -p {shlex.quote(out_dir_p)}",
+        "golmok_run() {",
+        "  label=$1 timeout_s=$2 log=$3",
+        "  shift 3",
+        '  marker=$(mktemp "${TMPDIR:-/tmp}/golmok_run.XXXXXX") || return 1',
+        '  "$@" &',
+        "  pid=$!",
+        "  waited=0",
+        '  while kill -0 "$pid" 2>/dev/null; do',
+        '    if [ "$waited" -ge "$timeout_s" ]; then',
+        '      kill "$pid" 2>/dev/null; sleep 2; kill -9 "$pid" 2>/dev/null',
+        '      echo "WARNING: $label timeout after $timeout_s s" >&2',
+        "      break",
+        "    fi",
+        "    sleep 1",
+        "    waited=$((waited + 1))",
+        "  done",
+        '  wait "$pid" 2>/dev/null',
+        f"  csv=$(find {finds} -maxdepth 1 -type f -name 'Profile*.csv' -newer \"$marker\" "
+        "-exec ls -1t {} + 2>/dev/null | head -n 1)",
+        '  rm -f "$marker"',
+        '  if [ -n "$csv" ]; then',
+        f'    cp -f "$csv" {shlex.quote(out_dir_p)}/"$label.csv" && echo "csv $label -> $csv"',
+        "  else",
+        '    echo "WARNING: $label no CSV newer than the run start (see $log)" >&2',
+        "  fi",
+        "  if ! grep -q 'GolmokDebugSubsystem: csv:' \"$log\" 2>/dev/null; then",
+        "    echo \"WARNING: $label log has no 'GolmokDebugSubsystem: csv:' line "
+        '(ExecCmds timing? runbook #17)" >&2',
+        "  fi",
+        "}",
+    ]
+    labels = []
+    for run in runs:
+        argv = list(run["argv"])
+        label = run["label"]
+        labels.append(label)
+        log = run.get("log") or next((a[len("-abslog=") :] for a in argv if a.startswith("-abslog=")), "")
+        lines.append(
+            f"golmok_run {shlex.quote(label)} {int(timeout_s)} {shlex.quote(_posix(log))} "
+            + " ".join([shlex.quote(argv[0])] + [sh_arg(a) for a in argv[1:]])
+        )
+    perf = "golmok-perf " + " ".join(shlex.quote(f"{out_dir_p}/{label}.csv") for label in labels)
+    perf += "".join(f" --label {label}" for label in labels) + " --markdown"
+    lines.append(f"echo {shlex.quote(perf)}")
     return "\n".join(lines) + "\n"
 
 

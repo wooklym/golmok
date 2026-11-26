@@ -921,7 +921,7 @@ void UGolmokDebugSubsystem::LogLatestCsv()
 	const bool bStale = Newest.IsEmpty() || NewestStamp + FTimespan::FromSeconds(5.0) < CsvStartUtc;
 	if (Newest.IsEmpty())
 	{
-		UE_LOG(LogGolmok, Log, TEXT("GolmokDebugSubsystem: csv: no Profile*.csv yet in %s (the -game launcher engine writes to %%LOCALAPPDATA%%\\UnrealEngine\\5.8\\Saved\\Profiling\\CSV)"),
+		UE_LOG(LogGolmok, Log, TEXT("GolmokDebugSubsystem: csv: no Profile*.csv yet in %s (the -game launcher engine writes to the per-user engine Saved/Profiling/CSV)"),
 			*Dir);
 	}
 	else
