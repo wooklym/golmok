@@ -77,13 +77,30 @@ const zoneArgs = ['--zone', scanZone, ...(userData ? ['--zone', resolve(fixtureC
 
 // Readiness wait (2026-11-27 hardening, after a 22-min hang when the line never arrived):
 // unbuffered child stdout, a 30 s cap, fail fast when the server exits early (e.g. EADDRINUSE /
-// OSError Errno 48), output tails in the error, and the child is killed on every failure path.
+// OSError Errno 48), output tails in the error. The child is killed on the script's own failure paths
+// and on SIGINT/SIGTERM/SIGHUP — not on SIGKILL or a kill -9 / power loss, which no in-process handler runs for.
 const server = spawn(py, ['-m', 'golmok_tools.viewer_server', data, ...zoneArgs, '--port', String(port), '--no-browser'],
   { cwd: toolsDir, stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, PYTHONUNBUFFERED: '1' } });
 let outTail = '';
 let errTail = '';
 server.stdout.on('data', (d) => { outTail = (outTail + d).slice(-4000); });
 server.stderr.on('data', (d) => { errTail = (errTail + d).slice(-4000); });
+
+// Cleanup nets registered RIGHT AFTER SPAWN, before the readiness wait: an error or a signal during the
+// up-to-30 s wait must not leave the server holding the port (review R133-2 — the 'exit' net used to be
+// registered AFTER the wait, so kill -TERM to node during the wait orphaned the child at PPID 1).
+process.on('exit', () => server.kill());
+// 'exit' handlers do NOT run for a process terminated by a signal that has no listener, so listen for the
+// interactive ones explicitly: kill the server, then exit with the shell convention 128+signum
+// (SIGINT 130 / SIGTERM 143 / SIGHUP 129). SIGHUP gets no listener on Windows: per nodejs.org/api/process.html
+// Windows generates SIGHUP when the console window closes but "Node.js will be unconditionally terminated by
+// Windows about 10 seconds later", and the 128+n convention does not apply there.
+const signals = [['SIGINT', 130], ['SIGTERM', 143]];
+if (process.platform !== 'win32') signals.push(['SIGHUP', 129]);
+for (const [sig, code] of signals) {
+  process.once(sig, () => { server.kill(); process.exit(code); });
+}
+
 try {
   await new Promise((res, rej) => {
     const fail = (msg) => { clearTimeout(timer); server.kill(); rej(new Error(msg)); };
@@ -106,9 +123,6 @@ try {
   server.kill();
   throw e;
 }
-
-// Last-resort net: whatever happens between here and the finally below, do not leave the server holding the port.
-process.on('exit', () => server.kill());
 
 let ok = false;
 let browser = null;
