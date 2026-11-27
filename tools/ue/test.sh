@@ -31,7 +31,9 @@ Commands="${Commands}Automation RunTests $Filter;Quit"
 RhiArgs="-nullrhi"
 if [ "$UseRhi" -eq 1 ]; then RhiArgs=""; fi
 
-# The full engine log goes to unreal/Golmok/Saved/Logs/Golmok.log; only the report is printed here.
+# The full engine log goes to ~/Library/Logs/Unreal Engine/GolmokEditor/Golmok.log (mac-setup §8 #14); each editor
+# launch rotates the previous file to Golmok-backup-<time>.log there, so copy the log right after a run. Only the
+# report is printed here.
 # Like test.ps1 the editor's output and exit code are ignored: the report decides.
 # shellcheck disable=SC2086  # RhiArgs is one flag or nothing
 "$UEEditorCmd" "$Project" \
@@ -39,7 +41,9 @@ if [ "$UseRhi" -eq 1 ]; then RhiArgs=""; fi
     -unattended $RhiArgs -nosplash -nopause -nosound >/dev/null 2>&1 || true
 
 Index="$ReportDir/index.json"
-if [ ! -f "$Index" ]; then golmok_die "No automation report at $Index (see unreal/Golmok/Saved/Logs/Golmok.log)."; fi
+if [ ! -f "$Index" ]; then
+    golmok_die "No automation report at $Index (see the editor log at ~/Library/Logs/Unreal Engine/GolmokEditor/Golmok.log; each launch rotates the previous log to Golmok-backup-*.log there, so copy it right after a run)."
+fi
 rc=0
 "$GolmokPython" - "$Index" <<'PY' || rc=$?
 import json
