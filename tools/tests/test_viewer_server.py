@@ -1,6 +1,8 @@
+import contextlib
 import json
 import os
 import queue
+import signal
 import socket
 import subprocess
 import sys
@@ -269,6 +271,8 @@ def test_readiness_line_arrives_through_a_pipe(tmp_path: Path):
     proc = subprocess.Popen(
         [
             sys.executable,
+            "-X",
+            "faulthandler",
             "-m",
             "golmok_tools.viewer_server",
             str(tmp_path),
@@ -313,10 +317,17 @@ def test_readiness_line_arrives_through_a_pipe(tmp_path: Path):
             if "viewer:" in candidate:
                 line = candidate
                 break
-        assert "viewer:" in line, (
-            f"30초 안에 'viewer:' 준비 줄이 오지 않음 "
-            f"(proc.poll()={proc.poll()}, stderr={drain(err_q)!r}, stdout={drain(out_q)!r})"
-        )
+        if "viewer:" not in line:
+            if os.name == "posix" and proc.poll() is None:
+                # -X faulthandler is on: SIGABRT makes the child dump all thread stacks to stderr
+                # before dying, so a CI timeout shows where it is stuck (e.g. a slow DNS lookup).
+                with contextlib.suppress(OSError):
+                    proc.send_signal(signal.SIGABRT)
+                time.sleep(1.0)
+            raise AssertionError(
+                f"30초 안에 'viewer:' 준비 줄이 오지 않음 "
+                f"(proc.poll()={proc.poll()}, stderr={drain(err_q)!r}, stdout={drain(out_q)!r})"
+            )
     finally:
         proc.terminate()
         try:
