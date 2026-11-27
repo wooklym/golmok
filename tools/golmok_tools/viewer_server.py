@@ -153,6 +153,7 @@ class Server(ThreadingHTTPServer):
     # socketserver.TCPServer 기본값 5인 채로는 뷰어가 같은 초에 띄우는 타일 glb 18건의 동시 접속을
     # accept 큐가 다 못 받아 일부 접속이 accept 전에 RST로 잘린다 (net::ERR_CONNECTION_RESET, 서버
     # 로그에 요청 자체가 남지 않음). raw 소켓 재현: backlog 5에서 18건 동시 → RST 5~7건/3회, 128 → 0건.
+    # macOS는 kern.ipc.somaxconn(기본 128, sysctl)이 listen 백로그의 상한이라 이 값을 더 키워도 효과가 없다.
     request_queue_size = 128
 
     def server_bind(self) -> None:

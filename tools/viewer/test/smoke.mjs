@@ -221,12 +221,13 @@ try {
   ok = Object.values(checks).every(Boolean);
   console.log(ok ? `OK: ${loaded} tiles loaded, ${zones.length} zones with collision/blockers meshes, screenshot ${shot}`
     : 'FAIL ' + JSON.stringify(checks));
-  if (!ok) {
-    // diagnostics: the server ran the whole time; without its tails a browser-stage failure leaves no clue
-    console.error(`--- server stderr tail ---\n${errTail}\n--- server stdout tail ---\n${outTail}`);
-  }
 } finally {
   if (browser) await browser.close().catch(() => {});
   server.kill();
+  // diagnostics in finally, not only on the checks-false path: a throw inside try (browser launch,
+  // page.goto/page.click, ...) must still print the server tails. errTail/outTail stay capped at 4000 chars.
+  if (!ok) {
+    console.error(`--- server stderr tail ---\n${errTail}\n--- server stdout tail ---\n${outTail}`);
+  }
 }
 process.exit(ok ? 0 : 1);

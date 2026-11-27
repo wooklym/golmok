@@ -260,14 +260,17 @@ def test_overlong_names_give_404_not_a_dropped_connection(zone_served, served):
 
 
 def _raw_get_status(port: int, path: str) -> str:
-    """One HTTP/1.1 GET over a raw socket; returns the status code or the client-side error name."""
+    """One HTTP/1.1 GET over a raw socket, read to EOF; returns the status code or the client-side error
+    name. Reading only the status line and closing made the handler write into a closed socket: the server
+    logged a BrokenPipeError traceback per such request (7-9 per test run before 2026-11-28). The handler
+    answers with protocol_version HTTP/1.0 and closes after the response, so recv-to-EOF terminates."""
     try:
         s = socket.create_connection(("127.0.0.1", port), timeout=10)
         try:
             s.sendall(f"GET {path} HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n".encode())
             buf = b""
-            while len(buf) < 12:  # "HTTP/1.1 200"
-                chunk = s.recv(64)
+            while True:  # EOF: the connection closes after the body, so a full read cannot hang
+                chunk = s.recv(65536)
                 if not chunk:
                     break
                 buf += chunk
@@ -288,7 +291,7 @@ def test_tile_burst_of_18_connections_are_all_answered(served):
     as behaviour — only the macOS side was reproduced here); the burst test pins the macOS behaviour."""
     assert vs.Server.request_queue_size >= 18, (
         "accept 큐가 타일 18건 동시 접속을 못 받음 (기본 5로 되돌리면 안 됨)"
-    )  # noqa: E501
+    )
     base, data = served
     port = int(base.rsplit(":", 1)[1])
     for i in range(18):  # real terrain tiles are ~30 KB each
