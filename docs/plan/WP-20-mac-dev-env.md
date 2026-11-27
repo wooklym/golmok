@@ -1,6 +1,6 @@
 # WP-20 — Mac 단독 개발 환경 전환 (D-022)
 
-상태: 🟡 코드 완료·PC(Mac) 검증 대기(2026-11-27; V-19 🔵 — 남은 것: Astra 레인 빌드 막힘 수정, 창 모드 에디터·PIE·모습 확인) · 담당: Opus 5.5 ultracode(오케스트레이터) · 의존: D-022 · 검증: V-19(`runbooks/mac-setup.md`)
+상태: 🟡 코드 완료·PC(Mac) 검증 대기(2026-11-27; V-19 🔵 — 남은 것: main 새 체크아웃 Mac 빌드 재확인(Astra 레인 빌드 막힘은 [#132](https://github.com/wooklym/golmok/pull/132)로 수정), 창 모드 에디터·PIE·모습 확인) · 담당: Opus 5.5 ultracode(오케스트레이터) · 의존: D-022 · 검증: V-19(`runbooks/mac-setup.md`)
 
 ## 목표
 소유자 지시(2026-11-27)에 따라 Windows PC 없이 이 Mac(Apple M5 Max·128 GB·macOS 27.2·arm64)만으로 개발·빌드·검증을 끝낼 수 있게 한다([D-022](../DECISIONS.md)). Windows 파일(`tools/ue/*.ps1`, `pc-*` 런북, ini의 Windows 절)은 이력이자 되돌리기 경로라 지우지 않는다. Mac 쪽을 **더한다**. UE가 아직 설치되지 않았으므로 UE 쪽은 "코드 완료·Mac 검증 대기"까지 만들고, 엔진 경로·플래그 중 확인하지 못한 값은 [미확인]으로 적어 V-19 런북에서 확인한다.
@@ -89,7 +89,7 @@
 ### V-19 실측 (2026-11-27, 로컬 Mac 세션 765a7a7d)
 - **머신**: Apple M5 Max·128 GB, macOS 27.2.1, Xcode 27.2(27B52), UE 5.8.4 Launcher 빌드 CL 58902052(`"/Users/Shared/Epic Games/UE_5.8"`, 다운로드 14.7 GB·설치 약 43 GB, core + templates + engine source).
 - **소유자 항목**: Epic 로그인, `sudo xcodebuild -license accept`, `sudo xcodebuild -runFirstLaunch`(전에는 `xcodebuild`가 CoreSimulator를 못 읽고 `-checkFirstLaunchStatus` 69, 뒤에는 0), `gh auth login`. 라이선스 동의 전까지 `/usr/bin/git`·`clang++`·`python3` 셈이 라이선스 메시지로 멈춰 `DEVELOPER_DIR=/Library/Developer/CommandLineTools`로 우회했다.
-- **빌드**: `./tools/ue/build.sh` → GolmokEditor Mac Development, 액션 57개, 약 31 s. 컴파일 오류는 Astra 레인 `Tests/GolmokCharacterRosterZoneWalk.cpp:61` 한 곳이다(`-Werror,-Wunreachable-code-loop-increment`, `for(…;It;++It){Start=*It;break;}`). 로컬 전용 한 줄 변경(`if(TActorIterator<APlayerStart> It(World);It){Start=*It;}`, 커밋 안 함)으로 빌드가 통과한다. Astra에 요청함([#30](https://github.com/wooklym/golmok/issues/30#issuecomment-7197857386)). **열린 막힘: Astra가 고치기 전에는 main 새 체크아웃이 Mac에서 빌드되지 않는다.**
+- **빌드**: `./tools/ue/build.sh` → GolmokEditor Mac Development, 액션 57개, 약 31 s. 컴파일 오류는 Astra 레인 `Tests/GolmokCharacterRosterZoneWalk.cpp:61` 한 곳이다(`-Werror,-Wunreachable-code-loop-increment`, `for(…;It;++It){Start=*It;break;}`). 로컬 전용 한 줄 변경(`if(TActorIterator<APlayerStart> It(World);It){Start=*It;}`, 커밋 안 함)으로 빌드가 통과한다. Astra에 요청함([#30](https://github.com/wooklym/golmok/issues/30#issuecomment-7197857386)). **열린 막힘: Astra가 고치기 전에는 main 새 체크아웃이 Mac에서 빌드되지 않는다.** → 2026-11-27 [#132](https://github.com/wooklym/golmok/pull/132)로 수정, main 새 체크아웃 Mac 재확인 대기(V-19).
 - **자동화**: `add-mannequin.sh` 팩 복사, `test.sh --setup-dev-level`가 L_Dev를 만들고 `-nullrhi`로 39개 전부 Success(Failed 0, Not run 0). 보고서 `succeeded`는 23이고 나머지 16은 Warning 있는 성공이다(나뉜 원인은 [미확인]). `-nullrhi`·`-unattended`·Automation RunTests·`py` ExecCmds가 Mac에서 돈다. `UnrealEditor-Cmd`는 `Engine/Binaries/Mac/UnrealEditor-Cmd`(`.app` 옆)다.
 - **패키징**: 첫 실행은 Metal Toolchain이 없어 쿡에서 METAL_SM5 글로벌 셰이더 오류 7,856개로 실패했다 → `xcodebuild -downloadComponent MetalToolchain`(838.9 MB, sudo 불필요), `xcrun metal --version` = 32023.922. 게임 타깃 C++ 빌드는 Xcode 27.2 + 5.8.4에서 통과했다(UE-396802 안 남). 두 번째는 BUILD SUCCESSFUL이지만 `Golmok.app`(413 MB)에 실행 파일만 있어 `@rpath/libtbb.12.dylib` 로드 실패 → `package.sh`에 `-package`(9f3b64d). 뒤에는 `Golmok.app` 903 MB, `-RenderOffScreen -ResX=1280 -ResY=720 -unattended -nosound` 실행이 L_Dev를 읽는다(LoadMap 0.28 s, Golmok 서브시스템 초기화, 예상 Warning: 날씨 MPC·비 FX 에셋 없음 = V-16 미실행). 첫 쿡 뒤 약 1~2.5분. 실행 중 TCP `*:37678` LISTEN, 1985는 안 보임, 방화벽 창 없음(방화벽 상태는 [미확인]).
 - **렌더**: 엔진 `BaseEngine.ini`에 Mac `MetalLanguageVersion=7`, `+TargetedRHIs=SF_METAL_SM5`·`SF_METAL_SM6`이 이미 있어 `DefaultEngine.ini`는 그대로다. `-game -RenderOffScreen -ResX=1920 -ResY=1080` 로그 CSV 메타데이터가 `shaderplatform="METAL_SM6"`다. 창 모드 확인(에디터 GUI·PIE·모습)은 안 했다.
@@ -97,4 +97,4 @@
 - **로그**: 에디터 로그가 `~/Library/Logs/Unreal Engine/GolmokEditor/`에도 남는다. 프로젝트 `Saved/Logs`도 있다.
 - **CI**: PR #130 GitHub CI 전 행 통과(새 `macos-latest` 행 포함). 로컬: ruff·format·`check_repo.py` OK, pytest 1928 통과·3 건너뜀.
 - **뷰어**: Playwright Chromium 설치가 압축 풀기에서 멈추는 문제는 런북 §0 한 줄, [PR #131](https://github.com/wooklym/golmok/pull/131).
-- **남은 것(V-19)**: Astra 레인 빌드 막힘 수정 뒤 main 새 체크아웃 빌드, 창 모드 에디터·L_Dev PIE·모습 확인(§4-4), 빈 L_Dev Mac 기준선(§4-6), 런북 §8의 남은 [미확인].
+- **남은 것(V-19)**: Astra 레인 빌드 막힘 수정([#132](https://github.com/wooklym/golmok/pull/132), 2026-11-27 병합) 뒤 main 새 체크아웃 빌드, 창 모드 에디터·L_Dev PIE·모습 확인(§4-4), 빈 L_Dev Mac 기준선(§4-6), 런북 §8의 남은 [미확인].

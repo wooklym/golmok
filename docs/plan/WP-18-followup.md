@@ -658,3 +658,7 @@ STATUS 캐릭터 레인·V-19 문안: "WP-18 ZoneWalk 첫 PlayerStart 조회를 
 `mac-setup.md` §9의 기존 로컬 우회 기록은 이력으로 보존하고, 이 PR head의 Mac 재검증 결과를 새 행으로 추가한다. 실제 실행 전에는 main 빌드 통과로 표시하지 않는다.
 
 Astra 로컬 게이트: 새 worktree venv(Python 3.12)에서 `ruff check .` 통과, `ruff format --check .` 124 files, `pytest -q` 1622 passed / 309 skipped / 61 warnings (85.66 s), `python scripts/check_repo.py` 통과. `git diff --check` 통과. GitHub Actions는 push 뒤 별도 보고한다.
+
+### 병합 — Mac ZoneWalk 컴파일 수정
+
+[#132](https://github.com/wooklym/golmok/pull/132) → main(오케스트레이터 결정 D-019, merge commit). 배정은 로컬 Mac 오케스트레이터가 했으나 02:18Z 이후 3시간 넘게 활동이 없어 클라우드 오케스트레이터 세션이 리뷰·병합을 맡았다. 리뷰 [R132](https://github.com/wooklym/golmok/pull/132#issuecomment-7210584313)(Opus ultracode 적대 리뷰 2차원 — C++ 정합·이식성, 레인·절차·문서 정확성 — + 발견별 독립 반박 검증): (A) 0 · (B) 0(후보 2건 반박) · (C) 3. C++는 clang 18 UE 모양 모형에서 옛 줄이 같은 오류를 재현하고 새 줄이 `-Wall -Wextra -Wshadow-all -Wunreachable-code-aggressive -Werror`를 통과함을 확인했고, `Source/` 전체에서 같은 패턴은 이 줄 하나뿐이었다. (C) R132-1(652행 절차 인용과 순서 불일치)·R132-3 중 빈 줄·낡은 CI 문장은 선택 이월(다음 캐릭터 레인 push). R132-3의 과제 번호는 이 병합 커밋에서 `astra-tasks.md` T32 행으로 붙였다. R132-2는 이 병합 커밋에서 처리했다: STATUS 병행 트랙 WP-18 행과 V-19 행에 문안을 나눠 넣고 둘 다 [#132]를 링크했다. 같은 커밋에서 main의 살아 있는 "Mac 빌드 막힘" 서술(STATUS WP-20·V-19 행, DEVELOPMENT-PLAN V-19 행, WP-20 상태 줄·남은 것·V-19 실측 빌드 줄 끝, mac-setup §4 기대 결과 1)을 고치고 mac-setup §9에 재확인 대기 행을 더했다. 이력 기록(§9 기존 §4-1 행, WP-20 결과 빌드 줄의 원문, STATUS 갱신 이력)은 그대로 두고 수정 사실만 덧붙였다. 상태: 🟡 코드 완료·PC(Mac) 검증 대기(V-19). 캐릭터 레인은 다시 19b 경로(D-021 재확인·V-08b) 대기다.
