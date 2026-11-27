@@ -1,10 +1,11 @@
 import json
 import os
-import select
+import queue
 import socket
 import subprocess
 import sys
 import threading
+import time
 import urllib.request
 from pathlib import Path
 
@@ -260,6 +261,7 @@ def test_readiness_line_arrives_through_a_pipe(tmp_path: Path):
     # Regression (2026-11-27, macOS): smoke.mjs waits for the "viewer:" readiness line reading the server's
     # stdout through a pipe. Without flush=True CPython block-buffers a piped stdout (all OSes) and the line
     # never arrives. The child therefore runs without PYTHONUNBUFFERED and with stdout as a pipe.
+    # select() cannot wait on pipes on Windows (WinError 10038), so a daemon reader thread feeds a Queue.
     with socket.socket() as s:  # find a free port so parallel runs do not collide
         s.bind(("127.0.0.1", 0))
         port = s.getsockname()[1]
@@ -275,14 +277,55 @@ def test_readiness_line_arrives_through_a_pipe(tmp_path: Path):
             "--no-browser",
         ],
         stdout=subprocess.PIPE,
-        stderr=subprocess.DEVNULL,
+        stderr=subprocess.PIPE,
         text=True,
         env=env,
     )
+    out_q: queue.Queue = queue.Queue()
+    err_q: queue.Queue = queue.Queue()
+
+    def pump(pipe, q: queue.Queue) -> None:
+        try:
+            for line in pipe:
+                q.put(line)
+        except (OSError, ValueError):  # pipe closed during teardown
+            pass
+
+    for pipe, q in ((proc.stdout, out_q), (proc.stderr, err_q)):
+        threading.Thread(target=pump, args=(pipe, q), daemon=True).start()
+
+    def drain(q: queue.Queue) -> str:
+        got = []
+        while True:
+            try:
+                got.append(q.get_nowait())
+            except queue.Empty:
+                return "".join(got)
+
     try:
-        ready, _, _ = select.select([proc.stdout], [], [], 5.0)
-        line = proc.stdout.readline() if ready else ""
-        assert "viewer:" in line, f"5초 안에 'viewer:' 준비 줄이 오지 않음 (받은 줄: {line!r})"
+        deadline = time.monotonic() + 30.0
+        line = ""
+        while time.monotonic() < deadline:
+            try:
+                candidate = out_q.get(timeout=0.5)
+            except queue.Empty:
+                continue
+            if "viewer:" in candidate:
+                line = candidate
+                break
+        assert "viewer:" in line, (
+            f"30초 안에 'viewer:' 준비 줄이 오지 않음 "
+            f"(proc.poll()={proc.poll()}, stderr={drain(err_q)!r}, stdout={drain(out_q)!r})"
+        )
     finally:
         proc.terminate()
-        proc.wait(timeout=5)
+        try:
+            proc.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            proc.wait(timeout=5)
+        for pipe in (proc.stdout, proc.stderr):
+            try:
+                pipe.close()
+            except OSError:
+                pass
