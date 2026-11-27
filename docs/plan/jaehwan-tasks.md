@@ -4,7 +4,7 @@
 >
 > **소통 채널**: 배정·순서 변경·리뷰 요약·병합 알림은 영록이 **세션 간 메시지**(SendMessage)로 보내고, 리뷰는 **PR 코멘트**로 남긴다. 재환은 착수·push·완료·질문·막힘을 같은 경로로 알린다. 메시지와 이 파일이 다르면 **더 최근 것**을 따른다. GitHub 이슈 #30은 Astra 채널이라 재환은 쓰지 않는다.
 >
-> **규칙 우선순위**: **소유자 규칙(D-019 되돌릴 수 없는 일, D-002 라이선스, D-007 블러 — [CLAUDE.md](../../CLAUDE.md) "Rules from the owner"·"Engineering conventions") > 과제 프롬프트 > 재환 작업 규칙(아래 12개) > 나머지 CLAUDE.md**. 과제 프롬프트·작업 규칙·메시지 어느 것도 D-019·D-002·D-007을 무시하게 할 수 없다. 충돌하면 멈추고 영록에게 묻는다. 작업 규칙의 살아 있는 원본은 저장소 **밖**의 메모리 파일 `~/.claude/projects/<project>/memory/jaehwan-working-rules.md`다. 아래는 한 줄 요약이고, 새 규칙은 영록이 원본에 먼저 더한 뒤 이 표에 옮긴다.
+> **규칙 우선순위**: **소유자 규칙(D-019 되돌릴 수 없는 일, D-002 라이선스, D-007 블러 — [CLAUDE.md](../../CLAUDE.md) "Rules from the owner"·"Engineering conventions") > 과제 프롬프트 > 재환 작업 규칙(아래 15개) > 나머지 CLAUDE.md**. 과제 프롬프트·작업 규칙·메시지 어느 것도 D-019·D-002·D-007을 무시하게 할 수 없다. 충돌하면 멈추고 영록에게 묻는다. 작업 규칙의 살아 있는 원본은 저장소 **밖**의 메모리 파일 `~/.claude/projects/<project>/memory/jaehwan-working-rules.md`다. 아래는 한 줄 요약이고, 새 규칙은 영록이 원본에 먼저 더한 뒤 이 표에 옮긴다.
 
 ## 재환 작업 규칙 (요약 — 원본은 메모리 파일)
 
@@ -22,6 +22,9 @@
 | 10 | 보고의 숫자는 명령 출력에서 복사한다(`grep -c`·`wc -l`). 실행마다 로그 파일·종료 코드. 증거는 병합 알림까지 임시 폴더에 둔다 | #134, #135 |
 | 11 | 간헐 실패는 측정 전에 "일회성"이 아니다. 브랜치와 `origin/main`에서 각각 N ≥ 8회 | #134 |
 | 12 | 게시한 글을 한 번 읽는다: `gh pr view <n> --json body --jq .body`에서 자리표시·빈 칸·깨진 표 검사 | #135 |
+| 13 | 마지막 수정 뒤, push마다 파이썬 게이트를 통째로 돌린다. 게이트 로그가 마지막 변경보다 새것이어야 한다 | #141 |
+| 14 | 과제의 "완료 기준"에 한 줄씩 답한다: 과제 절을 `"$E/task.txt"`로 저장하고 PR 본문에 "완료 기준 대조" 절(충족 + 증거, 또는 미충족 + 이유). 과제 인용은 그 파일에서만, "할 수 없다"는 시도한 명령과 출력과 함께 | #141, #142 |
+| 15 | 결론이 아니라 관찰과 그 조건을 쓴다(날짜·빌드·함께 돌던 것·실행 전에 이미 있던 것). "X는 쓰지 않는다/아니다"는 다른 설명을 배제하는 출력이 있을 때만, 아니면 "이번 실행에서는 …"과 `[미확인]`. 뜻밖의 로그는 그것을 설명하는 줄을 찾아 인용한다 | #147 |
 
 ## 상시 규칙
 
@@ -31,7 +34,7 @@
 - **GPU·GUI 공유**: UE 에디터 GUI·PIE·`-game`·패키지 실행 전에 `"$TMPDIR/claude/gui-foreground.lock"`을 확인하고 잡는다([mac-setup §3](../runbooks/mac-setup.md) 표의 규칙). 영록이 성능을 재는 동안에는 빌드·쿡·셰이더 컴파일을 하지 않는다. 두 UBT 빌드가 동시에 돌 때 서로 기다리는지·느려지는지는 [미확인]이다. 재환의 추론도 같은 GPU·통합 메모리를 쓰므로 **재환이 잰 fps·GPU ms는 판정 근거가 아니다**. 수치를 적을 때는 LM Studio 모델이 로드돼 있었는지 함께 적는다.
 - **패키지 출력**: `GOLMOK_PKG_DIR`는 2026-11-28 현재 비어 있고 `package.sh` 기본값은 `<worktree>/build/Mac`이다. 재환은 항상 `--out-dir "$W/build/Mac"`를 명시한다.
 - **증거**: 로그·재현 스크립트·출력은 `$TMPDIR/jaehwan/<과제 id>/`에 두고 병합 알림까지 지우지 않는다(규칙 10).
-- **PR**: 제목 `J-NN: <요약>`. 본문 = 요약, 바뀐 파일, 실행한 명령과 출력(복사), 남은 `[미확인]`, "병합 시 반영"(공유 문서 문안이 있으면), **"제출 전 점검표"**(규칙 1~12 한 줄씩 — 한 일과 증거, 또는 "해당 없음"과 이유), 끝 줄 서명(규칙 7). 점검표가 없으면 리뷰를 시작하지 않는다.
+- **PR**: 제목 `J-NN: <요약>`. 본문 = 요약, 바뀐 파일, 실행한 명령과 출력(복사), 남은 `[미확인]`, "병합 시 반영"(공유 문서 문안이 있으면), **"제출 전 점검표"**(규칙 1~15 한 줄씩 — 한 일과 증거, 또는 "해당 없음"과 이유), 끝 줄 서명(규칙 7). 점검표가 없으면 리뷰를 시작하지 않는다.
 - **완료 보고**: CI 모든 행 초록 뒤에만(`gh pr checks <n>` 표, 규칙 2). 게시 뒤 본문을 다시 읽는다(규칙 12).
 - **병합하지 않는다.** 병합은 영록이 한다.
 - **`py` 뒤에는 `QUIT_EDITOR`**: 창 없는 에디터(`UnrealEditor-Cmd … -nullrhi`)에 `-ExecCmds="py …"`를 줄 때 끝 명령은 `QUIT_EDITOR`다. `Quit`로는 스크립트가 끝나도 에디터가 나가지 않는다(J-12b: 약 13 s에 스크립트가 끝났지만 1800 s 타임아웃 rc 124). 근거 [pc-setup.md](../runbooks/pc-setup.md) §2 "GUI 없이 하는 방법"의 창 없는 에디터 줄.
@@ -64,25 +67,26 @@
 | J-06 | `gasp_env`에 가짜 `ps` 스텁 — add-gasp 편집기 가드 테스트가 실제 프로세스에 의존하지 않는다(수정 전 더미 프로세스로 6 failed → 수정 뒤 더미 유무 모두 8 passed) | [#143](https://github.com/wooklym/golmok/pull/143) · `a37b4ef` | R143 |
 | J-34 | `test.sh`·`add-gasp.sh` 오류 문구가 Mac 에디터 로그 `~/Library/Logs/Unreal Engine/GolmokEditor/Golmok.log`를 가리키고, 스텁 테스트 assert가 그 경로를 고정 | [#142](https://github.com/wooklym/golmok/pull/142) · `85a09c3` | R142(1회 보류: 완료 기준 테스트 누락·사실 아닌 문장 2개, 규칙 1·2·10·14) → R142-2 |
 | J-07 | WP-21이 본 E501 1건(`test_ue_mac_scripts.py:352`)은 `a9a8757`(WP-20 줄 길이 정리)에서 이미 고쳐졌고 main `85a09c3`의 `ruff check .`는 "All checks passed" — 코드 변경 없음 | PR 없음(결과는 [#143](https://github.com/wooklym/golmok/pull/143) 본문 "J-07 결과" 절) | R144(영록 재현: `9f3b64d`의 파일은 E501 116 > 110 1건, `a9a8757`의 파일은 통과) |
+| J-09 | 확인된 §8 행의 `[미확인]` 주석 정리 — `common.sh`·`test.sh`·`test_ue_geo_math.py` 주석 줄만(§8 #1·#2·#5, §9 FMA 행), add-gasp 절반은 `[미확인]` 유지 | [#146](https://github.com/wooklym/golmok/pull/146) · `34d0c6f` | R146(코드 통과, 본문 1회 반려: "완료 기준 대조" 절 누락, 규칙 14) |
+| J-08 | mac-setup §8 #24 rawpy 절반 — `rawpy-0.28.0-cp312-cp312-macosx_11_0_arm64.whl`, 확장 모듈 arm64, `rawpy.flags` 원문(EgoBlur MPS 절반은 빈 칸 그대로) | [#145](https://github.com/wooklym/golmok/pull/145) · `84ad068` | R145(1회 보류: 비워 둘 EgoBlur 절반에 씀, 칸에 출력 원문 누락, 규칙 1·6·10·14) → R145-2 |
 
 **진행 중**
 
 | id | 과제 | 브랜치 | 허용 파일 |
 |---|---|---|---|
-| J-08 | rawpy arm64 휠 설치·`rawpy.flags` 확인(§8 #24 rawpy 절반) | origin에 아직 없음(2026-11-28 `git branch -r`) | 과제 상세 J-08 절 |
+| J-15 | worktree 패키지로 §8 #10·#11·#12·#13 확인 | `local/jaehwan-j15-pkg-8checks`([#147](https://github.com/wooklym/golmok/pull/147) 열림, [R147](https://github.com/wooklym/golmok/pull/147#issuecomment-7228924374) 병합 보류(head `0c84d04`): #11 칸의 결론이 증거보다 넓음·본문에 로그에 없는 숫자, 규칙 1·3·10·14 — 재환 수정 중, 이 실수로 규칙 15 추가. 상태는 #147의 R147 코멘트(2026-11-27T21:59Z)에서 읽음) | 과제 상세 J-15 절 |
+| J-17 | V-17 §0 헤드리스 Mac 부분 선행 | `local/jaehwan-j17-v17s0`(재환 worktree, origin에 아직 없음 — 2026-11-28 `git branch -r`) | 과제 상세 J-17 절 |
 
-**다음**: J-08(진행 중) → J-09 → J-15 → J-17 → J-20 → J-18 → 그 뒤 남은 비설계 과제(J-16·J-19·J-21~J-23·J-35, 순서는 영록이 정한다) → 설계 선행 J-10·J-11·J-24~J-33.
+**다음**: J-15·J-17(진행 중) → J-20 → J-18 → J-35 → 그 뒤 남은 비설계 과제(J-16·J-19·J-21~J-23, 순서는 영록이 정한다) → J-11 → J-10(둘 다 설계 확정, Opus 2026-11-28) → 설계 선행 J-24~J-33.
 
 ## 백로그 (의존 순서)
 
-순서 원칙: ① UE 빌드가 필요 없는 도구·테스트·CI 일 → ② 재환 worktree의 UE 빌드를 세우고 증명하는 **관문 J-12·J-12b**(빌드·39 테스트, 합성 zone으로 skip 제거) → ③ 열린 카드의 헤드리스 UE 단계와 [미확인] 행 → ④ Claude 레인 코드 후속. **설계 선행** 표시 과제는 영록(Opus)이 짧은 설계 메모(파일·방법·완료 기준)를 이 파일의 해당 행 아래 또는 배정 메시지로 먼저 쓴 뒤에만 배정한다. 크기: S ≤ 반나절, M ≤ 하루, L > 하루.
+순서 원칙: ① UE 빌드가 필요 없는 도구·테스트·CI 일 → ② 재환 worktree의 UE 빌드를 세우고 증명하는 **관문 J-12·J-12b**(빌드·39 테스트, 합성 zone으로 skip 제거) → ③ 열린 카드의 헤드리스 UE 단계와 [미확인] 행 → ④ Claude 레인 코드 후속. **설계 선행** 표시 과제는 영록(Opus)이 짧은 설계 메모(파일·방법·완료 기준)를 이 파일의 해당 행 아래 또는 배정 메시지로 먼저 쓴 뒤에만 배정한다. J-10·J-11은 설계가 확정되어(Opus 2026-11-28, 아래 각 절) 배정할 수 있다. 크기: S ≤ 반나절, M ≤ 하루, L > 하루.
 
 | id | 과제 | 선행 | 크기 | 설계 선행 |
 |---|---|---|---|---|
-| J-08 | rawpy arm64 휠 설치·`rawpy.flags` 확인(§8 #24 rawpy 절반) | 없음 | S | — |
-| J-09 | 확인된 §8 행의 `[미확인]` 주석 정리(셸·geo 테스트) | 없음 | S | — |
-| J-10 | CI shellcheck 잡 | 설계 메모 | M | **설계 선행** |
-| J-11 | CI 뷰어 `npm test` 잡 | 설계 메모 | M | **설계 선행** |
+| J-10 | CI shellcheck 잡(공식 v0.11.0 고정·sha256, `--severity=warning`, 기존 결함은 표에 정한 줄별 지시문만 — 실행 줄 변경 없음, 같은 커밋 8/8 초록) | 없음(설계 메모 확정, Opus 2026-11-28) | S–M | 설계 확정(J-10 절) |
+| J-11 | CI 뷰어 `npm test` 잡(`viewer-smoke`, ubuntu-24.04 한 행 — Playwright 1.56.1은 `ubuntu-latest`(26.04) 미지원, `ci.yml` 훅 블록은 별도 커밋, 같은 커밋 8/8 초록) | 없음 | M | — (설계 확정, Opus 2026-11-28, 아래 J-11 절) |
 | J-15 | worktree 패키지로 §8 #10·#11(읽기)·#12·#13 확인 | J-12 | M | — |
 | J-16 | `_pure.py` Mac 경로 가정·`package.sh` 주석을 J-15 실측으로 정리 | J-15 | S–M | — |
 | J-17 | V-17 §0 헤드리스 Mac 부분 선행(GeoMath·Character 훅 컴파일·IndexParse·SharedInterior·Save.RoundTrip 닫기·Weather.Runtime) | J-12b | S | — |
@@ -105,7 +109,7 @@
 | J-33 | avfoundation 60 fps 녹화 시험(§8 #25) | 소유자 화면 기록 권한, 설계 메모 | S | **설계 선행** |
 | J-35 | add-gasp 편집기 가드의 남은 분기 스텁 사례(`$GaspProject` 일치·음성 2종, J-06 후속) | 없음(J-07은 코드 변경 없이 끝남) | S | — |
 
-J-06·J-07·J-12·J-12b·J-13·J-14·J-34는 끝났고(위 "완료"), J-08은 진행 중이다(위 "진행 중"). 아래 상세 절은 그대로 두고, 끝난 과제에는 "결과" 줄을 더한다.
+J-06·J-07·J-08·J-09·J-12·J-12b·J-13·J-14·J-34는 끝났고(위 "완료"), J-15·J-17은 진행 중이다(위 "진행 중"). 아래 상세 절은 그대로 두고, 끝난 과제에는 "결과" 줄을 더한다.
 
 ### 과제 상세
 
@@ -133,6 +137,7 @@ J-06·J-07·J-12·J-12b·J-13·J-14·J-34는 끝났고(위 "완료"), J-08은 �
 - **허용 파일**: `docs/runbooks/mac-setup.md` §8 #24 "확인 결과" 칸의 **rawpy 절반만**(EgoBlur MPS 절반은 그대로 비운다).
 - **완료 기준**: 설치 명령 종료 코드, 로그의 휠 파일 이름 줄 원문(`grep` 출력), 확장 모듈 `file` 출력(`arm64` 포함 여부), `rawpy.flags` 출력 원문을 칸과 PR에. `--only-binary` 오류로 끝나면 그 오류 원문만 적고 "arm64 휠 없음(이 명령·날짜 기준)"으로 좁혀 쓴다(규칙 3).
 - **왜 재환 / 위험**: 명령 두 개로 판정된다. MPS 절반은 EgoBlur 모델 동의(소유자)가 필요해 재환 일이 아니다.
+- **결과(2026-11-28, [#145](https://github.com/wooklym/golmok/pull/145) · `84ad068`, 리뷰 R145 → R145-2)**: mac-setup §8 #24 "확인 결과" 칸에 rawpy 절반만 채웠다(Mac arm64, uv, CPython 3.12.16, 별도 venv). 설치 명령은 `pipestatus[1]`=0으로 끝났다. 휠 선택 줄 원문은 `DEBUG Selecting: rawpy==0.28.0 [compatible] (rawpy-0.28.0-cp312-cp312-macosx_11_0_arm64.whl)`이고, 확장 모듈 `_rawpy.cpython-312-darwin.so`의 `file` 출력은 `Mach-O 64-bit bundle arm64`다. `rawpy.flags` 원문도 칸에 있다(GPL2/GPL3 데모자이크 팩은 False). EgoBlur MPS 절반은 빈 칸 그대로다. R145는 병합을 한 번 보류했다. 과제가 비워 두라고 한 EgoBlur 절반에 `[미확인]` 문장을 썼고(규칙 6·14), 본문은 "그대로 뒀다"고 써 diff와 달랐다(규칙 1). 완료 기준이 "칸과 PR에" 요구한 grep 줄과 `rawpy.flags` 원문이 칸에 빠져 있었고(규칙 10·14), 칸의 명령도 실행한 그대로가 아니었다. 고친 커밋 `e6551a9`(EgoBlur 문장 삭제, 원문 기입, 실행한 명령 그대로)를 R145-2에서 영록이 직접 확인했다(diff는 #24 한 행, 칸의 원문이 증거 로그와 일치).
 
 #### J-09 확인된 §8 행의 `[미확인]` 주석 정리
 - **출처**: mac-setup §8 #1·#2(엔진 루트·`-Cmd` 위치 확인됨), #5(`test.sh`의 `-nullrhi` 확인됨 — **`add-gasp.sh`는 [미확인] 그대로**), §9 FMA 행(`MacToolChain.cs:209`). 대상 주석: `tools/ue/common.sh:4`, `:13`, `:25`, `:43`의 `test.sh` 부분, `tools/ue/test.sh:6`, `tools/tests/test_ue_geo_math.py:79`.
@@ -140,20 +145,187 @@ J-06·J-07·J-12·J-12b·J-13·J-14·J-34는 끝났고(위 "완료"), J-08은 �
 - **허용 파일**: `tools/ue/common.sh`, `tools/ue/test.sh`, `tools/tests/test_ue_geo_math.py`(주석 줄만).
 - **완료 기준**: 바꾼 줄마다 PR 표에 "줄 → 근거 §8 행/파일:줄". `pytest -q tests/test_ue_mac_scripts.py tests/test_ue_python_spike_runner.py tests/test_ue_geo_math.py`(`test_ue_mac_scripts.py:46`은 주석을 지우고 단언한다) + 파이썬 게이트 + CI 초록. `bash -n tools/ue/*.sh`.
 - **왜 재환 / 위험**: 근거 대조만 하는 일. 위험: 아직 미확인인 것(#5의 add-gasp 절반)까지 지우는 것 — 규칙 1.
+- **결과(2026-11-28, [#146](https://github.com/wooklym/golmok/pull/146) · `34d0c6f`, 리뷰 R146)**: 주석 줄만 바꿨다(3파일, +12 −8). `common.sh`의 머리말(:4)·설치 배치(:13)·`-Cmd` 위치(:25-27)는 §8 #1·#2, `-nullrhi`(:44-45)와 `test.sh:5-7`은 §8 #5, `test_ue_geo_math.py:79-80`은 §9 FMA 행(`MacToolChain.cs:209`)을 근거로 "확인(2026-11-27, mac-setup §8 #n)"이 되었다. §8 #5의 add-gasp 절반은 `[미확인]` 그대로다(`add-gasp.sh:24`·`package.sh:26`·`_pure.py`는 건드리지 않음). 지정 pytest 3파일 125 passed, 게이트 1936 passed, 3 skipped, `bash -n` 통과, CI 12/12 pass. R146 재현: 주석을 뺀 셸 본문이 전후 같고 Python은 `ast.dump`가 같다. 병합 결과 트리에서도 125 passed. 코드는 통과했지만 본문에 "완료 기준 대조" 절이 없어 한 번 돌려보냈다(규칙 14, #142에 이은 2번째). 과제 인용도 글자 그대로가 아니었다. 재환이 본문만 고친 뒤 병합했다.
+- **메모(R146 "참고")**: `common.sh` 머리 주석(:4·:13)은 엔진 경로 전체를 "§8 #1·#2로 확인"이라고 적어서 Build.sh·RunUAT.sh 경로도 그 근거로 읽힌다. 그런데 그 둘을 확인한 근거는 §8 #4와 §9 §4-5다. J-09는 과제가 #1·#2만 지목해 그대로 두었다. 다음에 `common.sh` 주석을 고치는 과제는 §8 #4·§9 §4-5도 함께 적는다. J-16은 `common.sh`를 고치지 않는다. J-10은 `common.sh`에 shellcheck 지시문 줄만 더하고 머리 주석은 허용 범위 밖이라, 이 정정은 영록이 그 뒤 과제에 넣는다.
 
-#### J-10 CI shellcheck 잡 — 설계 선행
-- **출처**: 2026-11-28 코드 조사(CI `.github/workflows/ci.yml`에 셸 린트 없음, 이 Mac에 shellcheck 없음; 기존 억제 `install-recon-tools.sh:106`·`add-gasp.sh:116`·`test.sh:36`).
-- **설계 메모가 정할 것(영록)**: 심각도(`-S warning` 등), `-s bash`, 대상(`tools/ue/*.sh`·`tools/mac/*.sh`), 찾은 결함을 고칠지 억제할지, 러너에 shellcheck가 있는지 [미확인]·로컬 설치 방법 [미확인].
-- **허용 파일**: `.github/workflows/ci.yml`(핫스팟 — `# [WP-20 hook]` 블록, 별도 커밋), 설계가 허용한 `.sh` 줄.
-- **완료 기준**: 새 CI 행 초록 + 일부러 깨뜨린 커밋 1개에서 그 행이 빨강(그 커밋은 되돌리는 커밋으로 원복, force-push 금지).
-- **왜 재환 / 위험**: 명령으로 판정되지만 핫스팟·정책 선택이 있어 설계가 먼저다.
+#### J-10 CI shellcheck 잡 — 설계 확정(Opus 2026-11-28)
+- **출처**: 2026-11-28 코드 조사. `.github/workflows/ci.yml`에는 셸 린트가 없다(착수 시점 `wc -l` 값과 `sed -n '/^jobs:/,$p' .github/workflows/ci.yml | grep -E '^  [a-z-]+:$'` 잡 목록을 할 일 1에서 `$E`에 기록한다). 이 Mac에는 shellcheck가 없다(`command -v shellcheck` 빈 출력, `/opt/homebrew/bin`·`/usr/local/bin`에도 없음). 대상 셸 파일은 10개다: `tools/ue/{common,build,generate-project-files,open-editor,package,test,add-mannequin,add-gasp}.sh`, `tools/mac/{install-recon-tools,recon-smoke}.sh`. `tools/mac/objcap`은 Swift라 대상이 아니다. 기존 억제는 3곳이다: `tools/ue/test.sh:39`·`tools/ue/add-gasp.sh:116`(SC2086, RhiArgs)과 `tools/mac/install-recon-tools.sh:106`(SC2086, RECON_SPECS). 예전 표기 `test.sh:36`은 J-34 뒤에 :39로 바뀌었다. bash 3.2 검사와 `bash -n`은 `tools/tests/test_ue_mac_scripts.py:60`·`:278`과 `tools/tests/test_mac_recon_scripts.py:40`·`:128`에 있다. [mac-setup](../runbooks/mac-setup.md)에는 shellcheck 언급이 없다(`grep -i shellcheck` 0줄).
+- **설계 (확정, Opus 2026-11-28)**:
+  1. **어디서 도는가**: **ubuntu 행 하나짜리 새 CI 잡 `shellcheck`만 둔다.** pytest 테스트는 만들지 않는다. 이유: `ubuntu-latest`(현재 Ubuntu 26.04)에는 apt shellcheck 0.11.0-2가 깔려 있지만 macOS·Windows 러너와 로컬 Mac에는 없다. 그래서 "없으면 skip" 테스트는 행마다 다른 버전으로 돌거나 조용히 건너뛰어 증거가 되지 못한다. 등록 목록 테스트(`CONSOLE_COMMANDS`·`BUILD_CS_*`·`CONVENTION_FOLDERS`)와 `check_repo.py`·`pyproject.toml`은 **건드리지 않는다**. 이 잡은 러너의 apt 판이 아니라 설계 2의 내려받은 바이너리를 쓰므로 `runs-on: ubuntu-latest`를 그대로 둔다(J-11의 `ubuntu-24.04` 고정은 Playwright 때문이고 이 잡과는 상관없다).
+  2. **버전 고정**: 러너에 깔린 apt 판 대신 **공식 릴리스 v0.11.0(2025-08-04, 최신 stable)** 정적 바이너리를 sha256으로 확인해 쓴다. 이렇게 하면 로컬 Mac(`darwin.aarch64`)과 CI(`linux.x86_64`)가 같은 업스트림 버전이 되고, 이미지가 바뀌어도 결과가 그대로다. `GITHUB_PATH`는 PATH 맨 앞에 붙으므로 러너의 `/usr/bin/shellcheck`보다 먼저 잡힌다. 그래도 버전 줄을 단언해서 확인한다. 라이선스는 GPL-3.0이다. CI와 `$E`에서 실행만 하는 개발 도구이고 저장소·게임·제품 파이프라인에 들어가지 않는다. D-002의 금지(비상업·AGPL)에 해당하지 않는다.
+  3. **플래그(고정)**: `shellcheck --shell=bash --external-sources --source-path=SCRIPTDIR --severity=warning --format=gcc tools/ue/*.sh tools/mac/*.sh`. `--shell=bash`가 있어야 shebang 없는 `common.sh`도 검사된다(그러지 않으면 SC2148). `-x`와 `SCRIPTDIR`를 함께 써야 `source "$(dirname "${BASH_SOURCE[0]}")/common.sh"`를 따라간다(Directive 위키: 앞의 동적 부분 하나를 떼고 나머지를 찾는다). 그래서 소스 지시문은 **더하지 않는다**. 못 따라가면 SC1090·SC1091·SC2154로 드러나고, 그때는 멈춘다(규칙표). 심각도는 **warning 이상**(error+warning)으로 시작한다. info·style(SC2015 등)은 고치려면 코드가 바뀌는 제안이라 이번에는 막지 않는다. 전역 `-e` 제외와 `.shellcheckrc`는 **쓰지 않는다**. 전역 제외는 앞으로 생길 진짜 결함도 숨기기 때문이다.
+  4. **기존 결함 처리 — 고치지 않는다, 지시문만 더한다**: J-10은 스크립트의 실행 줄을 한 줄도 바꾸지 않는다. 결함은 아래 표에 있는 것만 **바로 윗줄에 한 줄짜리 지시문**으로 억제한다. 표에 없는 코드나 위치가 나오면 재환은 고치지도 억제하지도 않고 **멈춰서** 출력 원문을 영록에게 보낸다. 영록이 이 표를 늘린 뒤에 다시 진행한다.
 
-#### J-11 CI 뷰어 `npm test` 잡 — 설계 선행
-- **출처**: STATUS WP-11 행("CI에는 `npm test` 잡 없음(로컬 게이트)"), `.gitignore`의 `tools/viewer/package-lock.json`(잠금 파일을 무시한다 — `npm ci` 불가), J-01~J-04의 스모크 간헐 실패 이력.
-- **설계 메모가 정할 것**: OS 행, Playwright Chromium 캐시, 타임아웃, 잠금 파일 정책(무시 규칙을 바꿀지 — `.gitignore`는 공유 파일), 실패 시 재시도 금지 여부.
-- **허용 파일**: `ci.yml` 훅 블록, 설계가 정한 파일.
-- **완료 기준**: CI 같은 커밋 재실행 N ≥ 8회 전부 초록(규칙 11), 실행 시간 표.
-- **왜 재환 / 위험**: 재환이 이 스모크를 가장 잘 안다. 위험: 간헐 실패가 CI를 빨갛게 만드는 것.
+     | 코드 | 이 위치에서만 | 더할 줄(그 줄 바로 위, 들여쓰기는 아래 줄과 같게, 문구 그대로) |
+     |---|---|---|
+     | SC2034 | `tools/ue/common.sh`의 변수 대입 줄(예상: `Project`·`UEBuild`·`UERunUAT`·`GolmokPython` [미확인]) | `# shellcheck disable=SC2034  # used by the scripts that source common.sh` |
+     | SC2327·SC2328 | `$(cd -- … >/dev/null … && pwd …)` 꼴 대입 줄(`common.sh:10`, `add-gasp.sh:45`·`:145`, `install-recon-tools.sh:51`·`:68`, `recon-smoke.sh:42`·`:57`·`:58`·`:90` 후보, 실제로 나는지 [미확인]) | `# shellcheck disable=<그 줄에 보고된 코드, 쉼표로>  # cd prints the directory when CDPATH is set; only pwd output is captured` |
+     | SC1090·SC1091·SC2154 | 어디든 | **멈춤**(`common.sh`를 따라가지 못한 것: 소스 지시문은 영록이 정한다) |
+     | SC2086 | 이미 지시문이 있는 3곳 밖 | **멈춤** |
+     | 그 밖 모든 코드, 또는 위 코드가 다른 위치 | — | **멈춤** |
+
+     덧붙이는 규칙: 한 줄에 표의 코드가 둘 나오면 지시문 한 줄에 쉼표로 적는다. 결함 줄이 heredoc 안(`<<'PY'` … `PY`, `<<EOF` … `EOF`)이거나, 앞줄이 `\`로 끝나는 이어진 줄이거나, 셔뱅 첫 줄이면 **멈춘다**. 첫 줄 위에는 아무것도 넣지 않는다(테스트가 `#!/bin/bash\n`·`#!/usr/bin/env bash\n` 시작을 단언한다).
+  5. **동작이 바뀌지 않는다는 증명**: 바뀐 줄은 모두 `+`이고 모두 `# shellcheck disable=` 줄이다(완료 기준 (d)). 주석을 뺀 본문은 `origin/main`과 같다(같은 기준). 스텁 테스트 두 파일의 결과는 전과 같다(완료 기준 (f)). 두 테스트 파일의 `_code()`는 주석 줄을 빼고 보므로 지시문은 텍스트 단언에도 걸리지 않는다.
+  6. **핫스팟**: `ci.yml`은 핫스팟이다. **파일 끝에만 덧붙인다**: 마지막 줄 뒤다. J-11이 병합됐으면 그 줄은 `  # [/J-11 hook]`이고, 아니면 `          grep -q '"numErrors": 0' validator.log`이다. 붙이기 전에 `tail -1 .github/workflows/ci.yml` 출력을 `$E/ci-tail.log`에 남긴다(할 일 1). 기존 줄은 고치지도 순서를 바꾸지도 않는다. 블록은 `# [J-10 hook]` … `# [/J-10 hook]`로 감싸고 **별도 커밋**(커밋 1, `ci.yml` 한 파일)으로 낸다. 정확한 블록은 아래 펜스 안의 30줄이다(첫 줄은 빈 줄, 나머지는 스페이스 2칸 이상으로 시작, 탭 없음). 손으로 옮기지 않고 할 일 3의 `sed` 명령으로 `$E/task.txt`에서 뽑아 붙인다.
+
+```yaml
+
+  # [J-10 hook] shellcheck for the Mac shell scripts (tools/ue/*.sh, tools/mac/*.sh); pinned official release
+  shellcheck:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    defaults:
+      run:
+        shell: bash
+    env:
+      SHELLCHECK_VERSION: v0.11.0
+      SHELLCHECK_SHA256: 8c3be12b05d5c177a04c29e3c78ce89ac86f1595681cab149b65b97c4e227198  # linux.x86_64.tar.xz
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          lfs: false  # scripts only
+      - name: Install shellcheck (pinned release, sha256 checked)
+        run: |
+          url="https://github.com/koalaman/shellcheck/releases/download/${SHELLCHECK_VERSION}/shellcheck-${SHELLCHECK_VERSION}.linux.x86_64.tar.xz"
+          curl -fsSL --retry 3 -o "$RUNNER_TEMP/shellcheck.tar.xz" "$url"
+          echo "${SHELLCHECK_SHA256}  $RUNNER_TEMP/shellcheck.tar.xz" | sha256sum -c -
+          tar -xJf "$RUNNER_TEMP/shellcheck.tar.xz" -C "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/shellcheck-${SHELLCHECK_VERSION}" >> "$GITHUB_PATH"
+      - name: shellcheck --version
+        run: |
+          command -v shellcheck
+          shellcheck --version | tee "$RUNNER_TEMP/shellcheck-version.txt"
+          grep -qx "version: ${SHELLCHECK_VERSION#v}" "$RUNNER_TEMP/shellcheck-version.txt"
+      - name: shellcheck (warning and above)
+        run: shellcheck --shell=bash --external-sources --source-path=SCRIPTDIR --severity=warning --format=gcc tools/ue/*.sh tools/mac/*.sh
+  # [/J-10 hook]
+```
+
+  `shell: bash`이면 스텝이 `bash --noprofile --norc -eo pipefail {0}`로 돈다. 그래서 `tee` 파이프에서도 실패가 묻히지 않는다. 종료 코드: 결함이 없으면 0, 있으면 1, 파일 오류는 2, 잘못된 호출은 3·4(shellcheck 매뉴얼). 버전 줄 형식 `version: 0.11.0`은 [미확인]이다. 할 일 1에서 로컬 출력으로 확인하고, 다르면 멈춘다. 이 블록은 Opus가 2026-11-28 scratch 사본에서 확인했다: `origin/main` `ci.yml` 끝에 붙이면 Ruby Psych(`/usr/bin/ruby` 2.6.10) 잡 목록이 `python repo-check tiles-validate shellcheck`, J-11 블록 뒤에 붙이면 `python repo-check tiles-validate viewer-smoke shellcheck`이고, 두 경우 모두 `git diff --numstat`이 `30	0`이다.
+- **명령 공통**: 아래 명령은 모두 `$W`(절대 경로) 또는 `cd "$W" &&`·`cd "$E/sc" &&`로 시작한다(상시 규칙). 돌린 명령 원문은 `$E/commands.txt`에 한 줄씩 더하고, 출력은 적힌 `$E/…` 파일로 받는다(규칙 10). 각 단계의 "기대"와 다르면 아래 **멈춤 조건**을 본다. 셸 변수는 Bash 호출 사이에 남지 않는다. 그래서 변수를 쓰는 명령은 **같은 호출 안에서** 먼저 정의한다: 모든 명령은 `W="$HOME/projects/golmok-jaehwan"; E="$TMPDIR/jaehwan/J-10";`로 시작한다. `$SC`를 쓰는 명령은 `SC="$E/sc/shellcheck-v0.11.0/shellcheck";`를, `$RUN`을 쓰는 명령은 그 커밋의 실행 번호를 저장한 `$E/run….tsv` 파일에서 `RUN=$(cut -f1 "<그 파일>" | head -1);`로 다시 읽어 앞에 붙인다. attempt 한 번의 단계 묶음((i)~(iii))은 `n=<번호>;`로 시작하는 **한 번의 호출**로 돌린다.
+- **할 일**:
+  1. **준비와 측정(커밋 없음)**:
+     - 브랜치와 과제 원문: `E="$TMPDIR/jaehwan/J-10"; mkdir -p "$E"; git -C "$W" fetch origin && git -C "$W" switch -c local/jaehwan-j10-shellcheck origin/main && cd "$W" && sed -n '/^#### J-10/,/^#### J-11/p' docs/plan/jaehwan-tasks.md > "$E/task.txt"`(규칙 14). 기대: `head -1 "$E/task.txt"`가 `#### J-10 CI shellcheck 잡 — 설계 확정(Opus 2026-11-28)`, `sed -n '/^```yaml$/,/^```$/p' "$E/task.txt" | sed '1d;$d' | wc -l | tr -d ' '`가 `30`.
+     - 착수 시점 `ci.yml`: `cd "$W" && wc -l < .github/workflows/ci.yml | tr -d ' ' > "$E/ci-wc.log"; sed -n '/^jobs:/,$p' .github/workflows/ci.yml | grep -E '^  [a-z-]+:$' > "$E/ci-jobs.log"; tail -1 .github/workflows/ci.yml > "$E/ci-tail.log"`. 기대(J-11 병합 뒤): `131` / `  python:`·`  repo-check:`·`  tiles-validate:`·`  viewer-smoke:` 네 줄 / `  # [/J-11 hook]`. J-11 병합 전이면 `94` / 앞의 세 줄 / `          grep -q '"numErrors": 0' validator.log`. 둘 다 아니면 멈춘다.
+     - 내려받기: `mkdir -p "$E/sc" && cd "$E/sc" && /usr/bin/timeout 120 curl -fsSL --retry 3 -o sc.tar.xz https://github.com/koalaman/shellcheck/releases/download/v0.11.0/shellcheck-v0.11.0.darwin.aarch64.tar.xz > "$E/dl.log" 2>&1; echo $? > "$E/dl.rc"`. 기대: `$E/dl.rc`가 `0`.
+     - 해시: `cd "$E/sc" && shasum -a 256 sc.tar.xz > "$E/sha.log" 2>&1`. 기대: `56affdd8de5527894dca6dc3d7e0a99a873b0f004d7aabc30ae407d3f48b0a79  sc.tar.xz` 한 줄. 다르면 멈춘다.
+     - 풀기·버전: `cd "$E/sc" && tar -xJf sc.tar.xz && SC="$E/sc/shellcheck-v0.11.0/shellcheck" && "$SC" --version > "$E/sc-version.log" 2>&1; echo $? > "$E/sc-version.rc"`. 기대: `grep -x 'version: 0.11.0' "$E/sc-version.log"`가 한 줄. PATH·brew·`sudo`에는 설치하지 않는다(`$E` 안에서만 쓴다). 바이너리가 실행되지 않으면 오류 원문을 적고 멈춰 묻는다.
+     - 측정: `cd "$W" && "$SC" --shell=bash --external-sources --source-path=SCRIPTDIR --severity=warning --format=gcc tools/ue/*.sh tools/mac/*.sh > "$E/sc-before.log" 2>&1; echo $? > "$E/sc-before.rc"`. 기대: `$E/sc-before.rc`가 `0`(결함 없음) 또는 `1`(결함 있음). `2`·`3`·`4`면 멈춘다.
+     - 집계: `grep -oE '\[SC[0-9]+\]' "$E/sc-before.log" | sort | uniq -c > "$E/sc-codes.log"`(코드별 수), `grep -E '\[SC[0-9]+\]$' "$E/sc-before.log" | sed -E 's/^([^:]+):[0-9]+:[0-9]+: [a-z]+: .*\[(SC[0-9]+)\]$/\2 \1/' | sort | uniq -c > "$E/sc-code-file.log"`(코드·파일별 수). 결함 0이면 두 파일 모두 빈 파일이다.
+     - info 판: 측정 명령의 `--severity=warning`만 `--severity=info`로 바꿔 `"$E/sc-before-info.log"`·`"$E/sc-before-info.rc"`로 돌리고, `grep -c -E 'SC109[01]|SC2154' "$E/sc-before-info.log" > "$E/sc-before-info.count"`. 기대: `0`. 0이 아니면 멈춘다.
+  2. **스텁 테스트 기준선**: `cd "$W/tools" && source .venv/bin/activate && pytest -q tests/test_ue_mac_scripts.py tests/test_mac_recon_scripts.py > "$E/pytest-before.log" 2>&1; echo $? > "$E/pytest-before.rc"`. 기대: rc `0`, 요약 줄(`tail -1 "$E/pytest-before.log"`)은 `N passed …` 꼴이고 그 원문을 PR에 붙인다.
+  3. **커밋 1(훅만)**:
+     - 붙이기: `cd "$W" && tail -1 .github/workflows/ci.yml >> "$E/ci-tail.log" && sed -n '/^```yaml$/,/^```$/p' "$E/task.txt" | sed '1d;$d' >> .github/workflows/ci.yml`. 기대: `$E/ci-tail.log`의 두 줄이 같다(할 일 1 뒤 `ci.yml`이 바뀌지 않았다).
+     - YAML 구문: `cd "$W" && ruby -ryaml -e 'y=YAML.load_file(".github/workflows/ci.yml"); puts y["jobs"].keys.join(" "); j=y["jobs"]["shellcheck"]; puts j["timeout-minutes"]; puts j["steps"].map{|s| s["name"]||s["uses"]}.join(" | ")' > "$E/yaml.log" 2>&1; echo "exit=$?" >> "$E/yaml.log"`. 기대는 완료 기준 (g)의 네 줄이다. `/usr/bin/ruby`는 macOS 기본이라 따로 설치하지 않는다.
+     - 파일 수: `cd "$W" && git diff --name-only > "$E/c1-files.log"`. 기대: `.github/workflows/ci.yml` 한 줄.
+     - 커밋·push: `cd "$W" && git add .github/workflows/ci.yml && git -c user.name="재환" -c user.email="jaehwan.local@localhost" commit -m "J-10: CI shellcheck 잡 훅 블록" …`(서명은 규칙 7). 파이썬 게이트(규칙 13)를 돌린 뒤 push하고 PR을 연다. CI 칸에는 "CI 진행 중 — 결과는 아래에 추가"만 쓴다(규칙 2a).
+     - 실행 찾기·기다리기(커밋마다 같은 순서, `<c>` = `c1`·`c2`·`c3`·`c4`): `cd "$W" && gh run list --workflow CI --branch local/jaehwan-j10-shellcheck --event push --limit 1 --json databaseId,headSha --jq '.[0]|[.databaseId,.headSha]|@tsv' > "$E/run-<c>.tsv"; git rev-parse HEAD >> "$E/run-<c>.tsv"`. 기대: `[ "$(sed -n 1p "$E/run-<c>.tsv" | cut -f2)" = "$(sed -n 2p "$E/run-<c>.tsv")" ] && echo same || echo DIFFERENT`가 `same`. `DIFFERENT`면(실행이 아직 목록에 없을 때 포함) 30초 뒤 같은 명령을 다시 돌리고, 5분 넘게 `DIFFERENT`면 멈춘다. `RUN=$(cut -f1 "$E/run-<c>.tsv" | head -1)`. `/usr/bin/timeout 1800 gh run watch "$RUN" --interval 30 > "$E/watch-<c>.log" 2>&1; echo "exit=$?" >> "$E/watch-<c>.log"`(규칙 5). 기대: 끝 줄 `exit=0`. `exit=124`면 멈춘다. **다음 push는 이 watch가 끝난 뒤에만 한다**(`concurrency: cancel-in-progress`라서 앞 실행이 취소된다).
+     - CI 결함 줄 대조: `JID=$(gh run view "$RUN" --json jobs --jq '.jobs[]|select(.name=="shellcheck")|.databaseId'); gh run view --job "$JID" --log | grep -oE 'tools/(ue|mac)/[^ :]+\.sh:[0-9]+:[0-9]+: [a-z]+: .*\[SC[0-9]+\]$' > "$E/sc-ci1.log"; grep -E '\[SC[0-9]+\]$' "$E/sc-before.log" > "$E/sc-before.issues"; diff "$E/sc-before.issues" "$E/sc-ci1.log" > "$E/sc-diff.log"; echo "exit=$?" >> "$E/sc-diff.log"`. 기대: `$E/sc-diff.log`가 `exit=0` 한 줄. `shellcheck` 행은 할 일 1에 결함이 있으면 빨강, 없으면 초록이다.
+  4. **커밋 2(지시문)**: 할 일 1의 결함마다 설계 4의 표를 적용한다. 표 밖의 것이 하나라도 있으면 4~8을 하지 않고 멈춰 보고한다. 지시문 줄만 넣는다. 허용 파일 안에서만, 동작 변경 없이. 커밋(규칙 7 `-c`)·게이트(규칙 13)·push 뒤 할 일 3의 "실행 찾기·기다리기"를 `c2`로 한다.
+  5. **로컬 재측정**: 할 일 1의 측정 명령을 `"$E/sc-after.log"`·`"$E/sc-after.rc"`로, info 판을 `"$E/sc-after-info.log"`로 돌린다. 할 일 2의 pytest를 `"$E/pytest-after.log"`·`.rc`로 돌린다. `cd "$W" && for f in tools/ue/*.sh tools/mac/*.sh; do /bin/bash -n "$f" || echo "FAIL $f"; done > "$E/bash-n.log" 2>&1`(기대: 빈 파일). 파이썬 게이트(규칙 13)를 `"$E/gate.log"`로 돌린다.
+  6. **커밋 3(일부러 깨뜨림)**: `cd "$W" && printf '#!/usr/bin/env bash\nj10_unused=1\n' > tools/mac/j10-break.sh`(실행 비트 없음). 기대: `wc -l < tools/mac/j10-break.sh | tr -d ' '`가 `2`. 커밋·push 뒤 `c3`로 기다린다. `gh run view "$RUN" --log-failed | grep 'j10-break.sh:2:1: warning: .*\[SC2034\]' > "$E/break.log"`. 기대: `wc -l < "$E/break.log" | tr -d ' '`가 `1`. `gh pr checks <n> > "$E/checks-c3.log"`에서 `shellcheck`만 fail이고 나머지 행은 pass다.
+  7. **커밋 4(원복)**: `cd "$W" && git -c user.name="재환" -c user.email="jaehwan.local@localhost" revert --no-edit <커밋 3 sha>`, `git -C "$W" log -1 --format='%an <%ae>' > "$E/author-c4.log"`(기대: `재환 <jaehwan.local@localhost>` 한 줄, 규칙 7). push 뒤 `c4`로 기다리고, 모든 행 초록이다. force-push·rebase는 금지다.
+  8. **8회 측정(규칙 11)**: 커밋 4(HEAD)의 push 실행 `RUN=$(cut -f1 "$E/run-c4.tsv" | head -1)`에서 `shellcheck` 잡을 attempt 1 + rerun 7회, 모두 8회 돌린다. `main`에는 이 잡이 없으므로 규칙 11의 main 쪽 횟수는 해당 없음이다. attempt n(1~8)마다 순서대로:
+     - (i) n ≥ 2이면 `JOB=$(gh run view "$RUN" --json jobs --jq '.jobs[]|select(.name=="shellcheck")|.databaseId'); gh run rerun "$RUN" --job "$JOB"`, 이어서 `until [ "$(gh run view "$RUN" --json attempt --jq .attempt)" = "$n" ]; do sleep 10; done`.
+     - (ii) `/usr/bin/timeout 1800 gh run watch "$RUN" --interval 30 > "$E/sc-watch-$n.log" 2>&1; echo "exit=$?" >> "$E/sc-watch-$n.log"`.
+     - (iii) `gh api repos/wooklym/golmok/actions/runs/$RUN/attempts/$n/jobs --jq '.jobs[]|select(.name=="shellcheck")|[.run_attempt,.conclusion]|@tsv' >> "$E/attempts.tsv"`.
+     - (iii)의 결론이 `success`가 아니면 멈춘다. 남은 attempt를 돌리지 않고 로그와 함께 묻는다.
+  9. **PR 본문**: "완료 기준 대조"(규칙 14) 절에 아래 (a)~(j)를 한 줄씩(충족 + 증거 파일, 또는 **미충족** + 이유) 둔다. 과제 문장은 `$E/task.txt`에서만 옮긴다. "제출 전 점검표"는 규칙 1~15를 한 줄씩 과거형과 결과로 쓴다. `gh pr checks <n>` 출력을 붙인 뒤 본문을 다시 읽는다(규칙 12).
+- **허용 파일**: `.github/workflows/ci.yml`(파일 끝의 `# [J-10 hook]` 블록만, 커밋 1 단독). `tools/ue/common.sh`·`tools/ue/add-gasp.sh`·`tools/mac/install-recon-tools.sh`·`tools/mac/recon-smoke.sh`(설계 4 표의 지시문 줄 **추가만**). `tools/mac/j10-break.sh`(커밋 3에서 만들고 커밋 4에서 없앰 — 최종 트리에 없다). 나머지 6개 `.sh`, 테스트 파일, `check_repo.py`, 등록 목록 테스트, `.shellcheckrc`, 공유 문서는 건드리지 않는다. 표가 다른 파일을 가리키면 멈춘다.
+- **멈춤 조건(정하지 말고 영록에게 묻는다)**: 해시·버전 줄이 기대와 다를 때. 측정·info·after 명령의 rc가 0·1·2·3·4 밖(예: 127)일 때. `sc-before.rc`가 2~4일 때. info 판에 SC1090·SC1091·SC2154가 있을 때. 설계 4 표 밖의 코드·위치·heredoc·이어진 줄·셔뱅 줄 결함. `ci-wc.log`·`ci-jobs.log`·`ci-tail.log`가 할 일 1의 두 경우 어느 쪽도 아닐 때. `yaml.log`가 (g)와 다를 때. `sc-diff.log`가 `exit=0` 한 줄이 아닐 때. 실행이 5분 넘게 목록에 없거나 watch가 `exit=124`일 때. 커밋 3에서 `break.log`가 한 줄이 아니거나 다른 행이 빨강일 때. 8회 중 하나라도 `success`가 아닐 때. 허용 파일 밖을 바꿔야 할 것 같을 때.
+- **완료 기준**:
+  - (a) 측정: `$E/dl.rc` `0`, `$E/sha.log`가 위 기대 값과 같다, `$E/sc-version.log`의 `version:` 줄 원문, `$E/sc-before.rc` 값, `$E/sc-codes.log`·`$E/sc-code-file.log` 원문, `$E/sc-before-info.count`가 `0`. 할 일 3의 `$E/sc-diff.log`가 `exit=0` 한 줄이다(다르면 그 내용을 적고 멈춘 기록을 남긴다).
+  - (b) 결함 하나하나가 설계 4 표의 어느 행에 해당하는지 PR 표에 "파일:줄 → 코드 → 표 행"으로 적는다. 표 밖의 결함이 있었으면 멈춘 기록만 남기고 (c) 이하는 하지 않는다.
+  - (c) 고친 뒤: `$E/sc-after.rc`가 `0`이고 `wc -l < "$E/sc-after.log" | tr -d ' '`가 `0`. `grep -c -E 'SC109[01]|SC2154' "$E/sc-after-info.log"`가 `0`.
+  - (d) 지시문만 더했다: `cd "$W" && git diff origin/main...HEAD -- tools/ue tools/mac | grep -E '^[-+]' | grep -v -E '^(\+\+\+|---) ' | grep -v -E '^\+[[:space:]]*# shellcheck disable=SC[0-9]+(,SC[0-9]+)*  # .+$' | wc -l | tr -d ' '` → `0`. `cd "$W" && for f in tools/ue/*.sh tools/mac/*.sh; do diff <(git show origin/main:$f | grep -v '^[[:space:]]*#') <(grep -v '^[[:space:]]*#' $f) > /dev/null || echo "DIFF $f"; done > "$E/body-diff.log" 2>&1; echo "exit=$?" >> "$E/body-diff.log"` → `$E/body-diff.log`는 `exit=0` 한 줄이다. `cd "$W" && ls tools/ue/*.sh tools/mac/*.sh | wc -l | tr -d ' '` 출력은 `10`이다.
+  - (e) 지시문 수: `cd "$W" && git diff origin/main...HEAD -- tools/ue tools/mac | grep -c '^+.*# shellcheck disable='`가 `grep -E '\[SC[0-9]+\]$' "$E/sc-before.log" | cut -d: -f1,2 | sort -u | wc -l | tr -d ' '`와 같다. 결함 0이면 둘 다 `0`이다.
+  - (f) 동작 불변: `pytest-before`와 `pytest-after`의 요약 줄(passed·skipped 수)이 같다(원문 두 줄). `$E/bash-n.log`가 빈 파일이다. `$E/gate.log`의 파이썬 게이트가 통과한다.
+  - (g) `ci.yml`: `cd "$W" && git diff origin/main...HEAD --numstat -- .github/workflows/ci.yml` 출력은 `30	0	.github/workflows/ci.yml`이다(빈 줄 1 + 블록 29). `cd "$W" && git diff origin/main...HEAD -- .github/workflows/ci.yml | grep -c '^-[^-]'` → `0`. `cd "$W" && grep -c -E '^  # \[/?J-10 hook\]' .github/workflows/ci.yml` → `2`. `cd "$W" && diff <(git diff origin/main...HEAD -- .github/workflows/ci.yml | grep '^+' | grep -v '^+++' | cut -c2-) <(sed -n '/^```yaml$/,/^```$/p' "$E/task.txt" | sed '1d;$d')` 출력은 비어 있다. 할 일 3의 `$E/yaml.log`는 `python repo-check tiles-validate viewer-smoke shellcheck` / `5` / `actions/checkout@v7 | Install shellcheck (pinned release, sha256 checked) | shellcheck --version | shellcheck (warning and above)` / `exit=0`이다. J-11이 아직 병합되지 않았으면 첫 줄은 `python repo-check tiles-validate shellcheck`다. `cd "$W" && git show --stat --format= <커밋 1>` 출력은 `ci.yml` 한 줄과 요약 줄(`1 file changed, 30 insertions(+)`)뿐이다.
+  - (h) CI: 커밋 1·2·3·4 각각의 `gh pr checks <n>` 표 원문. 커밋 3에서는 `shellcheck` 행(push·pull_request 두 줄)만 fail이고 `$E/break.log`가 한 줄이다. 커밋 4(HEAD)에서는 `shellcheck`를 포함한 모든 행이 pass다. `git -C "$W" ls-tree HEAD tools/mac/j10-break.sh` → 빈 출력.
+  - (i) `git -C "$W" status --porcelain` → 빈 출력. 내려받은 shellcheck는 `$E`에만 있다(`command -v shellcheck` → 빈 출력 그대로).
+  - (j) 8회: `wc -l < "$E/attempts.tsv" | tr -d ' '`가 `8`, `cut -f2 "$E/attempts.tsv" | sort | uniq -c | sed -E 's/^ +//'` 출력은 `8 success`다. `main` 쪽 횟수는 해당 없음(이 잡이 main에 없다).
+- **병합 시 반영(영록)**: DECISIONS에 오케스트레이터 결정 1줄(shellcheck v0.11.0 고정, GPL-3.0 CI 전용 도구, `--severity=warning`, 고치지 않고 줄별 지시문으로만 억제, 표 밖 결함은 영록이 판단). mac-setup에 로컬 실행 명령 1줄(선택).
+- **왜 재환 / 위험**: 정책은 이 메모가 다 정했고, 재환은 측정하고 표를 적용하고 명령으로 증명하기만 한다. 위험: ① 표 밖 결함을 재환이 "사소하다"며 고치거나 억제하는 것(규칙 1·6) — 멈춤 규칙과 (d)·(e)로 막는다. ② `common.sh`를 따라가지 못했는데 warning 판이 조용한 것 — info 판 `SC1090·SC1091·SC2154` 0으로 막는다. ③ push를 연달아 해서 CI 실행이 취소되는 것 — 할 일 3의 "기다리기". ④ 버전 줄 형식이나 다운로드 URL이 메모와 다른 것 — 할 일 1에서 먼저 드러나며, 그때는 멈춘다. ⑤ 깨뜨린 커밋을 force-push로 지우는 것 — 금지, revert만 한다. ⑥ 내려받기가 있는 새 필수 잡의 간헐 실패 — (j)의 8/8로 막는다.
+- **dry-run 범위(Opus 2026-11-28)**: scratch 사본에서 돌려 기대 출력을 확인한 것은 블록 추출 `sed`, `ruby -ryaml`(두 경우), numstat·`grep -c`·블록 `diff`, `git show --stat`, (d)의 본문 `diff` 루프(10개 모두 `exit=0`), (e)·할 일 1의 `grep`·`cut`·`sort`·`sed` 파이프(표본 입력), 할 일 3의 CI 로그 추출(표본 로그 줄), 할 일 6의 `printf`(2줄). GitHub 실행이 필요한 명령(`gh run list/watch/view/rerun`, `gh api …/attempts`, `gh pr checks`)과 shellcheck 실행 자체(이 Mac에 없음)는 dry-run하지 못했다.
+
+#### J-11 CI 뷰어 `npm test` 잡 (ubuntu-24.04 1행, 훅 블록)
+- **출처**: STATUS WP-11 행("CI에는 `npm test` 잡 없음(로컬 게이트)"), [WP-11](WP-11-viewer-collision-overlay.md) 남은 작업("필요하면 별도 WP로 Playwright CI 잡(브라우저 다운로드 포함) 추가"), `tools/viewer/README.md:79`("CI는 뷰어 스모크를 돌리지 않아 … 드러나지 않았다"), 작업 규칙 1의 #136 반복 실수("Linux/Windows의 스모크 동작은 CI로 확인" — CI는 그때도 지금도 `npm test`를 돌리지 않는다), 스모크 이력 #131(준비 줄 버퍼링)·#133(30초 준비 제한·정리)·#134(신호 정리, main에서도 1/8 실패)·#135(accept 큐 백로그 5 → 128, baseline 5/20 → 0/20)·#136(실패 시 서버 출력 덤프를 finally로).
+- **설계 (확정, Opus 2026-11-28)**: 재환은 아래를 그대로 옮긴다. 바꿀 점이 보이면 고치지 말고 묻는다.
+  1. **OS 행은 `ubuntu-24.04` 하나만 둔다.** `ubuntu-latest`는 2026-11-27 현재 Ubuntu 26.04다(main 실행 46072482646의 `python (ubuntu-latest, …)`·`tiles-validate` "Set up job" 로그 `Image: ubuntu-26.04`, `Version: 20261122.9.1`). Playwright 1.56.1은 Ubuntu 메이저 26 이상을 `ubuntu26.04-x64`로 보고(공식 지원 아님) chromium 다운로드 경로가 없어 `ERROR: Playwright does not support chromium on ubuntu26.04-x64`로 실패한다(playwright v1.56.1 `packages/playwright-core/src/server/utils/hostPlatform.ts:82-90`, `registry/index.ts:1192-1217` — chromium 경로 표에는 `ubuntu20.04`·`22.04`·`24.04`만 있고 `'<unknown>': undefined`). 공식 지원 목록은 Ubuntu 22.04·24.04다(같은 태그 `docs/src/intro-js.md` "System requirements", https://playwright.dev/docs/intro#system-requirements). 레이블 `ubuntu-24.04`는 GitHub 호스트 러너 목록에 있다(https://github.com/actions/runner-images README 표 "Ubuntu 24.04 | x64 | `ubuntu-24.04`"). `package.json`은 허용 파일이 아니므로 Playwright를 올리는 길은 이 과제에 없다. 24.04에서는 `--with-deps`가 OS 의존성까지 설치한다(https://playwright.dev/docs/browsers "System dependencies can get installed automatically. This is useful for CI environments"). **macOS 행은 넣지 않는다.** 개발·검증 기계가 Mac(D-022)이라 이미 로컬에서 매번 돌리고(README "macOS에서 실행"), 이 Mac에서는 `playwright install`의 압축 해제가 멈춘 적이 있다(README "알려진 문제", 원인 [미확인]). CI 첫 행에 그 미확인 문제를 들이지 않는다. **Windows 행도 넣지 않는다.** `smoke.mjs`는 `python`/`python3` 분기, Windows에서 SIGHUP을 빼는 분기, `server.kill()`(Windows에서는 신호가 아니라 강제 종료)을 쓰는데 Windows에서 한 번도 돌린 적이 없다. 첫 잡에 미검증 경로를 섞지 않는다. 두 행과 `ubuntu-latest` 복귀(Playwright를 올린 뒤)는 이 잡이 8/8 초록으로 병합된 뒤 영록이 별도 과제로 판단한다.
+  2. **Node는 `node-version: "22"`**(같은 파일 `tiles-validate`와 같은 메이저)로 고정하고 `actions/setup-node@v7`을 쓴다(파일의 `[WP-01 hook]` 메이저와 같다. https://github.com/actions/setup-node 는 v7을 최신으로 설명한다). 저장소에 `.nvmrc`가 없고 `package.json`에 `engines`도 없다. 이 과제에서 새로 만들지 않는다(Mac 로컬은 Node 26.13.1이라 하나로 맞출 근거가 없다).
+  3. **`npm ci`는 쓰지 않고 `npm install --no-audit --no-fund`를 쓴다.** `.gitignore:42`가 `tools/viewer/package-lock.json`을 무시해서 잠금 파일이 없는데, `npm ci`는 잠금 파일을 요구한다(https://docs.npmjs.com/cli/commands/npm-ci). `.gitignore`는 바꾸지 않는다(공유 파일, 잠금 정책은 이 과제 범위 밖). 직접 의존성은 정확한 버전으로 고정되어 있다(`cesium 1.145.0`, `playwright 1.56.1`). 이행 의존성이 바뀌는 것은 `npm ls --depth=0` 출력을 로그에 남겨 추적한다. setup-node의 `cache: npm`도 쓰지 않는다. 문서는 잠금 파일을 커밋하라고 "strongly recommended" 하는데 잠금 파일이 없고, 설치는 로컬에서 5초(34 packages)였다.
+  4. **Playwright 브라우저는 캐시하지 않는다.** 공식 문서: "Caching browser binaries is not recommended … Especially under Linux, operating system dependencies need to be installed, which are not cacheable."(https://playwright.dev/docs/ci). 설치 명령은 문서의 단일 브라우저 예 `npx playwright install --with-deps chromium`(https://playwright.dev/docs/browsers)을 그대로 쓴다. `--only-shell` 최적화는 이 과제에서 하지 않는다.
+  5. **Python 쪽**: `actions/setup-python@v7` 3.12, `cache: pip`, `cache-dependency-path: tools/pyproject.toml`, `pip install -e ".[basemap,zone,mesh,splat,align,dev]"`(python 잡과 같은 줄)을 쓴다. 스모크는 `tests/test_basemap.py` 헬퍼(pyshp·rasterio·pyproj·pytest)로 합성 베이스맵을 만들고, `scripts/make_synthetic_zone.py`와 `golmok_tools.mesh.cli`(trimesh 등)로 zone을 만든 뒤 `python3 -m golmok_tools.viewer_server`를 띄운다. 그래서 외부 데이터·LFS·네트워크 픽스처가 필요 없다(`lfs: false`). 네트워크는 pip·npm·Playwright 다운로드에만 쓴다. Cesium은 `npm install`이 `node_modules`에 받아 서버가 `/cesium/`으로 주므로 CDN(`index.html:55`)을 쓰지 않는다. 24.04 러너에서 setup-python 3.12가 받아지는지는 [미확인]이다(attempt 1 로그에서 드러난다).
+  6. **타임아웃**: 잡 `timeout-minutes: 25`(GitHub 기본 360분, https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax). 단계별로는 Python 설치 10, npm install 5, Playwright 설치 10, `npm test` 10분이다. 스모크 자체의 제한(준비 줄 30초, `waitForFunction` 120초 두 번)보다 위에 두라는 Playwright 지침("keep it comfortably above `globalTimeout`")을 따른다. 로컬 `npm test`는 63.41초(M5 Max, 첫 실행)였다. `smoke.mjs`의 제한값은 바꾸지 않는다.
+  7. **재시도는 넣지 않는다.** 스텝 반복·retry 액션·`|| npm test`를 쓰지 않는다. #134·#135처럼 재시도는 실제 결함을 "한 번의 flake"로 숨긴다.
+  8. **처음부터 필수 행으로 둔다.** `continue-on-error`를 쓰지 않는다. `main`에는 브랜치 보호가 없다(`gh api repos/wooklym/golmok/branches/main/protection` → 404 "Branch not protected"). 그래서 "필수"는 병합 규칙(규칙 2: 모든 행 초록)으로 정해지고, 병합 전 8/8 초록이 그 조건이다. 병합 뒤 실패가 나면 재시도로 넘기지 않고 과제로 연다.
+  9. **훅 블록은 `jobs:`의 마지막(`tiles-validate`의 마지막 줄 `grep -q '"numErrors": 0' validator.log` 뒤)에 빈 줄 하나와 함께 덧붙인다.** 기존 줄은 한 글자도 바꾸지 않고, 순서도 바꾸지 않는다. J-10(shellcheck)도 같은 자리에 붙으므로 둘째로 병합하는 쪽이 다른 블록 뒤에 자기 블록을 둔다(둘 다 유지). 순서는 J-11 → J-10이다(J-10 설계 6).
+  10. **덧붙일 YAML**: 아래 펜스 안의 37줄이다(첫 줄은 빈 줄, 나머지는 스페이스 2칸 이상으로 시작, 탭 없음). 손으로 옮기지 않고 할 일 2의 `sed` 명령으로 `$E/task.txt`에서 뽑아 붙인다. Opus가 2026-11-28 scratch 사본에서 확인했다: `origin/main` `ci.yml` 끝에 붙이면 Ruby Psych 잡 목록이 `python repo-check tiles-validate viewer-smoke`, `runs-on`이 `ubuntu-24.04`, 파일 131줄, `git diff --numstat`이 `37	0`이다.
+```yaml
+
+  # [J-11 hook] review viewer headless smoke (tools/viewer npm test), ubuntu-24.04 only (Playwright 1.56.1 does not support 26.04)
+  viewer-smoke:
+    name: viewer-smoke (ubuntu-24.04)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: tools/viewer
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          lfs: false  # the smoke builds its own synthetic basemap and zones
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: tools/pyproject.toml
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+      - name: Install Python tools
+        working-directory: tools
+        timeout-minutes: 10
+        run: python -m pip install -e ".[basemap,zone,mesh,splat,align,dev]"
+      - name: npm install
+        timeout-minutes: 5
+        run: |
+          npm install --no-audit --no-fund
+          npm ls --depth=0
+      - name: Playwright Chromium (with OS deps)
+        timeout-minutes: 10
+        run: npx playwright install --with-deps chromium
+      - name: npm test
+        timeout-minutes: 10
+        run: npm test
+  # [/J-11 hook]
+```
+  11. **간헐 실패 측정(규칙 11)**: 같은 커밋에서 브랜치 **push 이벤트 실행** 하나의 `viewer-smoke (ubuntu-24.04)` 잡을 attempt 1(push로 생긴 것)과 `gh run rerun <RUN> --job <JOB_ID>`로 만든 attempt 2~8까지 모두 8회 돌린다. 워크플로 `concurrency`가 `cancel-in-progress: true`라서 `gh workflow run`을 연달아 보내면 앞 실행이 취소된다. 그래서 dispatch는 쓰지 않고, rerun도 앞 attempt가 끝난 뒤에만 한다. `main`에는 이 잡이 없으니 규칙 11의 "origin/main 쪽 횟수"는 해당 없음으로 적는다. 같은 push의 pull_request 실행 결과도 표에 따로 한 줄 적는다(8회에 세지 않는다).
+- **명령 공통**: 아래 명령은 모두 `git -C "$W"`이거나 `cd "$W" &&`로 시작한다(상시 규칙). 돌린 명령 원문은 `$E/commands.txt`에 한 줄씩 더하고, 출력은 적힌 `$E/…` 파일로 받는다(규칙 10). 각 단계의 "기대"와 다르면 아래 **멈춤 조건**을 본다. 셸 변수는 Bash 호출 사이에 남지 않는다. 그래서 변수를 쓰는 명령은 **같은 호출 안에서** 먼저 정의한다: 모든 명령은 `W="$HOME/projects/golmok-jaehwan"; E="$TMPDIR/jaehwan/J-11";`로 시작한다. `$RUN`을 쓰는 명령은 그 커밋의 실행 번호를 저장한 `$E/run….tsv` 파일에서 `RUN=$(cut -f1 "<그 파일>" | head -1);`로 다시 읽어 앞에 붙인다. attempt 한 번의 단계 묶음((i)~(v))은 `n=<번호>;`로 시작하는 **한 번의 호출**로 돌린다.
+- **할 일**:
+  1. `E="$TMPDIR/jaehwan/J-11"; mkdir -p "$E"; git -C "$W" fetch origin && git -C "$W" switch -c local/jaehwan-j11-viewer-ci origin/main && cd "$W" && sed -n '/^#### J-11/,/^#### J-12 /p' docs/plan/jaehwan-tasks.md > "$E/task.txt"`(규칙 14). 기대: `grep -c '^#### J-11 CI 뷰어' "$E/task.txt"`가 `1`이고, `sed -n '/^```yaml$/,/^```$/p' "$E/task.txt" | sed '1d;$d' | wc -l | tr -d ' '`가 `37`이다.
+  2. 붙이기: `cd "$W" && tail -1 .github/workflows/ci.yml > "$E/ci-tail.log" && sed -n '/^```yaml$/,/^```$/p' "$E/task.txt" | sed '1d;$d' >> .github/workflows/ci.yml`. 기대: `$E/ci-tail.log`가 `          grep -q '"numErrors": 0' validator.log`(J-10이 먼저 병합됐으면 `  # [/J-10 hook]` — 그때도 블록은 파일 끝에 붙는다). 그 밖이면 멈춘다. 다른 줄은 건드리지 않는다.
+  3. `tools/viewer/README.md:79`에서 정확히 이 문장 `` CI는 뷰어 스모크를 돌리지 않아(`.github/workflows/ci.yml`의 잡은 python·repo-check·tiles-validate뿐) 드러나지 않았다. ``를 `` 당시(2026-11-27) CI는 뷰어 스모크를 돌리지 않아(잡은 python·repo-check·tiles-validate뿐) 드러나지 않았다. J-11 이후 CI의 `viewer-smoke`(ubuntu-24.04 한 행) 잡이 `npm test`를 돌린다. macOS·Windows 행은 없다. ``로 바꾼다. README의 다른 줄은 바꾸지 않는다.
+  4. YAML 구문을 확인한다. `cd "$W" && ruby -ryaml -e 'y=YAML.load_file(".github/workflows/ci.yml"); puts y["jobs"].keys.join(" "); j=y["jobs"]["viewer-smoke"]; puts j["timeout-minutes"]; puts j["steps"].map{|s| s["name"]||s["uses"]}.join(" | ")' > "$E/yaml.log" 2>&1; echo "exit=$?" >> "$E/yaml.log"`(규칙 10). 기대는 완료 기준 (c)다. `/usr/bin/ruby`는 macOS 기본이라 따로 설치하지 않는다. actionlint 같은 도구도 설치하지 않는다.
+  5. 커밋 1: `.github/workflows/ci.yml`만(`cd "$W" && git add .github/workflows/ci.yml && git diff --cached --name-only > "$E/c1-files.log"`, 기대: `.github/workflows/ci.yml` 한 줄). 커밋 2: `tools/viewer/README.md`만(같은 방법으로 `"$E/c2-files.log"`, 기대: `tools/viewer/README.md` 한 줄). 두 커밋 모두 규칙 7의 `-c` 작성자로 만들고, 커밋마다 `git -C "$W" log -1 --format='%an <%ae>' > "$E/author-<c>.log"`(`<c>`는 `c1`·`c2`)로 확인한다. 기대: `재환 <jaehwan.local@localhost>` 한 줄. 파이썬 게이트(규칙 13)를 `"$E/gate.log"`로 돌린 뒤 **두 커밋을 한 번에 push**하고 PR을 연다. 본문의 CI 칸에는 "CI 진행 중 — 결과는 아래에 추가"만 쓴다(규칙 2a). 8회 측정(할 일 6)은 커밋 2(HEAD)의 push 실행에서 한다.
+  6. 8회 측정:
+     - 실행 찾기: `cd "$W" && gh run list --workflow CI --branch local/jaehwan-j11-viewer-ci --event push --limit 1 --json databaseId,headSha --jq '.[0]|[.databaseId,.headSha]|@tsv' > "$E/run.tsv"; git rev-parse HEAD >> "$E/run.tsv"`. 기대: `[ "$(sed -n 1p "$E/run.tsv" | cut -f2)" = "$(sed -n 2p "$E/run.tsv")" ] && echo same || echo DIFFERENT`가 `same`. `DIFFERENT`면(실행이 아직 목록에 없을 때 포함) 30초 뒤 같은 명령을 다시 돌리고, 5분 넘게 `DIFFERENT`면 멈춘다. `RUN=$(cut -f1 "$E/run.tsv" | head -1)`.
+     - attempt n(1~8)마다 순서대로: (i) n ≥ 2이면 `JOB=$(gh run view "$RUN" --json jobs --jq '.jobs[]|select(.name=="viewer-smoke (ubuntu-24.04)")|.databaseId'); gh run rerun "$RUN" --job "$JOB"`, 이어서 `until [ "$(gh run view "$RUN" --json attempt --jq .attempt)" = "$n" ]; do sleep 10; done`. (ii) `/usr/bin/timeout 1800 gh run watch "$RUN" --interval 30 > "$E/watch-$n.log" 2>&1; echo "exit=$?" >> "$E/watch-$n.log"`(규칙 5). (iii) `JID=$(gh api repos/wooklym/golmok/actions/runs/$RUN/attempts/$n/jobs --jq '.jobs[]|select(.name=="viewer-smoke (ubuntu-24.04)")|.id')`. (iv) `gh api repos/wooklym/golmok/actions/runs/$RUN/attempts/$n/jobs --jq '.jobs[]|select(.name=="viewer-smoke (ubuntu-24.04)")|[.run_attempt,.conclusion,.started_at,.completed_at]|@tsv' >> "$E/attempts.tsv"`. (v) `gh run view --job "$JID" --log > "$E/viewer-log-$n.txt" 2>&1`. (iv)의 결론이 `success`가 아니면 **멈춘다**. 남은 attempt를 돌리지 않고 실패 로그와 함께 영록에게 묻는다(재시도로 초록을 만들지 않는다).
+     - 러너 확인: attempt 1 뒤 `grep -m1 'Image: ubuntu-24.04' "$E/viewer-log-1.txt" > "$E/image.log"`. 기대: 한 줄(`… Image: ubuntu-24.04`). 없거나, watch가 `exit=124`로 끝나거나(러너를 잡지 못한 경우 포함), 러너 레이블 오류가 보이면 멈추고 묻는다.
+  7. PR 본문에 "완료 기준 대조"(규칙 14) 절을 두고 아래 (a)~(h)를 한 줄씩(충족 + 증거 파일, 또는 **미충족** + 이유) 적는다. 과제 문장은 `$E/task.txt`에서만 옮긴다. attempt 표의 열은 attempt·결론·시작·끝·소요(초, `attempts.tsv`에서 계산한 명령도 함께)·`npm test` 마지막 `OK:` 줄이다. "제출 전 점검표"는 규칙 1~15를 한 줄씩 과거형과 결과로 쓴다. 그다음 `gh pr checks <n>` 출력을 붙이고 본문을 다시 읽는다(규칙 12).
+- **허용 파일**: `.github/workflows/ci.yml`(위 훅 블록 덧붙이기만), `tools/viewer/README.md`(할 일 3의 한 문장만). (`tools/viewer/README.md`는 상시 규칙의 공유 문서 `README.md`(저장소 루트)·`tools/README.md`가 아니다. 이 과제에서는 할 일 3의 한 문장만 허용한다.) `smoke.mjs`·`package.json`·`.gitignore`·`viewer_server.py`·테스트·공유 문서(STATUS WP-11 행의 "CI에는 `npm test` 잡 없음"은 병합 때 영록이 고친다)는 건드리지 않는다.
+- **멈춤 조건(정하지 말고 영록에게 묻는다)**: `ci-tail.log`가 할 일 2의 두 경우가 아닐 때. `yaml.log`가 (c)와 다를 때. 실행이 5분 넘게 목록에 없을 때. watch가 `exit=124`일 때. `image.log`가 비었거나 러너 레이블 오류가 보일 때. 8회 중 하나라도 `success`가 아닐 때(WebGL·컨텍스트 오류 포함 — `smoke.mjs`에 launch 인자를 더하지 않는다). `OK:` 줄이 있는데 타일 수가 18이 아닐 때. 허용 파일 밖(`package.json`의 Playwright 판 등)을 바꿔야 할 것 같을 때.
+- **완료 기준**:
+  (a) `git -C "$W" diff --numstat origin/main...HEAD -- .github/workflows/ci.yml` 출력은 `37	0	.github/workflows/ci.yml`이다(빈 줄 1 + 블록 36, 삭제 0줄). `git -C "$W" diff origin/main...HEAD --name-only` 출력은 `.github/workflows/ci.yml`과 `tools/viewer/README.md` 두 줄뿐이다. `cd "$W" && diff <(git diff origin/main...HEAD -- .github/workflows/ci.yml | grep '^+' | grep -v '^+++' | cut -c2-) <(sed -n '/^```yaml$/,/^```$/p' "$E/task.txt" | sed '1d;$d')` 출력은 비어 있다.
+  (b) `cd "$W" && grep -c -E '^  # \[/?J-11 hook\]' .github/workflows/ci.yml` 출력은 `2`다.
+  (c) 할 일 4의 `yaml.log`는 `python repo-check tiles-validate viewer-smoke` / `25` / `actions/checkout@v7 | actions/setup-python@v7 | actions/setup-node@v7 | Install Python tools | npm install | Playwright Chromium (with OS deps) | npm test` / `exit=0`이다(Opus가 scratch 사본에서 이 출력을 확인했다). J-10이 먼저 병합됐으면 첫 줄은 `python repo-check tiles-validate shellcheck viewer-smoke`다.
+  (d) `` cd "$W" && grep -c 'J-11 이후 CI의 `viewer-smoke`(ubuntu-24.04 한 행)' tools/viewer/README.md ``는 `1`이고, `` cd "$W" && grep -c 'CI는 뷰어 스모크를 돌리지 않아(`.github' tools/viewer/README.md ``는 `0`이다.
+  (e) 같은 커밋(HEAD = 커밋 2)의 push 실행에서 `viewer-smoke (ubuntu-24.04)` attempt 1~8이 **8/8 success**다. `wc -l < "$E/attempts.tsv" | tr -d ' '`가 `8`이고 `cut -f2 "$E/attempts.tsv" | sort | uniq -c | sed -E 's/^ +//'` 출력은 `8 success`다. `grep -l 'OK: 18 tiles loaded, 2 zones with collision/blockers meshes' "$E"/viewer-log-*.txt | wc -l | tr -d ' '` 출력은 `8`이다. `OK:` 줄은 있는데 타일 수가 18이 아니면 성공으로 세지 않고 멈춰서 그 줄을 붙여 묻는다. `$E/image.log`가 한 줄이다.
+  (f) 같은 커밋의 다른 모든 행(python 4행·repo-check·tiles-validate)이 초록이다. `gh pr checks <n>` 출력 원문을 붙인다(규칙 2).
+  (g) 파이썬 게이트 로그(`$E/gate.log`)가 마지막 변경보다 새것이다(규칙 13). 이 과제는 파이썬 파일을 바꾸지 않으므로 수치는 main과 같아야 한다.
+  (h) `cd "$W" && git log --format=%H origin/main..HEAD | while read c; do git show --name-only --format= $c; done` 출력은 `tools/viewer/README.md`, `.github/workflows/ci.yml` 두 줄이다(최신 커밋부터, 커밋마다 파일 한 줄).
+- **왜 재환 / 위험**: 재환이 이 스모크의 실패 경로를 가장 잘 알고, 일은 정해진 블록을 붙이고 정해진 명령으로 8회 측정하는 것이다. 위험: ① 간헐 실패가 CI를 빨갛게 만드는 것. (e)의 8/8과 "실패하면 멈춤"으로 막는다. ② Linux 헤드리스 Chromium의 WebGL. `playwright-core` 1.56.1의 `lib/server/chromium/chromium.js:276-278`은 `--enable-unsafe-swiftshader`를 **darwin에서만** 붙인다. 그래서 GPU 없는 ubuntu 러너에서 Cesium이 WebGL 컨텍스트를 얻는지 [미확인]이다(2026-09 클라우드 Linux 세션의 통과 기록은 있지만 러너 환경과 같은지 [미확인]). 첫 attempt가 WebGL·컨텍스트 오류로 실패하면 `smoke.mjs`에 launch 인자를 더하지 말고 로그를 붙여 묻는다. ③ "CI가 X를 확인했다"는 문장은 (e)·(f) 출력이 나온 뒤에만 쓴다(규칙 1·2). ④ `ubuntu-latest`로 되돌리면 Playwright 1.56.1이 26.04에서 chromium을 받지 못한다(설계 1). 레이블은 설계 그대로 둔다.
+- **dry-run 범위(Opus 2026-11-28)**: scratch 사본(`origin/main` `ci.yml` + 이 블록, 커밋 2개)에서 돌려 기대 출력을 확인한 것은 할 일 1·2의 블록 추출 `sed`(37줄), 할 일 4의 `ruby -ryaml`, (a)의 numstat·블록 `diff`, (b)의 `grep -c`, (e)의 `cut | sort | uniq -c | sed`(표본 8줄), (h)의 커밋별 파일 루프, 할 일 6의 `run.tsv` 비교(표본). macOS `wc -l`은 앞에 공백을 붙이므로 `| tr -d ' '`를 붙였다. GitHub 실행이 필요한 명령(`gh run list/watch/view/rerun`, `gh api …/attempts`, `gh pr checks`)과 README 문장 교체 뒤의 (d)는 dry-run하지 못했다.
 
 #### J-12 관문: 재환 worktree UE 빌드 (V-19 §4-1 새 체크아웃)
 - **출처**: [mac-setup §9](../runbooks/mac-setup.md) "§4-1 `build.sh`(main 새 체크아웃, #132 뒤) ⚪ 재확인 대기"(:322), STATUS V-19 행, [WP-20](WP-20-mac-dev-env.md) "남은 것". `$W`는 Binaries·Saved·`Content/Characters`가 없는 새 체크아웃이고 `tools/ue/common.sh`는 스크립트 위치로 저장소 루트를 찾는다.
