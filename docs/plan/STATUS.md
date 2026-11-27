@@ -74,8 +74,9 @@ Astra는 이 표를 고치지 않는다. 병합하는 Fable 세션이 Astra WP �
 | J-14 | `DEVELOPER_DIR` 전달 확인(§8 #8, 스텁 pytest) | 🟢 병합 `30aa96d`(2026-11-28) | [#141](https://github.com/wooklym/golmok/pull/141), 리뷰 R141. 테스트 6개: 스크립트가 환경 변수를 그대로 넘긴다(스텁 확인). 미설정 사례는 `build.sh`만, `open-editor.sh`는 `open`까지 — 실제 다른 Xcode 빌드 확인은 [미확인] |
 | J-06 | add-gasp 편집기 가드 테스트의 환경 의존 제거 | 🟢 병합 `a37b4ef`(2026-11-28) | [#143](https://github.com/wooklym/golmok/pull/143), 리뷰 R143. `gasp_env`에 가짜 `ps` 스텁 — 더미 에디터 프로세스로 6 failed 재현 → 수정 뒤 더미 유무 모두 8 passed. WP-21 후속 6의 가드 절반을 닫음. 남은 분기 사례는 새 과제 J-35 |
 | J-34 | `test.sh`·`add-gasp.sh` 오류 문구의 로그 경로 | 🟢 병합 `85a09c3`(2026-11-28) | [#142](https://github.com/wooklym/golmok/pull/142), 리뷰 R142(1회 보류: 완료 기준 테스트 누락) → R142-2. 두 문구가 `~/Library/Logs/Unreal Engine/GolmokEditor/Golmok.log`를 가리키고 스텁 assert가 고정(mac-setup §8 #14) |
-| J-07 | `ruff check` E501 잔여 확인과 WP-21 후속 6 닫기 근거(E501 절반) | 🔵 진행 중 | 허용 파일 `tools/tests/test_ue_mac_scripts.py`(E501 줄만) |
-| 다음 | J-07 → J-08 → J-09 → J-15 → J-17 → J-20 → J-18 → 남은 비설계 과제(J-16·J-19·J-21~J-23·J-35) → 설계 선행 J-10·J-11·J-24~J-33 | ⚪ | 순서·완료 기준은 [`plan/jaehwan-tasks.md`](jaehwan-tasks.md) |
+| J-07 | `ruff check` E501 잔여 확인(WP-21 후속 6의 E501 절반) | 🟢 완료(2026-11-28, 코드 변경 없음) | E501은 `a9a8757`에서 이미 고쳐졌고 main `85a09c3`의 `ruff check .` 통과(R144 영록 재현). WP-21 후속 6 전체 닫힘 |
+| J-08 | rawpy arm64 휠 설치·`rawpy.flags` 확인(mac-setup §8 #24 rawpy 절반) | 🔵 진행 중 | 과제 상세는 [`plan/jaehwan-tasks.md`](jaehwan-tasks.md) |
+| 다음 | J-08 → J-09 → J-15 → J-17 → J-20 → J-18 → 남은 비설계 과제(J-16·J-19·J-21~J-23·J-35) → 설계 선행 J-10·J-11·J-24~J-33 | ⚪ | 순서·완료 기준은 [`plan/jaehwan-tasks.md`](jaehwan-tasks.md) |
 
 ## 트랙 1B — PC 검증 (PC Claude 세션)
 

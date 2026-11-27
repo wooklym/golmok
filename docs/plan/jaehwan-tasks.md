@@ -63,14 +63,15 @@
 | J-14 | `DEVELOPER_DIR` 전달 스텁 테스트 6개(§8 #8) — 스크립트가 환경 변수를 그대로 넘긴다(스텁 확인), 실제 다른 Xcode 빌드 확인은 아님 | [#141](https://github.com/wooklym/golmok/pull/141) · `30aa96d` | R141(본문 B-1·B-2 수정 뒤 병합) |
 | J-06 | `gasp_env`에 가짜 `ps` 스텁 — add-gasp 편집기 가드 테스트가 실제 프로세스에 의존하지 않는다(수정 전 더미 프로세스로 6 failed → 수정 뒤 더미 유무 모두 8 passed) | [#143](https://github.com/wooklym/golmok/pull/143) · `a37b4ef` | R143 |
 | J-34 | `test.sh`·`add-gasp.sh` 오류 문구가 Mac 에디터 로그 `~/Library/Logs/Unreal Engine/GolmokEditor/Golmok.log`를 가리키고, 스텁 테스트 assert가 그 경로를 고정 | [#142](https://github.com/wooklym/golmok/pull/142) · `85a09c3` | R142(1회 보류: 완료 기준 테스트 누락·사실 아닌 문장 2개, 규칙 1·2·10·14) → R142-2 |
+| J-07 | WP-21이 본 E501 1건(`test_ue_mac_scripts.py:352`)은 `a9a8757`(WP-20 줄 길이 정리)에서 이미 고쳐졌고 main `85a09c3`의 `ruff check .`는 "All checks passed" — 코드 변경 없음 | PR 없음(결과는 [#143](https://github.com/wooklym/golmok/pull/143) 본문 "J-07 결과" 절) | R144(영록 재현: `9f3b64d`의 파일은 E501 116 > 110 1건, `a9a8757`의 파일은 통과) |
 
 **진행 중**
 
 | id | 과제 | 브랜치 | 허용 파일 |
 |---|---|---|---|
-| J-07 | `ruff check` E501 잔여 확인과 WP-21 후속 6 닫기 근거(편집기 가드 절반은 J-06이 닫았다 — E501 절반만 남음) | origin에 아직 없음(2026-11-28 `git branch -r`) | `tools/tests/test_ue_mac_scripts.py`(E501 줄만) |
+| J-08 | rawpy arm64 휠 설치·`rawpy.flags` 확인(§8 #24 rawpy 절반) | origin에 아직 없음(2026-11-28 `git branch -r`) | 과제 상세 J-08 절 |
 
-**다음**: J-07(진행 중) → J-08 → J-09 → J-15 → J-17 → J-20 → J-18 → 그 뒤 남은 비설계 과제(J-16·J-19·J-21~J-23·J-35, 순서는 영록이 정한다) → 설계 선행 J-10·J-11·J-24~J-33.
+**다음**: J-08(진행 중) → J-09 → J-15 → J-17 → J-20 → J-18 → 그 뒤 남은 비설계 과제(J-16·J-19·J-21~J-23·J-35, 순서는 영록이 정한다) → 설계 선행 J-10·J-11·J-24~J-33.
 
 ## 백로그 (의존 순서)
 
@@ -78,7 +79,6 @@
 
 | id | 과제 | 선행 | 크기 | 설계 선행 |
 |---|---|---|---|---|
-| J-07 | `ruff check` E501 잔여 확인과 WP-21 후속 6 닫기 근거 | 없음 | S | — |
 | J-08 | rawpy arm64 휠 설치·`rawpy.flags` 확인(§8 #24 rawpy 절반) | 없음 | S | — |
 | J-09 | 확인된 §8 행의 `[미확인]` 주석 정리(셸·geo 테스트) | 없음 | S | — |
 | J-10 | CI shellcheck 잡 | 설계 메모 | M | **설계 선행** |
@@ -103,9 +103,9 @@
 | J-31b | 헤드리스 자동화 1개 "W 3 s → 캡슐 이동 거리"(측정용 주입 경로는 Opus가 구현) | J-31a, Opus 주입 구현 | S | **설계 선행** |
 | J-32 | Cesium 활성 사본에서 mac-recon #15·#16(게임 타깃 빌드·`test.sh` 영향) | WP-21 후속 1 결정, 설계 메모 | M | **설계 선행** |
 | J-33 | avfoundation 60 fps 녹화 시험(§8 #25) | 소유자 화면 기록 권한, 설계 메모 | S | **설계 선행** |
-| J-35 | add-gasp 편집기 가드의 남은 분기 스텁 사례(`$GaspProject` 일치·음성 2종, J-06 후속) | J-07 병합(같은 파일) | S | — |
+| J-35 | add-gasp 편집기 가드의 남은 분기 스텁 사례(`$GaspProject` 일치·음성 2종, J-06 후속) | 없음(J-07은 코드 변경 없이 끝남) | S | — |
 
-J-06·J-12·J-12b·J-13·J-14·J-34는 끝났고(위 "완료"), J-07은 진행 중이다(위 "진행 중"). 아래 상세 절은 그대로 두고, 끝난 과제에는 "결과" 줄을 더한다.
+J-06·J-07·J-12·J-12b·J-13·J-14·J-34는 끝났고(위 "완료"), J-08은 진행 중이다(위 "진행 중"). 아래 상세 절은 그대로 두고, 끝난 과제에는 "결과" 줄을 더한다.
 
 ### 과제 상세
 
@@ -125,6 +125,7 @@ J-06·J-12·J-12b·J-13·J-14·J-34는 끝났고(위 "완료"), J-07은 진행 �
 - **허용 파일**: `tools/tests/test_ue_mac_scripts.py`(E501 줄만). 이미 고쳐졌으면 코드 변경 없이 J-06 PR 본문에 출력만 붙인다(PR을 따로 만들지 않는다).
 - **완료 기준**: `ruff check .` 출력 원문, 고친 커밋 SHA. 영록이 WP-21 후속 6을 닫는다.
 - **왜 재환 / 위험**: 명령 하나로 끝난다. 위험: 기억으로 "이미 고쳐짐"이라고 쓰는 것(규칙 1).
+- **결과**(2026-11-28, R144): 코드 변경 없음. main `85a09c3`에서 `ruff check .` → "All checks passed". 고친 커밋은 `a9a8757`("WP-20: test_ue_mac_scripts 줄 길이 정리 (ruff)"): `9f3b64d`의 파일은 E501 1건(352행, 116 > 110), `a9a8757`의 파일은 통과(영록 재현). 위 "할 일"의 `git log -L352,352`는 현재 352행의 계보만 따라가 답을 내지 못했다(영록의 지시 오류) — 재환이 커밋별 `git show "${sha}:<파일>" | ruff check --stdin-filename <파일> -`로 확정했다. PR은 만들지 않았고 결과는 [#143](https://github.com/wooklym/golmok/pull/143) 본문에 붙였다.
 
 #### J-08 rawpy arm64 휠 설치·`rawpy.flags` 확인
 - **출처**: [mac-setup §8](../runbooks/mac-setup.md) #24(rawpy arm64 휠), D-022 "이력"(D-011의 `rawpy.flags` 확인을 Mac arm64 휠에서 다시 한다 [미확인]), `tools/pyproject.toml`의 `raw` extra.
@@ -334,7 +335,7 @@ J-06·J-12·J-12b·J-13·J-14·J-34는 끝났고(위 "완료"), J-07은 진행 �
 - **할 일**: `tools/tests/test_ue_mac_scripts.py`에 `@posix_only` 사례를 더한다. 모두 `gasp_env`의 `FAKE_PS_LIST`·`FAKE_PS_CMDS`에 줄을 써서 만든다. ① **GASP 프로젝트 일치(막아야 함)**: `UnrealEditor` exe와 `e.gasp_project` 안의 `GASP_58.uproject`를 연 명령줄(`Golmok.uproject` 문자열은 넣지 않는다). 그러면 rc 1, `close the Unreal Editor first (running: <그 pid>`, `e.calls() == []`. ② **음성 — 상관없는 명령줄**: `UnrealEditor*` exe이지만 명령줄이 다른 프로젝트(예: `-Project=/Users/tester/Other/Other.uproject`)다. `e.respond("verify", ok=True, messages=[])` 뒤 `--verify`가 rc 0이고 stderr에 `close the Unreal Editor`가 없고 에디터 스텁이 불린다(`e.calls()`가 비지 않음). ③ **음성 — UnrealEditor가 아닌 실행 파일**: 이름이 `UnrealEditor`로 시작하지 않는 exe(예: `/usr/bin/vim`)이지만 명령줄에 `Golmok.uproject`가 있다. ②와 같은 단언. 기존 사례·픽스처의 동작은 바꾸지 않는다.
 - **허용 파일**: `tools/tests/test_ue_mac_scripts.py`. `add-gasp.sh`는 아래 변형 실험에서만 임시로 고치고 커밋하지 않는다. 가드 자체에 결함이 보이면 고치지 말고 출력을 붙여 영록에게 알린다.
 - **완료 기준**: (a) `pytest -q tests/test_ue_mac_scripts.py -k add_gasp` 출력 원문. 기존 8개와 새 사례 전부 passed다. (b) 변형 실험(로컬 1회씩, 커밋 안 함, 출력 원문 — 규칙 8): `add-gasp.sh`의 명령줄 `case`에서 `$GaspProject` 패턴을 지우면 ①이 실패한다. 이름 필터의 `continue`를 없애 모든 exe를 세게 하면 ③이 실패한다. 명령줄 `case`를 모든 명령줄에 맞게 바꾸면 ②가 실패한다. 실패한 테스트 이름과 메시지를 붙이고, `git checkout -- tools/ue/add-gasp.sh`로 되돌린 뒤 `git status --porcelain`에 테스트 파일만 남은 출력도 붙인다. (c) 파이썬 게이트, CI 모든 행 초록(Windows 행은 `@posix_only`로 건너뛴다 — J-06과 같은 방식으로 요약 줄을 확인해 적는다).
-- **왜 재환 / 위험**: J-06과 같은 스텁 위에서 끝나는 좁은 테스트 일이고 변형 실험으로 판정된다. 위험: ①이 `$GaspProject` 분기가 아니라 `Golmok.uproject` 분기로 통과하는 것(명령줄에 그 문자열을 넣지 않고 (b)의 첫 변형으로 확인한다), 음성 사례가 가드와 상관없는 이유로 결과가 바뀌는 것(rc 0과 "에디터 스텁이 불린다" 단언, (b)로 막는다). J-07과 같은 파일이라 J-07 병합 뒤에 시작한다.
+- **왜 재환 / 위험**: J-06과 같은 스텁 위에서 끝나는 좁은 테스트 일이고 변형 실험으로 판정된다. 위험: ①이 `$GaspProject` 분기가 아니라 `Golmok.uproject` 분기로 통과하는 것(명령줄에 그 문자열을 넣지 않고 (b)의 첫 변형으로 확인한다), 음성 사례가 가드와 상관없는 이유로 결과가 바뀌는 것(rc 0과 "에디터 스텁이 불린다" 단언, (b)로 막는다). J-07과 같은 파일이라 J-07은 코드 변경 없이 끝났으므로 바로 시작할 수 있다.
 
 ## 재환에게 맞지 않는 것 (이유)
 
