@@ -75,9 +75,36 @@ const fixtureUrl = userData ? '/zones/z_synthetic_001/v1/manifest.json' : '/data
 const zoneParam = `&zone=${fixtureUrl}&zone=/zones/z_synthetic_scan_001/v1/manifest.json`;
 const zoneArgs = ['--zone', scanZone, ...(userData ? ['--zone', resolve(fixtureCopy, 'v1')] : [])];
 
+// Readiness wait (2026-11-27 hardening, after a 22-min hang when the line never arrived):
+// unbuffered child stdout, a 30 s cap, fail fast when the server exits early (e.g. EADDRINUSE /
+// OSError Errno 48), output tails in the error, and the child is killed on every failure path.
 const server = spawn(py, ['-m', 'golmok_tools.viewer_server', data, ...zoneArgs, '--port', String(port), '--no-browser'],
-  { cwd: toolsDir, stdio: ['ignore', 'pipe', 'inherit'] });
-await new Promise((res) => server.stdout.on('data', (d) => { if (String(d).includes('viewer:')) res(); }));
+  { cwd: toolsDir, stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, PYTHONUNBUFFERED: '1' } });
+let outTail = '';
+let errTail = '';
+server.stdout.on('data', (d) => { outTail = (outTail + d).slice(-4000); });
+server.stderr.on('data', (d) => { errTail = (errTail + d).slice(-4000); });
+try {
+  await new Promise((res, rej) => {
+    const fail = (msg) => { clearTimeout(timer); server.kill(); rej(new Error(msg)); };
+    const onData = (d) => {
+      if (String(d).includes('viewer:')) {
+        clearTimeout(timer);
+        server.off('exit', onExit);
+        res();
+      }
+    };
+    const onExit = (code, signal) => fail(
+      `서버 프로세스가 준비 줄 없이 종료됨 (code=${code} signal=${signal})\nstderr:\n${errTail}`);
+    const timer = setTimeout(() => fail(
+      `30초 안에 'viewer:' 준비 줄 없음\nstdout:\n${outTail}\nstderr:\n${errTail}`), 30000);
+    server.stdout.on('data', onData);
+    server.once('exit', onExit);
+  });
+} catch (e) {
+  server.kill();
+  throw e;
+}
 
 const launch = { headless: true };
 if (process.env.PLAYWRIGHT_PROXY) launch.proxy = { server: process.env.PLAYWRIGHT_PROXY };

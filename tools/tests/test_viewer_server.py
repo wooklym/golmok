@@ -313,6 +313,9 @@ def test_readiness_line_arrives_through_a_pipe(tmp_path: Path):
             try:
                 candidate = out_q.get(timeout=0.5)
             except queue.Empty:
+                # If the child died before printing, do not burn the whole deadline waiting for it.
+                if proc.poll() is not None:
+                    break
                 continue
             if "viewer:" in candidate:
                 line = candidate
@@ -324,10 +327,12 @@ def test_readiness_line_arrives_through_a_pipe(tmp_path: Path):
                 with contextlib.suppress(OSError):
                     proc.send_signal(signal.SIGABRT)
                 time.sleep(1.0)
-            raise AssertionError(
-                f"30초 안에 'viewer:' 준비 줄이 오지 않음 "
-                f"(proc.poll()={proc.poll()}, stderr={drain(err_q)!r}, stdout={drain(out_q)!r})"
+            why = (
+                f"자식 프로세스가 준비 줄 전에 종료됨 (returncode={proc.poll()})"
+                if proc.poll() is not None
+                else "30초 안에 'viewer:' 준비 줄이 오지 않음"
             )
+            raise AssertionError(f"{why} (stderr={drain(err_q)!r}, stdout={drain(out_q)!r})")
     finally:
         proc.terminate()
         try:
