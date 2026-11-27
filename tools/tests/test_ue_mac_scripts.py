@@ -4,8 +4,8 @@
   test_ue_wp19_fixture.py for the .ps1 files, plus bash 3.2 rules (macOS system bash) and LF line ends.
 - Behaviour tests copy the scripts into a fake checkout and run them against a fake engine tree under a folder
   with spaces ("Epic Games"): stub Build.sh / RunUAT.sh / UnrealEditor-Cmd record their argv and the
-  DEVELOPER_DIR they were called with (and the add-gasp job file), the editor stub writes the automation report
-  or the add-gasp step report. Skipped on Windows.
+  DEVELOPER_DIR they were called with, and the add-gasp job file; the editor stub writes the automation
+  report or the add-gasp step report. Skipped on Windows.
 """
 
 from __future__ import annotations
@@ -293,8 +293,9 @@ def test_build_passes_config_and_project(env):
 #
 # The scripts must hand the user's DEVELOPER_DIR down to the engine batch files untouched and never set or
 # override it themselves (UE-396802: pointing it at an Xcode 26.x Developer folder is the documented 5.8.3
-# workaround, so silently resetting it would break that). The stub records os.environ["DEVELOPER_DIR"] of the
-# process it was launched as, so the assertion below is about what the child actually saw, not about the script text.
+# workaround, so silently resetting it would break that). The stub records the child's own
+# os.environ["DEVELOPER_DIR"], so the assertion below checks what the child process actually saw, not the
+# script text.
 
 
 @posix_only
