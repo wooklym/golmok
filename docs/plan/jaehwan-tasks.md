@@ -34,6 +34,11 @@
 - **PR**: 제목 `J-NN: <요약>`. 본문 = 요약, 바뀐 파일, 실행한 명령과 출력(복사), 남은 `[미확인]`, "병합 시 반영"(공유 문서 문안이 있으면), **"제출 전 점검표"**(규칙 1~12 한 줄씩 — 한 일과 증거, 또는 "해당 없음"과 이유), 끝 줄 서명(규칙 7). 점검표가 없으면 리뷰를 시작하지 않는다.
 - **완료 보고**: CI 모든 행 초록 뒤에만(`gh pr checks <n>` 표, 규칙 2). 게시 뒤 본문을 다시 읽는다(규칙 12).
 - **병합하지 않는다.** 병합은 영록이 한다.
+- **`py` 뒤에는 `QUIT_EDITOR`**: 창 없는 에디터(`UnrealEditor-Cmd … -nullrhi`)에 `-ExecCmds="py …"`를 줄 때 끝 명령은 `QUIT_EDITOR`다. `Quit`로는 스크립트가 끝나도 에디터가 나가지 않는다(J-12b: 약 13 s에 스크립트가 끝났지만 1800 s 타임아웃 rc 124). 근거 [pc-setup.md](../runbooks/pc-setup.md) §2 "GUI 없이 하는 방법"의 창 없는 에디터 줄.
+- **Mac 에디터 로그는 `~/Library/Logs/Unreal Engine/GolmokEditor/`**: 프로젝트 로그는 그 폴더의 `Golmok.log`다. `<project>/Saved/Logs/`는 2026-11-28 현재 `$W`에도 메인 체크아웃에도 없다. 에디터를 다시 띄우면 이전 로그는 같은 폴더의 `Golmok-backup-<시각>.log`가 되므로, 실행 직후 `Golmok.log`를 `$E`에 복사한 뒤 `grep`한다. `Saved/Automation/Report/index.json`은 예전처럼 프로젝트 아래에 생긴다([mac-setup §8 #14](../runbooks/mac-setup.md)).
+- **상대 경로 명령은 `cd "$W" &&`로 시작**: 셸의 기본 cwd는 메인 체크아웃이다. `./tools/ue/…`·`unreal/Golmok/…`처럼 상대 경로를 쓰는 명령은 매번 `cd "$W" && …`로 시작한다(규칙 6).
+- **커밋 작성자**: 커밋마다 `git -c user.name="재환" -c user.email="jaehwan.local@localhost" commit …`. `git config`에 저장하지 않는다(메인 체크아웃과 다른 세션이 같은 설정을 읽는다).
+- **명령마다 로그+exit**: 명령마다 `> $E/<이름>.log 2>&1; echo $? > $E/<이름>.rc`, 돌린 명령 원문은 `$E/commands.txt`에 한 줄씩 더한다. 다음 실행이 덮어쓰는 결과물(`Saved/Automation/Report/index.json`, 에디터 `Golmok.log` 등)은 실행 직후 `$E`에 사본을 둔다(규칙 10).
 
 ## 리뷰·병합 절차
 
@@ -51,12 +56,18 @@
 | J-02 | 스모크 준비 대기 견고화(`PYTHONUNBUFFERED`·30 s·조기 종료 실패), 기동 실패 시 서버 누수 수정 | [#133](https://github.com/wooklym/golmok/pull/133) · `91d8b70` | R133(1회 보류: 규칙 1·3·8·9) |
 | J-03 | 스모크 신호 처리 — 정리 네트를 spawn 직후로, SIGINT·SIGTERM·SIGHUP 핸들러 | [#134](https://github.com/wooklym/golmok/pull/134) · `9ac5cbe` | R134(첫 제출 병합; 규칙 10·11 추가) |
 | J-04 | 스모크 간헐 실패(ERR_CONNECTION_RESET) 원인 수정 — accept 큐 백로그 5 → 128 | [#135](https://github.com/wooklym/golmok/pull/135) · `6a1a28e` | R135(첫 제출 병합; 규칙 12 추가) |
+| J-05 | 뷰어 정리 — 테스트 BrokenPipeError 잡음 제거, 스모크 실패 덤프를 `finally`로, `somaxconn` 주석 | [#136](https://github.com/wooklym/golmok/pull/136) · `a66d615` | R136 |
+| J-12 | **관문**: 재환 worktree UE 빌드(`origin/main` `6a1a28e` 새 체크아웃, 로컬 우회 없음) — `build.sh` rc 0(액션 57, 34.35 s, error 줄 0)·`add-mannequin.sh` rc 0·`test.sh --setup-dev-level` rc 0, 39개 상태 Success(Failed 0·Not run 0, `succeeded` 22 + `succeededWithWarnings` 17). **39 중 9는 skip**(아래 J-12 "결과") | [#138](https://github.com/wooklym/golmok/pull/138) · `ee3ef0e` | R138 |
+| J-12b | 합성 zone 헤드리스 생성(`QUIT_EDITOR`, rc 0, 14 s) 뒤 `test.sh` rc 0 — 39 Success(`succeeded` 20 + `succeededWithWarnings` 19), zone 계열 skip 0, 남은 skip은 Weather.Runtime·Animation.GaspSmoke(아래 J-12b "결과") | PR 없음(메시지 보고) | 영록이 보고 파일을 읽어 확인 |
 
 **진행 중**
 
 | id | 과제 | 브랜치 | 허용 파일 |
 |---|---|---|---|
-| J-05 | 뷰어 정리 — 테스트 BrokenPipe 잡음, 스모크 실패 덤프를 `finally`로, `somaxconn` 주석 | `local/jaehwan-viewer-cleanup` | 배정 메시지의 허용 파일(R135 이월 범위: `tools/viewer/test/smoke.mjs`, `tools/tests/test_viewer_server.py`, `tools/golmok_tools/viewer_server.py` 주석) |
+| J-13 | 39 중 "Warning 있는 성공" 분류(V-19 §4-3) — [#139](https://github.com/wooklym/golmok/pull/139) 리뷰 대기 | `local/jaehwan-j13-warnings` | mac-setup §9 §4-3 행 메모 칸 |
+| J-14 | `DEVELOPER_DIR` 전달 확인(§8 #8) — 스텁 pytest (J-13 뒤) | `local/jaehwan-j14-developer-dir` | `tools/tests/test_ue_mac_scripts.py`, mac-setup §8 #8 칸 |
+
+**다음**: J-13 → J-14 → J-06~J-11(UE 빌드 없는 도구·CI)·J-34 → J-15~J-23(J-12b가 풀었다: J-17·J-18·J-20) → 설계 선행 J-24~J-33.
 
 ## 백로그 (의존 순서)
 
@@ -70,10 +81,6 @@
 | J-09 | 확인된 §8 행의 `[미확인]` 주석 정리(셸·geo 테스트) | 없음 | S | — |
 | J-10 | CI shellcheck 잡 | 설계 메모 | M | **설계 선행** |
 | J-11 | CI 뷰어 `npm test` 잡 | 설계 메모 | M | **설계 선행** |
-| J-12 | **관문**: 재환 worktree UE 빌드 — build·마네킹·39 Success(V-19 §4-1 새 체크아웃) | 없음 | S | — |
-| J-12b | 합성 zone 헤드리스 생성(`synthetic_zone.run(interior=True)`) 뒤 `test.sh` 재실행 — zone 계열 skip 0 | J-12 | S | — |
-| J-13 | 39 중 16 "Warning 있는 성공" 분류(V-19 §4-3) | J-12 | S | — |
-| J-14 | `DEVELOPER_DIR` 전달 확인(§8 #8) — 스텁 pytest | 없음 | S | — |
 | J-15 | worktree 패키지로 §8 #10·#11(읽기)·#12·#13 확인 | J-12 | M | — |
 | J-16 | `_pure.py` Mac 경로 가정·`package.sh` 주석을 J-15 실측으로 정리 | J-15 | S–M | — |
 | J-17 | V-17 §0 헤드리스 Mac 부분 선행(GeoMath·Character 훅 컴파일·IndexParse·SharedInterior·Save.RoundTrip 닫기·Weather.Runtime) | J-12b | S | — |
@@ -94,6 +101,9 @@
 | J-31b | 헤드리스 자동화 1개 "W 3 s → 캡슐 이동 거리"(측정용 주입 경로는 Opus가 구현) | J-31a, Opus 주입 구현 | S | **설계 선행** |
 | J-32 | Cesium 활성 사본에서 mac-recon #15·#16(게임 타깃 빌드·`test.sh` 영향) | WP-21 후속 1 결정, 설계 메모 | M | **설계 선행** |
 | J-33 | avfoundation 60 fps 녹화 시험(§8 #25) | 소유자 화면 기록 권한, 설계 메모 | S | **설계 선행** |
+| J-34 | `test.sh`·`add-gasp.sh` 오류 문구의 로그 경로를 Mac 실제 경로로 | 없음 | S | — |
+
+J-12·J-12b는 끝났고(위 "완료"), J-13·J-14는 진행 중이다(위 "진행 중"). 아래 상세 절은 그대로 둔다.
 
 ### 과제 상세
 
@@ -147,16 +157,18 @@
 - **허용 파일**: `docs/runbooks/mac-setup.md` §9 "§4-1 main 새 체크아웃" 행의 날짜·세션·결과·메모 칸과 §8 #4 "확인 결과" 칸의 dylib 절반. 코드는 고치지 않는다.
 - **완료 기준**: HEAD SHA, 각 명령 종료 코드, 빌드 로그의 액션 수(`grep` 출력), `python3 -c`로 `Saved/Automation/Report/index.json`(UTF-8 BOM — `encoding='utf-8-sig'`)에서 센 39개 상태(Success 39 · Failed 0 · Not run 0, 그리고 `succeeded` 칸 값)와 **같은 줄에 skip 수**: `python3 -c "import json;d=json.load(open('unreal/Golmok/Saved/Automation/Report/index.json',encoding='utf-8-sig'));s=[t['fullTestPath'] for t in d['tests'] if any('skipped' in e['event']['message'].lower() for e in t.get('entries',[]))];print(len(s));print(*s,sep='\n')"` 출력 원문(새 체크아웃에는 `L_ZoneTest`·합성 zone이 없어 Portal.*·Save.RoundTrip·Travel.Teleport·Zone.IndexDiscover·Zone.InteriorNotBlocked·Weather.Runtime·Animation.GaspSmoke가 skip으로 Success일 것으로 기대 — 이 테스트들은 "통과"가 아니라 "skip"으로 적는다), `file unreal/Golmok/Binaries/Mac/*.dylib | head`(§8 #4 dylib 아키텍처 [미확인]을 채운다), `git status --porcelain` 빈 출력.
 - **왜 재환 / 위험**: 순수 명령 검증이고 이후 모든 UE 과제의 관문이다. 위험: 메인 체크아웃 산출물을 복사하는 것(규칙 6) — 모두 `$W`에서 다시 만든다. 빌드가 실패하면 고치지 말고 오류 줄과 파일:줄을 보고한다(Astra 레인 파일이면 특히).
+- **결과(2026-11-28, [#138](https://github.com/wooklym/golmok/pull/138) · `ee3ef0e`, 리뷰 R138)**: `$W`의 `origin/main` `6a1a28e` 새 체크아웃, 로컬 우회 없음. `build.sh` rc 0(액션 57, 34.35 s, error 줄 0), `add-mannequin.sh` rc 0, `test.sh --setup-dev-level` rc 0. 보고서 39개 상태 전부 Success, failed 0, notRun 0, `succeeded` 22 + `succeededWithWarnings` 17 = 39 — 보고서의 `succeeded` 칸은 **Warning 없는** 성공만 센다. 39 중 9는 skip Info 줄이 있는 Success다(L_ZoneTest·합성 zone이 없음): Portal.PawnSwap·Portal.RoundTrip·Portal.SharedInterior·Save.RoundTrip·Travel.Teleport·Zone.IndexDiscover·Zone.InteriorNotBlocked·Weather.Runtime·Animation.GaspSmoke. 위 skip 수 명령은 10을 낸다 — `Zone.IndexParse`는 skip되지 않았고 zone index 셀 줄(`z_synthetic_002@v2` vs `zones.json` v1)의 "(skipped)" 문구에 걸린 것이다. 2026-11-27 메인 체크아웃 실행의 "39 Success"도 같은 9 skip을 포함했다(mac-setup §9 §4-3 정정).
 
 #### J-12b 합성 zone 헤드리스 생성 뒤 `test.sh` 재실행
 - **출처**: J-12 보고서의 skip Info(`skipped: run synthetic_zone.run(interior=True)` — Portal.PawnSwap·RoundTrip·SharedInterior, `skipped: /Game/Golmok/Maps/L_ZoneTest missing` — Save.RoundTrip·Travel.Teleport, `skipped: run synthetic_zone.run()` — Zone.IndexDiscover·InteriorNotBlocked; 2026-11-28 메인 체크아웃 보고서로 확인). `.gitignore`가 `L_ZoneTest.umap`·합성 zone 에셋을 무시한다(저장소에 없다). [pc-verify-v17.md](../runbooks/pc-verify-v17.md) §0의 "이전 카드 워크트리에서 복사"는 Mac에 그 워크트리가 없어 쓸 수 없다. `synthetic_zone.run()`(`synthetic_zone.py:699`)은 맵을 만들고 저장한다.
-- **할 일**: (1) `cd $W && /usr/bin/timeout 1800 "/Users/Shared/Epic Games/UE_5.8/Engine/Binaries/Mac/UnrealEditor-Cmd" "$W/unreal/Golmok/Golmok.uproject" "-ExecCmds=py import golmok.synthetic_zone as z; z.run(interior=True),Quit" -unattended -nullrhi -nosplash -nopause -nosound > $E/synth.log 2>&1; echo $? > $E/synth.rc`(`test.sh`와 같은 `-ExecCmds` 형식). `-nullrhi`에서 glTF 임포트·`save_map`이 되는지는 [미확인]이다 — 안 되면 `Saved/Logs/Golmok.log`의 오류 줄을 보고하고 멈춘다(`-nullrhi`를 빼는 재시도는 영록에게 묻고 GUI 잠금 아래에서). (2) `grep -c "synthetic_zone: interior ready" $W/unreal/Golmok/Saved/Logs/Golmok.log`, `ls $W/unreal/Golmok/Content/Golmok/Maps/`. (3) `./tools/ue/test.sh` 다시 실행 → J-12의 skip 수 한 줄 명령을 다시 돌린다.
+- **할 일**: (1) `cd $W && /usr/bin/timeout 1800 "/Users/Shared/Epic Games/UE_5.8/Engine/Binaries/Mac/UnrealEditor-Cmd" "$W/unreal/Golmok/Golmok.uproject" "-ExecCmds=py import golmok.synthetic_zone as z; z.run(interior=True),QUIT_EDITOR" -unattended -nullrhi -nosplash -nopause -nosound > $E/synth.log 2>&1; echo $? > $E/synth.rc`(`test.sh`와 같은 `-ExecCmds` 형식; 끝 명령은 `QUIT_EDITOR` — 정정 2026-11-28: 처음 적은 `,Quit`로는 에디터가 나가지 않아 1800 s 타임아웃 rc 124가 됐다). `-nullrhi`에서 glTF 임포트·`save_map`이 되는지는 [미확인]이었다 — 안 되면 `~/Library/Logs/Unreal Engine/GolmokEditor/Golmok.log`(정정 2026-11-28: 처음 적은 `Saved/Logs/Golmok.log`는 Mac에 없다)의 오류 줄을 보고하고 멈춘다(`-nullrhi`를 빼는 재시도는 영록에게 묻고 GUI 잠금 아래에서). (2) `cp "$HOME/Library/Logs/Unreal Engine/GolmokEditor/Golmok.log" $E/synth-editor.log && grep -c "synthetic_zone: interior ready" $E/synth-editor.log`(다음 에디터 실행이 이 파일을 `Golmok-backup-*.log`로 돌린다), `ls $W/unreal/Golmok/Content/Golmok/Maps/`. (3) `cd "$W" && ./tools/ue/test.sh` 다시 실행 → J-12의 skip 수 한 줄 명령을 다시 돌린다.
 - **허용 파일**: 없음(코드·문서 변경 없음 — 결과는 PR이 아니라 영록에게 보내는 메시지와 `$E`). 영록이 mac-setup·v17 칸에 옮긴다.
 - **완료 기준**: Portal.*·Save.RoundTrip·Travel.Teleport·Zone.IndexDiscover·Zone.InteriorNotBlocked의 `skipped` Info 줄 수가 **0**(skip 수 명령 출력 원문; Weather.Runtime·Animation.GaspSmoke는 에셋·GASP가 없어 skip으로 남는 것이 기대 — 그대로 적는다), 39개 상태(Failed 0 · Not run 0), `git -C $W status --porcelain` 빈 출력(생성물은 `.gitignore` 대상이어야 한다 — 다른 파일이 보이면 커밋하지 말고 목록을 보고).
 - **왜 재환 / 위험**: 명령과 로그로 판정된다. J-17·J-20·J-18의 선행이다. 위험: skip을 통과로 적는 것(J-12 skip 수 명령으로 막는다), 생성 에셋을 커밋하는 것.
+- **결과(2026-11-28, PR 없음 — 메시지 보고, 영록이 보고 파일을 읽어 확인)**: (1) `QUIT_EDITOR` 명령 rc 0, 14 s. `-nullrhi`에서 glTF 임포트와 맵 저장이 Mac에서 된다. `Content/Golmok/Maps/L_ZoneTest.umap`과 `Content/Golmok/Zones/{z_synthetic_001, z_synthetic_001_interior, z_synthetic_002, index}`가 생기고 모두 `.gitignore` 대상이다(`git status --porcelain` 빈 출력). `,Quit`로는 스크립트가 약 13 s에 끝났지만 에디터가 나가지 않아 1800 s 타임아웃(rc 124). (2) 로그는 `~/Library/Logs/Unreal Engine/GolmokEditor/Golmok.log`에 쓰이고 `$W/unreal/Golmok/Saved/Logs/`는 없다. (3) 그 뒤 `test.sh` rc 0: 39 Success, failed 0, notRun 0, `succeeded` 20 + `succeededWithWarnings` 19. skip 수 명령 출력 3 — Weather.Runtime·Animation.GaspSmoke(기대대로 skip)와 Zone.IndexParse(오탐, J-12 "결과"). Portal.*·Save.RoundTrip·Travel.Teleport·Zone.IndexDiscover·Zone.InteriorNotBlocked 다섯 묶음은 이제 Mac에서 실제로 돌고 Success다. 경고 `Zone manifest z_synthetic_001: unknown top-level key 'spawn' (schema error for golmok-zone validate).`(`Golmok.Zone.ManifestV2`, 1회)는 J-12 보고서와 이 보고서에 **둘 다** 있다(새 경고 아님, 분류는 J-13).
 
-#### J-13 39 중 16 "Warning 있는 성공" 분류
-- **출처**: mac-setup §9 §4-3(:324) "보고서 `succeeded` 칸은 23 … 나머지 16은 Warning 있는 성공(원인 [미확인])", WP-20 결과 절.
+#### J-13 39 중 "Warning 있는 성공" 분류
+- **출처**: mac-setup §9 §4-3(:324) "보고서 `succeeded` 칸은 23 … 나머지 16은 Warning 있는 성공(원인 [미확인])"(2026-11-27 메인 체크아웃 실행), WP-20 결과 절. 2026-11-28 새 숫자: J-12 보고서 `succeeded` 22 + `succeededWithWarnings` 17, J-12b 뒤 보고서 20 + 19. `succeeded` 칸은 Warning 없는 성공만 센다(두 칸의 합이 39). 2026-11-27의 23과 J-12의 22가 왜 다른지는 [미확인](다른 실행). 진행: [#139](https://github.com/wooklym/golmok/pull/139) 리뷰 대기.
 - **할 일**: J-12 보고서에서 테스트마다 경고 수와 첫 경고 문구·출처(파일·카테고리)를 뽑는 1회용 스크립트(`$E`에 둔다, 커밋 안 함).
 - **허용 파일**: mac-setup §9 §4-3 행 메모 칸.
 - **완료 기준**: 표(테스트 이름 · 경고 수 · 첫 경고 문구 원문)와 합계가 스크립트 출력과 같다(규칙 10). "무해하다"는 판정은 쓰지 않는다 — 영록(Opus) 몫.
@@ -227,7 +239,7 @@
 
 #### J-23 19b A1 ① 회귀 헤드리스
 - **출처**: [pc-verify-wp19.md](../runbooks/pc-verify-wp19.md) A1(:43-57): `test.sh --filter Golmok.Animation --setup-dev-level` → 4 Success, `GaspSmoke` `[Info] GASP not installed — skipped`, `Fallback` 기대 Warning 1개, `StateProvider` Info `GASP pawn after p0: accel 2048/2048 …`, `Saved/Logs`에 `Character mesh '' not found` 없음. STATUS WP-19 행.
-- **할 일**: 위 명령과 로그 `grep`. 에디터 PIE `golmok.anim status` 단계는 GUI라 영록에게 남긴다.
+- **할 일**: 위 명령과 로그 `grep`(Mac에서 런북의 `Saved/Logs`는 `~/Library/Logs/Unreal Engine/GolmokEditor/Golmok.log`다 — 상시 규칙). 에디터 PIE `golmok.anim status` 단계는 GUI라 영록에게 남긴다.
 - **허용 파일**: wp19 A1 결과(런북 결과 절의 A1 행)만.
 - **완료 기준**: 기대 문자열마다 `grep -c` 출력.
 - **왜 재환 / 위험**: 기대 문자열이 런북에 정확히 있다.
@@ -303,6 +315,13 @@
 - **허용 파일**: §8 #25 칸.
 - **완료 기준**: 프레임 수 출력 원문, 녹화 중 LM Studio 부하 여부.
 - **왜 재환 / 위험**: 수치 하나. 위험: 권한 없이 시도하다 권한 창을 누르는 것 — 누르지 않는다.
+
+#### J-34 `test.sh`·`add-gasp.sh` 오류 문구의 로그 경로를 Mac 실제 경로로
+- **출처**: J-12b 결과(Mac 에디터 로그는 `~/Library/Logs/Unreal Engine/GolmokEditor/Golmok.log`, `<project>/Saved/Logs/`는 없다), [mac-setup §8 #14](../runbooks/mac-setup.md). 지금 문구: `tools/ue/test.sh:34` 주석과 `:42` 오류 `No automation report at $Index (see unreal/Golmok/Saved/Logs/Golmok.log).`, `tools/ue/add-gasp.sh:120` 오류 `… see the editor log under Saved/Logs.`
+- **할 일**: 세 줄이 Mac 실제 경로(`~/Library/Logs/Unreal Engine/GolmokEditor/Golmok.log`)를 가리키게 고친다. 오류 문구에 사용자 이름이 든 절대 경로를 하드코딩하지 않는다(`$HOME` 또는 `~`). `tools/tests/test_ue_mac_scripts.py`의 스텁으로 두 오류 경로를 일으켜 새 문구를 단언하는 사례를 더한다(기존 스텁이 보고서를 쓰지 않게 하면 `test.sh` 경로가 난다).
+- **허용 파일**: `tools/ue/test.sh`, `tools/ue/add-gasp.sh`, `tools/tests/test_ue_mac_scripts.py`.
+- **완료 기준**: (a) 새 사례가 옛 문구에서 실패하고(로컬 1회, 커밋 안 함, 출력 원문 — 규칙 8) 새 문구에서 통과. (b) `grep -n -E 'Saved/Logs' tools/ue/test.sh tools/ue/add-gasp.sh` 출력이 0줄(또는 남은 줄과 이유). (c) `bash -n tools/ue/*.sh`, 파이썬 게이트, CI 모든 행 초록. add-gasp 사례가 편집기 가드(J-06)에 걸리면 그 사실을 적는다.
+- **왜 재환 / 위험**: 문구와 스텁 테스트만. 위험: 실제 경로를 한 Mac의 관찰로 일반화하는 것 — 문구는 "Mac 기본 위치"로 좁혀 쓴다(규칙 3).
 
 ## 재환에게 맞지 않는 것 (이유)
 
