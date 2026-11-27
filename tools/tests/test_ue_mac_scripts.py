@@ -17,7 +17,6 @@ import shutil
 import stat
 import subprocess
 import sys
-import time
 from pathlib import Path
 
 import pytest
@@ -251,6 +250,21 @@ def env(tmp_path):
 @pytest.fixture
 def gasp_env(tmp_path):
     e = Env(tmp_path, "golmok")  # add-gasp refuses a repo path with a space
+    # J-06: the add-gasp editor guard runs real `ps`, so a running editor used to fail these
+    # tests. Shadow `ps` (e.bin is first on PATH) with a stub reading two control files:
+    # FAKE_PS_LIST lines "pid exe", FAKE_PS_CMDS lines "pid command line". Both start empty.
+    _stub(
+        e.bin / "ps",
+        "#!/bin/sh\n"
+        'case "$1" in\n'
+        '    -axo) cat "${FAKE_PS_LIST:-/dev/null}" ;;\n'
+        '    -o) grep -m1 "^$4 " "${FAKE_PS_CMDS:-/dev/null}" | cut -d" " -f2- ;;\n'
+        "esac\n",
+    )
+    e.env["FAKE_PS_LIST"] = str(tmp_path / "ps-list.txt")
+    e.env["FAKE_PS_CMDS"] = str(tmp_path / "ps-cmds.txt")
+    Path(e.env["FAKE_PS_LIST"]).write_text("", encoding="utf-8")
+    Path(e.env["FAKE_PS_CMDS"]).write_text("", encoding="utf-8")
     gasp = tmp_path / "home" / "UE" / "GASP_58"
     (gasp / "Content").mkdir(parents=True)
     (gasp / "GASP_58.uproject").write_text("{}", encoding="utf-8")
@@ -637,23 +651,15 @@ def test_add_gasp_local_files_and_manifest(gasp_env):
 
 
 @posix_only
-def test_add_gasp_refuses_while_an_editor_runs(gasp_env, tmp_path):
+def test_add_gasp_refuses_while_an_editor_runs(gasp_env):
+    # J-06: the guard must still refuse — now driven by the fake ps of gasp_env (pid 4242)
+    # instead of a real sleep-as-UnrealEditor process, so nothing here races the machine.
+    # The exe path keeps a space ("Epic Games") to also cover the "pid exe" line parsing.
     e = gasp_env
-    sleep = shutil.which("sleep")
-    assert sleep
-    fake = tmp_path / "Golmok.uproject.d" / "UnrealEditor"  # the command line then contains "Golmok.uproject"
-    fake.parent.mkdir()
-    # ps reports the symlink path as the executable (a copied macOS system binary may not run)
-    fake.symlink_to(sleep)
-    proc = subprocess.Popen([str(fake), "30"])
-    try:
-        time.sleep(0.3)
-        if proc.poll() is not None:
-            pytest.skip("the sleep symlink does not run here")
-        result = e.run("add-gasp.sh", "--verify")
-        assert result.returncode == 1
-        assert f"close the Unreal Editor first (running: {proc.pid}" in result.stderr
-        assert e.calls() == []
-    finally:
-        proc.kill()
-        proc.wait()
+    exe = "/Users/tester/Epic Games/UE_5.8/Engine/Binaries/Mac/UnrealEditor"
+    Path(e.env["FAKE_PS_LIST"]).write_text(f"4242 {exe}\n", encoding="utf-8")
+    Path(e.env["FAKE_PS_CMDS"]).write_text(f"4242 {exe} -Project={e.project}\n", encoding="utf-8")
+    result = e.run("add-gasp.sh", "--verify")
+    assert result.returncode == 1
+    assert "close the Unreal Editor first (running: 4242" in result.stderr
+    assert e.calls() == []
