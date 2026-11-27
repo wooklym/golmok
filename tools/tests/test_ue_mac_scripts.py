@@ -3,8 +3,9 @@
 - Text checks mirror test_ue_package_script.py and the add-gasp checks in test_ue_python_gasp_import.py /
   test_ue_wp19_fixture.py for the .ps1 files, plus bash 3.2 rules (macOS system bash) and LF line ends.
 - Behaviour tests copy the scripts into a fake checkout and run them against a fake engine tree under a folder
-  with spaces ("Epic Games"): stub Build.sh / RunUAT.sh / UnrealEditor-Cmd record their argv (and the add-gasp
-  job file), the editor stub writes the automation report or the add-gasp step report. Skipped on Windows.
+  with spaces ("Epic Games"): stub Build.sh / RunUAT.sh / UnrealEditor-Cmd record their argv and the
+  DEVELOPER_DIR they were called with, and the add-gasp job file; the editor stub writes the automation
+  report or the add-gasp step report. Skipped on Windows.
 """
 
 from __future__ import annotations
@@ -139,7 +140,7 @@ STUB = """#!{python}
 import json, os, shutil, sys
 from pathlib import Path
 
-entry = {{"exe": sys.argv[0], "argv": sys.argv[1:]}}
+entry = {{"exe": sys.argv[0], "argv": sys.argv[1:], "developer_dir": os.environ.get("DEVELOPER_DIR")}}
 job_path = os.environ.get("GOLMOK_GASP_JOB")
 if job_path:
     job = json.loads(Path(job_path).read_text(encoding="utf-8"))
@@ -286,6 +287,72 @@ def test_build_passes_config_and_project(env):
     assert failed.returncode == 1 and "Build failed (5)" in failed.stderr
     extra = env.run("build.sh", "Development", "/x")
     assert extra.returncode == 1 and "build: unexpected argument /x" in extra.stderr
+
+
+# --- DEVELOPER_DIR pass-through (§8 #8, J-14) ---
+#
+# The scripts must hand the user's DEVELOPER_DIR down to the engine batch files untouched and never set or
+# override it themselves (UE-396802: pointing it at an Xcode 26.x Developer folder is the documented 5.8.3
+# workaround, so silently resetting it would break that). The stub records the child's own
+# os.environ["DEVELOPER_DIR"], so the assertion below checks what the child process actually saw, not the
+# script text.
+
+
+@posix_only
+def test_scripts_never_set_developer_dir_themselves():
+    for name in SCRIPTS:
+        assert not re.search(r"(?<![\w:])DEVELOPER_DIR=", _code(name)), name
+        assert "export DEVELOPER_DIR" not in _code(name), name
+        assert "unset DEVELOPER_DIR" not in _code(name), name
+
+
+@posix_only
+def test_build_passes_developer_dir_untouched(env):
+    # a sentinel with a space and a symlink-ish name, so truncation or re-quoting would show up
+    sentinel = "/Applications/Xcode 26.app/Contents/Developer"
+    assert env.run("build.sh", DEVELOPER_DIR=sentinel).returncode == 0
+    assert env.calls()[-1]["developer_dir"] == sentinel
+
+
+@posix_only
+def test_package_and_test_pass_developer_dir_untouched(env):
+    sentinel = "/Applications/Xcode 16.4.app/Contents/Developer"
+    assert env.run("package.sh", DEVELOPER_DIR=sentinel, FAKE_RC="0").returncode == 0
+    assert env.calls()[-1]["developer_dir"] == sentinel  # RunUAT.sh
+    assert env.run("test.sh", DEVELOPER_DIR=sentinel, FAKE_INDEX=_index(1, 0)).returncode == 0
+    assert env.calls()[-1]["developer_dir"] == sentinel  # UnrealEditor-Cmd
+
+
+@posix_only
+def test_generate_project_files_and_open_editor_pass_developer_dir(env):
+    sentinel = "/Applications/Xcode 26.1.app/Contents/Developer"
+    assert env.run("generate-project-files.sh", DEVELOPER_DIR=sentinel).returncode == 0
+    assert env.calls()[-1]["developer_dir"] == sentinel
+    assert env.run("open-editor.sh", DEVELOPER_DIR=sentinel).returncode == 0
+    assert env.calls()[-1]["developer_dir"] == sentinel
+
+
+@posix_only
+def test_add_gasp_passes_developer_dir(gasp_env):
+    sentinel = "/Applications/Xcode 26.1.app/Contents/Developer"
+    gasp_env.respond("verify", ok=True, messages=[])
+    assert gasp_env.run("add-gasp.sh", "--verify", DEVELOPER_DIR=sentinel).returncode == 0
+    assert gasp_env.calls()[-1]["developer_dir"] == sentinel
+
+
+@posix_only
+def test_developer_dir_unset_stays_unset(env):
+    # no DEVELOPER_DIR in the caller's environment → the child must not have picked one up from the scripts
+    assert "DEVELOPER_DIR" not in env.env  # the test environment is already minimal (PATH/HOME/UE_ROOT/…)
+    result = subprocess.run(
+        ["bash", str(env.repo / "tools" / "ue" / "build.sh")],
+        env={k: v for k, v in env.env.items() if k != "DEVELOPER_DIR"},
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    assert result.returncode == 0, result.stderr
+    assert env.calls()[-1]["developer_dir"] is None
 
 
 @posix_only
