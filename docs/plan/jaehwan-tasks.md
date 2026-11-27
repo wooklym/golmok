@@ -59,15 +59,18 @@
 | J-05 | 뷰어 정리 — 테스트 BrokenPipeError 잡음 제거, 스모크 실패 덤프를 `finally`로, `somaxconn` 주석 | [#136](https://github.com/wooklym/golmok/pull/136) · `a66d615` | R136 |
 | J-12 | **관문**: 재환 worktree UE 빌드(`origin/main` `6a1a28e` 새 체크아웃, 로컬 우회 없음) — `build.sh` rc 0(액션 57, 34.35 s, error 줄 0)·`add-mannequin.sh` rc 0·`test.sh --setup-dev-level` rc 0, 39개 상태 Success(Failed 0·Not run 0, `succeeded` 22 + `succeededWithWarnings` 17). **39 중 9는 skip**(아래 J-12 "결과") | [#138](https://github.com/wooklym/golmok/pull/138) · `ee3ef0e` | R138 |
 | J-12b | 합성 zone 헤드리스 생성(`QUIT_EDITOR`, rc 0, 14 s) 뒤 `test.sh` rc 0 — 39 Success(`succeeded` 20 + `succeededWithWarnings` 19), zone 계열 skip 0, 남은 skip은 Weather.Runtime·Animation.GaspSmoke(아래 J-12b "결과") | PR 없음(메시지 보고) | 영록이 보고 파일을 읽어 확인 |
+| J-13 | 39 중 경고 있는 성공 분류(V-19 §4-3) — J-12 보고서 기준 경고 있는 성공 17건·경고 53개를 8분류(A·A′·B~G, 판정 없음), J-12b 뒤 보고서는 19건·67개(아래 J-13 "결과") | [#139](https://github.com/wooklym/golmok/pull/139) · `49adc49` | R139(1회 보류: 본문 반복 실수) → R139-2 |
+| J-14 | `DEVELOPER_DIR` 전달 스텁 테스트 6개(§8 #8) — 스크립트가 환경 변수를 그대로 넘긴다(스텁 확인), 실제 다른 Xcode 빌드 확인은 아님 | [#141](https://github.com/wooklym/golmok/pull/141) · `30aa96d` | R141(본문 B-1·B-2 수정 뒤 병합) |
+| J-06 | `gasp_env`에 가짜 `ps` 스텁 — add-gasp 편집기 가드 테스트가 실제 프로세스에 의존하지 않는다(수정 전 더미 프로세스로 6 failed → 수정 뒤 더미 유무 모두 8 passed) | [#143](https://github.com/wooklym/golmok/pull/143) · `a37b4ef` | R143 |
+| J-34 | `test.sh`·`add-gasp.sh` 오류 문구가 Mac 에디터 로그 `~/Library/Logs/Unreal Engine/GolmokEditor/Golmok.log`를 가리키고, 스텁 테스트 assert가 그 경로를 고정 | [#142](https://github.com/wooklym/golmok/pull/142) · `85a09c3` | R142(1회 보류: 완료 기준 테스트 누락·사실 아닌 문장 2개, 규칙 1·2·10·14) → R142-2 |
 
 **진행 중**
 
 | id | 과제 | 브랜치 | 허용 파일 |
 |---|---|---|---|
-| J-13 | 39 중 "Warning 있는 성공" 분류(V-19 §4-3) — [#139](https://github.com/wooklym/golmok/pull/139) 리뷰 대기 | `local/jaehwan-j13-warnings` | mac-setup §9 §4-3 행 메모 칸 |
-| J-14 | `DEVELOPER_DIR` 전달 확인(§8 #8) — 스텁 pytest (J-13 뒤) | `local/jaehwan-j14-developer-dir` | `tools/tests/test_ue_mac_scripts.py`, mac-setup §8 #8 칸 |
+| J-07 | `ruff check` E501 잔여 확인과 WP-21 후속 6 닫기 근거(편집기 가드 절반은 J-06이 닫았다 — E501 절반만 남음) | origin에 아직 없음(2026-11-28 `git branch -r`) | `tools/tests/test_ue_mac_scripts.py`(E501 줄만) |
 
-**다음**: J-13 → J-14 → J-06~J-11(UE 빌드 없는 도구·CI)·J-34 → J-15~J-23(J-12b가 풀었다: J-17·J-18·J-20) → 설계 선행 J-24~J-33.
+**다음**: J-07(진행 중) → J-08 → J-09 → J-15 → J-17 → J-20 → J-18 → 그 뒤 남은 비설계 과제(J-16·J-19·J-21~J-23·J-35, 순서는 영록이 정한다) → 설계 선행 J-10·J-11·J-24~J-33.
 
 ## 백로그 (의존 순서)
 
@@ -75,7 +78,6 @@
 
 | id | 과제 | 선행 | 크기 | 설계 선행 |
 |---|---|---|---|---|
-| J-06 | add-gasp 편집기 가드 테스트의 환경 의존 제거 | J-05 병합 | S | — |
 | J-07 | `ruff check` E501 잔여 확인과 WP-21 후속 6 닫기 근거 | 없음 | S | — |
 | J-08 | rawpy arm64 휠 설치·`rawpy.flags` 확인(§8 #24 rawpy 절반) | 없음 | S | — |
 | J-09 | 확인된 §8 행의 `[미확인]` 주석 정리(셸·geo 테스트) | 없음 | S | — |
@@ -101,9 +103,9 @@
 | J-31b | 헤드리스 자동화 1개 "W 3 s → 캡슐 이동 거리"(측정용 주입 경로는 Opus가 구현) | J-31a, Opus 주입 구현 | S | **설계 선행** |
 | J-32 | Cesium 활성 사본에서 mac-recon #15·#16(게임 타깃 빌드·`test.sh` 영향) | WP-21 후속 1 결정, 설계 메모 | M | **설계 선행** |
 | J-33 | avfoundation 60 fps 녹화 시험(§8 #25) | 소유자 화면 기록 권한, 설계 메모 | S | **설계 선행** |
-| J-34 | `test.sh`·`add-gasp.sh` 오류 문구의 로그 경로를 Mac 실제 경로로 | 없음 | S | — |
+| J-35 | add-gasp 편집기 가드의 남은 분기 스텁 사례(`$GaspProject` 일치·음성 2종, J-06 후속) | J-07 병합(같은 파일) | S | — |
 
-J-12·J-12b는 끝났고(위 "완료"), J-13·J-14는 진행 중이다(위 "진행 중"). 아래 상세 절은 그대로 둔다.
+J-06·J-12·J-12b·J-13·J-14·J-34는 끝났고(위 "완료"), J-07은 진행 중이다(위 "진행 중"). 아래 상세 절은 그대로 두고, 끝난 과제에는 "결과" 줄을 더한다.
 
 ### 과제 상세
 
@@ -115,6 +117,7 @@ J-12·J-12b는 끝났고(위 "완료"), J-13·J-14는 진행 중이다(위 "진�
 - **허용 파일**: `tools/tests/test_ue_mac_scripts.py`. 스텁만으로 안 되면 이유를 PR에 적고 영록에게 묻는다(`add-gasp.sh`는 그 뒤에만).
 - **완료 기준**: (a) 수정 전 재현 — `$E/fake/Golmok.uproject.d/UnrealEditor` → `sleep` 심볼릭 링크를 `sleep 600`으로 띄운 채 `pytest -q tests/test_ue_mac_scripts.py -k add_gasp` → 실패 수를 `grep -c` 출력으로. (b) 수정 뒤 같은 더미 프로세스가 떠 있어도 0 실패, 더미가 없을 때도 0 실패. (c) 양성 사례가 여전히 `close the Unreal Editor first (running: <pid>` 를 단언. (d) 파이썬 게이트, CI 모든 행 초록(규칙 2·4 — Windows 행은 이 테스트를 어떻게 건너뛰는지 확인해 적는다).
 - **왜 재환 / 위험**: on/off 재현으로 끝나는 좁은 테스트 일(J-04 방식). 위험: 스텁이 가드 자체를 무력화해 양성 사례까지 통과시키는 것 — (c)로 막는다.
+- **결과(2026-11-28, [#143](https://github.com/wooklym/golmok/pull/143) · `a37b4ef`, 리뷰 R143)**: 허용 파일 하나만 고쳤다. `gasp_env`가 `PATH` 맨 앞(`e.bin`)에 가짜 `ps`를 두고, 제어 파일 `FAKE_PS_LIST`(`"pid exe"` 줄, `ps -axo pid=,comm=` 대신)·`FAKE_PS_CMDS`(`"pid command line"` 줄, `ps -o command= -p <pid>` 대신)를 읽는다. 둘 다 빈 파일이 기본이라 가드는 "떠 있는 에디터 없음"으로 통과한다. 양성 사례는 실제 `sleep` 프로세스 대신 스텁이 보고하는 고정 pid 4242(경로에 공백이 든 `UnrealEditor` exe + `Golmok.uproject` 명령줄)로 바꾸고 `close the Unreal Editor first (running: 4242`와 `e.calls() == []`를 단언한다. `add-gasp.sh`는 건드리지 않았다. 수정 전 더미 프로세스(`UnrealEditor` → `sleep` 링크)를 띄운 채 `-k add_gasp` → 6 failed, 2 passed(과제의 "4건"보다 많은 것은 J-14가 같은 픽스처를 쓰는 `test_add_gasp_passes_developer_dir`를 더했고 양성 사례도 실패했기 때문). 수정 뒤 더미가 있을 때·없을 때 모두 8 passed. 게이트 1936 passed, 3 skipped. Windows CI 행은 `@posix_only`로 건너뛴다(`1897 passed, 42 skipped`). R143 재현: 가드를 무력화하면 양성 테스트가 실패한다. 남은 분기(`$GaspProject` 일치·음성 사례)는 J-35.
 
 #### J-07 `ruff check` E501 잔여 확인과 WP-21 후속 6 닫기 근거
 - **출처**: WP-21 검사 절("E501 1건 `test_ue_mac_scripts.py:352`"). 2026-11-28 조사에서 main `6a1a28e`의 `ruff check .`가 "All checks passed"였다는 보고가 있다 — 재환이 다시 확인한다.
@@ -168,11 +171,12 @@ J-12·J-12b는 끝났고(위 "완료"), J-13·J-14는 진행 중이다(위 "진�
 - **결과(2026-11-28, PR 없음 — 메시지 보고, 영록이 보고 파일을 읽어 확인)**: (1) `QUIT_EDITOR` 명령 rc 0, 14 s. `-nullrhi`에서 glTF 임포트와 맵 저장이 Mac에서 된다. `Content/Golmok/Maps/L_ZoneTest.umap`과 `Content/Golmok/Zones/{z_synthetic_001, z_synthetic_001_interior, z_synthetic_002, index}`가 생기고 모두 `.gitignore` 대상이다(`git status --porcelain` 빈 출력). `,Quit`로는 스크립트가 약 13 s에 끝났지만 에디터가 나가지 않아 1800 s 타임아웃(rc 124). (2) 로그는 `~/Library/Logs/Unreal Engine/GolmokEditor/Golmok.log`에 쓰이고 `$W/unreal/Golmok/Saved/Logs/`는 없다. (3) 그 뒤 `test.sh` rc 0: 39 Success, failed 0, notRun 0, `succeeded` 20 + `succeededWithWarnings` 19. skip 수 명령 출력 3 — Weather.Runtime·Animation.GaspSmoke(기대대로 skip)와 Zone.IndexParse(오탐, J-12 "결과"). Portal.*·Save.RoundTrip·Travel.Teleport·Zone.IndexDiscover·Zone.InteriorNotBlocked 다섯 묶음은 이제 Mac에서 실제로 돌고 Success다. 경고 `Zone manifest z_synthetic_001: unknown top-level key 'spawn' (schema error for golmok-zone validate).`(`Golmok.Zone.ManifestV2`, 1회)는 J-12 보고서와 이 보고서에 **둘 다** 있다(새 경고 아님, 분류는 J-13).
 
 #### J-13 39 중 "Warning 있는 성공" 분류
-- **출처**: mac-setup §9 §4-3(:324) "보고서 `succeeded` 칸은 23 … 나머지 16은 Warning 있는 성공(원인 [미확인])"(2026-11-27 메인 체크아웃 실행), WP-20 결과 절. 2026-11-28 새 숫자: J-12 보고서 `succeeded` 22 + `succeededWithWarnings` 17, J-12b 뒤 보고서 20 + 19. `succeeded` 칸은 Warning 없는 성공만 센다(두 칸의 합이 39). 2026-11-27의 23과 J-12의 22가 왜 다른지는 [미확인](다른 실행). 진행: [#139](https://github.com/wooklym/golmok/pull/139) 리뷰 대기.
+- **출처**: mac-setup §9 §4-3(:324) "보고서 `succeeded` 칸은 23 … 나머지 16은 Warning 있는 성공(원인 [미확인])"(2026-11-27 메인 체크아웃 실행), WP-20 결과 절. 2026-11-28 새 숫자: J-12 보고서 `succeeded` 22 + `succeededWithWarnings` 17, J-12b 뒤 보고서 20 + 19. `succeeded` 칸은 Warning 없는 성공만 센다(두 칸의 합이 39). 2026-11-27의 23과 J-12의 22가 왜 다른지는 [미확인](다른 실행).
 - **할 일**: J-12 보고서에서 테스트마다 경고 수와 첫 경고 문구·출처(파일·카테고리)를 뽑는 1회용 스크립트(`$E`에 둔다, 커밋 안 함).
 - **허용 파일**: mac-setup §9 §4-3 행 메모 칸.
 - **완료 기준**: 표(테스트 이름 · 경고 수 · 첫 경고 문구 원문)와 합계가 스크립트 출력과 같다(규칙 10). "무해하다"는 판정은 쓰지 않는다 — 영록(Opus) 몫.
 - **왜 재환 / 위험**: 데이터 추출만. 위험: 해석을 사실처럼 쓰는 것.
+- **결과(2026-11-28, [#139](https://github.com/wooklym/golmok/pull/139) · `49adc49`, 리뷰 R139 → R139-2)**: J-12 보고서 사본(`succeeded` 22 + `succeededWithWarnings` 17)에서 경고 있는 성공 **17건·경고 53개**를 8분류로 나눴다 — A′ `Failed to launch Tool(idevice_id)` 15, A idevice_id spawn 실패(`Bad CPU type`) 15, B GeoOrigin 없음(dev level) 7, C zone index cell v2/v1 1, D manifest `'spawn'` 키 1, E `NOT EXECUTED` 안내 2, F chunk 에셋 없음(wire box) 9, G collision 에셋 없음(fall-through 안내) 3. 보고서의 `succeeded` 칸이 경고 없는 성공만 센다는 것은 entries를 세어 확인했다(Warning 1개 이상 17, 0개 22). J-12b 뒤 보고서는 경고 있는 성공 19건·경고 67개다. D(`'spawn'`) 경고는 J-12 보고서에도 이미 있었다. 판정(무해/유해)은 쓰지 않았다(영록 몫). mac-setup §9 §4-3 칸에는 요약만 넣고, 내역은 표 아래 "§4-3 경고 분류 내역" 목록에 있다. 2026-11-27 실행의 23·16과 22·17이 1건 다른 원인은 [미확인] 그대로다.
 
 #### J-14 `DEVELOPER_DIR` 전달 확인
 - **출처**: mac-setup §8 #8(:294, 확인 결과 빈칸), `tools/ue/common.sh:2-3`(덮어쓰지 않는다는 주석).
@@ -180,6 +184,7 @@ J-12·J-12b는 끝났고(위 "완료"), J-13·J-14는 진행 중이다(위 "진�
 - **허용 파일**: `tools/tests/test_ue_mac_scripts.py`, mac-setup §8 #8 칸.
 - **완료 기준**: (a) 새 테스트가 통과하고, 스텁의 환경 기록을 일부러 끈 상태(로컬 1회, 커밋 안 함)에서 실패하는 것을 출력으로(규칙 8). (b) `grep -n DEVELOPER_DIR tools/ue/*.sh` 원문. (c) 파이썬 게이트·CI 모든 행 초록. 결론 문장은 "스크립트가 환경 변수를 그대로 넘긴다(스텁 확인)"까지 — 실제 다른 Xcode로 빌드한 확인은 아니라고 적는다(규칙 3).
 - **왜 재환 / 위험**: 작고 명령으로 끝난다.
+- **결과(2026-11-28, [#141](https://github.com/wooklym/golmok/pull/141) · `30aa96d`, 리뷰 R141)**: 스텁이 호출 당시 `DEVELOPER_DIR`를 기록하게 하고 테스트 6개를 더했다(`-k developer_dir` → 6 passed). `grep -n DEVELOPER_DIR tools/ue/*.sh`는 `common.sh`의 주석 1줄뿐이고, 8개 스크립트 본문에 대입·`export`·`unset`이 없다는 것도 테스트로 고정했다. 공백이 든 센티널 경로는 `build.sh`·`package.sh`(RunUAT)·`test.sh`(UnrealEditor-Cmd)·`generate-project-files.sh`·`open-editor.sh`·`add-gasp.sh`에서 스텁까지 그대로 갔다. 단 `open-editor.sh`는 `open` 프로세스까지만 확인했고, 미설정 사례는 `build.sh`만 검사한다. 스텁의 기록을 끄면 5 failed, 1 passed였다(로컬 1회, 커밋 안 함). 결론은 "스크립트가 환경 변수를 그대로 넘긴다(스텁 확인)"까지이고, 실제 다른 Xcode로 빌드한 확인은 아니다([미확인]). mac-setup §8 #8 칸.
 
 #### J-15 worktree 패키지로 §8 #10·#11·#12·#13 확인
 - **출처**: mac-setup §8 #10(:296 매니페스트·utoc 이름), #11(:297 방화벽 상태·TraceLog 1985, "부분"), #12(:298 패키지 Saved 경로), #13(:299 `-game` CSV 위치).
@@ -322,6 +327,14 @@ J-12·J-12b는 끝났고(위 "완료"), J-13·J-14는 진행 중이다(위 "진�
 - **허용 파일**: `tools/ue/test.sh`, `tools/ue/add-gasp.sh`, `tools/tests/test_ue_mac_scripts.py`.
 - **완료 기준**: (a) 새 사례가 옛 문구에서 실패하고(로컬 1회, 커밋 안 함, 출력 원문 — 규칙 8) 새 문구에서 통과. (b) `grep -n -E 'Saved/Logs' tools/ue/test.sh tools/ue/add-gasp.sh` 출력이 0줄(또는 남은 줄과 이유). (c) `bash -n tools/ue/*.sh`, 파이썬 게이트, CI 모든 행 초록. add-gasp 사례가 편집기 가드(J-06)에 걸리면 그 사실을 적는다.
 - **왜 재환 / 위험**: 문구와 스텁 테스트만. 위험: 실제 경로를 한 Mac의 관찰로 일반화하는 것 — 문구는 "Mac 기본 위치"로 좁혀 쓴다(규칙 3).
+- **결과(2026-11-28, [#142](https://github.com/wooklym/golmok/pull/142) · `85a09c3`, 리뷰 R142 → R142-2)**: `test.sh`의 주석과 "No automation report" 오류, `add-gasp.sh`의 "wrote no result" 오류가 이제 `~/Library/Logs/Unreal Engine/GolmokEditor/Golmok.log`를 가리킨다. 이전 로그가 같은 폴더의 `Golmok-backup-*.log`로 밀려난다는 안내도 붙였다. 문자열·주석만 바꿨고 로직은 그대로다. R142는 완료 기준 (a)의 테스트가 빠져 있고 본문에 사실이 아닌 문장이 2개 있어 병합을 보류했다. 고친 판은 기존 두 사례(`test_test_exit_rules`, `test_add_gasp_verify_only`)의 stderr에 assert를 두 줄씩 더했다. 새 경로가 있어야 하고 `Saved/Logs`는 없어야 한다. 옛 스크립트(임시 교체, 커밋 안 함)에서는 2 failed, 새 스크립트에서는 2 passed다. `grep -n -E 'Saved/Logs' tools/ue/test.sh tools/ue/add-gasp.sh`는 0줄, `bash -n` exit 0, 게이트 1936 passed, 3 skipped. 병합 커밋 `402ff5e`(브랜치 안)는 작성자 `-c`를 빠뜨려 `kreativ`로 남았다(되돌리지 않음, 규칙 7). mac-setup §8 #14 칸.
+
+#### J-35 add-gasp 편집기 가드의 남은 분기 스텁 사례 (J-06 후속)
+- **출처**: J-06 결과([#143](https://github.com/wooklym/golmok/pull/143)). `tools/ue/add-gasp.sh`의 편집기 가드는 `ps -axo pid=,comm=` 목록에서 실행 파일 이름(경로의 마지막 부분)이 `UnrealEditor*`인 프로세스만 고르고, 그 명령줄(`ps -o command= -p <pid>`)이 `*Golmok.uproject*` 또는 `*"$GaspProject"*`에 맞으면 막는다. 지금 `gasp_env`의 가짜 `ps`를 쓰는 양성 사례(`test_add_gasp_refuses_while_an_editor_runs`)는 `Golmok.uproject` 명령줄 하나뿐이다. `$GaspProject` 분기와, 걸리면 안 되는 두 경우(이름 필터·명령줄 필터)를 확인하는 사례가 없다.
+- **할 일**: `tools/tests/test_ue_mac_scripts.py`에 `@posix_only` 사례를 더한다. 모두 `gasp_env`의 `FAKE_PS_LIST`·`FAKE_PS_CMDS`에 줄을 써서 만든다. ① **GASP 프로젝트 일치(막아야 함)**: `UnrealEditor` exe와 `e.gasp_project` 안의 `GASP_58.uproject`를 연 명령줄(`Golmok.uproject` 문자열은 넣지 않는다). 그러면 rc 1, `close the Unreal Editor first (running: <그 pid>`, `e.calls() == []`. ② **음성 — 상관없는 명령줄**: `UnrealEditor*` exe이지만 명령줄이 다른 프로젝트(예: `-Project=/Users/tester/Other/Other.uproject`)다. `e.respond("verify", ok=True, messages=[])` 뒤 `--verify`가 rc 0이고 stderr에 `close the Unreal Editor`가 없고 에디터 스텁이 불린다(`e.calls()`가 비지 않음). ③ **음성 — UnrealEditor가 아닌 실행 파일**: 이름이 `UnrealEditor`로 시작하지 않는 exe(예: `/usr/bin/vim`)이지만 명령줄에 `Golmok.uproject`가 있다. ②와 같은 단언. 기존 사례·픽스처의 동작은 바꾸지 않는다.
+- **허용 파일**: `tools/tests/test_ue_mac_scripts.py`. `add-gasp.sh`는 아래 변형 실험에서만 임시로 고치고 커밋하지 않는다. 가드 자체에 결함이 보이면 고치지 말고 출력을 붙여 영록에게 알린다.
+- **완료 기준**: (a) `pytest -q tests/test_ue_mac_scripts.py -k add_gasp` 출력 원문. 기존 8개와 새 사례 전부 passed다. (b) 변형 실험(로컬 1회씩, 커밋 안 함, 출력 원문 — 규칙 8): `add-gasp.sh`의 명령줄 `case`에서 `$GaspProject` 패턴을 지우면 ①이 실패한다. 이름 필터의 `continue`를 없애 모든 exe를 세게 하면 ③이 실패한다. 명령줄 `case`를 모든 명령줄에 맞게 바꾸면 ②가 실패한다. 실패한 테스트 이름과 메시지를 붙이고, `git checkout -- tools/ue/add-gasp.sh`로 되돌린 뒤 `git status --porcelain`에 테스트 파일만 남은 출력도 붙인다. (c) 파이썬 게이트, CI 모든 행 초록(Windows 행은 `@posix_only`로 건너뛴다 — J-06과 같은 방식으로 요약 줄을 확인해 적는다).
+- **왜 재환 / 위험**: J-06과 같은 스텁 위에서 끝나는 좁은 테스트 일이고 변형 실험으로 판정된다. 위험: ①이 `$GaspProject` 분기가 아니라 `Golmok.uproject` 분기로 통과하는 것(명령줄에 그 문자열을 넣지 않고 (b)의 첫 변형으로 확인한다), 음성 사례가 가드와 상관없는 이유로 결과가 바뀌는 것(rc 0과 "에디터 스텁이 불린다" 단언, (b)로 막는다). J-07과 같은 파일이라 J-07 병합 뒤에 시작한다.
 
 ## 재환에게 맞지 않는 것 (이유)
 

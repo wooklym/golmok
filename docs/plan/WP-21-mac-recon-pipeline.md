@@ -141,5 +141,5 @@ D-022로 이 Mac(Apple M5 Max·128 GB·macOS 27.2.1·arm64)이 유일한 개발 
 3. Cesium 로드 오류 줄이 `Golmok.*` 자동화(`test.sh`)를 실패로 만드는지 확인.
 4. COLMAP 희소 모델 미터·ENU 정합 → 메시·splat 좌표 공유를 끝까지 해 본다.
 5. 크래시 업로드 끄기(D-007).
-6. E501(`test_ue_mac_scripts.py:352`)·add-gasp 테스트의 편집기 실행 가드(환경 의존) 정리.
+6. E501(`test_ue_mac_scripts.py:352`)·~~add-gasp 테스트의 편집기 실행 가드(환경 의존) 정리~~(2026-11-28 J-06 [#143](https://github.com/wooklym/golmok/pull/143) `a37b4ef`로 닫음: `gasp_env`가 가짜 `ps` 스텁을 써서 떠 있는 편집기와 상관없이 통과 — 더미 편집기 프로세스로 6 failed 재현 → 수정 뒤 더미 유무 모두 8 passed). E501 절반은 J-07([jaehwan-tasks](jaehwan-tasks.md)) 확인 대기.
 7. 실촬영(C-02) 뒤 V-05로 품질·fps 판정, D-010.
