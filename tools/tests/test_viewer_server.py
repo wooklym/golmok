@@ -321,7 +321,10 @@ def test_readiness_line_arrives_through_a_pipe(tmp_path: Path):
                 line = candidate
                 break
         if "viewer:" not in line:
-            if os.name == "posix" and proc.poll() is None:
+            # Record BEFORE SIGABRT: after the abort poll() is always not-None, and a plain
+            # timeout would be mislabelled "준비 줄 전에 종료됨 (returncode=-6)" (review R133 (B2)).
+            exited = proc.poll() is not None
+            if os.name == "posix" and not exited:
                 # -X faulthandler is on: SIGABRT makes the child dump all thread stacks to stderr
                 # before dying, so a CI timeout shows where it is stuck (e.g. a slow DNS lookup).
                 with contextlib.suppress(OSError):
@@ -329,7 +332,7 @@ def test_readiness_line_arrives_through_a_pipe(tmp_path: Path):
                 time.sleep(1.0)
             why = (
                 f"자식 프로세스가 준비 줄 전에 종료됨 (returncode={proc.poll()})"
-                if proc.poll() is not None
+                if exited
                 else "30초 안에 'viewer:' 준비 줄이 오지 않음"
             )
             raise AssertionError(f"{why} (stderr={drain(err_q)!r}, stdout={drain(out_q)!r})")

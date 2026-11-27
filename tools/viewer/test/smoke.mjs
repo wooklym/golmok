@@ -87,8 +87,9 @@ server.stderr.on('data', (d) => { errTail = (errTail + d).slice(-4000); });
 try {
   await new Promise((res, rej) => {
     const fail = (msg) => { clearTimeout(timer); server.kill(); rej(new Error(msg)); };
-    const onData = (d) => {
-      if (String(d).includes('viewer:')) {
+    const onData = () => {
+      // the readiness line can split across chunks — search the accumulated buffer, not the chunk
+      if (outTail.includes('viewer:')) {
         clearTimeout(timer);
         server.off('exit', onExit);
         res();
@@ -106,17 +107,23 @@ try {
   throw e;
 }
 
-const launch = { headless: true };
-if (process.env.PLAYWRIGHT_PROXY) launch.proxy = { server: process.env.PLAYWRIGHT_PROXY };
-if (process.env.PLAYWRIGHT_CHROMIUM) launch.executablePath = process.env.PLAYWRIGHT_CHROMIUM;
-const browser = await chromium.launch(launch);
-const page = await (await browser.newContext({ viewport: { width: 1280, height: 800 }, ignoreHTTPSErrors: true })).newPage();
-const errors = [];
-page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
-page.on('pageerror', (e) => errors.push(String(e)));
+// Last-resort net: whatever happens between here and the finally below, do not leave the server holding the port.
+process.on('exit', () => server.kill());
 
 let ok = false;
+let browser = null;
+const errors = [];
 try {
+  // Browser launch sits INSIDE the try/finally: a failed launch (bad PLAYWRIGHT_CHROMIUM, missing
+  // browser) must still kill the server (review R133 (A) — it used to leak on 8777).
+  const launch = { headless: true };
+  if (process.env.PLAYWRIGHT_PROXY) launch.proxy = { server: process.env.PLAYWRIGHT_PROXY };
+  if (process.env.PLAYWRIGHT_CHROMIUM) launch.executablePath = process.env.PLAYWRIGHT_CHROMIUM;
+  browser = await chromium.launch(launch);
+  const page = await (await browser.newContext({ viewport: { width: 1280, height: 800 }, ignoreHTTPSErrors: true })).newPage();
+  page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
+  page.on('pageerror', (e) => errors.push(String(e)));
+
   await page.goto(`http://127.0.0.1:${port}/?tileset=/data/tileset_buildings.json&tileset=/data/tileset_terrain.json${zoneParam}`, { waitUntil: 'domcontentloaded' });
   await page.waitForFunction(() => window.golmok && window.golmok.ready, null, { timeout: 120000 });
   // Software GL in CI can take a while to process textures: poll until every layer has tiles.
@@ -201,7 +208,7 @@ try {
   console.log(ok ? `OK: ${loaded} tiles loaded, ${zones.length} zones with collision/blockers meshes, screenshot ${shot}`
     : 'FAIL ' + JSON.stringify(checks));
 } finally {
-  await browser.close();
+  if (browser) await browser.close().catch(() => {});
   server.kill();
 }
 process.exit(ok ? 0 : 1);
