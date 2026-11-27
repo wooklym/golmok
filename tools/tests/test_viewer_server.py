@@ -259,6 +259,53 @@ def test_overlong_names_give_404_not_a_dropped_connection(zone_served, served):
     assert get(f"{dbase}/{long}")[0] == 404
 
 
+def _raw_get_status(port: int, path: str) -> str:
+    """One HTTP/1.1 GET over a raw socket; returns the status code or the client-side error name."""
+    try:
+        s = socket.create_connection(("127.0.0.1", port), timeout=10)
+        try:
+            s.sendall(f"GET {path} HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n".encode())
+            buf = b""
+            while len(buf) < 12:  # "HTTP/1.1 200"
+                chunk = s.recv(64)
+                if not chunk:
+                    break
+                buf += chunk
+        finally:
+            s.close()
+        return buf.split(b" ")[1].decode(errors="replace") if buf.startswith(b"HTTP/") else "NO-RESPONSE"
+    except (OSError, IndexError) as e:  # ConnectionResetError / timeout / short response
+        return type(e).__name__
+
+
+def test_tile_burst_of_18_connections_are_all_answered(served):
+    """Regression (2026-11-27): the viewer requests 18 tile .glb in the same second. With socketserver's
+    default listen backlog (request_queue_size = 5) macOS RST some connections before accept — the smoke
+    test saw net::ERR_CONNECTION_RESET with no server access-log line and no handler exception
+    (5/20 runs; raw-socket repro: 18 simultaneous GETs → RST 7/6/5 of 18, server alive). At 128 the burst
+    is clean (0 RST in repro, 0/20 smoke). On Linux an overflowing queue retries the SYN instead of
+    RST-ing, so only the attribute pin below can catch a revert on Linux/Windows (that part is [미확인]
+    as behaviour — only the macOS side was reproduced here); the burst test pins the macOS behaviour."""
+    assert vs.Server.request_queue_size >= 18, (
+        "accept 큐가 타일 18건 동시 접속을 못 받음 (기본 5로 되돌리면 안 됨)"
+    )  # noqa: E501
+    base, data = served
+    port = int(base.rsplit(":", 1)[1])
+    for i in range(18):  # real terrain tiles are ~30 KB each
+        (data / "tiles" / f"t_{i}.glb").write_bytes(b"glTF" + bytes(4) + b"\0" * (30 * 1024))
+    res: list[str] = [""] * 18
+
+    def worker(i: int) -> None:
+        res[i] = _raw_get_status(port, f"/data/tiles/t_{i}.glb")
+
+    ts = [threading.Thread(target=worker, args=(i,)) for i in range(18)]
+    for t in ts:
+        t.start()
+    for t in ts:
+        t.join(timeout=20)
+    assert res.count("200") == 18, f"실패 접속: {[r for r in res if r != '200']}"
+
+
 def test_readiness_line_arrives_through_a_pipe(tmp_path: Path):
     # Regression (2026-11-27, macOS): smoke.mjs waits for the "viewer:" readiness line reading the server's
     # stdout through a pipe. Without flush=True CPython block-buffers a piped stdout (all OSes) and the line
