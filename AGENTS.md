@@ -25,7 +25,7 @@ Golmok은 서울 골목을 실제로 촬영해 3D로 재구성(포토그래메�
 
 main의 STATUS는 진행 중인 작업을 늦게 반영한다. 실제 상태는 열린 브랜치에 있다.
 - `claude/hopeful-allen-f0a0jb`: Claude의 WP 통합 브랜치
-- `pc/*`: PC 검증 브랜치
+- `pc/*`: PC 검증 브랜치(2026-11-27 D-022부터 "PC"는 로컬 검증 머신인 소유자 Mac이다. 이름은 그대로 쓴다)
 - `astra/*`: 네 브랜치
 
 브랜치 파일은 `git show origin/<브랜치>:<경로>` 또는 `https://github.com/wooklym/golmok/blob/<브랜치>/<경로>`로 읽는다.
@@ -90,6 +90,12 @@ CLAUDE.md에서 너에게 그대로 적용되지 않는 부분이 있다. "Work-
     git -C C:\Users\user\golmok fetch origin
     git -C C:\Users\user\golmok worktree add C:\Users\user\golmok-astra\<주제> -b astra/<wp>-<주제> origin/main
     ```
+  - 2026-11-27 D-022부터 소유자 기계는 Mac이다. 체크아웃은 `~/projects/golmok`, Claude worktree는 그 아래 `.claude/worktrees/`다. 같은 규칙으로 별도 worktree에서 일한다.
+    ```
+    git -C ~/projects/golmok fetch origin
+    git -C ~/projects/golmok worktree add ~/projects/golmok-astra/<주제> -b astra/<wp>-<주제> origin/main
+    ```
+    위 Windows 경로는 이력이다.
   - 클라우드에서는 저장소를 clone하고 같은 브랜치 이름을 쓴다.
 - **브랜치**: `astra/<wp>-<주제>`(예: `astra/wp-18-design`, `astra/wp-18a-roster`). WP 단계마다 브랜치와 PR을 하나씩 만든다. `claude/*`와 `pc/*`는 읽기만 한다.
 - **커밋**
@@ -121,7 +127,7 @@ CLAUDE.md에서 너에게 그대로 적용되지 않는 부분이 있다. "Work-
   | 번호 | 먼저 병합된 쪽이 갖는다. 나중 쪽이 번호를 바꾼다 |
 
   해결한 뒤 §6 게이트를 다시 돌린다. 해결 커밋 메시지는 `merge origin/main: <충돌 파일> — <해결 방법>`이다.
-- **줄 끝**: `.gitattributes`가 `* text=auto`이고, 이 PC는 `core.autocrlf=true`다. 줄 끝만 바뀐 파일(`git status`에는 보이고 `git diff`는 비어 있는 파일)은 `git checkout -- <파일>`로 되돌린다.
+- **줄 끝**: `.gitattributes`가 `* text=auto`이고, 옛 Windows PC는 `core.autocrlf=true`였다. Mac에서는 `core.autocrlf`를 켜지 않는다(`.gitattributes`가 줄 끝을 정한다). 줄 끝만 바뀐 파일(`git status`에는 보이고 `git diff`는 비어 있는 파일)은 `git checkout -- <파일>`로 되돌린다.
 
 ## 6. 검증 게이트
 - **Python 게이트(항상)**: `ruff check`, `ruff format --check`, `pytest -q`, `check_repo.py`. venv는 worktree나 clone마다 새로 만든다.
@@ -142,20 +148,22 @@ CLAUDE.md에서 너에게 그대로 적용되지 않는 부분이 있다. "Work-
     export PYTHONUTF8=1
     .venv/bin/ruff check . && .venv/bin/ruff format --check . && .venv/bin/pytest -q && .venv/bin/python scripts/check_repo.py
     ```
+  - 소유자 Mac의 기본 `python3`은 3.9라 `requires-python >=3.11`을 못 맞춘다. Mac에서는 `uv venv --python 3.12 .venv`와 `uv pip install -e …`로 만든다(`tools/README.md` macOS 절).
   - `PYTHONUTF8=1`이 없으면 한국어 로캘 PC에서 일부 테스트가 실패한다. CI도 이 값을 쓴다.
-  - **g++ 교차검증**: 이 PC에는 g++가 없어 건너뛴다. CI는 ubuntu(3.11·3.12)와 windows-latest(3.12, MinGW g++)에서 모두 돌린다.
+  - **g++ 교차검증**: 옛 Windows PC에는 g++가 없어 건너뛰었다. Mac에는 Command Line Tools(또는 Xcode)의 Apple clang++가 있고 `/usr/bin/g++`도 clang을 부른다. 그래서 Mac에서는 교차검증이 돈다(Xcode를 설치했으면 소유자가 라이선스에 동의한 뒤). CI는 ubuntu(3.11·3.12)와 windows-latest(3.12, MinGW g++)에서 모두 돌린다.
     - 드라이버는 경고 없이 컴파일돼야 한다.
     - 긴 입력은 argv 대신 stdin으로 준다(Windows 32 KiB 제한).
     - `subprocess.run`에는 `encoding="utf-8"`을 준다.
     - 실수 비교는 ulp 차이를 허용한다.
     - 예시: `tools/tests/test_ue_geo_math.py`(`fixtures/ue/geomath_driver.cpp`), `tools/tests/test_ue_stats_math.py`
   - PR의 GitHub Actions CI가 초록이어야 한다.
-- **UE 게이트(소유자 PC, UE 5.8 설치가 있을 때만)**
+- **UE 게이트(소유자 PC, UE 5.8 설치가 있을 때만)** — 2026-11-27 D-022부터 소유자 Mac이다.
+  - Mac(bash): `./tools/ue/add-mannequin.sh` → `./tools/ue/build.sh` → `./tools/ue/test.sh --setup-dev-level`(전체) 순으로 돌린다. 옵션과 `.ps1` 대응은 `docs/runbooks/mac-setup.md`를 본다. 아래 PowerShell 줄은 Windows용(이력)이다.
   - PowerShell에서 `.\tools\ue\add-mannequin.ps1` → `.\tools\ue\build.ps1` → `.\tools\ue\test.ps1 -SetupDevLevel`(전체) 순으로 돌린다. 필터를 줄 때도 `-SetupDevLevel`을 같이 준다(새 worktree에는 L_Dev가 없다): `.\tools\ue\test.ps1 -SetupDevLevel -Filter Golmok.Character`
   - 모든 테스트에 경고가 있으면 `test.ps1`은 `Succeeded: 0`을 찍고 예외를 던진다. 판정은 테스트별 `Success` 열과 `Saved/Automation/Report/index.json`으로 한다.
-  - PC가 아니면 UE 게이트를 돌리지 않는다. PR과 WP 문서에 `🟡 코드 완료·PC 검증 대기(V-xx)`로 적고 명령을 런북에 남긴다. **돌리지 않은 결과를 적지 않는다.**
+  - PC(지금은 소유자 Mac)가 아니면 UE 게이트를 돌리지 않는다. PR과 WP 문서에 `🟡 코드 완료·PC 검증 대기(V-xx)`로 적고 명령을 런북에 남긴다. **돌리지 않은 결과를 적지 않는다.**
 - **UE를 같이 쓰는 규칙**: 같은 PC에서 다른 Claude 세션이 UE를 돌릴 수 있다.
-  - 에디터 GUI나 PIE를 띄우기 전에 `C:\Users\user\AppData\Local\Temp\claude\gui-foreground.lock` 파일을 확인한다. 한 줄 형식은 `<세션> <목적> <ISO 시각>`이다. 20분이 안 된 기록이 있으면 기다린다. 쓰는 동안 네 줄로 갱신하고, 끝나면 지운다.
+  - 에디터 GUI나 PIE를 띄우기 전에 잠금 파일을 확인한다. Mac은 `"$TMPDIR/claude/gui-foreground.lock"`, 옛 Windows PC는 `C:\Users\user\AppData\Local\Temp\claude\gui-foreground.lock`이다. 한 줄 형식은 `<세션> <목적> <ISO 시각>`이다. 20분이 안 된 기록이 있으면 기다린다. 쓰는 동안 네 줄로 갱신하고, 끝나면 지운다.
   - 다른 UnrealEditor나 `-game` 프로세스가 돌 때는 fps를 측정하지 않는다.
   - 헤드리스 빌드와 테스트는 잠금 없이 돌려도 된다.
 - **런북**: GUI 검증이 필요한 항목은 PC 런북(`docs/runbooks/pc-verify-<wp>.md`)에 남긴다. 확인하지 못한 엔진 API는 런북의 "불확실 API" 표에 적는다.

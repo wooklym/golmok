@@ -1,4 +1,6 @@
 import csv
+import sys
+import types
 from pathlib import Path
 
 import numpy as np
@@ -6,7 +8,7 @@ import pytest
 
 from golmok_tools.imageio import read_image, write_image
 from golmok_tools.privacy.blur import blur_regions, run, scale_box
-from golmok_tools.privacy.detector import detect_scaled
+from golmok_tools.privacy.detector import detect_scaled, resolve_device
 
 
 class FakeDetector:
@@ -92,3 +94,21 @@ def test_run_records_decode_errors(tmp_path: Path):
     (src / "broken.jpg").write_bytes(b"not a jpeg")
     results = run(src, tmp_path / "out", [FakeDetector("face", (0, 0, 0.1, 0.1))], max_side=0)
     assert results[0].status == "decode_error"
+
+
+def _fake_torch(cuda: bool, mps: bool):
+    backends = types.SimpleNamespace(mps=types.SimpleNamespace(is_available=lambda: mps))
+    cuda_ns = types.SimpleNamespace(is_available=lambda: cuda, current_device=lambda: 0)
+    return types.SimpleNamespace(cuda=cuda_ns, backends=backends)
+
+
+@pytest.mark.parametrize(
+    ("cuda", "mps", "want"), [(True, True, "cuda:0"), (False, True, "cpu"), (False, False, "cpu")]
+)
+def test_resolve_device_auto_is_cuda_then_cpu_never_mps(monkeypatch, cuda, mps, want):
+    """WP-20 (D-022): on an Apple silicon Mac "auto" stays on CPU even when MPS is available (EgoBlur on MPS
+    is unverified); an explicit device, mps included, is passed through."""
+    monkeypatch.setitem(sys.modules, "torch", _fake_torch(cuda, mps))
+    assert resolve_device("auto") == want
+    for explicit in ("mps", "cpu", "cuda:1"):
+        assert resolve_device(explicit) == explicit

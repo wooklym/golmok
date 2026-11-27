@@ -10,6 +10,9 @@
 *.uproject text
 *.ps1 text eol=crlf
 *.bat text eol=crlf
+# [WP-20 hook] D-022 Mac dev: bash ports of tools/ue/*.ps1 must keep LF (bash rejects CR)
+*.sh text eol=lf
+# [/WP-20 hook]
 
 # Unreal binary assets: Git LFS + lockable (edit one at a time, see docs/DECISIONS.md D-003)
 *.uasset filter=lfs diff=lfs merge=lfs -text lockable

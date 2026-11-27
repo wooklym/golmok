@@ -39,7 +39,12 @@ def _compiler() -> list[str] | None:
     for name in ("g++", "clang++", "c++"):
         exe = shutil.which(name)
         if exe:
-            return [exe, "-std=c++17", "-O1", "-Wall", "-Wextra", "-Werror", "-pedantic"]
+            # -ffp-contract=off: clang (Apple clang, arm64 Mac, D-022) contracts a*b+c into FMA by default,
+            # so the driver drifted 1-2 ulp from the Python/numpy mirror. g++ defaults to fast for C++ too
+            # (GCC Optimize-Options), but x86-64 CI targets have no FMA without -march, so nothing
+            # was contracted there; the flag also covers a future arm64 Linux runner.
+            # g++, MinGW g++ and clang++ all accept the flag. Tolerances stay as they are.
+            return [exe, "-std=c++17", "-ffp-contract=off", "-O1", "-Wall", "-Wextra", "-Werror", "-pedantic"]
     return None
 
 

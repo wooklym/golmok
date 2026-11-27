@@ -32,6 +32,7 @@ import glob
 import json
 import math
 import os
+import sys
 import time
 
 import unreal
@@ -178,8 +179,17 @@ def _engine_dir():
     )
 
 
+def _platform():
+    """sys.platform behind a function so tests pin it (WP-20: win32 -> .ps1, everything else -> .sh)."""
+    return sys.platform
+
+
 def _editor_exe():
-    return os.path.join(_engine_dir(), "Binaries", "Win64", "UnrealEditor.exe")
+    return _pure.editor_exe(_engine_dir(), _platform())
+
+
+def _saved_candidates(saved):
+    return _pure.platform_saved_dir_candidates(saved, os.environ, _platform())
 
 
 def _uproject():
@@ -726,7 +736,7 @@ class _PiePerf(_PieSession):
         self.csv_polled_at = None  # _now() of the last look at the CSV folders (this job), None = not yet
         super().__init__(jobs, quit_editor)
         self.root = os.path.join(self.saved_dir, "Profiling", "CSV")
-        candidates = _pure.saved_dir_candidates(self.saved_dir, os.environ.get("LOCALAPPDATA"))
+        candidates = _saved_candidates(self.saved_dir)
         self.csv_dirs = _pure.csv_dirs(candidates)
 
     def _length(self, walk):
@@ -905,14 +915,15 @@ def game_scripts(
     label_suffix=None,
     discover_from_index=None,
 ):
-    """Write Saved/Golmok/spike/run_game_perf.ps1: one -game -RenderOffscreen CSV run per (tag, preset, path)
+    """Write Saved/Golmok/spike/run_game_perf.ps1 (Windows) or run_game_perf.sh (macOS and other POSIX hosts,
+    WP-20): one -game -RenderOffscreen CSV run per (tag, preset, path)
     on L_Spike_<tag> (tag a: the base level); returns the script path. Labels (CSV, game_<label>.log,
     golmok-perf --label) are <tag>_<preset>_<walk>[_<suffix>]: the suffix defaults to "<height>p" for a
     resolution other than 1920x1080 (so a 1440p run does not overwrite the 1080p CSVs); pass label_suffix
     (e.g. "1440p_dlss") for DLSS runs, "" for none. discover_from_index=False adds the -ini: override that
     turns the WP-09 zone index discovery off for these runs (synthetic-zone checks: other indexed synthetic
     zones would load over the zone under test, runbook #39); None (default) leaves DefaultGame.ini in charge
-    (the real spike keeps discovery on). Only the .ps1 itself is overwritten by the next call."""
+    (the real spike keeps discovery on). Only the script itself is overwritten by the next call."""
     from . import synthetic_zone as sz
 
     saved = _saved_dir()
@@ -943,12 +954,21 @@ def game_scripts(
                     discover_from_index=discover_from_index,
                 )
                 runs.append({"label": label, "argv": argv})
-    candidates = _pure.saved_dir_candidates(saved, os.environ.get("LOCALAPPDATA"))
-    text = _pure.powershell_script(runs, path_files, candidates, os.path.join(spike_dir, "csv"), timeout_s)
+    candidates = _saved_candidates(saved)
     os.makedirs(spike_dir, exist_ok=True)
-    script = os.path.join(spike_dir, "run_game_perf.ps1")
-    with open(script, "w", encoding="utf-8-sig", newline="\r\n") as f:
-        f.write(text)
+    if _platform() == "win32":
+        text = _pure.powershell_script(
+            runs, path_files, candidates, os.path.join(spike_dir, "csv"), timeout_s
+        )
+        script = os.path.join(spike_dir, "run_game_perf.ps1")
+        with open(script, "w", encoding="utf-8-sig", newline="\r\n") as f:
+            f.write(text)
+    else:  # WP-20 (D-022): macOS - POSIX sh, LF, no BOM, executable
+        text = _pure.shell_script(runs, path_files, candidates, os.path.join(spike_dir, "csv"), timeout_s)
+        script = os.path.join(spike_dir, "run_game_perf.sh")
+        with open(script, "w", encoding="utf-8", newline="\n") as f:
+            f.write(text)
+        os.chmod(script, os.stat(script).st_mode | 0o755)
     _log("sr.script", path=script, runs=len(runs))
     return script
 

@@ -43,6 +43,12 @@ def driver(tmp_path_factory):
         [
             compiler,
             "-std=c++17",
+            # -ffp-contract=off: clang (Apple clang, arm64 Mac, D-022) contracts a*b+c into FMA by default,
+            # so the driver drifted 1-2 ulp from the Python/numpy mirror. g++ defaults to fast for C++ too
+            # (GCC Optimize-Options), but x86-64 CI targets have no FMA without -march, so nothing
+            # was contracted there; the flag also covers a future arm64 Linux runner.
+            # g++, MinGW g++ and clang++ all accept the flag. Tolerances stay as they are.
+            "-ffp-contract=off",
             "-Wall",
             "-Wextra",
             "-Werror",

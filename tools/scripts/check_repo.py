@@ -44,6 +44,7 @@ TEXT_SUFFIXES = {
     ".md", ".py", ".toml", ".ini", ".cpp", ".h", ".cs", ".ps1", ".bat", ".yml", ".yaml",
     ".json", ".js", ".mjs", ".html", ".css", ".uproject", ".txt",
 }  # fmt: skip
+TEXT_SUFFIXES.add(".sh")  # [WP-20 hook] D-022: tools/ue/*.sh bash ports
 TEXT_NAMES = {".gitignore", ".gitattributes", ".editorconfig"}
 # Generated/vendored folders, and .claude (local worktrees hold other copies of the repo).
 SKIP_DIRS = {

@@ -43,6 +43,25 @@ tools/                Python 도구 (EXIF 점검, 프레임 추출, 얼굴·번�
    - 마네킹과 `L_Dev.umap`은 스크립트로 다시 만들 수 있어 git에 넣지 않는다.
 7. 이동 자동 테스트(창 없이): `.\tools\ue\test.ps1` (L_Dev가 없으면 `-SetupDevLevel`). 걷기·뛰기·점프·마우스 시점·골목 벽 카메라 충돌을 실제 키 입력으로 확인한다(`Golmok.Player.Movement`).
 
+## 처음 설정 (macOS)
+
+2026-11-27부터 개발·검증 머신은 Mac이다(Apple Silicon, [D-022](docs/DECISIONS.md)). 위 Windows 절차는 이력과 되돌리기용으로 둔다. 전체 절차·`.ps1` → `.sh` 대응표·미확인 항목은 [`docs/runbooks/mac-setup.md`](docs/runbooks/mac-setup.md)에 있다.
+
+1. 설치: **Xcode**(App Store, 라이선스 동의 `sudo xcodebuild -license`), **UE 5.8.x 최신(5.8.4 이상)**(Epic Games Launcher), **Git LFS**. 5.8.3은 macOS 27 + Xcode 27에서 게임 타깃 빌드가 실패한다(UE-396802, 5.8.4에서 수정).
+2. 저장소 받기
+   ```bash
+   git lfs install
+   git clone https://github.com/wooklym/golmok.git
+   cd golmok
+   ```
+3. C++ 빌드 후 에디터 열기 (엔진 기본 경로는 `/Users/Shared/Epic Games/UE_5.8`; 다르면 `export UE_ROOT="<엔진 폴더>"`, 공백이 있으니 따옴표를 쓴다)
+   ```bash
+   ./tools/ue/build.sh
+   ./tools/ue/open-editor.sh
+   ```
+4. 마네킹: `./tools/ue/add-mannequin.sh`. 이동 자동 테스트(창 없이): `./tools/ue/test.sh` (L_Dev가 없으면 `--setup-dev-level`). 검증용 패키지: `./tools/ue/package.sh`.
+5. 테스트 레벨·플레이는 Windows 절차의 4~5와 같다.
+
 Python 도구 설정은 [`tools/README.md`](tools/README.md)를 본다.
 
 ## 원칙
