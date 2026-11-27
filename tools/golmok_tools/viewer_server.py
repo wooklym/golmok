@@ -25,6 +25,7 @@ import argparse
 import functools
 import json
 import re
+import socketserver
 import sys
 import threading
 import webbrowser
@@ -139,11 +140,27 @@ class Handler(SimpleHTTPRequestHandler):
             super().log_message(fmt, *args)
 
 
+class Server(ThreadingHTTPServer):
+    """Bind without HTTPServer.server_bind's socket.getfqdn() reverse-DNS lookup.
+
+    That lookup can stall for a long time on some systems (observed on the GitHub macOS runner
+    2026-11-27: a child `python -m golmok_tools.viewer_server` was still alive with no stdout
+    after 30 s — CI run 45977861384; whether getfqdn is the stuck call is [미확인], the stall itself
+    is the fact). Nothing here reads `server_name`, and the server is loopback-only, so the name
+    is not needed.
+    """
+
+    def server_bind(self) -> None:
+        socketserver.TCPServer.server_bind(self)
+        self.server_name = self.server_address[0]
+        self.server_port = self.server_address[1]
+
+
 def make_server(
     data_dir: Path | None, port: int, host: str = "127.0.0.1", zones: dict[str, Path] | None = None
 ) -> ThreadingHTTPServer:
     handler = functools.partial(Handler, data_dir=data_dir, zones=zones)
-    return ThreadingHTTPServer((host, port), handler)
+    return Server((host, port), handler)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -179,9 +196,10 @@ def main(argv: list[str] | None = None) -> int:
     query = [f"tileset=/data/{args.tileset}"] if data_dir is not None else []
     query += [f"zone=/zones/{prefix}/manifest.json" for prefix in zones]
     url = f"http://127.0.0.1:{args.port}/?" + "&".join(query)
-    print(f"viewer: {url}")
+    # smoke.mjs reads the readiness line through a pipe: block-buffered stdout would hang it
+    print(f"viewer: {url}", flush=True)
     source = "local node_modules" if CESIUM_BUILD.exists() else "CDN (internet needed)"
-    print(f"cesium: {source}  (Ctrl+C to stop)")
+    print(f"cesium: {source}  (Ctrl+C to stop)", flush=True)
     if not args.no_browser:
         threading.Timer(0.5, webbrowser.open, args=(url,)).start()
     try:

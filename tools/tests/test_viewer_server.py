@@ -1,6 +1,13 @@
+import contextlib
 import json
 import os
+import queue
+import signal
+import socket
+import subprocess
+import sys
 import threading
+import time
 import urllib.request
 from pathlib import Path
 
@@ -250,3 +257,86 @@ def test_overlong_names_give_404_not_a_dropped_connection(zone_served, served):
     dbase, _ = served
     assert get(f"{dbase}/data/{long}")[0] == 404
     assert get(f"{dbase}/{long}")[0] == 404
+
+
+def test_readiness_line_arrives_through_a_pipe(tmp_path: Path):
+    # Regression (2026-11-27, macOS): smoke.mjs waits for the "viewer:" readiness line reading the server's
+    # stdout through a pipe. Without flush=True CPython block-buffers a piped stdout (all OSes) and the line
+    # never arrives. The child therefore runs without PYTHONUNBUFFERED and with stdout as a pipe.
+    # select() cannot wait on pipes on Windows (WinError 10038), so a daemon reader thread feeds a Queue.
+    with socket.socket() as s:  # find a free port so parallel runs do not collide
+        s.bind(("127.0.0.1", 0))
+        port = s.getsockname()[1]
+    env = {k: v for k, v in os.environ.items() if k != "PYTHONUNBUFFERED"}
+    proc = subprocess.Popen(
+        [
+            sys.executable,
+            "-X",
+            "faulthandler",
+            "-m",
+            "golmok_tools.viewer_server",
+            str(tmp_path),
+            "--port",
+            str(port),
+            "--no-browser",
+        ],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        env=env,
+    )
+    out_q: queue.Queue = queue.Queue()
+    err_q: queue.Queue = queue.Queue()
+
+    def pump(pipe, q: queue.Queue) -> None:
+        try:
+            for line in pipe:
+                q.put(line)
+        except (OSError, ValueError):  # pipe closed during teardown
+            pass
+
+    for pipe, q in ((proc.stdout, out_q), (proc.stderr, err_q)):
+        threading.Thread(target=pump, args=(pipe, q), daemon=True).start()
+
+    def drain(q: queue.Queue) -> str:
+        got = []
+        while True:
+            try:
+                got.append(q.get_nowait())
+            except queue.Empty:
+                return "".join(got)
+
+    try:
+        deadline = time.monotonic() + 30.0
+        line = ""
+        while time.monotonic() < deadline:
+            try:
+                candidate = out_q.get(timeout=0.5)
+            except queue.Empty:
+                continue
+            if "viewer:" in candidate:
+                line = candidate
+                break
+        if "viewer:" not in line:
+            if os.name == "posix" and proc.poll() is None:
+                # -X faulthandler is on: SIGABRT makes the child dump all thread stacks to stderr
+                # before dying, so a CI timeout shows where it is stuck (e.g. a slow DNS lookup).
+                with contextlib.suppress(OSError):
+                    proc.send_signal(signal.SIGABRT)
+                time.sleep(1.0)
+            raise AssertionError(
+                f"30초 안에 'viewer:' 준비 줄이 오지 않음 "
+                f"(proc.poll()={proc.poll()}, stderr={drain(err_q)!r}, stdout={drain(out_q)!r})"
+            )
+    finally:
+        proc.terminate()
+        try:
+            proc.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            proc.wait(timeout=5)
+        for pipe in (proc.stdout, proc.stderr):
+            try:
+                pipe.close()
+            except OSError:
+                pass
