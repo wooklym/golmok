@@ -117,7 +117,7 @@ PY
     GOLMOK_GASP_JOB="$job" "$UEEditorCmd" "$uproject" "-ExecutePythonScript=$Script" \
         -unattended $RhiArgs -nosplash -nopause -nosound >/dev/null 2>&1 || true
     if [ ! -f "$StepResult" ]; then
-        golmok_die "add-gasp: $step wrote no result ($StepResult); see the editor log under Saved/Logs."
+        golmok_die "add-gasp: $step wrote no result ($StepResult); see the editor log at ~/Library/Logs/Unreal Engine/GolmokEditor/Golmok.log (previous runs rotate to Golmok-backup-*.log there)."
     fi
     "$GolmokPython" - "$StepResult" <<'PY'
 import json

@@ -504,6 +504,8 @@ def test_test_exit_rules(env):
     assert env.run("test.sh", FAKE_INDEX=_index(0, 0)).returncode == 1
     missing = env.run("test.sh")
     assert missing.returncode == 1 and "No automation report at" in missing.stderr
+    assert "Library/Logs/Unreal Engine/GolmokEditor/Golmok.log" in missing.stderr
+    assert "Saved/Logs" not in missing.stderr
 
 
 @posix_only
@@ -570,6 +572,8 @@ def test_add_gasp_verify_only(gasp_env):
     (e.gasp / "verify.json").unlink()
     none = e.run("add-gasp.sh", "--verify")
     assert none.returncode == 1 and "verify wrote no result" in none.stderr
+    assert "Library/Logs/Unreal Engine/GolmokEditor/Golmok.log" in none.stderr
+    assert "Saved/Logs" not in none.stderr
 
 
 @posix_only
