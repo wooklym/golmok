@@ -76,7 +76,8 @@ def _compiler() -> list[str] | None:
             # was contracted there; the flag also covers a future arm64 Linux runner.
             # g++, MinGW g++ and clang++ all accept the flag. Tolerances stay as they are.
             # The flag only makes this test compare like with like. UE itself on the Mac builds the same
-            # headers with clang, and whether UBT turns contraction off is [미확인]. If it stays on, results
+            # headers with clang, and UBT turns contraction off: 확인(2026-11-27, mac-setup §9 FMA row,
+            # MacToolChain.cs:209 with ClangToolChain.cs:796, -ffp-contract=off). If it stayed on, results
             # differ by about 1 ulp, far below every gameplay/geo tolerance (1e-6 m here), so that is harmless
             # at runtime. A Golmok.* automation test comparing these values exactly would need a tolerance.
             return [exe, "-std=c++17", "-ffp-contract=off", "-O1", "-Wall", "-Wextra", "-Werror", "-pedantic"]

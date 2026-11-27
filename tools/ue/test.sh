@@ -2,8 +2,9 @@
 # Run the project's automation tests headless (no window). Build first with build.sh. Mac port of test.ps1 (D-022).
 # Usage: ./tools/ue/test.sh [--filter Golmok.] [--setup-dev-level] [--rhi]
 #   --setup-dev-level  create /Game/Golmok/Maps/L_Dev first if it is missing (golmok.setup_dev_level)
-#   --rhi              keep the Metal RHI (drop -nullrhi); same as GOLMOK_TEST_RHI=1. Whether -nullrhi works for
-#                      the editor on macOS is [미확인]: use this when the run produces no report.
+#   --rhi              keep the Metal RHI (drop -nullrhi); same as GOLMOK_TEST_RHI=1. -nullrhi works for the
+#                      editor on macOS in test.sh runs: 확인(2026-11-27, mac-setup §8 #5). Use this if a run
+#                      produces no report.
 source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
 
 Filter="Golmok."

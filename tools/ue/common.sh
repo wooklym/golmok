@@ -1,7 +1,7 @@
 # Shared paths for the UE helper scripts (Mac port of common.ps1, D-022). Sourced, not run.
 # Override the engine location with UE_ROOT. DEVELOPER_DIR is left as the user set it (UE-396802: on 5.8.3 with
 # Xcode 27 point it at an Xcode 26.x Developer folder; 5.8.4 fixed it). Needs only macOS system bash 3.2.
-# Engine paths below that are not yet checked on a real 5.8 install are marked [미확인] in docs/runbooks.
+# Engine paths below on a real 5.8 install: 확인(2026-11-27, mac-setup §8 #1·#2).
 set -euo pipefail
 
 UE_ROOT="${UE_ROOT:-/Users/Shared/Epic Games/UE_5.8}"
@@ -10,7 +10,7 @@ UERoot="${UE_ROOT%/}"
 RepoRoot="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." >/dev/null && pwd)"
 Project="$RepoRoot/unreal/Golmok/Golmok.uproject"
 
-# [미확인] layout of a Launcher 5.8 install on macOS; change here only.
+# Layout of a Launcher 5.8 install on macOS: 확인(2026-11-27, mac-setup §8 #2). Change here only.
 UEEditorApp="$UERoot/Engine/Binaries/Mac/UnrealEditor.app"
 UEEditor="$UEEditorApp/Contents/MacOS/UnrealEditor"
 UEEditorCmd="$UERoot/Engine/Binaries/Mac/UnrealEditor-Cmd"
@@ -22,8 +22,9 @@ golmok_die() {
     exit 1
 }
 
-# UnrealEditor-Cmd may sit next to the .app or inside it, or not exist on Mac at all [미확인]: use the first that
-# exists, else the editor binary itself (it also takes -ExecCmds / -ExecutePythonScript on the command line).
+# 확인(2026-11-27, mac-setup §8 #2): on a Launcher install UnrealEditor-Cmd sits next to the .app, not inside
+# it. Use the first candidate that exists, else the editor binary itself (it also takes -ExecCmds /
+# -ExecutePythonScript on the command line).
 if [ ! -x "$UEEditorCmd" ]; then
     if [ -x "$UEEditorApp/Contents/MacOS/UnrealEditor-Cmd" ]; then
         UEEditorCmd="$UEEditorApp/Contents/MacOS/UnrealEditor-Cmd"
@@ -40,7 +41,8 @@ golmok_require_editor_cmd() {
 # JSON is read and written with Python (no jq on stock macOS). GOLMOK_PYTHON overrides python3.
 GolmokPython="${GOLMOK_PYTHON:-python3}"
 
-# -nullrhi for headless editor sessions, unless GOLMOK_TEST_RHI is set (not 0): -nullrhi on macOS is [미확인].
+# -nullrhi for headless editor sessions, unless GOLMOK_TEST_RHI is set (not 0): 확인(2026-11-27, mac-setup
+# §8 #5) for test.sh runs; under add-gasp.sh it is still [미확인] (J-15).
 golmok_use_rhi() {
     case "${GOLMOK_TEST_RHI:-}" in "" | 0) return 1 ;; *) return 0 ;; esac
 }
