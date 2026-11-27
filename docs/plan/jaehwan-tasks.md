@@ -70,15 +70,16 @@
 | J-07 | WP-21이 본 E501 1건(`test_ue_mac_scripts.py:352`)은 `a9a8757`(WP-20 줄 길이 정리)에서 이미 고쳐졌고 main `85a09c3`의 `ruff check .`는 "All checks passed" — 코드 변경 없음 | PR 없음(결과는 [#143](https://github.com/wooklym/golmok/pull/143) 본문 "J-07 결과" 절) | R144(영록 재현: `9f3b64d`의 파일은 E501 116 > 110 1건, `a9a8757`의 파일은 통과) |
 | J-09 | 확인된 §8 행의 `[미확인]` 주석 정리 — `common.sh`·`test.sh`·`test_ue_geo_math.py` 주석 줄만(§8 #1·#2·#5, §9 FMA 행), add-gasp 절반은 `[미확인]` 유지 | [#146](https://github.com/wooklym/golmok/pull/146) · `34d0c6f` | R146(코드 통과, 본문 1회 반려: "완료 기준 대조" 절 누락, 규칙 14) |
 | J-08 | mac-setup §8 #24 rawpy 절반 — `rawpy-0.28.0-cp312-cp312-macosx_11_0_arm64.whl`, 확장 모듈 arm64, `rawpy.flags` 원문(EgoBlur MPS 절반은 빈 칸 그대로) | [#145](https://github.com/wooklym/golmok/pull/145) · `84ad068` | R145(1회 보류: 비워 둘 EgoBlur 절반에 씀, 칸에 출력 원문 누락, 규칙 1·6·10·14) → R145-2 |
-| J-15 | 재환 worktree Development 패키지로 mac-setup §8 #10~#13 — 매니페스트·utoc 이름과 위치, 방화벽 꺼짐 상태의 TraceLog 1985(점유 시 폴백 포트), 패키지 Saved·`-game` CSV는 샌드박스 컨테이너 `~/Library/Containers/com.YourCompany.Golmok/…`(아래 J-15 "결과") | [#151](https://github.com/wooklym/golmok/pull/151) · `7332dac`(증거·실행·초안은 재환의 [#147](https://github.com/wooklym/golmok/pull/147), 그 커밋이 #151 history에 그대로 있다) | R147 → R147-2 → R147-3(3회 보류: 결론이 증거보다 넓음, 로그에 없는 숫자, 인용이 근거 로그와 다름, 실패할 수 없는 검사, 범위 밖 파일 커밋 뒤 되돌림, 있는 기록을 주석 대신 삭제 — 규칙 1·6·10·14·15·16; 규칙 15·16 추가). 칸 최종 문구는 영록의 Opus 에이전트("병합 시 반영") |
+| J-15 | 재환 worktree Development 패키지로 mac-setup §8 #10~#13 — 매니페스트·utoc 이름과 위치, 방화벽 꺼짐 상태의 TraceLog 1985(점유 시 폴백 포트), 패키지 Saved·`-game` CSV는 샌드박스 컨테이너 `~/Library/Containers/com.YourCompany.Golmok/…`(아래 J-15 "결과") | [#151](https://github.com/wooklym/golmok/pull/151) · `7332dac`(증거·실행·초안은 재환의 [#147](https://github.com/wooklym/golmok/pull/147), 그 커밋이 #151 history에 그대로 있다) | R147 → R147-2 → R147-3(3회 보류: 결론이 증거보다 넓음, 로그에 없는 숫자, 인용이 근거 로그와 다름, 실패할 수 없는 검사, 범위 밖 파일 커밋 뒤 되돌림, 있는 기록을 주석 대신 삭제 — 규칙 1·3·6·10·12·14·15·16; 규칙 15·16 추가). 칸 최종 문구는 영록의 Opus 에이전트("병합 시 반영") |
+| J-17 | V-17 §0 헤드리스 Mac 부분 선행 기록(pc-verify-v17 §7 표 아래 한 줄): ①~④ 완료(재빌드 2 TU 경고 0, `Zone.IndexParse`·`Portal.SharedInterior`·`Save.RoundTrip` Success — 경고 1·2·4), ⑤ `Weather.Runtime`은 MPC·NS 없음 skip, 보조 `Weather.Lighting` exit 0(`NightUnaffected`) | [#149](https://github.com/wooklym/golmok/pull/149) · `5475c7a` | [R149](https://github.com/wooklym/golmok/pull/149#issuecomment-7229593014)(1회 보류: ⑤ skip을 "완료"로 기록, ① 종료 코드 미저장 — 규칙 14·15·10) → R149-2(영록 직접 대조: 자동화 리포트 사본·빌드 로그·코드) |
 
 **진행 중**
 
 | id | 과제 | 브랜치 | 허용 파일 |
 |---|---|---|---|
-| J-17 | V-17 §0 헤드리스 Mac 부분 선행 | `local/jaehwan-j17-v17s0`([#149](https://github.com/wooklym/golmok/pull/149) 열림, [R149](https://github.com/wooklym/golmok/pull/149#issuecomment-7229593014) 병합 보류(head `d232953`, 2026-11-27T22:45Z): ⑤ `Weather.Runtime`을 "완료"로 적었으나 보고서는 skip, ① `build.sh` 종료 코드가 저장되지 않았는데 "충족", 인용 검사가 다시 자기 초안을 대상에 넣음 — 규칙 14·15·10(e). 그 뒤 재환이 R149 수정 커밋 `1a0eed2`(2026-11-27T23:23Z)를 push했고, 재리뷰 대기다(2026-11-28 `gh pr view 149`: OPEN, 코멘트는 R149 하나). R149가 찾은 `test.sh` 종료 규칙 결함은 새 과제 J-36. 상태는 `gh pr view 149 --comments`(2026-11-28)에서 읽음) | 과제 상세 J-17 절 |
+| J-20 | V-16 §1·§3 헤드리스 Mac 부분 선행(`Golmok.Weather`·`Golmok.Save`, 에셋 전 기준선) | origin에 아직 없음(2026-11-28 `git branch -r`) | 과제 상세 J-20 절 |
 
-**다음**: J-17(진행 중, R149 수정 push 뒤 재리뷰 대기) → J-20 → J-36 → J-18 → J-35 → 그 뒤 남은 비설계 과제(J-16·J-19·J-21~J-23, 순서는 영록이 정한다. J-15가 끝나 J-16·J-19는 선행이 풀렸고, J-22는 J-20을 더 기다린다) → J-11 → J-10(둘 다 설계 확정, Opus 2026-11-28) → 설계 선행 J-24~J-33.
+**다음**: J-20(진행 중) → J-36 → J-18 → J-35 → 그 뒤 남은 비설계 과제(J-16·J-19·J-21~J-23, 순서는 영록이 정한다. J-15가 끝나 J-16·J-19는 선행이 풀렸고, J-22는 J-20을 더 기다린다) → J-11 → J-10(둘 다 설계 확정, Opus 2026-11-28) → 설계 선행 J-24~J-33.
 
 ## 백로그 (의존 순서)
 
@@ -89,10 +90,8 @@
 | J-10 | CI shellcheck 잡(공식 v0.11.0 고정·sha256, `--severity=warning`, 기존 결함은 표에 정한 줄별 지시문만 — 실행 줄 변경 없음, 같은 커밋 8/8 초록) | 없음(설계 메모 확정, Opus 2026-11-28) | S–M | 설계 확정(J-10 절) |
 | J-11 | CI 뷰어 `npm test` 잡(`viewer-smoke`, ubuntu-24.04 한 행 — Playwright 1.56.1은 `ubuntu-latest`(26.04) 미지원, `ci.yml` 훅 블록은 별도 커밋, 같은 커밋 8/8 초록) | 없음 | M | — (설계 확정, Opus 2026-11-28, 아래 J-11 절) |
 | J-16 | `_pure.py` Mac 경로 가정·`package.sh` 주석을 J-15 실측으로 정리 | J-15 | S–M | — |
-| J-17 | V-17 §0 헤드리스 Mac 부분 선행(GeoMath·Character 훅 컴파일·IndexParse·SharedInterior·Save.RoundTrip 닫기·Weather.Runtime) | J-12b | S | — |
 | J-18 | V-17 §3 Full Precision UV 헤드리스 + WP-06 `_import_moved` 정리 경고(mac-recon #23) | J-12b | M | **준비 메모** |
 | J-19 | V-17 §5 패키지 quinn 전환 로그 확인 | J-15 | S | — |
-| J-20 | V-16 §1·§3 헤드리스 Mac 부분 선행(`Golmok.Weather`·`Golmok.Save`, 에셋 전 기준선) | J-12b | S | — |
 | J-21 | WP-16a 불확실 API 표 §12의 컴파일·심볼 행 | J-12 | S | — |
 | J-22 | V-16 §11 Mac 패키지 명령 이식(에셋 전 기대 결과) | J-15, J-20 | M | — |
 | J-23 | 19b A1 ① 회귀 헤드리스(GASP 없이) | J-12 | S | — |
@@ -110,7 +109,7 @@
 | J-35 | add-gasp 편집기 가드의 남은 분기 스텁 사례(`$GaspProject` 일치·음성 2종, J-06 후속) | 없음(J-07은 코드 변경 없이 끝남) | S | — |
 | J-36 | `test.sh` 종료 규칙: 경고 있는 성공만 있는 실행도 통과(`failed` 0 · `succeeded`+`succeededWithWarnings` ≥ 1), 요약 줄에 경고 있는 성공 수, 옛 스크립트에서 실패하는 스텁 사례, 실제 `--filter Golmok.Zone.IndexParse` 전후(R149 발견) | 없음. J-35와 같은 테스트 파일(`tools/tests/test_ue_mac_scripts.py`)이라 둘을 동시에 열지 않는다 — **J-36 먼저**, J-35는 그 병합 뒤 | S | — (설계 확정, Opus 2026-11-28, 아래 J-36 절) |
 
-J-06·J-07·J-08·J-09·J-12·J-12b·J-13·J-14·J-15·J-34는 끝났고(위 "완료"), J-17은 진행 중이다(위 "진행 중"). J-36은 새 과제다(2026-11-28, R149 발견, 설계 확정). 아래 상세 절은 그대로 두고, 끝난 과제에는 "결과" 줄을 더한다.
+J-06·J-07·J-08·J-09·J-12·J-12b·J-13·J-14·J-15·J-17·J-34는 끝났고(위 "완료"), J-20은 진행 중이다(위 "진행 중"). J-36은 새 과제다(2026-11-28, R149 발견, 설계 확정). 아래 상세 절은 그대로 두고, 끝난 과제에는 "결과" 줄을 더한다.
 
 ### 과제 상세
 
@@ -366,7 +365,7 @@ J-06·J-07·J-08·J-09·J-12·J-12b·J-13·J-14·J-15·J-34는 끝났고(위 "�
 - **허용 파일**: mac-setup §8 #10~#13 "확인 결과" 칸.
 - **완료 기준**: 행마다 명령·출력 원문. 방화벽 창이 뜨면 누르지 않고 멈춰 영록에게 알린다. `build/`는 `$W` 안에만 생긴다(`git status` 깨끗).
 - **왜 재환 / 위험**: 재환은 이 Mac에서 패키지·CSV를 돌린 적이 있다. 위험: 2026-11-27 사고처럼 메인 체크아웃에서 돌리는 것(규칙 6) — 명령은 반드시 `cd $W`에서.
-- **결과(2026-11-28, [#151](https://github.com/wooklym/golmok/pull/151) · `7332dac`, 리뷰 R147 → R147-2 → R147-3)**: 증거·실행·초안은 재환의 [#147](https://github.com/wooklym/golmok/pull/147)(head `45bb451`)이다. 세 번 보류된 뒤 칸 4개의 최종 문구는 영록의 Opus 에이전트가 재환의 커밋 위 `claude/j15-cells`에서 썼다("병합 시 반영", 규칙 16). 재환 worktree의 Development 패키지 `build/Mac/Golmok.app`을 `-game -RenderOffScreen -ResX=1920 -ResY=1080 -csvCaptureFrames=200,300`으로 2회(06:30·07:01) 실행했다. 방화벽은 두 번 읽어 둘 다 꺼짐(`State = 0`)이었다. #10: `Golmok-Mac.utoc`·`global.utoc`·`Golmok-Mac.pak`은 `.app` 안 `Contents/UE/Golmok/Content/Paks/`에 있고, `Manifest_*_Mac.txt` 세 개는 패키지 폴더가 아니라 `unreal/Golmok/Saved/StagedBuilds/Mac/`에 있다. #11: 1회차는 실행 전부터 떠 있던 CrashReportClient가 1985를 잡고 있어 게임이 40252를, 2회차는 1985가 비어 있어 게임이 1985를 열었다. 대화상자는 관찰되지 않았다. 방화벽이 켜진 상태의 동작은 [미확인]이라 #11은 "부분"이다. #12·#13: 앱이 샌드박스로 서명돼 있어 Saved와 CSV는 `~/Library/Containers/com.YourCompany.Golmok/Data/Library/Application Support/Epic/Golmok/Saved/` 아래에 쓰였다. 적어 둔 후보 경로들에는 없었다. 번들 id는 템플릿 기본값 `com.YourCompany.Golmok`이다. 다른 구성·조건에서의 위치와, 번들 id가 같은 다른 패키지가 컨테이너를 같이 쓰는지는 [미확인]이다. mac-setup §3·§4·§6·§9의 관련 문장에는 2026-11-28 메모를 더했다(재환 레인 문서 5). 선행이 풀린 과제: J-16·J-19. J-22는 J-20, J-27은 설계 메모를 더 기다린다.
+- **결과(2026-11-28, [#151](https://github.com/wooklym/golmok/pull/151) · `7332dac`, 리뷰 R147 → R147-2 → R147-3)**: 증거·실행·초안은 재환의 [#147](https://github.com/wooklym/golmok/pull/147)(head `45bb451`)이다. 세 번 보류된 뒤 칸 4개의 최종 문구는 영록의 Opus 에이전트가 재환의 커밋 위 `claude/j15-cells`에서 썼다("병합 시 반영", 규칙 16). 재환 worktree의 Development 패키지 `build/Mac/Golmok.app`을 `-game -RenderOffScreen -ResX=1920 -ResY=1080 -csvCaptureFrames=200,300`으로 2회(06:30·07:01) 실행했다. 방화벽은 두 번 읽어 둘 다 꺼짐(`State = 0`)이었다. #10: `Golmok-Mac.utoc`·`global.utoc`·`Golmok-Mac.pak`은 `.app` 안 `Contents/UE/Golmok/Content/Paks/`에 있고, `Manifest_*_Mac.txt` 세 개는 패키지 폴더가 아니라 `unreal/Golmok/Saved/StagedBuilds/Mac/`에 있다. #11: 1회차는 실행 전부터 떠 있던 CrashReportClient가 1985를 잡고 있어 게임이 40252를, 2회차는 1985가 비어 있어 게임이 1985를 열었다. 대화상자는 관찰되지 않았다. 방화벽이 켜진 상태의 동작은 [미확인]이라 #11은 "부분"이다. #12·#13: 앱이 샌드박스로 서명돼 있어 Saved와 CSV는 `~/Library/Containers/com.YourCompany.Golmok/Data/Library/Application Support/Epic/Golmok/Saved/` 아래에 쓰였다. 적어 둔 후보 경로들에는 없었다(그 `find`의 명령 줄은 로그에 남지 않았다). 번들 id는 `com.YourCompany.Golmok`(엔진 기본값, 프로젝트 Config에 덮어쓰기 없음)이다. 다른 구성·조건에서의 위치와, 번들 id가 같은 다른 패키지가 컨테이너를 같이 쓰는지는 [미확인]이다. mac-setup §3·§4·§6·§9의 관련 문장에는 2026-11-28 메모를 더했다(재환 레인 문서 5). 선행이 풀린 과제: J-16·J-19. J-22는 J-20, J-27은 설계 메모를 더 기다린다.
 
 #### J-16 `_pure.py` Mac 경로 가정·`package.sh` 주석 정리
 - **출처**: `unreal/Golmok/Content/Python/golmok/_pure.py:1779`, `:1787`, `:1802`, `:1986`([미확인] Mac 경로 가정 — `UserSettingsDir`·`LaunchMac.cpp`), `tools/ue/package.sh:26`(방화벽 [미확인]), J-15 실측.
@@ -382,6 +381,7 @@ J-06·J-07·J-08·J-09·J-12·J-12b·J-13·J-14·J-15·J-34는 끝났고(위 "�
 - **완료 기준**: 기록은 `Mac 부분 선행(J-17, 합성 zone 있음/없음, SHA <짧은 SHA>)`로 시작하고 ①~⑤ 각각을 **완료 / skip / 실행 안 함** 중 하나로 적는다(명령별 종료 코드·상태·Info 줄 원문은 PR에). skip이면 통과라 쓰지 않는다.
 - **왜 재환 / 위험**: 로그 대조. 위험: skip을 통과로 읽는 것.
 - **정정**(정정 2026-11-28: 위 할 일 ⑤는 `NightUnaffected`를 `Golmok.Weather.Runtime` 아래에 두었는데, 영록의 문서 오류다(R149). `GolmokWeatherTest.cpp`에서 `NightUnaffected()`는 `FLightingScenario`(:544)의 한 단계로 :585에서만 불리고, 그 시나리오의 등록 이름은 `Golmok.Weather.Lighting`(:1335)이다. `Golmok.Weather.Runtime`(:1355, `FRuntimeScenario` :895)은 이 단계를 돌리지 않는다. 그래서 ⑤ `Weather.Runtime`은 MPC·NS가 없으면 skip Info 2줄로 Success(= skip)이고, `[Info] NightUnaffected at …` 줄은 `test.sh --filter Golmok.Weather.Lighting` 보조 실행에서 본다(R149가 정한 기록 형태). 재환이 이 문장으로 이미 작업했으므로 할 일 문장은 고치지 않고 여기 적는다. 같은 오류가 있던 [pc-verify-v17.md](../runbooks/pc-verify-v17.md) §0 문장은 2026-11-28에 고쳤다.)
+- **결과(2026-11-28, [#149](https://github.com/wooklym/golmok/pull/149) · `5475c7a`, 리뷰 R149 → R149-2)**: pc-verify-v17 §7 표 아래에 "Mac 부분 선행(J-17, 합성 zone 있음, SHA 84ad068)" 줄을 더했다. ①~④ 완료, ⑤ skip(`MPC_GolmokWeather missing - skipped`·`NS_GolmokRain missing - skipped`), `NightUnaffected`는 보조 실행 `Golmok.Weather.Lighting`(exit 0)에서 확인. ②~⑤ 필터 실행의 `test.sh` 종료 코드가 1이었던 것은 테스트 실패가 아니라 경고 있는 성공을 실패로 세는 종료 규칙 때문이다 — J-36이 고친다. 첫 제출은 ⑤를 "완료"로 적어 보류됐다(R149).
 
 #### J-18 V-17 §3 Full Precision UV 헤드리스 + `_import_moved` 정리 경고 — 준비 메모
 - **출처**: v17 §3(:40-44, 기대 로그 `zone_import: full precision UVs (LOD0) on 2/2 chunks (2 set, 0 already on)`, warnings 수 불변), [pc-verify-wp06.md](../runbooks/pc-verify-wp06.md) §2·§12 #41, STATUS WP-06 행 끝(Claude 레인 후속 5: `_import_moved` 스크래치 삭제 실패 시 `WARNING cleanup: could not delete … (runbook #8)` — 🟡 정상 경로 로그 불변), [mac-recon.md](../runbooks/mac-recon.md) 미확인 #23(`zone_import` Mac 실행).
