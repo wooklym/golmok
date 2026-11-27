@@ -75,21 +75,55 @@ const fixtureUrl = userData ? '/zones/z_synthetic_001/v1/manifest.json' : '/data
 const zoneParam = `&zone=${fixtureUrl}&zone=/zones/z_synthetic_scan_001/v1/manifest.json`;
 const zoneArgs = ['--zone', scanZone, ...(userData ? ['--zone', resolve(fixtureCopy, 'v1')] : [])];
 
+// Readiness wait (2026-11-27 hardening, after a 22-min hang when the line never arrived):
+// unbuffered child stdout, a 30 s cap, fail fast when the server exits early (e.g. EADDRINUSE /
+// OSError Errno 48), output tails in the error, and the child is killed on every failure path.
 const server = spawn(py, ['-m', 'golmok_tools.viewer_server', data, ...zoneArgs, '--port', String(port), '--no-browser'],
-  { cwd: toolsDir, stdio: ['ignore', 'pipe', 'inherit'] });
-await new Promise((res) => server.stdout.on('data', (d) => { if (String(d).includes('viewer:')) res(); }));
+  { cwd: toolsDir, stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, PYTHONUNBUFFERED: '1' } });
+let outTail = '';
+let errTail = '';
+server.stdout.on('data', (d) => { outTail = (outTail + d).slice(-4000); });
+server.stderr.on('data', (d) => { errTail = (errTail + d).slice(-4000); });
+try {
+  await new Promise((res, rej) => {
+    const fail = (msg) => { clearTimeout(timer); server.kill(); rej(new Error(msg)); };
+    const onData = () => {
+      // the readiness line can split across chunks — search the accumulated buffer, not the chunk
+      if (outTail.includes('viewer:')) {
+        clearTimeout(timer);
+        server.off('exit', onExit);
+        res();
+      }
+    };
+    const onExit = (code, signal) => fail(
+      `서버 프로세스가 준비 줄 없이 종료됨 (code=${code} signal=${signal})\nstderr:\n${errTail}`);
+    const timer = setTimeout(() => fail(
+      `30초 안에 'viewer:' 준비 줄 없음\nstdout:\n${outTail}\nstderr:\n${errTail}`), 30000);
+    server.stdout.on('data', onData);
+    server.once('exit', onExit);
+  });
+} catch (e) {
+  server.kill();
+  throw e;
+}
 
-const launch = { headless: true };
-if (process.env.PLAYWRIGHT_PROXY) launch.proxy = { server: process.env.PLAYWRIGHT_PROXY };
-if (process.env.PLAYWRIGHT_CHROMIUM) launch.executablePath = process.env.PLAYWRIGHT_CHROMIUM;
-const browser = await chromium.launch(launch);
-const page = await (await browser.newContext({ viewport: { width: 1280, height: 800 }, ignoreHTTPSErrors: true })).newPage();
-const errors = [];
-page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
-page.on('pageerror', (e) => errors.push(String(e)));
+// Last-resort net: whatever happens between here and the finally below, do not leave the server holding the port.
+process.on('exit', () => server.kill());
 
 let ok = false;
+let browser = null;
+const errors = [];
 try {
+  // Browser launch sits INSIDE the try/finally: a failed launch (bad PLAYWRIGHT_CHROMIUM, missing
+  // browser) must still kill the server (review R133 (A) — it used to leak on 8777).
+  const launch = { headless: true };
+  if (process.env.PLAYWRIGHT_PROXY) launch.proxy = { server: process.env.PLAYWRIGHT_PROXY };
+  if (process.env.PLAYWRIGHT_CHROMIUM) launch.executablePath = process.env.PLAYWRIGHT_CHROMIUM;
+  browser = await chromium.launch(launch);
+  const page = await (await browser.newContext({ viewport: { width: 1280, height: 800 }, ignoreHTTPSErrors: true })).newPage();
+  page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
+  page.on('pageerror', (e) => errors.push(String(e)));
+
   await page.goto(`http://127.0.0.1:${port}/?tileset=/data/tileset_buildings.json&tileset=/data/tileset_terrain.json${zoneParam}`, { waitUntil: 'domcontentloaded' });
   await page.waitForFunction(() => window.golmok && window.golmok.ready, null, { timeout: 120000 });
   // Software GL in CI can take a while to process textures: poll until every layer has tiles.
@@ -174,7 +208,7 @@ try {
   console.log(ok ? `OK: ${loaded} tiles loaded, ${zones.length} zones with collision/blockers meshes, screenshot ${shot}`
     : 'FAIL ' + JSON.stringify(checks));
 } finally {
-  await browser.close();
+  if (browser) await browser.close().catch(() => {});
   server.kill();
 }
 process.exit(ok ? 0 : 1);
