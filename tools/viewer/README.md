@@ -70,12 +70,12 @@ cd tools
 ~/.local/bin/uv venv --python 3.12 .venv && source .venv/bin/activate
 ~/.local/bin/uv pip install -e ".[basemap,zone,mesh,splat,align,dev]"
 cd viewer && npm install
-npx playwright install chromium --only-shell   # 스모크는 헤드리스 셸만 쓴다(공식 배포본)
+npx playwright install chromium --only-shell   # 스모크는 헤드리스 셸만 쓴다 — 이 Mac에서는 아래 "알려진 문제"로 압축 해제가 멈출 수 있다
 npm test
 ```
 
-- 겪은 문제 ①: `test/smoke.mjs`가 서버 stdout에서 `viewer:` 줄을 기다리는데 `viewer_server.py`의 `print`에 flush가 없어 파이프로 읽을 때 무한 대기했다(CI는 `PYTHONUNBUFFERED=1`이라 통과). `flush=True`로 고쳤다.
-- 겪은 문제 ②: `npx playwright install chromium`은 전체 Chromium만 받고 헤드리스 셸을 안 준다(1.56.1, macOS). `--only-shell`로 따로 받아야 `chromium.launch({headless:true})`가 뜬다.
+- 겪은 문제 ①: `test/smoke.mjs`가 서버 stdout에서 `viewer:` 줄을 기다리는데 `viewer_server.py`의 `print`에 flush가 없어 **파이프로 읽으면 CPython stdout이 블록 버퍼링되어(모든 OS 공통) 준비 줄이 오지 않았다**. CI는 뷰어 스모크를 돌리지 않아(`.github/workflows/ci.yml`의 잡은 python·repo-check·tiles-validate뿐) 드러나지 않았다. `flush=True`로 고쳤고, `tests/test_viewer_server.py::test_readiness_line_arrives_through_a_pipe`가 회귀를 막는다.
+- 알려진 문제(이 Mac, Node 26.13.1·Playwright 1.56.1): `npx playwright install chromium`(과 `--only-shell`)이 브라우저 zip을 내려받은 뒤 **압축 해제 단계에서 멈췄다**(30분·11분 대기, 원인 [미확인]). `install chromium`은 1.56.1에서 chromium·headless shell·ffmpeg를 모두 받는다(`npx playwright install chromium --dry-run`으로 확인) — 멈춤은 설치 항목의 문제가 아니라 해제 단계의 문제다. **우회**: 내려받은 zip을 `~/Library/Caches/ms-playwright/chromium-1194`와 `chromium_headless_shell-1194`에 직접 풀고 각 폴더에 빈 `INSTALLATION_COMPLETE` 파일을 만든다. 이미 캐시에 브라우저가 있으면(`ls ~/Library/Caches/ms-playwright/`) 다시 설치하지 않는다. `smoke.mjs`는 `PLAYWRIGHT_CHROMIUM` 환경 변수를 읽어 `executablePath`로 쓴다(`test/smoke.mjs:84`) — 시스템에 설치된 Chrome을 지정해도 된다.
 - 실제 결과: 단위 테스트 5/5 통과(3.7 ms). 스모크 통과 — 합성 베이스맵 18타일 + zone 2개(collision·blockers GLB), 배치 오차 6e-9 m(전체)/0 m, Cesium 기본 축 보정 오차 10.6 m 판별, 토글 9종 전부 참, 콘솔 오류 0. `npm test` 전체 25.8초(M5 Max). 합성 베이스맵 빌드와 `make_synthetic_zone.py`는 Mac에서 그대로 돈다.
 - [미확인]: `GOLMOK_DATA`로 실제 베이스맵을 물린 스모크, `golmok-viewer` GUI 브라우저 자동 열기(macOS `webbrowser.open`) 정상 동작 여부.
 

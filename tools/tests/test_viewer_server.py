@@ -1,5 +1,9 @@
 import json
 import os
+import select
+import socket
+import subprocess
+import sys
 import threading
 import urllib.request
 from pathlib import Path
@@ -250,3 +254,35 @@ def test_overlong_names_give_404_not_a_dropped_connection(zone_served, served):
     dbase, _ = served
     assert get(f"{dbase}/data/{long}")[0] == 404
     assert get(f"{dbase}/{long}")[0] == 404
+
+
+def test_readiness_line_arrives_through_a_pipe(tmp_path: Path):
+    # Regression (2026-11-27, macOS): smoke.mjs waits for the "viewer:" readiness line reading the server's
+    # stdout through a pipe. Without flush=True CPython block-buffers a piped stdout (all OSes) and the line
+    # never arrives. The child therefore runs without PYTHONUNBUFFERED and with stdout as a pipe.
+    with socket.socket() as s:  # find a free port so parallel runs do not collide
+        s.bind(("127.0.0.1", 0))
+        port = s.getsockname()[1]
+    env = {k: v for k, v in os.environ.items() if k != "PYTHONUNBUFFERED"}
+    proc = subprocess.Popen(
+        [
+            sys.executable,
+            "-m",
+            "golmok_tools.viewer_server",
+            str(tmp_path),
+            "--port",
+            str(port),
+            "--no-browser",
+        ],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+        text=True,
+        env=env,
+    )
+    try:
+        ready, _, _ = select.select([proc.stdout], [], [], 5.0)
+        line = proc.stdout.readline() if ready else ""
+        assert "viewer:" in line, f"5초 안에 'viewer:' 준비 줄이 오지 않음 (받은 줄: {line!r})"
+    finally:
+        proc.terminate()
+        proc.wait(timeout=5)
