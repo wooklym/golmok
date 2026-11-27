@@ -98,6 +98,7 @@ CLAUDE.md에서 너에게 그대로 적용되지 않는 부분이 있다. "Work-
     위 Windows 경로는 이력이다.
   - 클라우드에서는 저장소를 clone하고 같은 브랜치 이름을 쓴다.
 - **브랜치**: `astra/<wp>-<주제>`(예: `astra/wp-18-design`, `astra/wp-18a-roster`). WP 단계마다 브랜치와 PR을 하나씩 만든다. `claude/*`와 `pc/*`는 읽기만 한다.
+- **세 번째 구현자(2026-11-28, D-024)**: 로컬 LLM 세션 재환이 `local/jaehwan-*` 브랜치에서 오케스트레이터가 배정한 과제([`docs/plan/jaehwan-tasks.md`](docs/plan/jaehwan-tasks.md))를 한다. `local/*`도 읽기만 하고, 착수·PR 전 겹침 확인(`git diff --stat origin/main...origin/<브랜치>`) 대상에 넣는다.
 - **커밋**
   - 작성자: `git -c user.name="ChatGPT Astra" -c user.email="astra@golmok.invalid" commit …`
   - 메시지: 접두어 `WP-NN:`. 마지막 줄에 `Agent: ChatGPT Astra`를 적는다.
