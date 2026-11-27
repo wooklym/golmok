@@ -639,3 +639,26 @@ R129 수정 검증: UE 빌드 성공 7.26 s, 전체39 Success(28+경고11), fail
 ### 병합 — T30
 
 [#129](https://github.com/wooklym/golmok/pull/129) → main(오케스트레이터 결정 D-019, merge commit). 리뷰 [R129](https://github.com/wooklym/golmok/pull/129#issuecomment-6071756631)(Opus ultracode 적대 리뷰 4차원 + 발견별 독립 검증 2표 + 디자인 리뷰): (A) 0 · (B) 8 · (C) 8. (B) R129-1~8은 Astra `440ca17`에서 반영했고, 오케스트레이터가 바뀐 부분을 다시 확인했다(Sequence `FAIL(n/m)`·COMPLETE·SEQUENCE 폴더 유지, `bEnableCameraLag = true` 단언과 음성 사례, §12 `$project` 확인·정상 녹화 사후 출력·수동 복구 두 갈래, §13 T30 링크, T11 기록 제자리 정정, 기존 실행 행·≈ 120 Hz 범위). 합친 트리 pytest 1857 passed / 3 skipped, 등록 39. (C) R129-9~15는 선택 이월이다. R129-16은 이 병합 커밋에서 처리했다: 위 "병합 시 반영 — T30" 문구 정정, STATUS WP-18 병행 행에 UE 39 Success(Astra 보고)·Sequence 컴파일만·§12 스텁만·Quinn 결론 추가, Quinn 반복 종료는 DECISIONS D-018 진행 기록(오케스트레이터 결정 D-019, 재개 조건 (a) Block 단언 재실패 (b) V-12·V-15 녹화에서 25 cm 초과 올라탐)으로 기록. 캐릭터 레인은 다시 19b 경로(D-021 재확인·V-08b) 대기다.
+
+
+## 2026-11-27 Mac ZoneWalk 컴파일 수정
+
+배정: [이슈 #30 코멘트](https://github.com/wooklym/golmok/issues/30#issuecomment-7197857386), 기준 main `d7dc496`.
+
+`GolmokCharacterRosterZoneWalk.cpp`의 첫 PlayerStart 선택을 한 번 실행하고 break하는 for 루프에서 C++17 if 초기화로 바꿨다. Apple clang의 `-Werror,-Wunreachable-code-loop-increment` 원인인 실행되지 않는 증가식을 없앤다. iterator가 비어 있으면 Start는 nullptr이고 기존 `PlayerStart missing` 오류로 끝나며, 여러 개면 첫 액터를 선택한다. 이후 위치 검사와 이동·입력 경로는 그대로다. 새 자동화 등록과 훅은 없다.
+
+검증 상태: 🟡 코드 완료·PC 검증 대기(V-19). 이번 Astra 실행 환경은 Windows이며 D-022에 따라 UE 게이트는 실행하지 않았다. 오케스트레이터는 같은 한 줄을 로컬 적용한 Mac에서 빌드·자동화 39 Success를 보고했다([2차], 위 배정 코멘트). 이 PR head의 Mac 실행 결과는 아니다. 병합 전 Opus ultracode 코드 리뷰를 요청한다.
+
+Mac 재검증: 이 브랜치의 최종 head에서 `./tools/ue/add-mannequin.sh`, `./tools/ue/build.sh`, `./tools/ue/test.sh --setup-dev-level` 순서로 실행하고 39개 상태·Failed·Not run과 head SHA를 기록한다. 절차는 [Mac 셋업 런북](../runbooks/mac-setup.md) §4를 따른다. ZoneWalk RHI opt-in 실행은 이번 한 줄 수정에서 미실행이다.
+
+### 병합 시 반영 — Mac ZoneWalk 컴파일 수정
+
+STATUS 캐릭터 레인·V-19 문안: "WP-18 ZoneWalk 첫 PlayerStart 조회를 if 초기화로 바꿔 Apple clang의 도달 불가 루프 증가식 오류를 수정했다. Astra의 Mac UE 게이트는 미실행이며 최종 head 검증은 V-19 Mac 세션이 수행한다. 등록 39·설정값·훅 무변경. 19b 경로 과제는 계속 대기."
+
+`mac-setup.md` §9의 기존 로컬 우회 기록은 이력으로 보존하고, 이 PR head의 Mac 재검증 결과를 새 행으로 추가한다. 실제 실행 전에는 main 빌드 통과로 표시하지 않는다.
+
+Astra 로컬 게이트: 새 worktree venv(Python 3.12)에서 `ruff check .` 통과, `ruff format --check .` 124 files, `pytest -q` 1622 passed / 309 skipped / 61 warnings (85.66 s), `python scripts/check_repo.py` 통과. `git diff --check` 통과. GitHub Actions는 push 뒤 별도 보고한다.
+
+### 병합 — Mac ZoneWalk 컴파일 수정
+
+[#132](https://github.com/wooklym/golmok/pull/132) → main(오케스트레이터 결정 D-019, merge commit). 배정은 로컬 Mac 오케스트레이터가 했으나 02:18Z 이후 3시간 넘게 활동이 없어 클라우드 오케스트레이터 세션이 리뷰·병합을 맡았다. 리뷰 [R132](https://github.com/wooklym/golmok/pull/132#issuecomment-7210584313)(Opus ultracode 적대 리뷰 2차원 — C++ 정합·이식성, 레인·절차·문서 정확성 — + 발견별 독립 반박 검증): (A) 0 · (B) 0(후보 2건 반박) · (C) 3. C++는 clang 18 UE 모양 모형에서 옛 줄이 같은 오류를 재현하고 새 줄이 `-Wall -Wextra -Wshadow-all -Wunreachable-code-aggressive -Werror`를 통과함을 확인했고, `Source/` 전체에서 같은 패턴은 이 줄 하나뿐이었다. (C) R132-1(652행 절차 인용과 순서 불일치)·R132-3 중 빈 줄·낡은 CI 문장은 선택 이월(다음 캐릭터 레인 push). R132-3의 과제 번호는 이 병합 커밋에서 `astra-tasks.md` T32 행으로 붙였다. R132-2는 이 병합 커밋에서 처리했다: STATUS 병행 트랙 WP-18 행과 V-19 행에 문안을 나눠 넣고 둘 다 [#132]를 링크했다. 같은 커밋에서 main의 살아 있는 "Mac 빌드 막힘" 서술(STATUS WP-20·V-19 행, DEVELOPMENT-PLAN V-19 행, WP-20 상태 줄·남은 것·V-19 실측 빌드 줄 끝, mac-setup §4 기대 결과 1)을 고치고 mac-setup §9에 재확인 대기 행을 더했다. 이력 기록(§9 기존 §4-1 행, WP-20 결과 빌드 줄의 원문, STATUS 갱신 이력)은 그대로 두고 수정 사실만 덧붙였다. 상태: 🟡 코드 완료·PC(Mac) 검증 대기(V-19). 캐릭터 레인은 다시 19b 경로(D-021 재확인·V-08b) 대기다.

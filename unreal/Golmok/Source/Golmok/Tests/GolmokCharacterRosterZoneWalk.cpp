@@ -58,7 +58,7 @@ public:
   {
    if(Zones->NumDiscovered()!=0) return Fail(TEXT("Unrelated indexed zones contaminate fixture; launch with bDiscoverFromIndex=False INI override"));
    APlayerStart* Start=nullptr;
-   for(TActorIterator<APlayerStart> It(World);It;++It){Start=*It;break;}
+   if(TActorIterator<APlayerStart> It(World);It){Start=*It;}
    if(!Start) return Fail(TEXT("PlayerStart missing"));
    const FVector Expected=Zone->GetActorTransform().TransformPosition(FVector(0,-200,150));
    if(FVector::Dist(Start->GetActorLocation(),Expected)>5) return Fail(TEXT("PlayerStart differs from WP-06 expected.json; follow runbook section3 before running"));
