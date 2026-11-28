@@ -365,6 +365,8 @@ Mac 부분 선행(J-21, 컴파일·심볼만, 2026-11-28, SHA 366e118, UE 5.8.4 
 
 Mac 부분 선행(J-20, 에셋 전, 합성 zone 있음(z_synthetic_002는 청크·콜리전 에셋 없음), SHA 5475c7a): §1 빌드 — 종료 코드 0, Result: Succeeded(업투데이트; 전면 재컴파일의 Niagara 경고 문구는 [미확인]). Weather.Config 완료. Weather.Lighting 완료 — [Info] NightUnaffected at 05:35 (base lux 0.104167). Weather.Runtime skip — MPC·NS 없음 skip Info 2줄(경고 1). Save.RoundTrip 완료 — 날씨 단계 실행, close 단계 Info 2줄(경고 4: z_synthetic_002 에셋 없음). Save 필터 실행의 종료 코드 1은 경고 있는 성공을 실패로 세는 test.sh 규칙 때문(J-36). 근거: PR #153.
 
+Mac 부분 선행(J-22, 에셋 전, 2026-11-28, SHA acbd954에서 새로 만든 Development 패키지): §11 — `package.sh` 종료 코드 0. 매니페스트 `unreal/Golmok/Saved/StagedBuilds/Mac/Manifest_UFSFiles_Mac.txt`에 `Config/Golmok/weather.json` 1줄, `UnrealPak -ListContainer`의 `Golmok-Mac.utoc` 목록에 `MPC_GolmokWeather`·`NS_GolmokRain` 0줄(`L_Dev`는 있다). `-ExecCmds`로 `golmok.weather clear instant`·`rain heavy`·`status`·`quit`을 준 실행의 게임 로그(컨테이너 `~/Library/Containers/com.YourCompany.Golmok/Data/Library/Logs/Golmok/`)에 `weather: clear fixed, transition 20.0 s, 10 schedule slots, mpc missing, fx missing`, `status` 끝 줄 `mpc missing | fx missing | interior no | frozen no`, 종료 코드 0. 에셋 뒤 기대(`mpc ok, fx idle`, 목록의 두 에셋)는 아직 확인하지 않았다. 근거: PR #165.
+
 성능 표(§10):
 
 | 레벨 | 조건 | Frame | Game | Draw | GPU | Niagara GPU | 입자 수 |
