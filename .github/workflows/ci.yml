@@ -129,3 +129,33 @@ jobs:
         timeout-minutes: 10
         run: npm test
   # [/J-11 hook]
+
+  # [J-10 hook] shellcheck for the Mac shell scripts (tools/ue/*.sh, tools/mac/*.sh); pinned official release
+  shellcheck:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    defaults:
+      run:
+        shell: bash
+    env:
+      SHELLCHECK_VERSION: v0.11.0
+      SHELLCHECK_SHA256: 8c3be12b05d5c177a04c29e3c78ce89ac86f1595681cab149b65b97c4e227198  # linux.x86_64.tar.xz
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          lfs: false  # scripts only
+      - name: Install shellcheck (pinned release, sha256 checked)
+        run: |
+          url="https://github.com/koalaman/shellcheck/releases/download/${SHELLCHECK_VERSION}/shellcheck-${SHELLCHECK_VERSION}.linux.x86_64.tar.xz"
+          curl -fsSL --retry 3 -o "$RUNNER_TEMP/shellcheck.tar.xz" "$url"
+          echo "${SHELLCHECK_SHA256}  $RUNNER_TEMP/shellcheck.tar.xz" | sha256sum -c -
+          tar -xJf "$RUNNER_TEMP/shellcheck.tar.xz" -C "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/shellcheck-${SHELLCHECK_VERSION}" >> "$GITHUB_PATH"
+      - name: shellcheck --version
+        run: |
+          command -v shellcheck
+          shellcheck --version | tee "$RUNNER_TEMP/shellcheck-version.txt"
+          grep -qx "version: ${SHELLCHECK_VERSION#v}" "$RUNNER_TEMP/shellcheck-version.txt"
+      - name: shellcheck (warning and above)
+        run: shellcheck --shell=bash --external-sources --source-path=SCRIPTDIR --severity=warning --format=gcc tools/ue/*.sh tools/mac/*.sh
+  # [/J-10 hook]

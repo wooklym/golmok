@@ -8,13 +8,16 @@ UE_ROOT="${UE_ROOT:-/Users/Shared/Epic Games/UE_5.8}"
 UERoot="${UE_ROOT%/}"
 # cd -- … >/dev/null: with CDPATH set, cd prints the directory and it would end up in the result.
 RepoRoot="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." >/dev/null && pwd)"
+# shellcheck disable=SC2034  # used by the scripts that source common.sh
 Project="$RepoRoot/unreal/Golmok/Golmok.uproject"
 
 # Layout of a Launcher 5.8 install on macOS: 확인(2026-11-27, mac-setup §8 #2). Change here only.
 UEEditorApp="$UERoot/Engine/Binaries/Mac/UnrealEditor.app"
 UEEditor="$UEEditorApp/Contents/MacOS/UnrealEditor"
 UEEditorCmd="$UERoot/Engine/Binaries/Mac/UnrealEditor-Cmd"
+# shellcheck disable=SC2034  # used by the scripts that source common.sh
 UEBuild="$UERoot/Engine/Build/BatchFiles/Mac/Build.sh"
+# shellcheck disable=SC2034  # used by the scripts that source common.sh
 UERunUAT="$UERoot/Engine/Build/BatchFiles/RunUAT.sh"
 
 golmok_die() {
@@ -39,6 +42,7 @@ golmok_require_editor_cmd() {
 }
 
 # JSON is read and written with Python (no jq on stock macOS). GOLMOK_PYTHON overrides python3.
+# shellcheck disable=SC2034  # used by the scripts that source common.sh
 GolmokPython="${GOLMOK_PYTHON:-python3}"
 
 # -nullrhi for headless editor sessions, unless GOLMOK_TEST_RHI is set (not 0): 확인(2026-11-27, mac-setup
