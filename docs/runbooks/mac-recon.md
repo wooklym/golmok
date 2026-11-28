@@ -247,6 +247,7 @@ golmok-zone validate "$Z/manifest.json" --check-files --strict
 | 22 | COLMAP `colmap gui`(Qt6) macOS 27에서 열림 | 명령은 있음 | 실행 1회(선택) | |
 | 23 | `zone_import` Mac 실행 | V-19 전 | V-19 뒤 | 2026-11-28 J-18 헤드리스 성공(`-nullrhi`+`-ExecCmds`, 합성 스캔 존): `2/2 chunks (2 set, 0 already on)`·`0 warnings`·시간(참고값 — 로컬 LLM 추론 부하가 있는 상태): `zi.run` 3.93 s — v17 §7 §3 행. 근거: PR #156. |
 | 24 | Brush 다음 릴리스의 CLI 플래그 변화 | v0.3.0(2025-09) 고정 | 업그레이드 때 `--help` | |
+| 25 | 크래시 리포트 무인 업로드(CrashReportClient → Epic, D-007) | 엔진 기본값 `bSendUnattendedBugReports=True`(BaseEditorSettings.ini). 이 Mac에서 2026-11-27·28 무인 실행 크래시 6건의 리포트가 올라갔다(DECISIONS D-023 D-007 메모) | 프로젝트 `Config/DefaultEditorSettings.ini` `[WP-21 hook]`의 `False`. 크래시 없이 창 없는 편집기를 한 번 띄우고 끈 뒤 `~/Library/Application Support/Epic/NotAllowedUnattendedBugReports`의 수정 시각을 본다 | 2026-11-28 J-29(SHA bd7fa35 작업 트리, `UnrealEditor-Cmd -nullrhi -unattended`, `QUIT_EDITOR` 1회씩): 훅 파일이 없는 트리의 실행 뒤에는 그 파일이 바뀌지 않았고, 훅 파일이 있는 트리의 실행 뒤에는 새로 써졌다 — 이번 실행에서 편집기가 그 값을 `False`로 읽었다. 크래시는 일으키지 않았다. 무인 실행의 크래시에서 CrashReportClient가 뜨지 않는 것은 엔진 소스(`MacPlatformMisc.cpp`) 읽기이고 실행으로 확인하지 않았다. 같은 블록의 `bSendUsageData=False`, 사람이 보는 편집기 크래시(대화창에서 보낼지 고른다), 패키지 게임, Windows는 [미확인]. 근거: PR #166. |
 
 ## 7. 결과 (V-05 Mac 세션이 작성)
 
