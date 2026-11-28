@@ -55,7 +55,8 @@
 - **다시 돌린 로그는 번호 접미사(2026-11-28, J-21 PR #160 리뷰 R160에서 정함)**: 과제 절이나 이 파일이 다시 돌리는 이름을 정하지 않은 명령을 다시 돌리면(실패·멈춤 뒤, 영록 지시로 다시 돌리는 명령 등) 그 로그에 번호를 붙인다(`<이름>-2.log`, `<이름>-3.log`, `.rc`도 같다). 그 경우 있는 `.log`·`.rc` 파일은 덮어쓰지도 지우지도 않는다. 예외 — 아래 "PR 본문 공통" 3·4·5·6·7의 검사, 과제 절의 게시 전 검사(사용자 경로 검사 `home-path.log`, 인용 검사 `body-quotes.txt`·`tsv-quotes.txt`·`quotes-missing.log`·`quotes-check.log`, 숫자 검사 `body-numbers.txt`·`numbers-check.log` — 본문을 고친 뒤 다시 돌리는 것), 과제 절이 "같은 명령을 다시 돌린다"·"한 번 더 돌린다"로 적은 명령(J-10 실행 목록 확인, J-27 멈춤 ①), 위 "`gh run watch`의 일시 오류" 줄의 기록 단계는 적힌 파일 이름 그대로 다시 쓰고, 완료 기준·멈춤 조건은 그 이름의 마지막 실행 값을 본다. PR 본문에는 인용한 값마다 몇 번째 실행의 파일인지(파일 이름) 적는다.
 - **"모두·전부·첫 실행부터" 같은 말(2026-11-28, J-21 PR #160 리뷰 R160에서 정함)**: 이런 말은 `commands.txt`나 로그를 기록된 명령으로 센 뒤에만 점검표·본문에 쓴다. 세지 않았으면 센 범위를 쓴다(예: "N개 중 N개").
 - **문서 9의 공통 동작(2026-11-28, R161·J-19 PR #163)**: 재환의 `task.txt`에는 과제 절과 아래 "PR 본문 공통(모든 과제)" 소절만 들어간다. 그래서 이번에 정한 것은 모두 그 소절에 두었다 — 3(규칙 5 감사 펜스 `common-timeout-awk`), 11(명령은 `task.txt`에서 복사, 뽑은 조각은 확인 && 실행 — 규칙 20), 12(CI 결론은 표·run API에서), 13(되돌림 커밋), 14(인용·숫자 검사의 꼴), 15(완료 기준은 충족·미충족 둘, 작업 트리 상태는 시작 때 기록과의 비교), 16(지시와 로그가 다르면 로그 — 2026-11-28 영록), 머리 **명령 기록**의 정정 줄 대상 확인과 `-cmd.sh` 방식(2026-11-28 영록). 이 목록과 그 소절이 다르면 그 소절을 따른다.
-- **J-29 병합 전에는 GPU `-game` 없음(2026-11-28 영록)**: J-29가 병합될 때까지 새 과제는 에디터 바이너리 `-game`을 GPU로(`-nullrhi` 없이) 띄우지 않는다 — J-29 전의 무인 UE 크래시는 리포트를 Epic으로 올린다(J-27 절 실행 기록, 이 Mac에서 업로드 6회). 배정 순서는 아래 "다음" 줄이다.
+- **문서 10의 공통 동작(2026-11-28, R165·R166·영록)**: 이번에 정한 것도 모두 "PR 본문 공통(모든 과제)" 소절에 있다 — 17(스크립트 파일은 만든 뒤에 기록), 18(백그라운드 작업은 2분마다 끝 파일을 읽고, 시간 한도를 넘기면 멈춤), 19(끝나지 않는 check-run — watch 시간 한도 뒤 check-runs API 기록과 영록 판정), 20("없다·모두·먼저·전부"는 반례 `grep` 뒤), 21(짐작한 경로를 찾지 않는다, 과정 일탈 목록), 22(할 일 1 앞 단계 금지), 23(끝난 과제 증거 폴더 지우기), 24(인용 검사는 라벨과 값), 25(규칙 5 감사 awk의 `git -C` 꼴 확인 — 펜스 그대로), 26(멈춤·사고는 시각과 함께). 이 목록과 그 소절이 다르면 그 소절을 따른다.
+- **J-29 병합 전에는 GPU `-game` 없음(2026-11-28 영록)**: J-29가 병합될 때까지 새 과제는 에디터 바이너리 `-game`을 GPU로(`-nullrhi` 없이) 띄우지 않는다 — J-29 전의 무인 UE 크래시는 리포트를 Epic으로 올린다(J-27 절 실행 기록, 이 Mac에서 업로드 6회). 배정 순서는 아래 "다음" 줄이다. **문서 10 메모(2026-11-28) — 이 줄의 '병합 전에는'은 끝났고, 금지는 계속된다**: J-29는 [#166](https://github.com/wooklym/golmok/pull/166) `3d85160`으로 병합됐다. 편집기 바이너리의 무인(`-unattended`) 실행이 그 값을 `False`로 읽은 것은 마커로 확인했다(mac-recon §6 #25). 그 뒤의 크래시에서 CrashReportClient가 뜨지 않는 것은 엔진 소스 읽기다(크래시로 확인하지 않음). 덮지 않는 것: 패키지 앱의 크래시 업로드([미확인]), 이 파일이 없는 트리(J-29 전 커밋). 편집기 Preferences > Privacy > BugReports에서 바꾼 값은 이 사용자 계정·UE 5.8의 모든 프로젝트가 함께 쓰는 사용자 파일 `~/Library/Application Support/Epic/UnrealEngine/5.8/Saved/Config/MacEditor/EditorSettings.ini`에 저장돼(엔진 소스 `ConfigContext.cpp:476-480`·`Paths.cpp:238-245` `EngineEditorSettingsDir()`) ini 계층의 마지막 층으로 이 설정보다 앞선다 [미확인 — 엔진 소스 읽기, 실행 확인 없음; 2026-11-28 그 파일에 Privacy 항목 없음]. 크래시 때 업로드가 없는 것은 실행으로 확인하지 않았고 모델이 로드된 채 GPU `-game`은 Metal OutOfMemory로 크래시했으므로(2026-11-28 J-27, 업로드됨), 재환 과제는 앞으로도 편집기 바이너리 `-game`을 GPU로(`-nullrhi` 없이) 띄우지 않는다. 패키지 Development 앱의 1080p 실행은 모델이 로드된 채 두 번 됐다(J-19·J-22). 새 패키지 앱 과제는 앱이 크래시하면 할 일을 절에 적는다: 멈춤, 영록에게 보고, 실행 시작 시각(마커) 뒤의 `~/Library/Logs/Unreal Engine/CrashReportClient/` 로그를 그 시각 기준으로 확인한다.
 
 ### PR 본문 공통(모든 과제)
 
@@ -64,7 +65,7 @@
 1. **과제 절 뽑기(규칙 14·17 c)**: 과제 절의 할 일 1이 그 과제의 id를 넣은 명령을 글자 그대로 준다. 꼴은 이렇다: `git -C "$W" show origin/main:docs/plan/jaehwan-tasks.md > "$E/tasks-main.md"; git -C "$W" rev-parse origin/main > "$E/main-rev.log"; { awk '/^#### J-19 /{f=1} /^#### J-20 /{f=0} f' "$E/tasks-main.md"; awk '/^### PR 본문 공통\(모든 과제\)$/{f=1} /^## 리뷰·병합 절차$/{f=0} f' "$E/tasks-main.md"; } > "$E/task.txt"`. 기대: `head -1 "$E/task.txt"`가 과제 절 제목, `grep -c -x '### PR 본문 공통(모든 과제)' "$E/task.txt"` `1`. 규칙 17 c의 "main 리비전"은 `task.txt` 첫 줄이 아니라 `main-rev.log`에 둔다(과제 절의 `head -1` 기대를 지키려고). 펜스 `common-ph-awk`(아래 5)는 과제 절의 펜스 추출 목록에 `"common-ph-awk ph.awk"`로 들어 있다.
 2. **절 순서**: 절 제목은 모두 `## `로 시작하고 아래 글자 그대로다. `## 요약` · `## 바뀐 파일` · `## 결과`(과제 절이 정한 것만) · `## 완료 기준 대조`(`task.txt`의 "완료 기준" 부분을 물결 펜스 `~~~` 블록에 그대로 붙이고, 블록 아래에 (a)부터 한 줄씩 충족 + 증거 파일, 또는 **미충족** + 이유) · `## 실행한 명령`(`$E/commands.txt`를 백틱 펜스 블록에 그대로. 과제 절이 더 붙이라는 파일도 이 절의 백틱 펜스 블록에. `commands.txt`가 200줄을 넘으면 그 펜스 바로 앞에 `<details>` 한 줄, 바로 뒤에 `</details>` 한 줄을 둔다. **크기**(2026-11-28 문서 8, PR #159): 본문에 통째로 붙이는 로그는 이 `commands.txt`와, 과제 절이 본문에 그대로(원문·전체) 넣으라고 이름을 든 파일뿐이다. 그 밖의 로그는 통째로 붙이지 않는다(머리 **명령 기록**의 `-cmd.sh` 파일은 명령 기록이라 이 절에 붙인다). 이 절의 펜스 밖 끝에는 과제 절이 '본문에 붙이지 않는다'고 이름을 든 로그와 `## 결과`에서 일부만 인용한 로그만 `- <파일 이름>: <줄 수>줄`처럼 파일 이름과 줄 수를 한 줄씩 적는다(`$E`의 모든 파일을 나열하지 않는다) — 줄 수는 `wc -l < "$E/<파일 이름>" | tr -d ' ' > "$E/<파일 이름>-lines.log"`로 남긴 값을 옮긴다(규칙 10 — 화면에만 찍힌 수를 쓰지 않는다)) · `## CI`(모든 행이 끝난 뒤의 `"$E/checks.log"`를 백틱 펜스 블록에 그대로) · `## 남은 [미확인]` · `## 병합 시 반영`(없으면 "없음") · `## 제출 전 점검표`(아래 3) · `## 자리표시 분류`(아래 6이 만든 표) · 서명 줄 `작성: 재환(로컬 LLM, qwen3.8-flash-next / LM Studio)`. 서명 줄이 본문의 **마지막 비지 않은 줄**이다(규칙 7 — `gh`가 게시본 끝에 빈 줄 하나를 붙이므로 6의 다시 읽기는 마지막 비지 않은 줄을 본다). `## 요약`부터 `## 제출 전 점검표`까지가 초안 `"$E/pr-body.md"`이고, 마지막 두 부분(`## 자리표시 분류`와 서명 줄)은 초안에 쓰지 않는다 — 6의 명령이 붙인다. 쓰는 순서(규칙 2·18): PR은 과제 절의 명령으로 "CI 진행 중 — 결과는 아래에 추가"만 든 첫 본문으로 연다(첫 본문은 정확히 그 한 문장 한 줄이다 — 과제 절의 `printf '%s\n' 'CI 진행 중 — 결과는 아래에 추가' > "$E/pr-body-initial.md"` 그대로 쓰고, 다른 줄·설명·점검표·"CI 뒤에 채운다" 같은 문장을 더하지 않는다. 2026-11-28 문서 9에서 다시 적음. 예외: 문서 9 전에 시작한 J-22는 그때 뽑은 `task.txt`의 PR 열기 명령 그대로 쓴다) → 마지막 push의 CI가 모든 행에서 끝나 `checks.log`가 생긴 뒤에 초안을 쓴다 → `## 제출 전 점검표`는 맨 마지막에 쓴다 → 과제 절의 인용·숫자 검사 → 아래 3·5·6.
 3. **제출 전 점검표**: 그날의 규칙 파일에 있는 규칙마다 한 줄, `- 규칙 7: 커밋 두 개를 재환 작성자로 만들었다 — author-c1.log·author-c2.log`처럼 `- 규칙 <번호>: `로 시작하고 과거형 문장과 증거 파일을 적는다(규칙 18: 줄마다 그 증거 파일을 `ls -l`·`cat`으로 연 뒤에 쓴다. 파일이 없으면 "아직 안 함"이라고 쓴다). 규칙 수와 줄 수 대조: `ls -d "$HOME"/.claude/projects/*golmok/memory/jaehwan-working-rules.md > "$E/rules-path.log" 2>&1; wc -l < "$E/rules-path.log" | tr -d ' ' > "$E/rules-path-count.log"; grep -c -E '^[0-9]+\. \*\*' "$(head -n 1 "$E/rules-path.log")" > "$E/rule-count.log"; awk '/^## 제출 전 점검표$/{f=1;next} /^## /{f=0} f' "$E/pr-body.md" | grep -c -E '^- 규칙 [0-9]+: ' > "$E/checklist-lines.log"; diff "$E/rule-count.log" "$E/checklist-lines.log" > "$E/checklist.diff"; echo "exit=$?" >> "$E/checklist.diff"` — 기대 `rules-path-count.log` `1`, `checklist.diff` `exit=0` 한 줄(2026-11-28 문서 9 현재 규칙 수는 21 — R159 뒤 규칙 19, J-19 PR #163 리뷰 뒤 규칙 20·21이 더해졌다. 점검표 줄 수는 이 숫자가 아니라 그날 규칙 파일에서 센 `rule-count.log`에 맞춘다). **규칙 5 줄(규칙 5의 R161 확장, 2026-11-28 문서 9)**: 이 줄은 기억이 아니라 센 수로 쓴다. 점검표를 쓰기 직전에, 아래 감사 펜스 `common-timeout-awk`를 뽑아 줄 수와 첫 줄을 확인한 같은 호출에서 돌린다(11 — 규칙 20): `awk -v n=common-timeout-awk 'BEGIN {b = sprintf("%c%c%c", 96, 96, 96)} x && $0 == b {x = 0} x {print} !x && index($0, b) == 1 && $0 ~ (" " n "$") {x = 1}' "$E/task.txt" > "$E/timeout.awk"; [ "$(wc -l < "$E/timeout.awk" | tr -d ' ')" = "10" ] && head -n 1 "$E/timeout.awk" | grep -q '^# 규칙 5 감사' && { grep -n -c 'timeout' "$E/commands.txt" > "$E/timeout-count.log"; awk -f "$E/timeout.awk" "$E/commands.txt" > "$E/timeout-audit.log"; }; echo $? > "$E/timeout-audit.rc"` — 기대 `timeout-audit.rc` `0`, `timeout-audit.log` 끝 두 줄이 `wrapped_lines`·`not_wrapped_lines`와 수. 감사는 `commands.txt`에서 `git fetch`·`git push`(`git -C "$W"` 꼴 포함)·`gh `+낱말·`pytest`·`curl `·`until `이 든 줄을 줄 번호마다 `/usr/bin/timeout `이 있는 무리(`wrapped`)와 없는 무리(`not-wrapped`, 명령 원문 함께)로 나누고, `#`로 시작하는 줄(정정)과 이 감사 자신의 기록 줄(`timeout-audit.log`가 든 줄)은 세지 않는다. 한 줄에 감싼 명령과 감싸지 않은 명령이 함께 있으면 그 줄은 `wrapped`로 세므로, 그런 줄은 점검표 줄에 따로 적는다(열린 절은 그런 줄을 만들지 않게 적었다 — 문서 9에서 CI 표 명령에도 `/usr/bin/timeout 120`). 점검표의 규칙 5 줄은 `timeout-audit.log`의 두 수를 그대로 옮기고, `not-wrapped` 줄마다 과제 절이 그 명령을 시간 한도 없이 적었다는 근거(그 절 "명령 공통"의 시간 한도 문장, 또는 아래 6의 `gh pr edit`·`gh pr view`)를 줄 번호와 함께 적는다 — `git fetch`·`git push`·`gh` 호출은 네트워크를 쓰므로 "바로 끝나는 로컬 명령"으로 적지 않는다. 과제 절에 자기 감사 펜스가 있으면(J-30b `j30b-timeout-awk`) 그 펜스를 쓴다. dry-run(문서 9): 견본 `commands.txt` 12줄(감싼 줄·안 감싼 줄·`# 정정:` 줄·감사 자신의 줄)에서 sh·zsh 같은 출력 — `not-wrapped` 4줄(`git -C "$W" fetch`·`gh pr create`·`git -C "$W" push`·`gh pr edit`), `wrapped` 4줄, `# 정정:` 줄과 감사 줄은 세지 않음.
-4. **펜스 밖에 쓰지 않는 글자**: 5의 분류는 펜스 블록 밖(설명 문장, 대조 줄, 점검표, `## 남은 [미확인]`, `## 병합 시 반영`)의 `<`…`>`, `[]`, `TODO`·`TBD`·`XXX`·`placeholder`(대소문자 무시)를 모두 "미채움"으로 센다. 그래서 펜스 밖에서는 ① 과제 글의 표기(`<n>`·`<k>`·`<파일>`·`<번호>`)를 실제 이름으로 쓴다(예: `lock-refresh-pkg.rc`·`lock-refresh-run.rc`, `load-before.log`·`load-after.log`, `make_ref.py`). ② 부등호는 "이하·이상·초과·미만"으로 쓴다. ③ 규칙 12 줄과 완료 기준 대조의 공통 완료 기준 (P) 줄(J-22 (i), J-23 (i), J-24 (i), J-25 (k), J-29 (h), J-30a (i), J-30b (i); 끝난 J-10 (k)·J-11 (i)·J-19 (h)·J-21 (h)와 재환 과제에서 닫은 J-27 (i)도 같은 꼴이었다 — 정정 2026-11-28 문서 8: 옛 "J-23 (P)"는 설계 확정 전 보충의 표기였다; 문서 9에서 J-29·J-30b를 더하고 J-10·J-19·J-27을 옮겼다)은 처음에 `- 규칙 12: 자리표시 분류는 아직 안 함 — ph-unfilled.log`와 `- (k) 공통 완료 기준 (P): 아직 안 함 — checklist.diff·ph-unfilled.log`(괄호 글자는 그 과제의 것)로 쓴다. 3이 `checklist.diff` `exit=0`, 5가 `ph-unfilled.log` `0`을 낸 뒤 그 두 줄만 다음 고정 문장으로 바꾸고 3·5를 한 번 더 돌린다(기대 같음). 규칙 12 줄: `- 규칙 12: 초안의 자리표시 분류 미채움이 0이었다 — ph-unfilled.log. 게시본 다시 읽기는 게시 뒤의 일이라 이 본문 밖(완료 보고 메시지)의 몫이다`. (P) 줄: `- (k) 초안 부분 충족 — checklist.diff exit=0, ph-unfilled.log 0. pr-edit.rc·ph-posted-unfilled.log·ph-table.diff·signature-last.log는 이 본문을 게시한 뒤에 생기는 파일이라 본문에 쓰지 않는다(완료 보고 메시지의 몫)`. ④ 꺾쇠 안의 전자우편 주소(`재환 <jaehwan.local@localhost>`)는 세지 않으므로 그대로 써도 된다. ⑤ 로그 원문은 `## 결과`·`## CI`의 백틱 펜스 블록 안에 둔다. 펜스 블록 안의 원문·명령은 고치지 않는다.
+4. **펜스 밖에 쓰지 않는 글자**: 5의 분류는 펜스 블록 밖(설명 문장, 대조 줄, 점검표, `## 남은 [미확인]`, `## 병합 시 반영`)의 `<`…`>`, `[]`, `TODO`·`TBD`·`XXX`·`placeholder`(대소문자 무시)를 모두 "미채움"으로 센다. 그래서 펜스 밖에서는 ① 과제 글의 표기(`<n>`·`<k>`·`<파일>`·`<번호>`)를 실제 이름으로 쓴다(예: `lock-refresh-pkg.rc`·`lock-refresh-run.rc`, `load-before.log`·`load-after.log`, `make_ref.py`). ② 부등호는 "이하·이상·초과·미만"으로 쓴다. ③ 규칙 12 줄과 완료 기준 대조의 공통 완료 기준 (P) 줄(J-16 (h), J-23 (i), J-24 (i), J-25 (k), J-30b (i), J-37 (g), J-38 (i), J-39 (i); 끝난 J-10 (k)·J-11 (i)·J-19 (h)·J-21 (h)·J-22 (i)·J-29 (h)·J-30a (i)와 재환 과제에서 닫은 J-27 (i)도 같은 꼴이었다 — 정정 2026-11-28 문서 8: 옛 "J-23 (P)"는 설계 확정 전 보충의 표기였다; 문서 9에서 J-29·J-30b를 더하고 J-10·J-19·J-27을 옮겼다; 문서 10에서 J-16·J-37·J-38·J-39를 더하고 J-22·J-29·J-30a를 옮겼다)은 처음에 `- 규칙 12: 자리표시 분류는 아직 안 함 — ph-unfilled.log`와 `- (k) 공통 완료 기준 (P): 아직 안 함 — checklist.diff·ph-unfilled.log`(괄호 글자는 그 과제의 것)로 쓴다. 3이 `checklist.diff` `exit=0`, 5가 `ph-unfilled.log` `0`을 낸 뒤 그 두 줄만 다음 고정 문장으로 바꾸고 3·5를 한 번 더 돌린다(기대 같음). 규칙 12 줄: `- 규칙 12: 초안의 자리표시 분류 미채움이 0이었다 — ph-unfilled.log. 게시본 다시 읽기는 게시 뒤의 일이라 이 본문 밖(완료 보고 메시지)의 몫이다`. (P) 줄: `- (k) 초안 부분 충족 — checklist.diff exit=0, ph-unfilled.log 0. pr-edit.rc·ph-posted-unfilled.log·ph-table.diff·signature-last.log는 이 본문을 게시한 뒤에 생기는 파일이라 본문에 쓰지 않는다(완료 보고 메시지의 몫)`. ④ 꺾쇠 안의 전자우편 주소(`재환 <jaehwan.local@localhost>`)는 세지 않으므로 그대로 써도 된다. ⑤ 로그 원문은 `## 결과`·`## CI`의 백틱 펜스 블록 안에 둔다. 펜스 블록 안의 원문·명령은 고치지 않는다.
 5. **자리표시 분류(규칙 12, 기계적)**: 펜스 `common-ph-awk`(아래)가 줄마다 걸린 글자를 분류한다. `## 완료 기준 대조`의 `~~~` 블록 안 = 원문 인용, `## 실행한 명령`의 펜스 블록 안 = 명령 기록, `## 결과`·`## CI`의 펜스 블록 안 = 로그 원문, 그 밖(펜스 밖, 다른 절의 펜스, 닫히지 않은 펜스) = 미채움이다. 꺾쇠 안의 전자우편 주소와 `<details>`·`</details>`만 있는 줄은 세지 않는다. 블록 안의 `## ` 줄은 절을 바꾸지 않는다. 초안 분류: `awk -v table="$E/ph-table.md" -f "$E/ph.awk" "$E/pr-body.md" > "$E/ph.tsv"; awk -F'\t' '$2=="미채움"' "$E/ph.tsv" | wc -l | tr -d ' ' > "$E/ph-unfilled.log"` — 기대 `ph-unfilled.log` `0`. `ph.tsv`의 열은 `pr-body.md`의 줄 번호 · 분류 · 걸린 글자다. 0이 아니면 그 줄 번호의 줄만 4대로 고친다(빈 자리는 채우고, 자리표시가 아닌 글자는 바꾼다). 그다음 같은 명령을 다시 돌린다. 두 번 고쳐도 0이 아니면 멈춘다. 펜스 안의 원문이 미채움으로 잡혀도 멈춘다(그 펜스가 2의 절 밖에 있다는 뜻이다). `ph-table.md`는 분류 4행의 개수 표이고, 걸린 글자는 표에 옮기지 않는다. 그 표의 줄에는 걸리는 글자가 없다.
 6. **조립·게시·다시 읽기**: 조립 `{ cat "$E/pr-body.md"; printf '\n## 자리표시 분류\n\n'; cat "$E/ph-table.md"; printf '\n%s\n' '작성: 재환(로컬 LLM, qwen3.8-flash-next / LM Studio)'; } > "$E/pr-body-final.md"`. 게시 `cd "$W" && gh pr edit "$(cat "$E/pr-number.log")" --body-file "$E/pr-body-final.md" > "$E/pr-edit.log" 2>&1; echo $? > "$E/pr-edit.rc"` — 기대 `0`. 다시 읽기(규칙 12) `cd "$W" && gh pr view "$(cat "$E/pr-number.log")" --json body --jq .body > "$E/posted-body.md"; awk -v table="$E/ph-posted-table.md" -f "$E/ph.awk" "$E/posted-body.md" > "$E/ph-posted.tsv"; awk -F'\t' '$2=="미채움"' "$E/ph-posted.tsv" | wc -l | tr -d ' ' > "$E/ph-posted-unfilled.log"; diff "$E/ph-table.md" "$E/ph-posted-table.md" > "$E/ph-table.diff"; echo "exit=$?" >> "$E/ph-table.diff"; awk 'NF {l = $0} END {print l}' "$E/posted-body.md" | grep -c -x -F '작성: 재환(로컬 LLM, qwen3.8-flash-next / LM Studio)' > "$E/signature-last.log"` — 기대 `ph-posted-unfilled.log` `0`, `ph-table.diff` `exit=0` 한 줄, `signature-last.log` `1`(서명 줄이 게시본의 **마지막 비지 않은 줄**이다. 정정 2026-11-28 문서 8: 처음 쓴 `tail -n 1` 검사는 `gh`가 게시본 끝에 붙이는 빈 줄 하나를 읽어 서명이 끝에 있어도 `0`을 냈다 — PR #159의 게시본에서 `tail -n 1`은 빈 줄이었다. dry-run: 끝에 빈 줄이 없는 견본·빈 줄 하나가 있는 견본 모두 `1`, 서명 뒤에 다른 줄이 있는 견본 `0`, #159 게시본 `1`). 본문을 다시 고치면 3·5·6을 처음부터 다시 돌린다. 게시 뒤 네 값(`pr-edit.rc`·`ph-posted-unfilled.log`·`ph-table.diff`·`signature-last.log`)은 `cat` 출력 그대로 완료 보고 메시지에 넣고, 이 네 값 때문에 본문을 다시 고치지 않는다(규칙 12·18).
 7. **런북 칸 자기 검사(규칙 17 b)**: 런북에 줄을 넣거나 고친 직후마다(커밋 1 전, 커밋 2의 바꾸기 뒤) 과제 절이 그 런북 파일과 번호(`1`·`2`)를 넣어 주는 이 꼴의 명령을 돌린다: `cd "$W" && git diff -U0 origin/main -- docs/runbooks/pc-verify-v17.md | grep '^+[^+]' > "$E/cell-lines-1.txt"; wc -l < "$E/cell-lines-1.txt" | tr -d ' ' > "$E/cell-lines-1-count.log"; grep -n -E '\.log|영록|R[0-9]{3}' "$E/cell-lines-1.txt" > "$E/cell-grep-1.log"; wc -l < "$E/cell-grep-1.log" | tr -d ' ' > "$E/cell-grep-1-count.log"`. 기대: `cell-lines-<번호>-count.log`가 과제 절이 적은 더한 줄 수(0이면 빈 검사라 멈춘다, 규칙 15), `cell-grep-<번호>-count.log` `0`. 예외는 없다(규칙 17 b). 손으로 쓴 칸에서 0이 아니면 걸린 글자(로그 이름, 로그 원문 조각)를 칸에서 빼고, 그 원문은 PR 본문 `## 결과`의 백틱 펜스 블록에 둔 뒤 같은 명령을 다시 돌린다(규칙 10 g). 펜스 스크립트가 만든 줄에서 0이 아니면 그 줄을 손으로 고치지 않고 멈춘다.
@@ -77,6 +78,16 @@
 14. **인용·숫자 검사의 꼴(규칙 10 e·f, 2026-11-28 문서 9)**: 과제 절의 게시 전 검사는 **항목마다 한 행**을 쓴다 — 인용은 `quotes.tsv`의 행마다 `<세기><탭><파일><탭><문자열>`(`quotes-check.log`), 숫자는 `## 결과` 펜스 밖의 두 자리 이상 숫자마다 `<세기><탭><숫자>`(`numbers-check.log`). 세기 0인 행이 없어야 한다(0이면 고치거나 지우고 다시 센다). 세는 곳은 과제 절이 고정한 근거 로그 목록뿐이다. `commands.txt`(명령 기록)·`task.txt`·`tasks-main.md`(과제 글)·본문 초안·게시본·검사가 만든 파일(`body-quotes.txt`·`body-numbers.txt` 등)·과제가 만든 덤프와 기대값 파일은 **다른 부류**다 — 근거 로그가 아니므로 목록에 넣지 않고, 그 안에서 찾은 것을 증거로 쓰지 않는다(명령이나 기대값에 그 숫자가 적혀 있다는 것은 출력이 아니다). 백틱이 든 검사 명령은 과제 절의 펜스 스크립트(`<과제>-bodycheck-sh` 등)에 있다 — 펜스 밖 글에서 손으로 옮기지 않는다(펜스 밖 백틱은 펜스 뽑기와 글자 복사를 깨뜨린다, J-19).
 15. **완료 기준은 충족·미충족 둘뿐(2026-11-28 문서 9, R163)**: `## 완료 기준 대조`의 줄마다 **충족** + 증거 파일, 또는 **미충족** + 이유다. "부분 충족"·"나중에"·"완료 보고로 보낸다" 같은 셋째 상태를 쓰지 않는다(예외는 4 ③의 고정 (P) 줄 하나 — 그 문장은 정해진 글자다). 게시 전 검사(인용·숫자·사용자 경로)는 게시 전에 돈 것이므로 결과와 함께 과거형으로 쓴다. "작업 트리가 깨끗하다"·"`status --porcelain` 빈 출력" 같은 기준은 할 일 1에서 남긴 `status-before.log`와의 비교로 읽는다: `git -C "$W" status --porcelain | diff "$E/status-before.log" - > "$E/status-<이름>.diff"; echo "exit=$?" >> "$E/status-<이름>.diff"` — 기대 `exit=0` 한 줄(시작 전부터 있던 `??` 줄은 남아 있어도 된다 — 앞 과제의 생성물일 수 있다). 과제 절이 허용 파일 변경을 기대하는 단계는 그 절의 `grep -v -x -F` 꼴을 그대로 쓴다. 과제 절의 옛 "빈 출력" 기대가 시작 전 `??` 줄 때문에 맞지 않으면 이 비교를 돌려 그 출력으로 충족·미충족을 쓴다.
 16. **지시와 로그가 다르면 로그(2026-11-28 영록, R163 — 규칙 15, "로그가 지시보다 앞선다")**: 영록의 지시(이 파일·메시지·리뷰)도 틀릴 수 있다. 지시가 로그가 뒷받침하지 않는 문장을 쓰라고 하면, 로그가 뒷받침하는 문장을 쓰고 그 차이(지시 문장, 쓴 문장, 근거 로그 이름)를 완료 보고 메시지에 적는다. 이 항목은 명령을 바꾸는 근거가 아니다 — 명령이 기대와 다른 값을 내면 그 절의 멈춤 조건을 따른다.
+17. **스크립트 파일 순서(2026-11-28 문서 10, R165·R166 — 규칙 19·21)**: 머리 **긴 명령은 스크립트 파일로**의 순서는 언제나 "파일을 만든다(펜스에서 뽑거나 Write 도구로) → 실행 줄과 해시 줄을 기록한다 → 같은 호출에서 확인 && 실행"이다. 파일이 생기기 전에 한 기록은 위반이다(J-22 `commands.txt` 96·117·125번 줄, J-29 15·94번 줄 — 실행 줄이 파일보다 먼저였다). 해시 줄을 더한 뒤의 실행 호출은 이 꼴이다(머리의 '해시 줄은 `tail -n 1` 확인 대상이 아니다'는 글자 대조를 말한다 — 이 꼴 확인은 한다): `[ "$(tail -n 1 "$E/commands.txt" | grep -c -E '^[0-9a-f]{64}  <이름>-cmd\.sh$')" = 1 ] && [ "$(wc -l < "$E/<이름>-cmd.sh" | tr -d ' ')" = <줄 수> ] && head -n 1 "$E/<이름>-cmd.sh" | grep -q '^# J-' && sh "$E/<이름>-cmd.sh"` — 파일이 없으면 `shasum`은 표준 출력에 쓰지 않아 끝 줄이 실행 줄로 남고 첫 검사가 막는다(dry-run 문서 10: 없는 파일 `0`, 있는 파일 `1`, sh·zsh 같음). 그때는 실행하지 않고, 머리의 정정 줄 확인으로 그 실행 줄에 `# 정정:` 한 줄을 단 뒤 파일을 만들고 실행 줄·해시 줄을 다시 더한다.
+18. **백그라운드 작업은 2분마다 읽는다(2026-11-28 문서 10, 영록 — 규칙 5)**: 하네스의 백그라운드 실행으로 돌린 작업은 끝 알림을 기다리지 않는다. 시작 직후 `date +%H:%M:%S > "$E/<이름>-start.log"`를 남기고, 그 작업이 쓰는 끝 파일(보통 `"$E/<이름>.rc"` — 과제 절이 다른 파일을 정했으면 그 파일: `-run.rc`, `checks-count.log`, 로그 끝의 `exit=` 줄 — 그 뒤에 표 명령이 있는 CI 감시는 아래대로 `checks.log`)을 2분쯤마다 한 번 읽는다: `if [ -e "$E/<이름>.rc" ]; then cat "$E/<이름>.rc"; else echo "없음 $(date +%H:%M:%S)"; fi` — 읽는 명령도 기록한다(규칙 21). 끝에 `.rc`를 쓰지 않는 작업은 그 작업의 마지막 명령이 쓰는 파일이 끝 파일이다. watch 뒤에 표를 쓰는 CI 감시(J-23·J-24·J-25·J-39 할 일의 꼴 — 끝 명령이 `> "$E/checks.log"`)는 과제 절이 `checks-watch.log`의 `exit=` 줄을 기다리라고 적었어도 끝 파일이 `checks.log`다(등록 대기 뒤 다시 돌린 것은 `checks-2.log`): `exit=` 줄은 watch가 끝난 표시일 뿐이고 같은 호출의 표 명령이 그 뒤 120초까지 더 돈다. 그래서 `exit=` 줄이 보여도 `checks.log`가 없거나 비어 있으면 아직 끝나지 않은 것이고, 시간 한도는 watch와 표의 합(1800 + 120 = 1920초)이다. 읽기는 `if [ -s "$E/checks.log" ]; then cat "$E/checks.log"; else echo "없음 $(date +%H:%M:%S)"; fi`다. 로그 끝의 `exit=` 줄이 끝 표시인 작업은 `if [ -e "$E/<로그>" ] && tail -n 1 "$E/<로그>" | grep -q '^exit='; then tail -n 1 "$E/<로그>"; else echo "없음 $(date +%H:%M:%S)"; fi`로 읽는다(작은따옴표는 머리 **명령 기록**대로 `'\''`로 바꿔 적는다). 기다리기는 하네스 백그라운드로 `/usr/bin/timeout 130 sh -c "sleep 120"`를 돌리고(기록한 뒤), 그 끝 알림이 오면 위 읽기 명령을 돌리는 것을 되풀이한다 — 끝 파일이 생길 때까지, 또는 아래 시간 한도까지. 하네스 백그라운드 작업에는 규칙 5의 '5분 무출력이면 멈춘다' 대신 이 18을 따른다: 끝 파일이 없는 동안에는 출력이 없어도 프로세스를 끄지 않는다. 그 작업의 `/usr/bin/timeout` 값(여러 개를 차례로 돌리면 그 합)이 시작 시각에서 지났는데 끝 파일이 없으면 멈춤이다: 같은 명령을 다시 돌리지 않고, `ps -axo pid,etime,command > "$E/procs-<이름>.log"`를 남긴 뒤 아무 프로세스도 끄지 않고 26의 꼴로 영록에게 알린다.
+19. **끝나지 않는 check-run(2026-11-28 문서 10, R165 — PR #165에서 한 번 관찰)**: GitHub에서 check-run 하나가 `status in_progress`·`conclusion success`로 남으면 `gh pr checks` 표에 pending 한 행이 남고 `--watch`는 끝나지 않는다(그 실행 자체는 completed·success였다). watch의 시간 한도(과제 절의 `/usr/bin/timeout`)를 넘겨 기다리지 않는다. watch가 시간 한도로 끝났고(`checks-watch.log` 끝 줄 `exit=124` — 등록 대기 뒤 `-2`로 다시 돌렸으면 `checks-watch-2.log`) 표(`checks.log`, 다시 돌렸으면 `checks-2.log`)의 `pass`가 아닌 행이 모두 `pending`이면, watch를 다시 돌리지 않고 한 호출로: `H=$(git -C "$W" rev-parse HEAD); cd "$W" && /usr/bin/timeout 120 gh api "repos/wooklym/golmok/commits/$H/check-runs?per_page=100" --jq '.check_runs[]|[.name,.status,.conclusion,.id]|@tsv' > "$E/check-runs.log" 2>&1; echo $? > "$E/check-runs.rc"; awk -F'\t' '$2 != "completed"' "$E/check-runs.log" > "$E/check-runs-open.log"` — 기대 `check-runs.rc` `0`. 이 명령은 머리 **긴 명령은 스크립트 파일로**대로 `"$E/checkruns-cmd.sh"` 세 줄(첫 줄 `# <과제 id> check-runs 기록`, 둘째 줄 앞머리, 셋째 줄 위 명령)로 쓰고 같은 방식으로 돌린다(다시 돌리면 `checkruns-2-cmd.sh`와 `-2` 로그). 그다음 `check-runs-open.log`를 영록에게 보내고 판정을 기다린다(멈춤 — 그 사이 push하지 않는다). 기다리는 동안 `## CI`에는 `checks.log`를 백틱 펜스 블록에 그대로 두고, 그 아래에 `check-runs.log:` 한 줄과 그 파일을 백틱 펜스 블록에 둔 뒤, 그 아래 문장은 `check-runs-open.log`의 줄마다 그 파일의 글자로 쓴다: "pending 한 행은 check-run `<이름>`(id `<id>`)이다 — status `<status>`, conclusion `<conclusion>`(빈칸이면 `없음`). 영록의 판정을 기다린다." conclusion이 `success`가 아닌 줄이 있으면 그 줄은 아직 도는 잡일 수 있다. 판정을 기다리는 것은 같고, 문장에 '끝나지 않는 check-run'이라고 쓰지 않는다. 완료 기준의 CI 줄은 판정이 올 때까지 **미충족** + `check-runs-open.log`다(15). 판정이 오면 그 글자대로 하고 판정 문장을 완료 보고 메시지에 옮긴다. dry-run(문서 10): PR #165 head `0cb4e6d`에서 sh·zsh 같은 출력 — `check-runs.rc` `0`, 16행, `check-runs-open.log` 한 줄(`repo-check`·`in_progress`·`success`·id).
+20. **"없다·모두·먼저·전부"는 반례를 찾은 뒤(2026-11-28 문서 10, R165 — 규칙 3·18)**: 점검표·본문의 줄이 "없다"·"모두"·"먼저"·"전부"로 끝나거나 그 말로 범위를 말하면(예: "eval로 돌린 명령은 없다", "기록 줄을 모두 먼저 붙였다"), 그 줄을 쓰기 직전에 기록된 명령에서 반례를 찾는다: `{ grep -n -e eval -e 'rm -rf' -e '# 정정' -e '# 안내' "$E/commands.txt"; grep -r -n --include='*-cmd.sh' -e eval -e 'rm -rf' -e '# 정정' -e '# 안내' "$E"; } | grep -v -F counter-check > "$E/counter-check.log"; wc -l < "$E/counter-check.log" | tr -d ' ' > "$E/counter-check-count.log"`(다시 돌리면 `-2` 이름). 이 명령은 `"$E/counter-check-cmd.sh"` 세 줄(첫 줄 `# <과제 id> 반례 검사`, 둘째 줄 앞머리, 셋째 줄 위 명령)로 쓰고 머리의 방식으로 돌린다(다시 돌리면 `counter-check-2-cmd.sh`, 출력도 `-2`). `0`이 아니면 걸린 줄마다 그 문장의 반례인지 보고, 반례가 하나라도 있으면 "없다·모두"를 쓰지 않고 "N개 중 N개"와 줄 번호로 쓴다(상시 규칙 "모두·전부·첫 실행부터"). "먼저"(기록이 실행보다 먼저)는 이 `grep`이 잡지 않는다 — 17의 해시 줄 확인과 `# 정정` 줄로 본다. dry-run(문서 10): 견본 `commands.txt`(`eval` 한 줄·`# 정정` 한 줄·이 검사 자신의 기록 줄)와 `-cmd.sh` 둘(`rm -rf` 한 줄)에서 sh·zsh 같은 3줄 — 자기 기록 줄은 걸리지 않았다.
+21. **경로를 짐작해 찾지 않는다(2026-11-28 문서 10, R165 — 규칙 6)**: `$W`·`$E`·이 저장소·과제 절과 상시 규칙이 이름을 든 경로(`"$TMPDIR/claude/gui-foreground.lock"`, `~/Library/Logs/Unreal Engine/GolmokEditor/` 등) 밖은 `ls`·`cat`·`find`로 찾지 않는다(R165: 다른 프로젝트의 Claude 메모리 폴더에 지어낸 경로를 `ls`했다 — 없어서 읽은 것은 없었다). 이 소절 3이 정한 규칙 파일 찾기(`ls -d "$HOME"/.claude/projects/*golmok/memory/jaehwan-working-rules.md`)는 된다. 파일 위치를 모르면 찾지 말고 영록에게 묻는다. 이미 했으면 `## 실행한 명령`의 `commands.txt` 펜스 뒤 "과정 일탈" 목록(과제에 없던 동작을 `commands.txt` 줄 번호와 함께 한 줄씩 — J-22 #165의 꼴)에 줄 번호, 무엇을 찾았는지, 읽은 것·바꾼 것을 한 줄로 쓴다.
+22. **할 일 1 앞에 단계를 더하지 않는다(2026-11-28 문서 10, R166 — 규칙 6·19)**: 과제 절 할 일 1의 첫 명령이 그 과제의 첫 명령이다. 그 앞에 준비 스크립트를 만들어 돌리지 않는다(R166: `setup-cmd.sh`가 과제가 쓰는 `fetch.log`·`main-rev.log`·`task.txt`를 먼저 써서 할 일 1이 같은 이름을 덮어썼다). 단계를 더해야 하면 그 출력 이름은 과제 절과 이 소절이 쓰지 않는 이름(`extra-<무엇>.log`처럼)으로 하고, 21의 과정 일탈 목록에 한 줄로 알린다.
+23. **끝난 과제의 증거 폴더 지우기(2026-11-28 문서 10, R165 — 규칙 10·18·19)**: 증거 폴더는 그 과제의 병합 알림 뒤에만 지운다(규칙 10). 경로 확인과 `rm`은 한 호출에서, 결과는 지금 과제의 `$E`에 남긴다: `D="$TMPDIR/jaehwan/<지울 과제 id>"; { echo "target $D"; case "$D" in "$TMPDIR/jaehwan/J-"[0-9]*) if [ "$D" != "$E" ] && [ -d "$D" ]; then rm -rf "$D"; echo "rm=$?"; else echo "rm=skipped"; fi;; *) echo "rm=skipped";; esac; if [ -e "$D" ]; then echo "exists=1"; else echo "exists=0"; fi; } > "$E/rm-<지울 과제 id>.log" 2>&1` — 기대 `rm=0`·`exists=0`(`rm=skipped`면 지우지 않은 것이다 — 멈추고 그 로그를 보낸다). 그리고 지금 과제의 PR 본문 과정 일탈 목록(21)에 한 줄: `commands.txt` 줄 번호, 지운 폴더, 그 과제의 PR 번호, `rm-<지울 과제 id>.log`. 지울 폴더에는 지금 과제의 파일을 쓰지 않는다(R165: J-19 폴더에 쓴 `signature-last-2.log`가 폴더와 함께 지워졌다). dry-run(문서 10, sh·zsh 같음): `$TMPDIR/jaehwan/J-98`(견본) `rm=0`·`exists=0`, 그 밖 경로 `rm=skipped`, 지금의 `$E` `rm=skipped`·`exists=1`.
+24. **인용 검사는 라벨과 값을 함께(2026-11-28 문서 10, R165 — 규칙 10 e)**: `## 결과`에 라벨과 값을 쓸 때는 둘을 그 근거 로그 줄의 글자 그대로 **한 백틱 문자열**로 쓰고(`clear-first`가 아니라 `clear-first 1`, `manifest-weather-json 1`, `exit=0`, `newer=0` — 사이 글자도 로그대로), `quotes.tsv`에는 그 문자열을 적는다. 라벨만 세면 다른 줄이 걸려 값이 검사되지 않는다(R165: `status`의 1건은 게임 로그 `Command Line:` 줄이었다). 로그에서 라벨과 값 사이가 탭이면 이 꼴로 쓸 수 없다(`quotes.tsv`가 탭으로 나뉜다) — 그 줄은 쓰지 말고 영록에게 묻는다. 한 자리 값은 숫자 검사(14, 두 자리 이상)에 걸리지 않으므로 반드시 이 꼴로 인용 검사에 넣는다.
+25. **규칙 5 감사 awk의 `git -C "$W"` 꼴(2026-11-28 문서 10 확인)**: 펜스 `common-timeout-awk`의 정규식은 `git -C "$W" push`·`git -C "$W" fetch`를 잡는다 — 견본 7줄(감싼 `git -C "$W" push`·`git -C "$W" fetch` 각 1줄, 감싸지 않은 것 각 1줄, `git -C "$W" status` 1줄, `# 정정` 1줄, `sh` 실행 줄 1줄)에서 sh·zsh 같은 출력 `wrapped_lines 2`·`not_wrapped_lines 2`(감싸지 않은 두 줄이 `not-wrapped`). 그래서 펜스는 바꾸지 않았고 열린 절의 줄 수(`10`)·`extract-wc.log` 기대도 그대로다. 따옴표 없는 `git -C $W` 꼴은 쓰지 않는다(과제 절의 명령은 모두 따옴표 꼴이다).
+26. **멈춤·사고의 글(2026-11-28 문서 10, R165 A-3 — 규칙 19)**: 멈춤과 사고는 시각과 함께 쓴다: 언제 무엇이 멈췄는지(명령, 로그 이름, 그 로그가 마지막으로 쓰인 시각 — `ls -l`·`stat`의 시각), 얼마 동안 아무것도 돌지 않았는지, 누가 다시 시작했는지(재환 스스로 / 영록이 메시지로 깨움), 무엇을 지시받았는지(지시 문장 그대로)와 그 뒤 돌린 명령의 `commands.txt` 줄 번호. "멈추지 않고 이어 갔다"·"잠시 뒤"처럼 시간을 줄이는 말을 쓰지 않는다(R165: 17:09~17:46 KST 37분의 멈춤과 영록이 깨운 것을 "36분 뒤에 실행이 붙었다" 한 줄로 적었다).
 
 ```text common-ph-awk
 # 자리표시 분류(상시 규칙 "PR 본문 공통"). usage: awk -v table=<표 파일> -f ph.awk <본문 파일>
@@ -167,44 +178,50 @@ END { print "wrapped_lines " w + 0; print "not_wrapped_lines " u + 0 }
 | J-21 | WP-16a §12 컴파일·심볼 행(#1·#2·#3·#4·#15·#17) Mac 부분 선행: pc-verify-wp16a §12 표 아래 한 줄(+2 −0) — touch 증분 `build.sh`에서 두 파일 컴파일·dylib 링크·`Result: Succeeded`·경고 0·Niagara 줄 0, `otool -L` Niagara 한 줄, PIE·에셋이 필요한 절반은 [미확인] | [#160](https://github.com/wooklym/golmok/pull/160) · `37b6af8`(head `8232077`) | R160(Opus 검증 2렌즈, 첫 제출 병합 — 병합 커밋 본문에 기록, PR 코멘트 없음). 남은 지적(점검표의 넓게 쓰인 세 줄, 정정 줄 하나)은 재환에게 통보 |
 | J-10 | CI shellcheck 잡 `shellcheck`(공식 v0.11.0 고정·sha256 확인, `--severity=warning`, `ci.yml` 끝 `[J-10 hook]` 블록 +30줄) + `tools/ue/common.sh` SC2034 지시문 4줄(스크립트 본문 그대로). 커밋 1·3은 의도한 빨강, 같은 커밋 attempt 8회 success | [#161](https://github.com/wooklym/golmok/pull/161) · `acbd954`(head `5bf3128`) | R161(Opus 재현: 코드·CI 통과 — 훅 블록이 과제 펜스와 바이트 일치, 스크립트 본문은 지시문 4줄 말고 그대로, 커밋 1·3 의도한 빨강, 8회 attempt success; 본문은 점검표의 틀린 규칙 5 줄 등으로 보류 — 작업 규칙 5의 R161 확장) → R161-2(영록: 고친 본문을 명령 기록과 대조). 병합 커밋 본문에 기록, PR 코멘트 없음 |
 | J-19 | V-17 §5 ③ 패키지 quinn 전환 로그 확인(Mac) — pc-verify-v17 §7 아래 한 줄 | [#163](https://github.com/wooklym/golmok/pull/163) · `f7a924d`(head `125cda5`) | R163(1회 보류: 본문의 사고 축소·손으로 친 끝 붙임·확인 없는 조각 실행·"부분 충족" — 규칙 10·14·18·19, 규칙 20·21 추가) → R163-2 |
+| J-22 | V-16 §11 Mac 패키지 명령 이식(에셋 전 기대 결과) — pc-verify-wp16a §13 표 아래 J-20 줄 다음 한 줄 | [#165](https://github.com/wooklym/golmok/pull/165) · `d025f02`(head `0cb4e6d`) | R165(Opus 재현: 런북 줄 통과 — 펜스 출력과 일치, 매니페스트·UnrealPak 목록·게임 로그 원본 대조; 본문 1회 보류 — 점검표의 틀린 규칙 5·20 줄, 37분 멈춤의 축소, 알리지 않은 J-19 증거 폴더 삭제, 라벨만의 인용 검사 → "PR 본문 공통" 17~26) → R165-2(영록: 고친 본문을 명령 기록·스크립트와 대조). repo-check check-run 하나가 status in_progress·conclusion success로 남았다(실행 46124073258은 completed·success). 병합 커밋 본문에 기록 |
+| J-29 | 크래시 리포트 무인 업로드 끄기 — 새 `Config/DefaultEditorSettings.ini` `[WP-21 hook]` 블록 + mac-recon §6 #25 | [#166](https://github.com/wooklym/golmok/pull/166) · `3d85160`(head `dd57da7`) | R166(Opus 재현, 첫 제출 통과: 설정이 과제 펜스와 바이트 일치, 엔진 5.8.4 소스로 키·ini 계층·읽는 경로 확인, neg/pos 마커 실험을 원본 로그로 다시 도출, 과제 중 크래시·업로드 없음, 런북 행 대조 — A 없음) + 영록 본문 대조. B 1건(과제에 없는 사전 단계가 같은 이름 로그를 덮어씀 → "PR 본문 공통" 22)은 메시지로 전달. 병합 커밋 본문에 기록 |
+| J-30a | COLMAP 희소 모델 → EXIF GPS ENU 정합(`model_aligner`, 공개 Tyrol 76장, 품질 판정 아님) — 등록 76/76, 카메라 중심 잔차 중앙값 1.212 m(정합에 쓴 같은 EXIF GPS에 대한 맞춤 잔차, leave-one-out 1.249 m), 정합 좌표 Brush 3k splat → SfM 중앙값 1.082 m(정합 전 모델과는 94.437 m), mac-recon M3 메모·§6 #5 칸(아래 J-30a "결과") | [#167](https://github.com/wooklym/golmok/pull/167) · `b5f4df3`(head `56f6a52`) | R167(Opus 재현, 첫 제출 통과: 수치 독립 재계산 일치) |
 
 **진행 중**
 
 | id | 과제 | 브랜치 | 허용 파일 |
 |---|---|---|---|
-| J-22 | V-16 §11 Mac 패키지 명령 이식(에셋 전 기대 결과) | `local/jaehwan-j22-v16-pkg`, [#165](https://github.com/wooklym/golmok/pull/165)(2026-11-28 17:02 KST 생성, head `0cb4e6d`, `docs/runbooks/pc-verify-wp16a.md` +2 −0; 17:25 KST 현재 열림·병합 전, `gh pr checks 165` 15행 pass·1행 pending) | `docs/runbooks/pc-verify-wp16a.md`(§13 표 아래 J-20 줄 다음 한 줄) |
+| J-23 | 19b A1 ① 회귀 헤드리스(GASP 없이) | `local/jaehwan-j23-wp19-a1`(2026-11-28 문서 10 갱신 때 `$W`의 현재 브랜치 — PR 번호는 열린 뒤 이 칸에) | `docs/runbooks/pc-verify-wp19.md`(§A9 `(비어 있음)` 바로 뒤 빈 줄 하나와 펜스 `j23-line-sh`의 줄 하나) |
 
-**다음**(2026-11-28 문서 9): J-22(PR [#165](https://github.com/wooklym/golmok/pull/165) — 17:25 KST 현재 열림, 병합 전) → **J-29**(설계 확정 — 크래시 리포트 무인 업로드 끄기, 아래 J-29 절; J-22가 push돼 `$W`에 추적 파일 변경이 없을 때, 다음 UE 과제들보다 먼저. 2026-11-28 14:37 J-27 실행의 크래시 리포트가 CrashReportClient로 Epic에 올라갔다 — 아래 J-27 절) → J-30a(J-29 병합 뒤 — 둘 다 `docs/runbooks/mac-recon.md`를 고쳐 J-30a 할 일 1 `overlap.log`가 막는다) → J-23 → J-25(J-22 병합 뒤 — 할 일 1 `pre.log`가 막는다) → J-24 → J-30b(J-30a 병합 뒤 — 할 일 1 `pre.diff`가 막는다). 배정하지 않는 것: J-27(재환 과제는 닫음 — 확인된 절반은 mac-setup §8 #27 "부분" 행으로 문서 9가 기록, 남은 절반은 영록 카드 J-27c: J-29 병합·재환 유휴·모델 내림 뒤 — 아래 J-27 절), J-16(배정 보류: #27 "부분" 행이 병합되고 영록이 바꿀 줄마다 절을 다시 쓴 뒤 — 영록 카드는 기다리지 않는다, 아래 J-16 절). 설계 선행으로 남은 과제: J-26·J-28·J-31a·J-31b·J-32·J-33(J-24b는 J-24 병합 때 행을 더한다 — J-24 "병합 시 반영"). Claude 레인 후속 후보: `run_game_perf.sh`가 게임 크래시에도 rc 0(`_pure.py:2038`·`:2065`, J-27 설계 4 — 백로그 행은 영록이 연다). J-10(#161 `acbd954`)·J-19(#163 `f7a924d`)는 끝났다(위 "완료"). J-29·J-23·J-25는 `$W`에서 편집기·`build.sh`·`test.sh`를 돌리고 J-30a·J-24·J-30b도 같은 `$W`에서 브랜치를 바꾸므로 모두 한 번에 하나씩, 앞 과제가 push돼 `$W`에 추적 파일 변경이 없을 때 배정한다(각 절 할 일 1이 막는다; J-29는 두 편집기 실행 내내 GUI 잠금을 잡는다). 모델이 로드된 채 돈 에디터 바이너리 `-game`이 Metal OutOfMemory로 끝났고(J-27, 원인 [미확인]), J-29 전의 무인 UE 크래시는 리포트를 Epic으로 올린다 — J-29 뒤에 새 GPU `-game` 과제를 배정한다(J-29가 확인하는 것은 편집기 바이너리 무인 실행뿐이다 — 패키지 실행의 크래시 업로드는 [미확인]이라 새 패키지 과제는 따로 정한다). PR 본문·자리표시 분류·런북 칸 자기 검사·근거 표기는 모든 과제가 상시 규칙 "PR 본문 공통(모든 과제)"을 따른다(문서 7·8; 문서 9에서 규칙 5 감사, 명령 복사·조각 확인, CI 결론, 되돌림 커밋, 인용·숫자 검사의 꼴, 두 상태 완료 기준 — 3·11~15).
+**다음**(2026-11-28 문서 10): 진행 중 J-23(`$W` 브랜치 `local/jaehwan-j23-wp19-a1`) → J-25(J-21·J-22 병합됨 — 할 일 1 `pre.log`의 선행이 풀렸다) → J-24 → J-30b(J-30a가 [#167](https://github.com/wooklym/golmok/pull/167) `b5f4df3`으로 병합돼 할 일 1 `pre.diff`의 선행이 풀렸다) → 새로 설계한 과제: **J-37**(새 과제 중 첫째 — PR 본문의 기계적 부분을 만드는 도구라 뒤 과제마다 본문을 다시 고치는 일을 줄인다. 다만 도구로 본문을 만드는 절차는 J-37 병합 뒤 영록의 후속 문서 PR이 공통 소절을 고친 다음부터다 — 그 문서 PR 전에 시작한 과제는 지금의 손으로 쓰는 본문 절차를 그대로 쓴다) → J-16(`run_game_perf.sh` 종료 코드 전달·Mac `[미확인]` 주석, UE 없음) → J-39(CI `objcap-colmap (macos-26)` — J-28을 대신함, 열린 `ci.yml` PR이 없을 때) → J-38(`golmok-align --poses-format colmap` — J-30a 병합됨, 할 일 2 `pre.diff`의 선행이 풀렸다; J-30b와는 앞뒤 무관). 모두 `$W`를 쓰므로 한 번에 하나씩, 앞 과제가 push돼 `$W`에 추적 파일 변경이 없을 때 배정한다(각 절 할 일 1이 막는다). 배정하지 않는 것: J-27(재환 과제는 닫음 — 남은 절반은 영록 카드 J-27c, 아래 J-27 절; J-16이 먼저 병합되면 영록이 J-27 펜스 `j27-expected-sh`와 C1 기대 숫자를 바꾼다 — J-16 "병합 시 반영" ①). 설계 선행으로 남은 것: J-26·J-28(J-39가 대신할 설계 — J-39 병합 때 메모)·J-31a·J-31b·J-32·J-33. 병합 때 행을 더하는 뒤 조각: J-24b(J-24), J-16b(J-16 — J-27c 뒤), J-37b(J-37). 끝난 것: J-22([#165](https://github.com/wooklym/golmok/pull/165) `d025f02`)·J-29([#166](https://github.com/wooklym/golmok/pull/166) `3d85160`)·J-30a([#167](https://github.com/wooklym/golmok/pull/167) `b5f4df3`)(위 "완료"). GPU: 재환 과제는 에디터 바이너리 `-game`을 GPU로 띄우지 않는다 — J-29가 확인한 것은 편집기 바이너리 무인 실행이 값을 `False`로 읽는 것까지이고, 크래시 때 업로드가 없는 것은 엔진 소스 읽기이며, Preferences 값이 앞설 수 있고, 모델이 로드된 채 GPU `-game`은 2026-11-28 J-27에서 Metal OutOfMemory로 크래시했다(상시 규칙 "J-29 병합 전에는 GPU `-game` 없음"의 문서 10 메모; 패키지 앱 과제는 크래시 때 할 일을 절에 적는다). PR 본문·자리표시 분류·런북 칸 자기 검사·근거 표기는 모든 과제가 상시 규칙 "PR 본문 공통(모든 과제)"을 따른다(문서 7·8·9, 문서 10에서 17~26).
 
 ## 백로그 (의존 순서)
 
-순서 원칙: ① UE 빌드가 필요 없는 도구·테스트·CI 일 → ② 재환 worktree의 UE 빌드를 세우고 증명하는 **관문 J-12·J-12b**(빌드·39 테스트, 합성 zone으로 skip 제거) → ③ 열린 카드의 헤드리스 UE 단계와 [미확인] 행 → ④ Claude 레인 코드 후속. **설계 선행** 표시 과제는 영록(Opus)이 짧은 설계 메모(파일·방법·완료 기준)를 이 파일의 해당 행 아래 또는 배정 메시지로 먼저 쓴 뒤에만 배정한다. J-10·J-11·J-19·J-21·J-22·J-23·J-24·J-25·J-29·J-30a·J-30b는 설계가 확정되어(Opus 2026-11-28, 아래 각 절 — J-23·J-24·J-25는 재환 레인 문서 8, J-29·J-30b는 문서 9) 배정할 수 있다(J-30a는 옛 J-30을 좁힌 것이고, 메시 절반 J-30b는 J-30a 병합 뒤에 한다). J-27은 설계가 확정됐지만 재환 과제에서 닫았다(문서 9 — 남은 절반은 영록 카드, 아래 J-27 절). 크기: S ≤ 반나절, M ≤ 하루, L > 하루.
+순서 원칙: ① UE 빌드가 필요 없는 도구·테스트·CI 일 → ② 재환 worktree의 UE 빌드를 세우고 증명하는 **관문 J-12·J-12b**(빌드·39 테스트, 합성 zone으로 skip 제거) → ③ 열린 카드의 헤드리스 UE 단계와 [미확인] 행 → ④ Claude 레인 코드 후속. **설계 선행** 표시 과제는 영록(Opus)이 짧은 설계 메모(파일·방법·완료 기준)를 이 파일의 해당 행 아래 또는 배정 메시지로 먼저 쓴 뒤에만 배정한다. J-10·J-11·J-16·J-19·J-21·J-22·J-23·J-24·J-25·J-29·J-30a·J-30b·J-37·J-38·J-39는 설계가 확정되어(Opus 2026-11-28, 아래 각 절 — J-23·J-24·J-25는 재환 레인 문서 8, J-29·J-30b는 문서 9, J-16·J-37·J-38·J-39는 문서 10) 배정할 수 있다(J-30a는 옛 J-30을 좁힌 것이고, 메시 절반 J-30b는 J-30a 병합 뒤에 한다). J-27은 설계가 확정됐지만 재환 과제에서 닫았다(문서 9 — 남은 절반은 영록 카드, 아래 J-27 절). 크기: S ≤ 반나절, M ≤ 하루, L > 하루.
 
 | id | 과제 | 선행 | 크기 | 설계 선행 |
 |---|---|---|---|---|
 | J-10 | CI shellcheck 잡(공식 v0.11.0 고정·sha256, `--severity=warning`, 기존 결함은 표에 정한 줄별 지시문만 — 실행 줄 변경 없음, 같은 커밋 8/8 초록) — 끝남(#161 `acbd954`, 위 "완료") | 없음(설계 메모 확정, Opus 2026-11-28) | S–M | 설계 확정(J-10 절) |
 | J-11 | CI 뷰어 `npm test` 잡(`viewer-smoke`, ubuntu-24.04 한 행 — Playwright 1.56.1은 `ubuntu-latest`(26.04) 미지원, `ci.yml` 훅 블록은 별도 커밋, 같은 커밋 8/8 초록) — 끝남(#159 `366e118`, 위 "완료") | 없음 | M | — (설계 확정, Opus 2026-11-28, 아래 J-11 절) |
-| J-16 | `_pure.py` Mac 경로 가정·`package.sh` 주석을 J-15 실측으로 정리 | J-15, mac-setup §8 #27 "부분" 행(J-27 선행 기록, 2026-11-28 문서 9 — 영록 카드 J-27c는 기다리지 않는다, 아래 J-27 절 설계 5) | S–M | **배정 보류**(절 첫머리, 2026-11-28 문서 7·9) — 배정 전 영록이 행·절을 다시 쓴다(J-27 설계 5) |
+| J-16 | `run_game_perf.sh` 종료 코드 전달 + Mac `[미확인]` 주석 정리: 펜스 `j16-patch` 16덩어리를 `j16_apply.py`로(`_pure.py` +27 −10 — `MAC_USER_SETTINGS_REL`·`editor_exe`·`platform_saved_dir_candidates`·`sh_arg` 주석을 mac-setup §8 #27·엔진 읽기로 고치고, `shell_script`가 `game_rc`를 남겨 0이 아니면 경고, 시간 초과나 비정상 종료면 `exit 1`, CSV는 그대로 복사; `test_ue_python_pure.py` +33 −12 — layout 단언, 가짜 편집기 `STUB_EXIT`, fake 테스트 `ok`·`timeout`·`crash`; `package.sh` 주석 +2 −1 — §8 #11), 결과 sha256 셋, 두 테스트 파일 `221 passed` → `222 passed`, 변형 일곱(m0 = 고치기 전 코드)의 고정 FAILED 목록, 게이트·CI. UE 실행 없음, 런북 변경 없음. 실제 엔진 종료 코드·후보 2 정리·PS1은 J-16b(J-27c 뒤) | 없음(설계 확정). `$W`에 추적 파일 변경이 없을 때(앞 과제 push 뒤 — 2026-11-28 현재 J-30a 진행 중). J-27c와 순서는 상관없다 — 병합 때 영록이 J-27 펜스 `j27-expected-sh`·C1 숫자를 바꾼다(J-16 "병합 시 반영" ①) | S | 설계 확정(Opus 2026-11-28 문서 10, 아래 J-16 절) — 배정 가능 |
 | J-18 | V-17 §3 Full Precision UV 헤드리스 + WP-06 `_import_moved` 정리 경고(mac-recon #23) — 끝남(#156 `c968c6c`, 위 "완료") | J-12b | M | **준비 메모** |
 | J-19 | V-17 §5 ③ 패키지 quinn 전환 로그 확인(Mac): `origin/main`에서 새 Development 패키지 1회(`package.sh --out-dir "$W/build/Mac"`, 쿡 목록 `SKM_Quinn_Simple` 1줄), 패키지 앱 `-RenderOffScreen -ExecCmds`(③ 8개 + `quit`) 1회, 샌드박스 컨테이너 로그 `…/Data/Library/Logs/Golmok/Golmok.log` 사본의 `golmok.character` 응답 8줄을 고정 기대값과 `diff`, pc-verify-v17 §7 표 아래 한 줄(펜스가 만든다), 코드 변경 없음 | J-15(병합됨). `$W`에 추적 파일 변경이 없을 때(J-35 뒤) | S | 설계 확정(Opus 2026-11-28, 아래 J-19 절) — 끝남(#163 `f7a924d`, 위 "완료") |
 | J-21 | WP-16a §12 컴파일·심볼 행 #1·#2·#3·#4·#15·#17(엔진 헤더 고정 `grep` 31줄 `diff`, `GolmokWeatherRainFx.cpp`·`GolmokWeatherTest.cpp` touch 뒤 증분 `build.sh` — 컴파일 2·링크 1·경고 0·Niagara 줄 0, `nm -u`·`otool -L` Niagara 링크 증거, §12 표 아래 "Mac 부분 선행" 한 줄 — 칸·코드 변경 없음) — 끝남(#160 `37b6af8`, 위 "완료") | J-12(병합됨), `$W` 추적 파일 변경 없음(J-35 뒤) | S | — (설계 확정, Opus 2026-11-28, 아래 J-21 절) |
-| J-22 | V-16 §11 Mac 패키지 명령 이식(에셋 전 기대 결과): `origin/main`에서 Development 패키지를 새로 만들고(J-15 패키지는 커밋 기록이 없어 다시 쓰지 않는다), 매니페스트 `Config/Golmok/weather.json` 1줄·`Golmok/Weather/` 0줄, `UnrealPak -ListContainer` CSV에 `MPC_GolmokWeather`·`NS_GolmokRain` 0줄(대조 `L_Dev` 있음), 패키지 앱 `-RenderOffScreen -ExecCmds="golmok.weather clear instant,golmok.weather rain heavy,golmok.weather status,quit"` 1회의 컨테이너 로그(`~/Library/Containers/com.YourCompany.Golmok/Data/Library/Logs/Golmok/Golmok.log`) 고정 개수와 `diff`, pc-verify-wp16a §13 표 아래 J-20 줄 다음에 "Mac 부분 선행" 한 줄(펜스 생성, 커밋 2에서 `근거: PR #<n>`), 코드 변경 없음 | J-15, J-20(둘 다 병합됨) | M | 설계 확정(Opus 2026-11-28, 아래 J-22 절) — 진행 중(위 "진행 중") |
-| J-23 | 19b A1 ① 회귀 헤드리스(GASP 없이): `origin/main`에서 `build.sh` 1회(rc 0·`Result: Succeeded`), `test.sh --filter Golmok.Animation --setup-dev-level` 1회(rc 0), 출력과 에디터 로그 사본(`~/Library/Logs/Unreal Engine/GolmokEditor/Golmok.log`)을 펜스 `j23-check-sh` 18줄(4 Success·요약 failed 0·GaspSmoke skip 문구·`EXECUTED` 0·StateProvider p0 Info·`Character mesh '` 0·폴백 줄 1·이 실행의 `-ExecCmds` 1)로 고정 기대값과 `diff`, pc-verify-wp19 §A9 `(비어 있음)` 바로 뒤에 "Mac 부분 선행" 한 줄(펜스 생성, 커밋 2에서 `근거: PR #<n>`), 두 번째 명령(39개)·PIE 단계는 범위 밖, 코드 변경 없음 | J-12(병합됨), J-36(병합됨). `$W`에 추적 파일 변경이 없을 때(앞 과제 push 뒤), GASP·로컬 GASP 설정 없음·마네킹 있음 | S | 설계 확정(Opus 2026-11-28, 아래 J-23 절) — 배정 가능 |
+| J-22 | V-16 §11 Mac 패키지 명령 이식(에셋 전 기대 결과): `origin/main`에서 Development 패키지를 새로 만들고(J-15 패키지는 커밋 기록이 없어 다시 쓰지 않는다), 매니페스트 `Config/Golmok/weather.json` 1줄·`Golmok/Weather/` 0줄, `UnrealPak -ListContainer` CSV에 `MPC_GolmokWeather`·`NS_GolmokRain` 0줄(대조 `L_Dev` 있음), 패키지 앱 `-RenderOffScreen -ExecCmds="golmok.weather clear instant,golmok.weather rain heavy,golmok.weather status,quit"` 1회의 컨테이너 로그(`~/Library/Containers/com.YourCompany.Golmok/Data/Library/Logs/Golmok/Golmok.log`) 고정 개수와 `diff`, pc-verify-wp16a §13 표 아래 J-20 줄 다음에 "Mac 부분 선행" 한 줄(펜스 생성, 커밋 2에서 `근거: PR #<n>`), 코드 변경 없음 | J-15, J-20(둘 다 병합됨) | M | 설계 확정(Opus 2026-11-28, 아래 J-22 절) — 끝남(#165 `d025f02`, 위 "완료") |
+| J-23 | 19b A1 ① 회귀 헤드리스(GASP 없이): `origin/main`에서 `build.sh` 1회(rc 0·`Result: Succeeded`), `test.sh --filter Golmok.Animation --setup-dev-level` 1회(rc 0), 출력과 에디터 로그 사본(`~/Library/Logs/Unreal Engine/GolmokEditor/Golmok.log`)을 펜스 `j23-check-sh` 18줄(4 Success·요약 failed 0·GaspSmoke skip 문구·`EXECUTED` 0·StateProvider p0 Info·`Character mesh '` 0·폴백 줄 1·이 실행의 `-ExecCmds` 1)로 고정 기대값과 `diff`, pc-verify-wp19 §A9 `(비어 있음)` 바로 뒤에 "Mac 부분 선행" 한 줄(펜스 생성, 커밋 2에서 `근거: PR #<n>`), 두 번째 명령(39개)·PIE 단계는 범위 밖, 코드 변경 없음 | J-12(병합됨), J-36(병합됨). `$W`에 추적 파일 변경이 없을 때(앞 과제 push 뒤), GASP·로컬 GASP 설정 없음·마네킹 있음 | S | 설계 확정(Opus 2026-11-28, 아래 J-23 절) — 배정 가능 — 진행 중(위 "진행 중") |
 | J-24 | V-08b §9-1·§9-2 `locomotion_metrics.py` 순수 지표 1차분(planted·`slip_frames`·`legacy_v11_slip`·표 B 반응·Offset Root Bone·최소 로더·`report` CLI — 새 파일 셋을 펜스 그대로, 헤더 `planted`·`slip` 무작위 대조 1e-9, 변형 8개 고정 FAILED 목록, CI 4행 모두 기준 + 43 passed·skip 그대로, 수락 (b)·(c)는 "미대조", 런북 변경 없음) | 없음(설계 확정, Opus 2026-11-28). `stair_contact`·돌아서기·벽·관통·Offset 복귀·`blind`는 J-24b(설계 선행) | M | 설계 확정(J-24 절) — 배정 가능 |
 | J-25 | V-16 §2a `MPC_GolmokWeather` 헤드리스 생성 시험(커밋 없음): `UnrealEditor-Cmd -nullrhi` 별도 프로세스로 `weather_setup.run()` 2회 + 읽기 1회, 분기 A(쓰기 됨)/B(`not writable` — 수동 절차 없이 칸만)/stop을 펜스가 정함. A면 MPC가 있을 때 `test.sh --filter Golmok.Weather.Runtime`·`--filter Golmok.Weather`(보고서 `entries`에서 MPC skip 0·NS skip 1 기계 판정, "MPC 단계 완료 / NS 단계 skip"). 에셋은 커밋·LFS 잠금 없이 `$E/asset/`으로 `mv`, sha256 6회 같음, 상태 사본 `diff`. pc-verify-wp16a §12 #9 칸 + 분기 A면 §13 J-22 줄 다음 한 줄(펜스 생성, 커밋 2에서 `근거: PR #<n>`), 코드 변경 없음 | J-20(병합됨). J-21·J-22 병합 뒤(할 일 1 `pre.log`가 막는다), `$W` 추적 파일 변경 없음 | S–M | 설계 확정(Opus 2026-11-28, 아래 J-25 절) — 배정 가능 |
 | J-26 | V-18 §0·§1 헤드리스(8 WAV 재임포트, 커밋 없음) | J-12, 설계 메모 | S | **설계 선행** |
 | J-27 | V-05 S12 `run_game_perf.sh` Mac 첫 실행 — 도구 경로만, 성능 아님. **재환 과제는 닫음**(2026-11-28 실행: 할 일 1~3 통과, 할 일 4에서 에디터 바이너리 `-game`이 경로 재생 중 Metal `PatchSplit … OutOfMemory`로 크래시, CrashReportClient가 리포트를 Epic으로 업로드 `All uploads done`). 확인된 절반(argv 14개·`-ExecCmds` 한 항목·`editor_exe`·CSV 후보 1 `Saved/Profiling/CSV`)은 영록이 mac-setup §8 #27 "부분" 행으로 기록(펜스 `j27-row27-prerecord`, 문서 9 PR). 남은 절반(경로 끝·`Capture Ended`·`-ExitAfterCsvProfiling` 종료·온전한 CSV의 `golmok-perf`)은 영록 카드 J-27c(아래 J-27 절, "재환에게 맞지 않는 것") — V-05 S12 실제 실행이 먼저 돌면 그것으로 대신한다 | 영록 카드: J-29 병합·키 재확인, 재환 유휴, `lms ps`에 모델 없음(J-15·J-12b의 `$W` 자료) | S(카드) | — (재환에게 배정하지 않음: 모델 내림이 전제이고 크래시는 외부 발송 — 아래 J-27 절 설계 1) |
-| J-28 | CI `swift build`(golmok-objcap, macos-latest) | 설계 메모 | S–M | **설계 선행** |
-| J-29 | 크래시 리포트 무인 업로드 끄기: 새 `Config/DefaultEditorSettings.ini` `[WP-21 hook]` 블록(`CrashReportsPrivacySettings` `bSendUnattendedBugReports=False` + `AnalyticsPrivacySettings` `bSendUsageData=False`, 펜스 8줄 그대로, 커밋 1 단독) + 크래시 없는 헤드리스 확인(`UnrealEditor-Cmd -nullrhi -unattended -ExecCmds=QUIT_EDITOR` 2회 — 훅 없는 트리 뒤 마커 `NotAllowedUnattendedBugReports` 수정 시각 그대로 `0`, 훅 있는 트리 뒤 새로 써짐 `1`; CrashReportClient pid·크래시 폴더·CRC 로그 시각 그대로, 다른 UE 프로세스 없음, 고정 기대값 19줄과 `diff`), mac-recon §6 새 행 #25(펜스 생성, 커밋 2에서 `근거: PR #<n>`), 사람이 보는 크래시·`bSendUsageData` 효과·패키지·Windows는 [미확인], 크래시를 일으키지 않는다 | J-22 push 뒤(`$W` 추적 파일 변경 없음), 다른 UE 프로그램·GUI 잠금 없음. 다음 과제(J-30a·J-23·J-25)보다 먼저 — 영록 카드 J-27c는 J-29 병합 뒤 | S | 설계 확정(Opus 2026-11-28, 아래 J-29 절) — 배정 가능 |
-| J-30a | COLMAP 희소 모델 → EXIF GPS ENU 정합(`model_aligner --ref_images_path … --ref_is_gps 1 --alignment_type enu --alignment_max_error 3`, 원점 = 이름순 첫 장 `DJI_0352.JPG`) → 정합 좌표의 Brush 3k splat, 공개 Tyrol 76장, 펜스 스크립트 13개 수치 판정(잔차 중앙값 ≤ 3 m 등)·비공허 대조군, mac-recon M3 메모 1줄 + §6 #5 칸만(WP-21 후속 4의 절반 — 메시 절반은 J-30b, 설계 선행) | 없음(설계 확정, Opus 2026-11-28). 배정 순서는 J-29 병합 뒤(위 "다음", 2026-11-28 문서 9 — 옛 'J-27 뒤'는 J-27을 닫아 바꿈) | S–M | 설계 확정(J-30a 절, 2026-11-28 문서 7에서 할 일 9 자리표시 분류 단계 수정) — 배정 가능 |
-| J-30b | Object Capture 메시를 J-30a 정합 좌표로(WP-21 후속 4의 나머지 절반, 수치 확인만): `tyrol-full/poses.json`의 `translation`(카메라 중심) ↔ J-30a 정합 COLMAP 카메라 중심을 이미지 이름으로 짝지은 Umeyama Sim3(반사 보정, 회전 미사용), OBJ 정점 125,678개 전부를 옮겨 정합 SfM 점까지 `cKDTree` 거리, 펜스 판정 10개(짝 76·`reflection_guard` 0·축척 0.9~1.1·잔차 중앙값 ≤ 0.5 m·p90 ≤ 1.0 m·최대 ≤ 3.0 m·메시 → SfM 중앙값 ≤ 3.0 m·p90 ≤ 12.0 m·대조군 ≥ 30 m), 틀린 셋 3개(정합 전 모델·이름 뒤집기·x 거울)의 고정 FAIL 줄 `diff`, J-30a 실행 폴더 확인(파일 8개 + 같은 실행 확인 2개, 없으면 J-30a 할 일 2~4를 고정 명령으로 `$E/sfm`에 다시), mac-recon M3 J-30a 메모 바로 뒤 1줄 + §6 #6 칸(펜스 생성, 커밋 2에서 `근거: PR #<n>`), 새 저장소 코드 없음 | J-30a 병합(할 일 1 `pre.diff`가 막는다), `$W` 추적 파일 변경 없음 | S–M | 설계 확정(Opus 2026-11-28, 아래 J-30b 절 — J-36 절 뒤) — J-30a 병합 뒤 배정 가능 |
+| J-28 | CI `swift build`(golmok-objcap, macos-latest) — J-39(아래 행·절, 문서 10 설계 확정)가 대신한다(J-39 병합 때 "J-39로 대신함(PR #번호)" 메모) | 설계 메모 | S–M | **설계 선행** |
+| J-29 | 크래시 리포트 무인 업로드 끄기: 새 `Config/DefaultEditorSettings.ini` `[WP-21 hook]` 블록(`CrashReportsPrivacySettings` `bSendUnattendedBugReports=False` + `AnalyticsPrivacySettings` `bSendUsageData=False`, 펜스 8줄 그대로, 커밋 1 단독) + 크래시 없는 헤드리스 확인(`UnrealEditor-Cmd -nullrhi -unattended -ExecCmds=QUIT_EDITOR` 2회 — 훅 없는 트리 뒤 마커 `NotAllowedUnattendedBugReports` 수정 시각 그대로 `0`, 훅 있는 트리 뒤 새로 써짐 `1`; CrashReportClient pid·크래시 폴더·CRC 로그 시각 그대로, 다른 UE 프로세스 없음, 고정 기대값 19줄과 `diff`), mac-recon §6 새 행 #25(펜스 생성, 커밋 2에서 `근거: PR #<n>`), 사람이 보는 크래시·`bSendUsageData` 효과·패키지·Windows는 [미확인], 크래시를 일으키지 않는다 | J-22 push 뒤(`$W` 추적 파일 변경 없음), 다른 UE 프로그램·GUI 잠금 없음. 다음 과제(J-30a·J-23·J-25)보다 먼저 — 영록 카드 J-27c는 J-29 병합 뒤 | S | 설계 확정(Opus 2026-11-28, 아래 J-29 절) — 끝남(#166 `3d85160`, 위 "완료") |
+| J-30a | COLMAP 희소 모델 → EXIF GPS ENU 정합(`model_aligner --ref_images_path … --ref_is_gps 1 --alignment_type enu --alignment_max_error 3`, 원점 = 이름순 첫 장 `DJI_0352.JPG`) → 정합 좌표의 Brush 3k splat, 공개 Tyrol 76장, 펜스 스크립트 13개 수치 판정(잔차 중앙값 ≤ 3 m 등)·비공허 대조군, mac-recon M3 메모 1줄 + §6 #5 칸만(WP-21 후속 4의 절반 — 메시 절반은 J-30b, 설계 선행) | 없음(설계 확정, Opus 2026-11-28). 배정 순서는 J-29 병합 뒤(위 "다음", 2026-11-28 문서 9 — 옛 'J-27 뒤'는 J-27을 닫아 바꿈) | S–M | 설계 확정(J-30a 절, 2026-11-28 문서 7에서 할 일 9 자리표시 분류 단계 수정) — 끝남(#167 `b5f4df3`, 위 "완료") |
+| J-30b | Object Capture 메시를 J-30a 정합 좌표로(WP-21 후속 4의 나머지 절반, 수치 확인만): `tyrol-full/poses.json`의 `translation`(카메라 중심) ↔ J-30a 정합 COLMAP 카메라 중심을 이미지 이름으로 짝지은 Umeyama Sim3(반사 보정, 회전 미사용), OBJ 정점 125,678개 전부를 옮겨 정합 SfM 점까지 `cKDTree` 거리, 펜스 판정 10개(짝 76·`reflection_guard` 0·축척 0.9~1.1·잔차 중앙값 ≤ 0.5 m·p90 ≤ 1.0 m·최대 ≤ 3.0 m·메시 → SfM 중앙값 ≤ 3.0 m·p90 ≤ 12.0 m·대조군 ≥ 30 m), 틀린 셋 3개(정합 전 모델·이름 뒤집기·x 거울)의 고정 FAIL 줄 `diff`, J-30a 실행 폴더 확인(파일 8개 + 같은 실행 확인 2개, 없으면 J-30a 할 일 2~4를 고정 명령으로 `$E/sfm`에 다시), mac-recon M3 J-30a 메모 바로 뒤 1줄 + §6 #6 칸(펜스 생성, 커밋 2에서 `근거: PR #<n>`), 새 저장소 코드 없음 | J-30a 병합(할 일 1 `pre.diff`가 막는다), `$W` 추적 파일 변경 없음 | S–M | 설계 확정(Opus 2026-11-28, 아래 J-30b 절 — J-38 절 뒤, `## 재환에게 맞지 않는 것` 바로 앞) — J-30a 병합 뒤 배정 가능 |
 | J-31a | 입력 드라이버 키 타임라인 파서(순수 Python + pytest) | Opus B1 설계 메모 | S | **설계 선행** |
 | J-31b | 헤드리스 자동화 1개 "W 3 s → 캡슐 이동 거리"(측정용 주입 경로는 Opus가 구현) | J-31a, Opus 주입 구현 | S | **설계 선행** |
 | J-32 | Cesium 활성 사본에서 mac-recon #15·#16(게임 타깃 빌드·`test.sh` 영향) | WP-21 후속 1 결정, 설계 메모 | M | **설계 선행** |
 | J-33 | avfoundation 60 fps 녹화 시험(§8 #25) | 소유자 화면 기록 권한, 설계 메모 | S | **설계 선행** |
 | J-35 | add-gasp 편집기 가드의 남은 분기 스텁 사례(`$GaspProject` 일치·음성 2종, J-06 후속) — 끝남(#157 `ff77ba8`, 위 "완료") | J-36(병합됨 `8ba637c` — 같은 테스트 파일) | S | — (보충 2026-11-28, 아래 J-35 절) |
+| J-37 | PR 본문의 기계적 부분을 만드는 도구 `golmok_tools.jaehwan_body` 조각 1: 새 파일 둘을 펜스 그대로(`tools/golmok_tools/jaehwan_body.py`·`tools/tests/test_jaehwan_body.py` 22개, `python -m`으로 돌아 `pyproject.toml` 무변경, 표준 라이브러리만) — `commands.txt` 전체와 `-cmd.sh`(해시 대조, 마지막 기록이 도구 실행이 아니면 거부), 과정 기록(`eval`·`rm`·범위 밖 경로·같은 이름 쓰기·다시 실행·해시 꼴·정정 대상 줄, 과제 글에 없는 것은 설명 한 줄 필수), 명령 조각 단위 규칙 5 감사(`git -C` 꼴 포함), 명세로 계산한 완료 기준 대조(충족·미충족·영록 판정·(P) 두 단계), 손글 검사(없는 근거 파일·미래형·세지 않은 "모든"·과정 기록과 어긋난 부정문). 변형 18개 고정 목록 `diff`, 자기 증거 폴더 `--audit-only` 1회, CI python 네 행. 본문은 지금의 공통 소절대로(소절 변경은 병합 뒤 문서 PR). 조각 2(점검표 나머지 기계 줄·인용 검사·자리표시 표)는 J-37b | 앞 과제 push 뒤(`$W` 추적 파일 변경 없음 — 2026-11-28 현재 `$W`는 J-30a 브랜치) | S–M | 설계 확정(Opus 2026-11-28, 아래 J-37 절) — 배정 가능 |
+| J-38 | `golmok-align --poses-format colmap`(Mac 경로 D-023): COLMAP 텍스트 모델 `images.txt`(또는 그 폴더)의 카메라 중심 `-Rᵀt`를 GPS prior에 — `poses.py` 새 리더 `read_colmap_images_txt`·`colmap_images_path`(빈 POINTS2D 줄, `images.bin`만 있으면 변환 명령 안내), `cli.py` 기본 `realityscan` 그대로(펜스 편집 스크립트, sha256 고정), 새 `tests/test_align_colmap.py` 13개(코드 전 12 failed, 기존 `test_align.py` 9 passed 그대로, 변형 다섯 고정 FAILED 목록), mac-recon :95 돌지 않던 보조 확인 명령 고침 + 날짜 메모, align.md 한 줄(펜스 생성, 커밋 2에서 `근거: PR #<n>`), 실데이터 품질 주장 없음 | J-30a 병합(할 일 2 `pre.diff`가 막는다), 열린 PR이 같은 다섯 파일을 고치지 않을 때, `$W` 추적 파일 변경 없음. J-30b와는 앞뒤 무관 | S | 설계 확정(Opus 2026-11-28, 아래 J-38 절 — J-30b 절 바로 앞) — J-30a 병합 뒤 배정 가능 |
+| J-39 | CI 새 잡 `objcap-colmap (macos-26)`(`ci.yml` 끝 `[J-39 hook]` 블록 44줄, 커밋 2 단독): `swift build -c release`(Xcode 26 SDK) → 인자 없이 종료 2·사용법 → 손으로 쓴 `tools/tests/fixtures/objcap/poses-min.json`(샘플 4, 1개 건너뜀)의 `colmap` 내보내기 → 수집 안 되는 `tools/tests/objcap_colmap_check.py`(표준 라이브러리 COLMAP 읽기)가 카메라 중심·회전 행렬·PINHOLE을 대조(16줄 고정 출력). 이 Mac에서 같은 확인 + Swift 뒤집기 변이(회전 3줄만 FAIL)·출력 변이 4종(`qneg`는 PASS), PR 전 브랜치 push 실행 확인, HEAD에서 잡 attempt 8/8, README §5 메모 한 줄(커밋 3). 변환 식만 — 렌즈 왜곡·Brush 수용·`limits`/`run`은 [미확인]. J-28을 대신함 | 없음(J-38 불필요 — 자체 읽기). `$W` 추적 파일 변경 없음, 열린 `ci.yml` PR 없음(할 일 1 `pre.log`·`overlap.log`가 막는다) | S–M | 설계 확정(Opus 2026-11-28, 아래 J-39 절) — 배정 가능 |
 
-J-06·J-07·J-08·J-09·J-10·J-11·J-12·J-12b·J-13·J-14·J-15·J-17·J-18·J-19·J-20·J-21·J-34·J-35·J-36은 끝났고(위 "완료"), J-22는 진행 중이다(위 "진행 중"). J-29·J-30b는 설계가 확정됐고 J-27은 재환 과제에서 닫았다(2026-11-28, Opus — 재환 레인 문서 9). J-23·J-24·J-25도 설계가 확정됐다(2026-11-28, Opus — 재환 레인 문서 8). J-27·J-30a는 설계가 확정됐다(2026-11-28, Opus — J-30은 J-30a·J-30b로 나눴다). J-19·J-21·J-22도 설계가 확정됐다(2026-11-28, Opus — 재환 레인 문서 7). 아래 상세 절은 그대로 두고, 끝난 과제에는 "결과" 줄을 더한다.
+J-06·J-07·J-08·J-09·J-10·J-11·J-12·J-12b·J-13·J-14·J-15·J-17·J-18·J-19·J-20·J-21·J-22·J-29·J-30a·J-34·J-35·J-36은 끝났고(위 "완료"), J-23은 진행 중이다(위 "진행 중"). J-16·J-37·J-38·J-39는 설계가 확정됐다(2026-11-28, Opus — 재환 레인 문서 10; J-16 절은 옛 보류 절을 대신하고, J-39는 J-28을 대신한다). J-29·J-30b는 설계가 확정됐고 J-27은 재환 과제에서 닫았다(2026-11-28, Opus — 재환 레인 문서 9). J-23·J-24·J-25도 설계가 확정됐다(2026-11-28, Opus — 재환 레인 문서 8). J-27·J-30a는 설계가 확정됐다(2026-11-28, Opus — J-30은 J-30a·J-30b로 나눴다). J-19·J-21·J-22도 설계가 확정됐다(2026-11-28, Opus — 재환 레인 문서 7). 아래 상세 절은 그대로 두고, 끝난 과제에는 "결과" 줄을 더한다.
 
 ### 과제 상세
 
@@ -466,14 +483,544 @@ J-06·J-07·J-08·J-09·J-10·J-11·J-12·J-12b·J-13·J-14·J-15·J-17·J-18·J
 - **왜 재환 / 위험**: 재환은 이 Mac에서 패키지·CSV를 돌린 적이 있다. 위험: 2026-11-27 사고처럼 메인 체크아웃에서 돌리는 것(규칙 6) — 명령은 반드시 `cd $W`에서.
 - **결과(2026-11-28, [#151](https://github.com/wooklym/golmok/pull/151) · `7332dac`, 리뷰 R147 → R147-2 → R147-3)**: 증거·실행·초안은 재환의 [#147](https://github.com/wooklym/golmok/pull/147)(head `45bb451`)이다. 세 번 보류된 뒤 칸 4개의 최종 문구는 영록의 Opus 에이전트가 재환의 커밋 위 `claude/j15-cells`에서 썼다("병합 시 반영", 규칙 16). 재환 worktree의 Development 패키지 `build/Mac/Golmok.app`을 `-game -RenderOffScreen -ResX=1920 -ResY=1080 -csvCaptureFrames=200,300`으로 2회(06:30·07:01) 실행했다. 방화벽은 두 번 읽어 둘 다 꺼짐(`State = 0`)이었다. #10: `Golmok-Mac.utoc`·`global.utoc`·`Golmok-Mac.pak`은 `.app` 안 `Contents/UE/Golmok/Content/Paks/`에 있고, `Manifest_*_Mac.txt` 세 개는 패키지 폴더가 아니라 `unreal/Golmok/Saved/StagedBuilds/Mac/`에 있다. #11: 1회차는 실행 전부터 떠 있던 CrashReportClient가 1985를 잡고 있어 게임이 40252를, 2회차는 1985가 비어 있어 게임이 1985를 열었다. 대화상자는 관찰되지 않았다. 방화벽이 켜진 상태의 동작은 [미확인]이라 #11은 "부분"이다. #12·#13: 앱이 샌드박스로 서명돼 있어 Saved와 CSV는 `~/Library/Containers/com.YourCompany.Golmok/Data/Library/Application Support/Epic/Golmok/Saved/` 아래에 쓰였다. 적어 둔 후보 경로들에는 없었다(그 `find`의 명령 줄은 로그에 남지 않았다). 번들 id는 `com.YourCompany.Golmok`(엔진 기본값, 프로젝트 Config에 덮어쓰기 없음)이다. 다른 구성·조건에서의 위치와, 번들 id가 같은 다른 패키지가 컨테이너를 같이 쓰는지는 [미확인]이다. mac-setup §3·§4·§6·§9의 관련 문장에는 2026-11-28 메모를 더했다(재환 레인 문서 5). 선행이 풀린 과제: J-16·J-19. J-22는 J-20, J-27은 설계 메모를 더 기다린다.
 
-#### J-16 `_pure.py` Mac 경로 가정·`package.sh` 주석 정리
-- **배정 보류(영록, 2026-11-28 문서 7 — 문서 9에서 고침)**: mac-setup §8 #27 "부분" 행(J-27 선행 기록 줄, 문서 9 PR — 아래 J-27 절 설계 5: `_pure.py:1787`·`:1986`은 이 증거로 답이 났고 `:1779`·`:1802`는 반쯤; J-16은 영록 카드 J-27c를 기다리지 않는다)이 병합되고, 영록이 아래 "정정"대로 바꿀 줄마다 새 주석·코드 줄을 글자 그대로 적어 이 절을 다시 쓰기 전에는 시작하지 않는다. 열린 점: `_pure.py:1779`·`:1787`·`:1802`·`:1986` 각 줄의 새 글자, `package.sh:26` 방화벽 주석 한 줄을 따로 떼어 먼저 줄지.
-- **출처**: `unreal/Golmok/Content/Python/golmok/_pure.py:1779`, `:1787`, `:1802`, `:1986`([미확인] Mac 경로 가정 — `UserSettingsDir`·`LaunchMac.cpp`), `tools/ue/package.sh:26`(방화벽 [미확인]), J-15 실측.
-- **할 일**: 실측이 가정과 같으면 주석만 "확인(J-15, §8 #n)"으로. 다르면 함수를 실측에 맞추고 `tools/tests/test_ue_python_spike_runner.py`(또는 해당 테스트)에 실측 경로 사례를 더한다 — 이 경우 영록에게 먼저 알린다(Claude 레인 코드 변경).
-- **허용 파일**: `_pure.py`의 위 함수·주석, 해당 pytest, `tools/ue/package.sh` 주석 줄.
-- **완료 기준**: 바꾼 줄마다 근거 출력, 파이썬 게이트·CI 초록.
-- **왜 재환 / 위험**: 근거가 명령 출력으로 있다. 위험: 한 번의 실행으로 모든 경우를 일반화하는 것(규칙 3).
-- **정정(2026-11-28, 영록 — 아직 배정하지 않은 과제라 배정을 멈춘다)**: 위 "할 일"의 "실측이 같으면 주석만, 다르면 함수를 고친다"는 판단을 재환에게 남겨 두어 이대로는 배정하지 않는다. 또 J-15의 근거(샌드박스로 서명된 **패키지 `.app`**이 `~/Library/Containers/com.YourCompany.Golmok/…`에 쓴 것, mac-setup §8 #12·#13)는 `MAC_USER_SETTINGS_REL`(`_pure.py:1779`·`:1802`)·`editor_exe`(`:1787`)·`sh_arg`(`:1986`)가 가정하는 **에디터 바이너리 `-game`** 실행과 다른 경우다(엔진 `LaunchMac.cpp:111-114`: ` -installed`는 패키지 게임에만). 그래서 J-16은 J-27(아래, 에디터 바이너리 `-game` 1회 관찰 → mac-setup §8 #27) **뒤에** 한다. 배정 전에 영록이 J-27의 #27과 #12·#13을 근거로 바꿀 줄마다 새 주석·코드 줄을 글자 그대로 적어 이 절을 다시 쓴다(J-27 설계 10·"병합 시 반영"). `package.sh:26` 방화벽 주석 한 줄만 따로 떼어 먼저 줄지도 그때 정한다.
+#### J-16 `run_game_perf.sh`가 게임 비정상 종료·시간 초과를 종료 코드 1로 알림 + `_pure.py`·`package.sh`의 Mac `[미확인]` 주석을 실측으로 — 설계 확정(Opus 2026-11-28 문서 10)
+- **이력**: 옛 절(첫머리의 보류 표시, 출처, "정정" 목록)은 `origin/main` `d025f02`의 이 절에 그대로 있다. 이 절이 그것을 대신한다. 보류 조건이던 mac-setup §8 #27 "부분" 행은 PR #164로 병합됐다(mac-setup.md:313 끝 `근거: PR #164.`). 옛 할 일의 "같으면 주석만, 다르면 함수를 고친다"는 판단은 Opus가 줄마다 정했다(설계 1). J-27 설계 4가 Claude 레인 후속으로 남긴 종료 코드 결함(`_pure.py:2038`·`:2065`)도 Opus가 설계해 이 절에 넣었다(설계 2) — 백로그 행을 따로 열지 않는다. 영록 카드 J-27c를 기다리는 것은 이 절에 없다(설계 4).
+- **출처**: 저장소 `origin/main` `d025f02`: `unreal/Golmok/Content/Python/golmok/_pure.py` :1778-1782(`MAC_USER_SETTINGS_REL` 주석 — `[미확인]`, "첫 Mac `-game` CSV 실행에서 확인하고 여기서 고친다"), :1785-1795(`editor_exe` — darwin 분기 `[미확인] until the first Mac install`), :1798-1810(`platform_saved_dir_candidates` — 후보 2 `[미확인]`), :1982-1993(`sh_arg` — `[미확인]: LaunchMac.cpp`), :1996-2066(`shell_script` — :2038 `wait "$pid" 2>/dev/null`가 게임 종료 코드를 버리고, :2065 끝 줄이 `echo`라 스크립트는 늘 0으로 끝난다), `tools/ue/package.sh` :25-26(방화벽 `[미확인]`), `tools/tests/test_ue_python_pure.py` :1688-1739(`test_shell_script_quoting_and_layout` — :1731 `lines[-1]`이 `golmok-perf` 줄)·:1742-1752(가짜 편집기)·:1755-1811(`test_shell_script_runs_against_a_fake_editor` — :1794 시간 초과에도 `returncode == 0`), `tools/tests/test_ue_python_spike_runner.py` :1268-1318(`game_scripts`가 쓴 파일 = `pure.shell_script(...)` 그대로 — 그래서 이 파일은 고치지 않아도 새 스크립트와 맞는다), `_pure.py`는 `unreal` 낱말을 담으면 안 된다(`test_ue_python_pure.py:393-398`). 실측: [mac-setup](../runbooks/mac-setup.md) §8 #27(:313, "부분", 2026-11-28 재환 worktree `37b6af8`) — argv 14개, 0번이 `editor_exe` 경로 그대로, 12번이 `-ExecCmds=golmok.hud 0, golmok.tod clear_noon, golmok.path play j27_dwell --csv` 한 항목, 게임 로그 `Command Line:`은 `-ExecCmds="…"`로 다시 감쌈, CSV는 후보 1(`Saved/Profiling/CSV`), 실행 뒤 후보 2의 상위 폴더에 `Profiling` 없음, 크래시에도 스크립트 rc 0. §8 #11(:297) — 방화벽 `State = 0` 두 번, 패키지 실행 2회에서 대화상자 관찰 안 됨, 켜진 상태는 `[미확인]`. 엔진(읽기만, `/Users/Shared/Epic Games/UE_5.8/Engine`, `Build/Build.version` 5.8.4, 2026-11-28 Opus가 읽은 줄): `Source/Runtime/Launch/Private/Mac/LaunchMac.cpp` :77-96(argv마다 공백이 있으면 `key="value"`·`"…"`로 다시 감싸 명령 줄을 만든다)·:111-114(`-installed`는 `UE_GAME`에만)·:284-295(`GuardedMain`이 0이면 `[NSApp terminate:]`, 아니면 `_Exit(<오류 수준>)`), `Source/Runtime/Core/Private/Mac/MacPlatformMisc.cpp` :712-742(`RequestExit` — `Force`면 `_Exit(GIsCriticalError ? 3 : 0)`, 아니면 `RequestEngineExit`)·:2540-2564(크래시 처리 끝 `_Exit(1)`, 샌드박스 앱은 신호를 다시 올린다), `Source/Runtime/Core/Private/ProfilingDebugging/CsvProfiler.cpp` :4309-4313(`-ExitAfterCsvProfiling`이면 캡처 끝에 `RequestExit`), `Source/Runtime/Core/Private/Misc/Paths.cpp` :85-115(`GameSavedDir` = `ProjectUserDir()` + `Saved`)·:183-192(`ShouldSaveToUserDir` = `IsInstalled`·`-SaveToUserDir`·…)·:204-214(`EngineUserDir` = `UserSettingsDir()/UnrealEngine/5.8/`)·:451-473(`ProjectUserDir` = 프로젝트 폴더, 또는 `UserSettingsDir()/<프로젝트 이름>/`)·:485-494·:548-551(`ProfilingDir()` = `ProjectSavedDir()` + `Profiling/`), `Source/Runtime/Core/Private/Apple/ApplePlatformProcess.cpp` :38-41·:54-66(`UserSettingsDir` = `~/Library/Application Support/Epic/`).
+- **설계 (확정, Opus 2026-11-28 문서 10)**: 재환은 아래를 그대로 옮긴다. 바꿀 점이 보이면 고치지 말고 묻는다.
+  1. **주석 줄(증거가 이미 답한 것)**: `:1778-1781` — 후보 2는 이번 실행에서 쓰이지 않았고(§8 #27), 엔진 읽기로도 `ProfilingDir()`는 `ProjectSavedDir()` 아래이며 그 폴더는 프로젝트이거나(지금) `-SaveToUserDir`·설치 게임일 때 `UserSettingsDir()/<프로젝트>/Saved`다 — `UnrealEngine/<키>/Saved`(엔진 사용자 폴더)가 아니다. 그래도 **후보 2는 지우지 않는다**: 없는 폴더는 해가 없고(옛 주석 그대로), 지우면 `copy_path_dirs`·편집기 폴러·`test_copy_path_dirs_posix`·J-27 펜스가 함께 바뀌며, 그 이득을 잴 실행이 없다(뒤 조각, 설계 4). `:1787` — argv 0번이 그 경로로 실행됐다. `:1802` — 후보 2를 남긴다는 뜻으로. `:1986` — argv 12번이 한 항목이었고 로그는 다시 감쌌다(`LaunchMac.cpp:77-96`과 같다). `package.sh:26` — 이 Mac의 방화벽은 꺼져 있었고(`State = 0`) 대화상자는 보이지 않았다, 켜진 상태는 `[미확인]`. 새 줄은 모두 펜스 `j16-patch`에 글자 그대로 있다.
+  2. **종료 코드(코드 변경, Opus가 정함)**: 생성된 `run_game_perf.sh`의 `golmok_run`이 `wait` 바로 뒤 `game_rc=$?`로 게임 종료 코드를 남긴다. 시간 초과가 아닌데 0이 아니면 `WARNING: <라벨> game exited with code <코드> (crash? its CSV may be partial; see <로그>)`를 표준 오류로 낸다. 시간 초과(이미 `timeout` 경고가 있다)이거나 0이 아니면 `golmok_failed=1`. 함수 정의 바로 뒤 `golmok_failed=0`, 끝 줄 `golmok-perf` 안내 `echo` 뒤에 `exit "$golmok_failed"`. 정한 것과 이유: (가) **CSV는 그대로 복사한다** — 크래시 전까지의 CSV가 위치 증거였고(J-27), 복사를 막으면 정상 실행의 종료 코드가 0이 아닐 때(아직 실측 없음 — 설계 4) 데이터를 잃는다. 경고 문구가 "부분일 수 있다"를 말한다. (나) **시간 초과도 실패다** — `-ExitAfterCsvProfiling` 종료가 없었다는 뜻이다. 그래서 옛 테스트의 "시간 초과에도 rc 0"(`:1794`)을 바꾼다. 시간 초과에는 종료 코드 경고를 더하지 않는다(`kill`이 만든 143·137은 원인이 아니다). (다) **안내 줄은 그대로 마지막 표준 출력 줄** — 스크립트의 표준 출력 꼴(`csv … -> …`, `golmok-perf …`)은 바뀌지 않는다. (라) PowerShell 쪽(`powershell_script`)은 바꾸지 않는다(D-022 뒤 Windows 검증 기계 없음 — 뒤 조각). (마) `mktemp` 실패의 `return 1`은 `golmok_failed`를 세우지 않는다(옛 동작 그대로 — 뒤 조각). 엔진 읽기로는 정상 종료가 0(`LaunchMac.cpp:284-295`, `RequestExit`의 `_Exit(… ? 3 : 0)`), 편집기 바이너리 크래시가 `_Exit(1)`(`MacPlatformMisc.cpp:2563`)이지만, 둘 다 실행으로는 `[미확인]`이다 — 이 과제는 UE를 돌리지 않고 가짜 편집기로만 확인한다.
+  3. **테스트와 비공허 확인**: `test_shell_script_quoting_and_layout`에 세 줄(`wait` 다음 줄이 `  game_rc=$?`, 종료 코드 경고 줄이 `>&2`로 끝남, 함수 다음 줄이 `golmok_failed=0`)과 끝 두 줄(`lines[-2]` 안내, `lines[-1]` `exit "$golmok_failed"`). 가짜 편집기에 `STUB_EXIT`(CSV를 쓴 뒤 `csv:` 로그 줄 없이 그 코드로 끝남 — J-27의 꼴)를 더하고, fake 테스트를 `ok`·`timeout`·`crash` 세 경우로(`crash`: rc 1, CSV 복사됨, 표준 오류 두 줄이 고정). 비공허: 펜스 `j16-mutate-py`가 m0(`origin/main`의 `_pure.py` — 고치기 전의 결함)과 한 줄 변형 6개를 하나씩 넣고 shell_script 테스트 넷을 돌려 FAILED 이름을 모은 뒤 고친 파일로 되돌린다. 기대는 펜스 `j16-expected-mutations` 22줄(m0: 3개 FAILED — 지금의 결함을 새 테스트가 잡는다).
+  4. **기다리는 것과 뒤 조각(J-16b, 영록 카드 J-27c 뒤 — 지금 배정하지 않는다)**: 정상 `-ExitAfterCsvProfiling` 종료의 실제 종료 코드, 실제 크래시의 종료 코드, 경로 끝·`Capture Ended`·온전한 CSV의 `golmok-perf`(pc-verify-wp06 §12 #17·V-05 S12의 몫), 후보 2를 지우거나 `UserSettingsDir()/<프로젝트>/Saved`로 바꿀지, `powershell_script`의 같은 결함, `mktemp` 실패 경로, `test_ue_python_spike_runner.py:1270` 독스트링의 `([미확인])`, `LaunchMac.cpp:117`(인자의 `$`가 `"`로 바뀐다)를 `sh_arg`에 적을지. J-27c의 정상 실행에서 스크립트 rc가 0이 아니면(카드 C5 `run.rc`) 설계 2의 규칙을 J-16b에서 다시 본다.
+  5. **J-27 펜스와의 관계**: 이 과제가 병합되면 `game_scripts`가 쓰는 `run_game_perf.sh`가 9줄 늘어 J-27 절의 펜스 `j27-expected-sh`(34줄)와 달라진다 — J-27c C4의 `sh-diff.log`가 `exit=1`이 된다. 그래서 병합 때 영록이 그 펜스와 C1의 기대 숫자를 바꾼다(아래 "병합 시 반영"). 재환은 J-27 절을 고치지 않는다.
+  6. **UE·GPU 없음**: 편집기·`-game`·패키지·빌드를 돌리지 않는다. GUI 잠금도 잡지 않는다. Astra 레인·핫스팟 파일이 아니다(`_pure.py`·테스트·`package.sh` 주석 — DEVELOPMENT-PLAN §7.6의 Claude 레인). 런북을 고치지 않는다.
+
+```text j16-patch
+@@@ FILE unreal/Golmok/Content/Python/golmok/_pure.py
+@@@ OLD
+# WP-20 (D-022, Mac-only dev machine): per-user engine folder of a Launcher-build -game run on macOS, under
+# $HOME. [미확인] assumed from FMacPlatformProcess::UserSettingsDir (~/Library/Application Support/Epic/);
+# check it on the first Mac -game CSV run and correct it here. An absent folder is harmless: the editor
+# poller finds no CSV there and run_game_perf.sh only creates the Golmok/Paths copy folder.
+@@@ NEW
+# WP-20 (D-022, Mac-only dev machine): per-user engine folder under $HOME (FApplePlatformProcess::
+# UserSettingsDir, ~/Library/Application Support/Epic/). J-16 (runbook mac-setup §8 #27, 2026-11-28): the
+# first Mac editor-binary -game CSV run wrote its CSV under the project candidate (Saved/Profiling/CSV), and
+# this candidate's Saved folder had no Profiling folder after the run. Engine 5.8.4 Paths.cpp puts
+# ProfilingDir() under ProjectSavedDir(): the project, or with -SaveToUserDir / an installed game
+# UserSettingsDir/<project>/Saved - not UnrealEngine/<key>/Saved (EngineUserDir). Kept anyway: an absent
+# folder is harmless (the editor poller finds no CSV there and run_game_perf.sh only creates the
+# Golmok/Paths copy folder).
+@@@ END
+@@@ FILE unreal/Golmok/Content/Python/golmok/_pure.py
+@@@ OLD
+    UnrealEditor.app on darwin (Launcher layout, [미확인] until the first Mac install), Binaries/Linux
+    otherwise."""
+@@@ NEW
+    UnrealEditor.app on darwin (Launcher layout; argv[0] of the 2026-11-28 Mac -game run, runbook mac-setup
+    §8 #27), Binaries/Linux otherwise."""
+@@@ END
+@@@ FILE unreal/Golmok/Content/Python/golmok/_pure.py
+@@@ OLD
+    project + $HOME/MAC_USER_SETTINGS_REL/UnrealEngine/<key>/Saved ([미확인], see MAC_USER_SETTINGS_REL);
+    other platforms = the project only."""
+@@@ NEW
+    project + $HOME/MAC_USER_SETTINGS_REL/UnrealEngine/<key>/Saved (kept although the 2026-11-28 run did not
+    write there, see MAC_USER_SETTINGS_REL); other platforms = the project only."""
+@@@ END
+@@@ FILE unreal/Golmok/Content/Python/golmok/_pure.py
+@@@ OLD
+    entry, and the Mac launcher quotes an entry with spaces itself when it rebuilds the command line
+    ([미확인]: LaunchMac.cpp, check on the first Mac -game run; correct only this function)."""
+@@@ NEW
+    entry, and the Mac launcher quotes an entry with spaces itself when it rebuilds the command line
+    (LaunchMac.cpp:77-96). Checked 2026-11-28 (runbook mac-setup §8 #27): the game process got
+    '-ExecCmds=golmok.hud 0, ...' as one argv entry and its log Command Line showed -ExecCmds="..."."""
+@@@ END
+@@@ FILE unreal/Golmok/Content/Python/golmok/_pure.py
+@@@ OLD
+    out_dir/<label>.csv, check the log for the 'GolmokDebugSubsystem: csv:' line and echo the golmok-perf
+    line."""
+@@@ NEW
+    out_dir/<label>.csv, check the log for the 'GolmokDebugSubsystem: csv:' line and echo the golmok-perf
+    line. J-16 (runbook mac-setup §8 #27: a crashed -game run used to end the script with 0): the game's exit
+    code is kept; a non-zero exit warns, and a run that timed out or exited non-zero makes the script exit 1
+    after the golmok-perf line. The CSV of such a run is still copied (it may be partial)."""
+@@@ END
+@@@ FILE unreal/Golmok/Content/Python/golmok/_pure.py
+@@@ OLD
+        "  waited=0",
+        '  while kill -0 "$pid" 2>/dev/null; do',
+        '    if [ "$waited" -ge "$timeout_s" ]; then',
+        '      kill "$pid" 2>/dev/null; sleep 2; kill -9 "$pid" 2>/dev/null',
+        '      echo "WARNING: $label timeout after $timeout_s s" >&2',
+        "      break",
+        "    fi",
+        "    sleep 1",
+        "    waited=$((waited + 1))",
+        "  done",
+        '  wait "$pid" 2>/dev/null',
+@@@ NEW
+        "  waited=0",
+        "  timed_out=0",
+        '  while kill -0 "$pid" 2>/dev/null; do',
+        '    if [ "$waited" -ge "$timeout_s" ]; then',
+        '      kill "$pid" 2>/dev/null; sleep 2; kill -9 "$pid" 2>/dev/null',
+        '      echo "WARNING: $label timeout after $timeout_s s" >&2',
+        "      timed_out=1",
+        "      break",
+        "    fi",
+        "    sleep 1",
+        "    waited=$((waited + 1))",
+        "  done",
+        '  wait "$pid" 2>/dev/null',
+        "  game_rc=$?",
+        '  if [ "$timed_out" = 0 ] && [ "$game_rc" -ne 0 ]; then',
+        '    echo "WARNING: $label game exited with code $game_rc '
+        '(crash? its CSV may be partial; see $log)" >&2',
+        "  fi",
+        '  if [ "$timed_out" = 1 ] || [ "$game_rc" -ne 0 ]; then golmok_failed=1; fi',
+@@@ END
+@@@ FILE unreal/Golmok/Content/Python/golmok/_pure.py
+@@@ OLD
+        '(ExecCmds timing? runbook #17)" >&2',
+        "  fi",
+        "}",
+    ]
+    labels = []
+@@@ NEW
+        '(ExecCmds timing? runbook #17)" >&2',
+        "  fi",
+        "}",
+        "golmok_failed=0",
+    ]
+    labels = []
+@@@ END
+@@@ FILE unreal/Golmok/Content/Python/golmok/_pure.py
+@@@ OLD
+    lines.append(f"echo {shlex.quote(perf)}")
+    return "\n".join(lines) + "\n"
+@@@ NEW
+    lines.append(f"echo {shlex.quote(perf)}")
+    lines.append('exit "$golmok_failed"')
+    return "\n".join(lines) + "\n"
+@@@ END
+@@@ FILE tools/ue/package.sh
+@@@ OLD
+# C-07: a fixed GOLMOK_PKG_DIR keeps one output path for every worktree (on Windows this avoided a firewall prompt
+# per new exe path; whether the macOS application firewall prompts for TraceLog TCP 1985 is [미확인]).
+@@@ NEW
+# C-07: a fixed GOLMOK_PKG_DIR keeps one output path for every worktree (on Windows this avoided a firewall prompt
+# per new exe path). macOS (runbook mac-setup §8 #11, 2026-11-28): this Mac's application firewall was off
+# (State = 0) and no prompt was seen in two packaged runs; the behaviour with it on is [미확인].
+@@@ END
+@@@ FILE tools/tests/test_ue_python_pure.py
+@@@ OLD
+    assert any("runbook #17" in b for b in body)
+    run_lines = [line for line in lines if line.startswith("golmok_run ")]
+@@@ NEW
+    assert any("runbook #17" in b for b in body)
+    # J-16: the game's exit code is kept right after wait; a timeout or a non-zero exit sets golmok_failed
+    assert body[body.index('  wait "$pid" 2>/dev/null') + 1] == "  game_rc=$?"
+    assert any("game exited with code $game_rc" in b and b.endswith(">&2") for b in body)
+    assert lines[lines.index("}") + 1] == "golmok_failed=0"
+    run_lines = [line for line in lines if line.startswith("golmok_run ")]
+@@@ END
+@@@ FILE tools/tests/test_ue_python_pure.py
+@@@ OLD
+    assert lines[-1] == (
+        f"echo 'golmok-perf {q}{csv}/a_clear_noon_walk_01.csv{q} {q}{csv}/b_clear_noon_walk_01.csv{q} "
+        "--label a_clear_noon_walk_01 --label b_clear_noon_walk_01 --markdown'"
+    )
+@@@ NEW
+    assert lines[-2] == (
+        f"echo 'golmok-perf {q}{csv}/a_clear_noon_walk_01.csv{q} {q}{csv}/b_clear_noon_walk_01.csv{q} "
+        "--label a_clear_noon_walk_01 --label b_clear_noon_walk_01 --markdown'"
+    )
+    assert lines[-1] == 'exit "$golmok_failed"'  # J-16: 1 when a run timed out or its game exited non-zero
+@@@ END
+@@@ FILE tools/tests/test_ue_python_pure.py
+@@@ OLD
+# fake UnrealEditor for run_game_perf.sh: records argv, writes a CSV and the log line, or sleeps (timeout)
+@@@ NEW
+# fake UnrealEditor for run_game_perf.sh: records argv, writes a CSV and the log line, or sleeps (timeout),
+# or exits STUB_EXIT right after the CSV without the log line (crash, J-16)
+@@@ END
+@@@ FILE tools/tests/test_ue_python_pure.py
+@@@ OLD
+echo FrameTime > "$STUB_CSV_DIR/Profile(20261127_101010).csv"
+echo "LogGolmok: GolmokDebugSubsystem: csv: stop" > "$log"
+@@@ NEW
+echo FrameTime > "$STUB_CSV_DIR/Profile(20261127_101010).csv"
+if [ -n "$STUB_EXIT" ]; then exit "$STUB_EXIT"; fi
+echo "LogGolmok: GolmokDebugSubsystem: csv: stop" > "$log"
+@@@ END
+@@@ FILE tools/tests/test_ue_python_pure.py
+@@@ OLD
+@pytest.mark.parametrize("timeout", [False, True])
+def test_shell_script_runs_against_a_fake_editor(mods, tmp_path, timeout):
+    """Execute a generated run_game_perf.sh (WP-20): a fake editor in a folder with a space writes a CSV into
+    the per-user candidate; an older CSV in the project candidate is ignored; the newest CSV lands in
+    out_dir/<label>.csv. timeout=True: the editor hangs, is killed after timeout_s and the script warns."""
+@@@ NEW
+@pytest.mark.parametrize("case", ["ok", "timeout", "crash"])
+def test_shell_script_runs_against_a_fake_editor(mods, tmp_path, case):
+    """Execute a generated run_game_perf.sh (WP-20): a fake editor in a folder with a space writes a CSV into
+    the per-user candidate; an older CSV in the project candidate is ignored; the newest CSV lands in
+    out_dir/<label>.csv. timeout: the editor hangs, is killed after timeout_s, the script warns and exits 1.
+    crash (J-16, runbook mac-setup §8 #27): the editor exits 3 after writing the CSV and before the csv: log
+    line; the CSV is still copied, the script warns with the exit code and exits 1."""
+@@@ END
+@@@ FILE tools/tests/test_ue_python_pure.py
+@@@ OLD
+    script = tmp_path / "run_game_perf.sh"
+    script.write_text(
+        pure.shell_script(runs, [str(walk)], candidates, str(out_dir), 1 if timeout else 60), "utf-8"
+    )
+    script.chmod(0o755)
+    env = dict(os.environ, STUB_ARGS=str(tmp_path / "args.txt"), STUB_CSV_DIR=str(user / "Profiling" / "CSV"))
+    if timeout:
+        env["STUB_SLEEP"] = "60"
+    started = _time.monotonic()
+    res = subprocess.run([str(script)], capture_output=True, text=True, env=env, timeout=40)
+    assert _time.monotonic() - started < 30
+    assert res.returncode == 0, res.stderr
+@@@ NEW
+    script = tmp_path / "run_game_perf.sh"
+    timeout_s = 1 if case == "timeout" else 60
+    script.write_text(pure.shell_script(runs, [str(walk)], candidates, str(out_dir), timeout_s), "utf-8")
+    script.chmod(0o755)
+    env = dict(os.environ, STUB_ARGS=str(tmp_path / "args.txt"), STUB_CSV_DIR=str(user / "Profiling" / "CSV"))
+    env.pop("STUB_SLEEP", None)
+    env.pop("STUB_EXIT", None)
+    if case == "timeout":
+        env["STUB_SLEEP"] = "60"
+    if case == "crash":
+        env["STUB_EXIT"] = "3"
+    started = _time.monotonic()
+    res = subprocess.run([str(script)], capture_output=True, text=True, env=env, timeout=40)
+    assert _time.monotonic() - started < 30
+    assert res.returncode == (0 if case == "ok" else 1), res.stderr
+@@@ END
+@@@ FILE tools/tests/test_ue_python_pure.py
+@@@ OLD
+    assert res.stdout.splitlines()[-1] == perf_line
+    if timeout:
+        assert f"WARNING: {label} timeout after 1 s" in res.stderr
+        assert f"WARNING: {label} no CSV newer than the run start" in res.stderr  # the old CSV is not taken
+        assert "log has no 'GolmokDebugSubsystem: csv:' line" in res.stderr
+        assert not out_dir.joinpath(f"{label}.csv").exists()
+    else:
+        new_csv = user / "Profiling" / "CSV" / "Profile(20261127_101010).csv"
+        assert res.stdout.splitlines()[0] == f"csv {label} -> {new_csv}"
+        assert out_dir.joinpath(f"{label}.csv").read_text(encoding="utf-8") == "FrameTime\n"
+        assert res.stderr == ""
+@@@ NEW
+    assert res.stdout.splitlines()[-1] == perf_line
+    if case == "timeout":
+        assert f"WARNING: {label} timeout after 1 s" in res.stderr
+        assert f"WARNING: {label} no CSV newer than the run start" in res.stderr  # the old CSV is not taken
+        assert "log has no 'GolmokDebugSubsystem: csv:' line" in res.stderr
+        assert "game exited with code" not in res.stderr  # the timeout warning already says it
+        assert not out_dir.joinpath(f"{label}.csv").exists()
+    else:
+        new_csv = user / "Profiling" / "CSV" / "Profile(20261127_101010).csv"
+        assert res.stdout.splitlines()[0] == f"csv {label} -> {new_csv}"
+        assert out_dir.joinpath(f"{label}.csv").read_text(encoding="utf-8") == "FrameTime\n"
+        if case == "ok":
+            assert res.stderr == ""
+        else:
+            log = f"{saved}/Golmok/spike/game_{label}.log"
+            assert res.stderr.splitlines() == [
+                f"WARNING: {label} game exited with code 3 (crash? its CSV may be partial; see {log})",
+                f"WARNING: {label} log has no 'GolmokDebugSubsystem: csv:' line "
+                "(ExecCmds timing? runbook #17)",
+            ]
+@@@ END
+```
+
+```python j16-apply-py
+# J-16: applies the hunks of j16-patch (usage: python -I j16_apply.py <repo root> <patch file>).
+# Each hunk is "@@@ FILE <path>", "@@@ OLD", old lines, "@@@ NEW", new lines, "@@@ END". The old text must
+# occur exactly once in the file as it is after the hunks before it; nothing is written unless all match.
+import sys
+from pathlib import Path
+
+root = Path(sys.argv[1])
+hunks = []
+mode = None
+for line in Path(sys.argv[2]).read_text(encoding="utf-8").splitlines(keepends=True):
+    if line.startswith("@@@ FILE "):
+        hunks.append({"path": line[len("@@@ FILE ") :].strip(), "old": "", "new": ""})
+        mode = None
+    elif line in ("@@@ OLD\n", "@@@ NEW\n"):
+        mode = line[4:7].lower()
+    elif line == "@@@ END\n":
+        mode = None
+    elif mode is not None:
+        hunks[-1][mode] += line
+    elif line.strip():
+        sys.exit(f"j16_apply: text outside a hunk: {line!r}")
+texts = {}
+for i, h in enumerate(hunks, 1):
+    path = h["path"]
+    if path not in texts:
+        texts[path] = (root / path).read_bytes().decode("utf-8")
+    n = texts[path].count(h["old"])
+    if n != 1 or not h["old"] or h["old"] == h["new"]:
+        sys.exit(f"j16_apply: hunk {i} old text found {n} times in {path}")
+    texts[path] = texts[path].replace(h["old"], h["new"])
+    print(f"hunk {i} {path} ok")
+for path, text in texts.items():
+    (root / path).write_bytes(text.encode("utf-8"))
+print(f"files {len(texts)}")
+```
+
+```text j16-expected-apply
+hunk 1 unreal/Golmok/Content/Python/golmok/_pure.py ok
+hunk 2 unreal/Golmok/Content/Python/golmok/_pure.py ok
+hunk 3 unreal/Golmok/Content/Python/golmok/_pure.py ok
+hunk 4 unreal/Golmok/Content/Python/golmok/_pure.py ok
+hunk 5 unreal/Golmok/Content/Python/golmok/_pure.py ok
+hunk 6 unreal/Golmok/Content/Python/golmok/_pure.py ok
+hunk 7 unreal/Golmok/Content/Python/golmok/_pure.py ok
+hunk 8 unreal/Golmok/Content/Python/golmok/_pure.py ok
+hunk 9 tools/ue/package.sh ok
+hunk 10 tools/tests/test_ue_python_pure.py ok
+hunk 11 tools/tests/test_ue_python_pure.py ok
+hunk 12 tools/tests/test_ue_python_pure.py ok
+hunk 13 tools/tests/test_ue_python_pure.py ok
+hunk 14 tools/tests/test_ue_python_pure.py ok
+hunk 15 tools/tests/test_ue_python_pure.py ok
+hunk 16 tools/tests/test_ue_python_pure.py ok
+files 3
+```
+
+```text j16-base-blobs
+00ceda9040b23fc5acbdb6eda2fa9d4f89d11e7b unreal/Golmok/Content/Python/golmok/_pure.py
+47ed011e4abc261bafbe1485dc567d74bc695b55 tools/ue/package.sh
+640e58f99a7864532c43bd9fffa61d21ec0c9a07 tools/tests/test_ue_python_pure.py
+```
+
+```text j16-expected-sha256
+839f165aa308788496ddfa96af8966bfe4c0d068a38383ed5b782fb2c45a55ab  unreal/Golmok/Content/Python/golmok/_pure.py
+7cca9a89ae2093ceef32a5533ff40bc5bab7613b91a005ac97d8f79ed5377f83  tools/ue/package.sh
+c37f8d01b5e99a8de2b1cf86abf5274d5a13cf3911f84c4e2cceac9b71cb6036  tools/tests/test_ue_python_pure.py
+```
+
+```text j16-expected-numstat
+33 12 tools/tests/test_ue_python_pure.py
+2 1 tools/ue/package.sh
+27 10 unreal/Golmok/Content/Python/golmok/_pure.py
+```
+
+```text j16-expected-cases
+test_shell_script_quoting_and_layout PASSED
+test_shell_script_runs_against_a_fake_editor[ok] PASSED
+test_shell_script_runs_against_a_fake_editor[timeout] PASSED
+test_shell_script_runs_against_a_fake_editor[crash] PASSED
+```
+
+```python j16-mutate-py
+# J-16: m0 (the origin/main _pure.py) and six one-line mutations of the applied _pure.py, one at a time,
+# each followed by the four shell_script tests; the applied file is written back after each run.
+# usage: python -I j16_mutate.py <W> <E>   (E/pure-base.py = git show origin/main:<the _pure.py path>)
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+W, E = Path(sys.argv[1]), Path(sys.argv[2])
+target = W / "unreal" / "Golmok" / "Content" / "Python" / "golmok" / "_pure.py"
+applied = target.read_bytes()
+text = applied.decode("utf-8")
+MUTATIONS = [
+    ("m1", "    lines.append('exit \"$golmok_failed\"')\n", ""),
+    ("m2", '"  game_rc=$?",', '"  game_rc=0",'),
+    ("m3", "game exited with code $game_rc '", "game ended '"),
+    ("m4", '        "      timed_out=1",\n', ""),
+    ("m5", '"golmok_failed=0",', '"golmok_failed=1",'),
+    ("m6", "then golmok_failed=1; fi", "then golmok_failed=0; fi"),
+]
+runs = [("m0", (E / "pure-base.py").read_text(encoding="utf-8"))]
+for name, old, new in MUTATIONS:
+    n = text.count(old)
+    if n != 1:
+        sys.exit(f"j16_mutate: {name} old text found {n} times")
+    runs.append((name, text.replace(old, new)))
+try:
+    for name, body in runs:
+        target.write_bytes(body.encode("utf-8"))
+        with tempfile.TemporaryDirectory() as cache:
+            cmd = [sys.executable, "-I", "-X", f"pycache_prefix={cache}", "-m", "pytest", "-q"]
+            cmd += ["-p", "no:cacheprovider", "tests/test_ue_python_pure.py", "-k", "shell_script"]
+            res = subprocess.run(cmd, cwd=W / "tools", capture_output=True, text=True, timeout=600)
+        target.write_bytes(applied)
+        restored = "yes" if target.read_bytes() == applied else "no"
+        print(f"{name} rc={res.returncode} restored={restored}")
+        failed = sorted(x.split(" - ")[0] for x in res.stdout.splitlines() if x.startswith("FAILED "))
+        for x in failed:
+            print(f"{name} {x}")
+finally:
+    target.write_bytes(applied)
+```
+
+```text j16-expected-mutations
+m0 rc=1 restored=yes
+m0 FAILED tests/test_ue_python_pure.py::test_shell_script_quoting_and_layout
+m0 FAILED tests/test_ue_python_pure.py::test_shell_script_runs_against_a_fake_editor[crash]
+m0 FAILED tests/test_ue_python_pure.py::test_shell_script_runs_against_a_fake_editor[timeout]
+m1 rc=1 restored=yes
+m1 FAILED tests/test_ue_python_pure.py::test_shell_script_quoting_and_layout
+m1 FAILED tests/test_ue_python_pure.py::test_shell_script_runs_against_a_fake_editor[crash]
+m1 FAILED tests/test_ue_python_pure.py::test_shell_script_runs_against_a_fake_editor[timeout]
+m2 rc=1 restored=yes
+m2 FAILED tests/test_ue_python_pure.py::test_shell_script_quoting_and_layout
+m2 FAILED tests/test_ue_python_pure.py::test_shell_script_runs_against_a_fake_editor[crash]
+m3 rc=1 restored=yes
+m3 FAILED tests/test_ue_python_pure.py::test_shell_script_quoting_and_layout
+m3 FAILED tests/test_ue_python_pure.py::test_shell_script_runs_against_a_fake_editor[crash]
+m4 rc=1 restored=yes
+m4 FAILED tests/test_ue_python_pure.py::test_shell_script_runs_against_a_fake_editor[timeout]
+m5 rc=1 restored=yes
+m5 FAILED tests/test_ue_python_pure.py::test_shell_script_quoting_and_layout
+m5 FAILED tests/test_ue_python_pure.py::test_shell_script_runs_against_a_fake_editor[ok]
+m6 rc=1 restored=yes
+m6 FAILED tests/test_ue_python_pure.py::test_shell_script_runs_against_a_fake_editor[crash]
+m6 FAILED tests/test_ue_python_pure.py::test_shell_script_runs_against_a_fake_editor[timeout]
+```
+
+```sh j16-extract-sh
+#!/bin/sh
+# J-16: writes the fences of this task from E/task.txt into E (usage: sh j16_extract.sh <E>), counts lines.
+E=$1
+cd "$E" || exit 3
+printf '%s\n' "j16-patch j16-patch.txt" "j16-apply-py j16_apply.py" "j16-expected-apply expected-apply.txt" "j16-base-blobs expected-base-blobs.txt" "j16-expected-sha256 expected-sha256.txt" "j16-expected-numstat expected-numstat.txt" "j16-expected-cases expected-cases.txt" "j16-mutate-py j16_mutate.py" "j16-expected-mutations expected-mutations.txt" "j16-quotes-sh j16_quotes.sh" "j16-overlap-cmd overlap-cmd.sh" "j16-blobs-cmd blobs-cmd.sh" "j16-base-tests-cmd base-tests-cmd.sh" "j16-apply-cmd apply-cmd.sh" "j16-new-tests-cmd new-tests-cmd.sh" "j16-mutate-cmd mutate-cmd.sh" "j16-commit-cmd commit-cmd.sh" "j16-pr-open-cmd pr-open-cmd.sh" "j16-run-wait-cmd run-wait-cmd.sh" "j16-checks-cmd checks-cmd.sh" "j16-checks2-cmd checks-2-cmd.sh" "common-ph-awk ph.awk" | while read -r n f; do
+  awk -v n="$n" 'BEGIN {b = sprintf("%c%c%c", 96, 96, 96)} x && $0 == b {x = 0} x {print} !x && index($0, b) == 1 && $0 ~ (" " n "$") {x = 1}' task.txt > "$f"
+done
+wc -l j16-patch.txt j16_apply.py expected-apply.txt expected-base-blobs.txt expected-sha256.txt expected-numstat.txt expected-cases.txt j16_mutate.py expected-mutations.txt j16_quotes.sh overlap-cmd.sh blobs-cmd.sh base-tests-cmd.sh apply-cmd.sh new-tests-cmd.sh mutate-cmd.sh commit-cmd.sh pr-open-cmd.sh run-wait-cmd.sh checks-cmd.sh checks-2-cmd.sh ph.awk > extract-wc.log
+```
+
+```sh j16-quotes-sh
+#!/bin/sh
+# J-16: quote and number checks of the PR draft (usage: sh j16_quotes.sh <E>); needs E/pr-body.md and E/quotes.tsv.
+E=$1
+B=$(printf '\140')
+awk '/^## 결과$/{f=1;next} /^## /{f=0} f' "$E/pr-body.md" | awk -v b="$B" 'index($0, b b b) == 1 {c = !c; next} !c' > "$E/result-prose.txt"
+grep -oE "${B}[^${B}]+${B}" "$E/result-prose.txt" | sed "s/^${B}//;s/${B}\$//" | sort -u > "$E/body-quotes.txt"
+cut -f1 "$E/quotes.tsv" | sort -u > "$E/tsv-quotes.txt"
+comm -23 "$E/body-quotes.txt" "$E/tsv-quotes.txt" > "$E/quotes-missing.log"
+while IFS="$(printf '\t')" read -r q f; do if [ "$f" = "라벨" ]; then n="라벨"; else n=$(grep -F -c -- "$q" "$E/$f"); fi; printf '%s\t%s\t%s\n' "$n" "$f" "$q"; done < "$E/quotes.tsv" > "$E/quotes-check.log"
+grep -oE '[0-9]{2,}' "$E/result-prose.txt" | sort -u > "$E/body-numbers.txt"
+while read -r x; do
+  n=0
+  for f in apply.log numstat.log sha256.log base-blobs.log base-tests-count.log new-tests-count.log new-cases.log mutations.log gate.log sha.log; do
+    k=$(grep -c -- "$x" "$E/$f"); n=$((n + k))
+  done
+  printf '%s\t%s\n' "$n" "$x"
+done < "$E/body-numbers.txt" > "$E/numbers-check.log"
+```
+
+```sh j16-overlap-cmd
+# J-16 겹침: 열린 PR 중 허용 파일 셋을 고치는 것
+W="$HOME/projects/golmok-jaehwan"; E="$TMPDIR/jaehwan/J-16"; PY="$W/tools/.venv/bin/python";
+cd "$W" && /usr/bin/timeout 120 gh pr list --state open --json number,headRefName,files --jq '.[]|select(any(.files[]; .path=="unreal/Golmok/Content/Python/golmok/_pure.py" or .path=="tools/tests/test_ue_python_pure.py" or .path=="tools/ue/package.sh"))|"\(.number) \(.headRefName)"' > "$E/overlap.log" 2>&1; echo $? > "$E/overlap.rc"
+```
+
+```sh j16-blobs-cmd
+# J-16 바탕 파일: origin/main의 허용 파일 셋이 이 절을 쓸 때와 같은가(blob id)
+W="$HOME/projects/golmok-jaehwan"; E="$TMPDIR/jaehwan/J-16"; PY="$W/tools/.venv/bin/python";
+for p in unreal/Golmok/Content/Python/golmok/_pure.py tools/ue/package.sh tools/tests/test_ue_python_pure.py; do printf '%s %s\n' "$(git -C "$W" rev-parse "origin/main:$p")" "$p"; done > "$E/base-blobs.log" 2>&1; diff "$E/expected-base-blobs.txt" "$E/base-blobs.log" > "$E/base-blobs.diff"; echo "exit=$?" >> "$E/base-blobs.diff"
+```
+
+```sh j16-base-tests-cmd
+# J-16 바탕 테스트: 고치기 전 두 테스트 파일
+W="$HOME/projects/golmok-jaehwan"; E="$TMPDIR/jaehwan/J-16"; PY="$W/tools/.venv/bin/python";
+cd "$W/tools" && /usr/bin/timeout 600 "$PY" -I -m pytest -q -p no:cacheprovider tests/test_ue_python_pure.py tests/test_ue_python_spike_runner.py > "$E/base-tests.log" 2>&1; echo $? > "$E/base-tests.rc"; tail -n 1 "$E/base-tests.log" | grep -o -E '^[0-9]+ passed' > "$E/base-tests-count.log"
+```
+
+```sh j16-apply-cmd
+# J-16 고치기: j16-patch 적용(한 번만), 결과 해시·numstat·상태·bash -n
+W="$HOME/projects/golmok-jaehwan"; E="$TMPDIR/jaehwan/J-16"; PY="$W/tools/.venv/bin/python";
+cd "$W" && "$PY" -I "$E/j16_apply.py" "$W" "$E/j16-patch.txt" > "$E/apply.log" 2>&1; echo $? > "$E/apply.rc"; diff "$E/expected-apply.txt" "$E/apply.log" > "$E/apply.diff"; echo "exit=$?" >> "$E/apply.diff"
+cd "$W" && shasum -a 256 unreal/Golmok/Content/Python/golmok/_pure.py tools/ue/package.sh tools/tests/test_ue_python_pure.py > "$E/sha256.log"; diff "$E/expected-sha256.txt" "$E/sha256.log" > "$E/sha256.diff"; echo "exit=$?" >> "$E/sha256.diff"
+git -C "$W" diff --numstat | tr '\t' ' ' > "$E/numstat.log"; diff "$E/expected-numstat.txt" "$E/numstat.log" > "$E/numstat.diff"; echo "exit=$?" >> "$E/numstat.diff"
+git -C "$W" status --porcelain | grep -v -x -F -e ' M tools/tests/test_ue_python_pure.py' -e ' M tools/ue/package.sh' -e ' M unreal/Golmok/Content/Python/golmok/_pure.py' | diff "$E/status-before.log" - > "$E/status-apply.diff"; echo "exit=$?" >> "$E/status-apply.diff"
+bash -n "$W/tools/ue/package.sh" > "$E/bash-n.log" 2>&1; echo $? > "$E/bash-n.rc"
+```
+
+```sh j16-new-tests-cmd
+# J-16 고친 뒤 테스트: 같은 두 테스트 파일, 그리고 shell_script 테스트 넷의 이름
+W="$HOME/projects/golmok-jaehwan"; E="$TMPDIR/jaehwan/J-16"; PY="$W/tools/.venv/bin/python";
+cd "$W/tools" && /usr/bin/timeout 600 "$PY" -I -m pytest -q -p no:cacheprovider tests/test_ue_python_pure.py tests/test_ue_python_spike_runner.py > "$E/new-tests.log" 2>&1; echo $? > "$E/new-tests.rc"; tail -n 1 "$E/new-tests.log" | grep -o -E '^[0-9]+ passed' > "$E/new-tests-count.log"
+cd "$W/tools" && /usr/bin/timeout 600 "$PY" -I -m pytest -v -p no:cacheprovider tests/test_ue_python_pure.py -k shell_script > "$E/new-cases-run.log" 2>&1; echo $? > "$E/new-cases.rc"; grep -o -E 'test_shell_script[^ ]* PASSED' "$E/new-cases-run.log" > "$E/new-cases.log"; diff "$E/expected-cases.txt" "$E/new-cases.log" > "$E/new-cases.diff"; echo "exit=$?" >> "$E/new-cases.diff"
+```
+
+```sh j16-mutate-cmd
+# J-16 변형 실험: m0(origin/main의 _pure.py)과 변형 6개, 각각 shell_script 테스트 넷
+W="$HOME/projects/golmok-jaehwan"; E="$TMPDIR/jaehwan/J-16"; PY="$W/tools/.venv/bin/python";
+git -C "$W" show origin/main:unreal/Golmok/Content/Python/golmok/_pure.py > "$E/pure-base.py"; cd "$W" && /usr/bin/timeout 1200 "$PY" -I "$E/j16_mutate.py" "$W" "$E" > "$E/mutations.log" 2> "$E/mutations.err"; echo $? > "$E/mutations.rc"; diff "$E/expected-mutations.txt" "$E/mutations.log" > "$E/mutations.diff"; echo "exit=$?" >> "$E/mutations.diff"
+cd "$W" && shasum -a 256 unreal/Golmok/Content/Python/golmok/_pure.py tools/ue/package.sh tools/tests/test_ue_python_pure.py > "$E/sha256-mutate.log"; diff "$E/expected-sha256.txt" "$E/sha256-mutate.log" > "$E/sha256-mutate.diff"; echo "exit=$?" >> "$E/sha256-mutate.diff"
+```
+
+```sh j16-commit-cmd
+# J-16 커밋: 허용 파일 셋만, 재환 작성자, 커밋본 해시, 상태
+W="$HOME/projects/golmok-jaehwan"; E="$TMPDIR/jaehwan/J-16"; PY="$W/tools/.venv/bin/python";
+printf '%s\n' tools/tests/test_ue_python_pure.py tools/ue/package.sh unreal/Golmok/Content/Python/golmok/_pure.py > "$E/expected-files.txt"; cd "$W" && git add unreal/Golmok/Content/Python/golmok/_pure.py tools/tests/test_ue_python_pure.py tools/ue/package.sh && git diff --cached --name-only > "$E/c1-files.log" && cmp -s "$E/c1-files.log" "$E/expected-files.txt" && git -c user.name="재환" -c user.email="jaehwan.local@localhost" commit -m "J-16: run_game_perf.sh — 게임 비정상 종료·시간 초과면 종료 코드 1, Mac [미확인] 주석 정리" -m "작성: 재환(로컬 LLM, qwen3.8-flash-next / LM Studio)" > "$E/c1-commit.log" 2>&1; echo $? > "$E/c1-commit.rc"
+git -C "$W" log -1 --format='%an <%ae>' > "$E/author-1.log"; for p in unreal/Golmok/Content/Python/golmok/_pure.py tools/ue/package.sh tools/tests/test_ue_python_pure.py; do git -C "$W" show "HEAD:$p" | shasum -a 256 | sed "s#-\$#$p#"; done > "$E/committed-sha256.log"; diff "$E/expected-sha256.txt" "$E/committed-sha256.log" > "$E/committed-sha256.diff"; echo "exit=$?" >> "$E/committed-sha256.diff"
+git -C "$W" status --porcelain | diff "$E/status-before.log" - > "$E/status-c1.diff"; echo "exit=$?" >> "$E/status-c1.diff"
+```
+
+```sh j16-pr-open-cmd
+# J-16 PR 열기: 첫 본문 한 줄, PR 번호
+W="$HOME/projects/golmok-jaehwan"; E="$TMPDIR/jaehwan/J-16"; PY="$W/tools/.venv/bin/python";
+printf '%s\n' 'CI 진행 중 — 결과는 아래에 추가' > "$E/pr-body-initial.md"; cd "$W" && /usr/bin/timeout 120 gh pr create --base main --head local/jaehwan-j16-perf-exit --title "J-16: run_game_perf.sh 비정상 종료를 종료 코드로 전달 + Mac [미확인] 주석 정리" --body-file "$E/pr-body-initial.md" > "$E/pr-create.log" 2>&1; echo $? > "$E/pr-create.rc"
+cd "$W" && /usr/bin/timeout 60 gh pr view local/jaehwan-j16-perf-exit --json number --jq .number > "$E/pr-number.log" 2> "$E/pr-number.err"; grep -c -x '[0-9][0-9]*' "$E/pr-number.log" > "$E/pr-number-ok.log"
+```
+
+```sh j16-run-wait-cmd
+# J-16 CI 등록 대기: 마지막 커밋의 push·pull_request 실행 둘
+W="$HOME/projects/golmok-jaehwan"; E="$TMPDIR/jaehwan/J-16"; PY="$W/tools/.venv/bin/python";
+H=$(git -C "$W" rev-parse HEAD); cd "$W" && /usr/bin/timeout 600 sh -c 'until [ "$(gh run list --commit "$1" --json event --jq "[.[]|select(.event==\"push\" or .event==\"pull_request\")]|length")" -ge 2 ]; do sleep 30; done' sh "$H" > "$E/run-wait.log" 2>&1; echo $? > "$E/run-wait.rc"
+```
+
+```sh j16-checks-cmd
+# J-16 CI 표
+W="$HOME/projects/golmok-jaehwan"; E="$TMPDIR/jaehwan/J-16"; PY="$W/tools/.venv/bin/python";
+cd "$W" && /usr/bin/timeout 1800 gh pr checks "$(cat "$E/pr-number.log")" --watch --interval 30 > "$E/checks-watch.log" 2>&1; echo "exit=$?" >> "$E/checks-watch.log"; /usr/bin/timeout 120 gh pr checks "$(cat "$E/pr-number.log")" > "$E/checks.log" 2>&1
+grep -c -F 'no checks reported' "$E/checks-watch.log" > "$E/no-checks.log"; { awk -F'\t' '$2 != "pass"' "$E/checks.log" | wc -l | tr -d ' '; wc -l < "$E/checks.log" | tr -d ' '; } > "$E/checks-count.log"
+```
+
+```sh j16-checks2-cmd
+# J-16 CI 표 (다시, -2 이름)
+W="$HOME/projects/golmok-jaehwan"; E="$TMPDIR/jaehwan/J-16"; PY="$W/tools/.venv/bin/python";
+cd "$W" && /usr/bin/timeout 1800 gh pr checks "$(cat "$E/pr-number.log")" --watch --interval 30 > "$E/checks-watch-2.log" 2>&1; echo "exit=$?" >> "$E/checks-watch-2.log"; /usr/bin/timeout 120 gh pr checks "$(cat "$E/pr-number.log")" > "$E/checks-2.log" 2>&1
+grep -c -F 'no checks reported' "$E/checks-watch-2.log" > "$E/no-checks-2.log"; { awk -F'\t' '$2 != "pass"' "$E/checks-2.log" | wc -l | tr -d ' '; wc -l < "$E/checks-2.log" | tr -d ' '; } > "$E/checks-count-2.log"
+```
+
+- **명령 공통**: 셸 변수는 Bash 호출 사이에 남지 않는다. 그래서 **모든 명령은 `W="$HOME/projects/golmok-jaehwan"; E="$TMPDIR/jaehwan/J-16"; PY="$W/tools/.venv/bin/python";`로 시작하고**, 그 뒤는 `cd "$W" &&`·`cd "$W/tools" &&`·`git -C "$W"`·`"$E/…"` 절대 경로로 시작한다(상시 규칙). 아래 명령에는 이 앞머리를 적지 않았다. 돌린 명령 원문은 `printf '%s\n' '<명령>' >> "$E/commands.txt"`로 **돌리기 전에** 한 줄씩 더한다(규칙 10·19·21 — heredoc을 쓰지 않고, 줄을 고치거나 지우지 않는다). **긴 명령은 모두 펜스의 `-cmd.sh` 파일이다**(상시 규칙 "PR 본문 공통" 머리 **명령 기록**의 방식): 할 일 1의 `j16_extract.sh`가 펜스 `j16-*-cmd` 열한 개를 `"$E/<이름>-cmd.sh"`로 뽑는다(첫 줄 `# J-16 …`, 둘째 줄이 위 앞머리 전체). 그 파일을 돌릴 때마다 이 순서다: ① 실행 줄 `printf '%s\n' 'sh "$E/<이름>-cmd.sh"' >> "$E/commands.txt"`, 바로 `tail -n 1 "$E/commands.txt"` 확인 ② 해시 줄 `(cd "$E" && shasum -a 256 "<이름>-cmd.sh") >> "$E/commands.txt"` ③ 같은 호출에서 상시 규칙 "PR 본문 공통" 17의 꼴(줄 수와 첫 줄은 이 절의 값으로) `[ "$(tail -n 1 "$E/commands.txt" | grep -c -E '^[0-9a-f]{64}  <이름>-cmd\.sh$')" = 1 ] && [ "$(wc -l < "$E/<이름>-cmd.sh" | tr -d ' ')" = "<줄 수>" ] && head -n 1 "$E/<이름>-cmd.sh" | grep -q '^# J-16 ' && sh "$E/<이름>-cmd.sh"`(규칙 20 — `<이름>`·`<줄 수>`는 할 일마다 적힌 것). 확인이 실패하면 돌리지 않고 그 파일을 열어 본다(첫 검사가 막으면 스크립트는 돌지 않은 것이다: 17대로 그 실행 줄에 `# 정정:` 한 줄을 단 뒤 실행 줄·해시 줄을 다시 더하고 이 꼴로 다시 돈다). 뽑은 파일은 고치지 않는다. 각 단계의 "기대"와 다르면 **멈춤 조건**을 본다. `base-tests`·`new-tests`·`mutate`·게이트·`run-wait`·`checks` 실행은 **항상** 하네스의 백그라운드 실행으로 돌리고, 끝 파일이 생길 때까지 기다린다 — 끝 파일은 그 명령이 마지막에 쓰는 것이다: `base-tests` `base-tests-count.log`, `new-tests` `new-cases.diff`, `mutate` `sha256-mutate.diff`, 게이트 `gate.rc`, `run-wait` `run-wait.rc`, `checks` `checks-count.log`(`checks-2` `checks-count-2.log`). 그 밖의 명령은 앞쪽(foreground)으로 돌린다. **시간 한도**: 이 절의 네트워크·대기 명령(`git fetch`·`git push`·`gh …`·`pytest`·`until` 대기)에는 모두 `/usr/bin/timeout`이 붙어 있다(펜스 `-cmd.sh` 안 포함 — Opus가 상시 규칙 3의 감사 awk로 파일마다 `not_wrapped_lines 0`을 확인했다). 예외는 상시 규칙 "PR 본문 공통" 6의 `gh pr edit`·`gh pr view` 두 명령이다 — 그 소절에 적힌 그대로(시간 한도 없이) 돌리고, 규칙 5 확장의 점검표 줄에서 "감싸지 않은 것" 무리에 넣는다. UE·GUI 잠금은 쓰지 않는다(설계 6).
+- **할 일**:
+  1. **준비**: `mkdir -p "$E" && git -C "$W" status --porcelain > "$E/status-before.log"; grep -c -v '^?? ' "$E/status-before.log" > "$E/status-before-tracked.log"` — 기대 `0`(추적 파일 변경이 있으면 멈춘다 — 앞 과제의 작업물일 수 있다; `??` 줄은 그대로 두고, 아래 상태 비교는 모두 이 파일과의 `diff`다). `/usr/bin/timeout 120 git -C "$W" fetch origin > "$E/fetch.log" 2>&1; echo "exit=$?" >> "$E/fetch.log"` — 기대 끝 줄 `exit=0`. `git -C "$W" switch -c local/jaehwan-j16-perf-exit origin/main > "$E/switch.log" 2>&1; echo $? > "$E/switch.rc"` — 기대 `0`. `git -C "$W" rev-parse --short HEAD > "$E/sha.log"; git -C "$W" rev-parse HEAD origin/main | uniq | wc -l | tr -d ' ' > "$E/sha-same.log"` — 기대 `1`. 과제 절: `git -C "$W" show origin/main:docs/plan/jaehwan-tasks.md > "$E/tasks-main.md"; git -C "$W" rev-parse origin/main > "$E/main-rev.log"; { awk '/^#### J-16 /{f=1} /^#### J-17 /{f=0} f' "$E/tasks-main.md"; awk '/^### PR 본문 공통\(모든 과제\)$/{f=1} /^## 리뷰·병합 절차$/{f=0} f' "$E/tasks-main.md"; } > "$E/task.txt"`(규칙 14·17 c, 상시 규칙 "PR 본문 공통" 1) — 기대 `head -1 "$E/task.txt"`가 `#### J-16 `로 시작, `grep -c -x '### PR 본문 공통(모든 과제)' "$E/task.txt"` `1`. 펜스 뽑기(이 명령에는 백틱이 없다 — 백틱 세 개는 `sprintf`로 만든다; 뽑는 스크립트를 먼저 뽑고, 줄 수와 첫 줄을 확인한 같은 호출에서 돌린다 — 규칙 20): `awk -v n=j16-extract-sh 'BEGIN {b = sprintf("%c%c%c", 96, 96, 96)} x && $0 == b {x = 0} x {print} !x && index($0, b) == 1 && $0 ~ (" " n "$") {x = 1}' "$E/task.txt" > "$E/j16_extract.sh"; [ "$(wc -l < "$E/j16_extract.sh" | tr -d ' ')" = "8" ] && head -n 1 "$E/j16_extract.sh" | grep -q '^#!/bin/sh' && sh "$E/j16_extract.sh" "$E"; echo $? > "$E/extract.rc"` — 기대 `extract.rc` `0`, `extract-wc.log` 앞 숫자가 순서대로 `241`·`34`·`17`·`3`·`3`·`3`·`4`·`41`·`22`·`17`·`3`·`3`·`3`·`7`·`4`·`4`·`5`·`4`·`3`·`4`·`4`·`37`, 끝 줄 `466 total`. 겹침(`-cmd.sh` 방식, 이름 `overlap`, 줄 수 `3`) — 기대 `overlap.rc` `0`, `overlap.log` 빈 파일. 바탕 파일(이름 `blobs`, 줄 수 `3`) — 기대 `base-blobs.diff` `exit=0` 한 줄(허용 파일 셋이 이 절을 쓸 때의 `origin/main`과 같다). 바탕 테스트(하네스 백그라운드, 이름 `base-tests`, 줄 수 `3`) — 기대 `base-tests.rc` `0`, `base-tests-count.log` `221 passed`.
+  2. **고치기(한 번만)**: 이름 `apply`, 줄 수 `7` — 기대 `apply.rc` `0`, `apply.diff`·`sha256.diff`·`numstat.diff`·`status-apply.diff` 모두 `exit=0` 한 줄, `bash-n.rc` `0`. `j16_apply.py`는 옛 글자가 모두 정확히 한 번씩 있을 때만 쓰고, 하나라도 없으면 아무 파일도 쓰지 않고 rc 1로 끝난다(`apply.log`에 `hunk <번호> old text found <수> times …`). 같은 명령을 다시 돌리지 않는다.
+  3. **테스트**(하네스 백그라운드): 이름 `new-tests`, 줄 수 `4` — 기대 `new-tests.rc` `0`, `new-tests-count.log` `222 passed`(바탕보다 1 많다 — fake 테스트가 둘에서 셋), `new-cases.rc` `0`, `new-cases.diff` `exit=0` 한 줄(넷 모두 `PASSED`, 펜스 `j16-expected-cases`).
+  4. **변형 실험**(하네스 백그라운드, 커밋하지 않음): 이름 `mutate`, 줄 수 `4` — 기대 `mutations.rc` `0`, `mutations.diff` `exit=0` 한 줄(일곱 실행 모두 `rc=1 restored=yes`와 기대 FAILED 이름), `mutations.err` 빈 파일, `sha256-mutate.diff` `exit=0` 한 줄(되돌린 파일이 고친 파일과 바이트가 같다). 일곱 실행 모두 합쳐 1분 남짓이다(Opus dry-run 약 64 s — 참고값).
+  5. **게이트**(하네스 백그라운드, 변형 실험 뒤 — 규칙 13): `cd "$W/tools" && source .venv/bin/activate && { /usr/bin/timeout 300 ruff check . && /usr/bin/timeout 300 ruff format --check . && /usr/bin/timeout 1800 pytest -q && /usr/bin/timeout 300 python scripts/check_repo.py; } > "$E/gate.log" 2>&1; echo $? > "$E/gate.rc"` — 기대 `0`(rc 124 = 시간 초과, 다시 돌리지 않고 멈춤). `[ "$E/gate.log" -nt "$W/unreal/Golmok/Content/Python/golmok/_pure.py" ]; echo "newer=$?" > "$E/mtime.log"` — 기대 `newer=0`. 기록만: `grep -E '^All checks passed!$|files already formatted$|passed|^OK ' "$E/gate.log" > "$E/gate-summary.log"`.
+  6. **커밋·push·PR**: 커밋(이름 `commit`, 줄 수 `5` — 확인과 커밋이 한 줄에 `&&`로 묶여 있다, 규칙 6·19) — 기대 `c1-files.log`가 `expected-files.txt`와 같은 세 줄, `c1-commit.rc` `0`, `author-1.log` `재환 <jaehwan.local@localhost>`, `committed-sha256.diff` `exit=0` 한 줄, `status-c1.diff` `exit=0` 한 줄(확인이 막아 커밋이 안 됐으면 `c1-commit.rc`가 `1`이다 — 멈춤). `/usr/bin/timeout 300 git -C "$W" push -u origin local/jaehwan-j16-perf-exit > "$E/push-1.log" 2>&1; echo "exit=$?" >> "$E/push-1.log"` — 기대 끝 줄 `exit=0`. PR 열기(이름 `pr-open`, 줄 수 `4` — 첫 본문은 그 한 문장뿐, 상시 규칙 "PR 본문 공통" 2) — 기대 `pr-create.rc` `0`, `pr-number-ok.log` `1`(`pr-number.err`는 판정하지 않는다). 브랜치 파일: `git -C "$W" diff --name-only origin/main...HEAD > "$E/branch-files.log"; cmp -s "$E/branch-files.log" "$E/expected-files.txt"; echo "same=$?" > "$E/branch-files-same.log"` — 기대 `same=0`.
+  7. **CI**(하네스 백그라운드): 등록 대기(이름 `run-wait`, 줄 수 `3`) — 기대 `run-wait.rc` `0`. 그 뒤 CI 표(이름 `checks`, 줄 수 `4`) — 판정은 `checks.log` 표로만 한다(`checks-watch.log`의 `exit=`는 기록만, 상시 규칙 "PR 본문 공통" 12). `no-checks.log`가 `0`이면 `checks-count.log` 기대 첫 줄 `0`, 둘째 줄 1 이상(모든 행의 둘째 칸이 `pass`). `no-checks.log`가 `1` 이상이면 첫 로그들은 그대로 두고 `checks-count.log`는 판정하지 않으며 다시 돌리기(이름 `checks-2`, 줄 수 `4`)를 한 번 돌린다 — 기대 `checks-count-2.log` 첫 줄 `0`, 둘째 줄 1 이상. 이 경우 `## CI`·완료 기준 (g)·멈춤 조건의 `checks.log`는 `checks-2.log`로, `checks-count.log`는 `checks-count-2.log`로 읽는다.
+  8. **PR 본문**: PR 본문·자리표시 분류·칸 자기 검사·근거 표기는 상시 규칙 "PR 본문 공통(모든 과제)"을 따른다(이 절과 다르면 그 소절을 따른다). 이 과제는 런북을 고치지 않으므로 소절 7(칸 자기 검사)·8(근거 표식)은 해당 없음이다 — 점검표 규칙 17 줄에 "런북 줄 없음(허용 파일에 런북 없음)"과 `branch-files.log`를 적는다. `## 결과`에는 관찰한 값만, 각각 백틱 펜스 블록에 그대로 둔다: `apply.log` 열일곱 줄, `numstat.log` 세 줄, `sha256.log` 세 줄, `base-tests-count.log`·`new-tests-count.log` 한 줄씩, `new-cases.log` 네 줄, `mutations.log` 스물두 줄, `gate-summary.log` — 그 펜스 밖에는 과제 번호·규칙 번호·날짜를 쓰지 않는다. `base-tests.log`·`new-tests.log`·`new-cases-run.log`·`gate.log`는 본문에 붙이지 않는다. `## 실행한 명령` 끝의 줄 수 목록(상시 규칙 "PR 본문 공통" 2 크기)은 이 네 파일과 `## 결과`에서 일부만 인용한 로그만이다. `## 실행한 명령`에는 `commands.txt` 펜스 뒤에 돌린 `-cmd.sh` 파일마다 이름 한 줄과 내용 펜스를 붙인다(소절 머리 **명령 기록**). `## 남은 [미확인]`에는 설계 4의 첫 둘(정상 `-ExitAfterCsvProfiling` 종료의 실제 종료 코드, 실제 크래시의 종료 코드)과 "Linux(dash)·macOS CI의 fake 테스트 결과는 `## CI` 표의 것뿐"을 적는다. `## 병합 시 반영`에는 "영록이 J-27 절의 `j27-expected-sh` 펜스와 C1 기대 숫자, mac-setup §8 #27 메모를 고친다" 한 문장만 쓴다. `## 완료 기준 대조`는 아래 (a)~(h) 한 줄씩(과제 글에 백틱 펜스가 들어 있어 물결 펜스 `~~~`를 쓴다). 본문 초안은 `$E/pr-body.md`. 사용자 경로 검사: `grep -c -F "$HOME" "$E/pr-body.md" > "$E/home-path.log"` — 기대 `0`(0이 아니면 그 줄을 `~` 기준으로 고쳐 다시 센다). 게시 전 검사(규칙 10 e·f, 소절 14): `## 결과` 절의 펜스 밖 백틱 문자열마다 근거 로그 **한 개**를 `"$E/quotes.tsv"`에 `<문자열><탭><파일 이름>`으로 적는다 — 파일 이름은 펜스 `j16-quotes-sh` 안의 숫자 검사 목록에 든 것만 쓰고, 로그 인용이 아닌 파일 이름·명령은 파일 칸에 `라벨`. 그다음 `sh "$E/j16_quotes.sh" "$E"; echo $? > "$E/quotes.rc"` — 기대 `quotes.rc` `0`, `quotes-missing.log` 빈 파일, `cut -f1 "$E/quotes-check.log" | grep -c -x '0'` `0`, `cut -f1 "$E/numbers-check.log" | grep -c -x '0'` `0`(대상 로그는 펜스 안 목록으로 고정 — 본문 초안·게시본·`task.txt`·`commands.txt`·펜스에서 뽑은 기대값 파일·검사 로그 자신은 넣지 않는다). 한 자리 숫자는 숫자 검사에 걸리지 않으므로 문맥 문자열(예: `m4 rc=1 restored=yes`)로 인용 검사에 넣는다. 0이 나온 것은 고치거나 지우고 같은 명령을 다시 돌린다. 그다음 상시 규칙 "PR 본문 공통" 3(점검표 대조·규칙 5 감사 — `-cmd.sh` 파일마다의 감사를 그 호출에 더한다)·5(자리표시 분류)·6(조립·게시·다시 읽기)을 적힌 그대로 돌린다.
+- **허용 파일**: `unreal/Golmok/Content/Python/golmok/_pure.py`·`tools/tests/test_ue_python_pure.py`·`tools/ue/package.sh` — 셋 다 펜스 `j16-patch`의 열여섯 덩어리만, 할 일 2의 `j16_apply.py`로(손으로 고치지 않는다), 커밋 하나. 그 밖의 저장소 파일은 고치지 않는다: `tools/tests/test_ue_python_spike_runner.py`(새 스크립트와 그대로 맞는다 — 출처), `spike_runner.py`, `powershell_script`(같은 파일 안이지만 펜스 밖), 런북(mac-setup §8 #27 메모는 영록), 이 과제 파일(J-27 펜스 포함), 공유 문서, Astra 레인. 변형 실험의 바뀐 `_pure.py`는 커밋하지 않는다(할 일 4가 되돌리고 해시로 확인한다). 앞 과제의 `??` 항목은 커밋하지 않는다.
+- **멈춤 조건(정하지 말고 영록에게 묻는다)**: `status-before-tracked.log`가 0이 아닐 때. `fetch.log`·`push-1.log`가 `exit=0`으로 끝나지 않을 때. `switch.rc`가 0이 아니거나 `sha-same.log`가 1이 아닐 때. `head -1 "$E/task.txt"`가 `#### J-16 `로 시작하지 않을 때. `extract.rc`가 0이 아니거나 `extract-wc.log`가 기대와 다를 때. `overlap.rc`가 0이 아니거나 `overlap.log`가 비어 있지 않을 때. `base-blobs.diff`가 `exit=0` 한 줄이 아닐 때(`origin/main`의 허용 파일이 이 절을 쓴 뒤 바뀌었다 — 펜스 `j16-patch`가 맞지 않을 수 있다; 손으로 맞추지 않는다). `base-tests.rc`가 0이 아니거나 `base-tests-count.log`가 `221 passed`가 아닐 때. `apply.rc`가 0이 아니거나 `apply.diff`·`sha256.diff`·`numstat.diff`·`status-apply.diff` 중 하나가 `exit=0` 한 줄이 아닐 때(파일을 손으로 고치거나 `git checkout`으로 되돌리지 않고 `apply.log`·`git -C "$W" diff --stat` 출력을 보낸다). `bash-n.rc`가 0이 아닐 때. `new-tests.rc`·`new-cases.rc`가 0이 아니거나 `new-tests-count.log`가 `222 passed`가 아니거나 `new-cases.diff`가 `exit=0` 한 줄이 아닐 때. `mutations.rc`가 0이 아니거나 `mutations.diff`가 `exit=0` 한 줄이 아니거나 `mutations.err`가 비어 있지 않거나 `sha256-mutate.diff`가 `exit=0` 한 줄이 아닐 때(특히 `restored=no` — 그때는 `_pure.py`를 손대지 않고 `mutations.log`와 `sha256-mutate.log`를 보낸다). `gate.rc`가 0이 아닐 때(rc 124 포함, 다른 파일을 고치거나 `ruff format`으로 바꾸지 않는다). `mtime.log`가 `newer=0`이 아닐 때. `c1-files.log`·`c1-commit.rc`·`author-1.log`·`committed-sha256.diff`·`status-c1.diff`가 기대와 다를 때. `pr-create.rc`가 0이 아니거나 `pr-number-ok.log`가 `1`이 아닐 때. `branch-files-same.log`가 `same=0`이 아닐 때. `run-wait.rc`가 0이 아닐 때(124 = 10분 안에 두 실행이 등록되지 않았다 — 다시 돌리지 않는다). `checks.log`(또는 `checks-2.log`)에 `pass`가 아닌 행이 있을 때 — 특히 Linux·macOS 행의 `pytest` 실패는 dash·bash에서 생성 스크립트가 다르게 돈다는 뜻일 수 있다(코드를 고치지 않고 실패 로그 이름을 보낸다). `home-path.log`가 두 번 고친 뒤에도 0이 아닐 때. `quotes.rc`가 0이 아닐 때. 상시 규칙 "PR 본문 공통" 9의 공통 멈춤 조건. 그 밖에 이 절의 "기대"와 다른 값이 하나라도 나올 때. `-cmd.sh` 확인(`wc -l`·첫 줄)이 실패해 실행하지 않았을 때도 멈추고 그 파일을 보낸다.
+- **완료 기준**:
+  - (a) 준비: `status-before-tracked.log` `0`, `fetch.log` 끝 줄 `exit=0`, `switch.rc` `0`, `sha-same.log` `1`, `task.txt` 첫 줄 `#### J-16 `, `extract.rc` `0`, `extract-wc.log` 원문(기대 숫자와 같다, `466 total`), `overlap.rc` `0`·`overlap.log` 빈 파일, `base-blobs.diff` `exit=0`, `base-tests.rc` `0`·`base-tests-count.log` `221 passed`.
+  - (b) 고치기: `apply.rc` `0`, `apply.diff`·`sha256.diff`·`numstat.diff`·`status-apply.diff` `exit=0`, `bash-n.rc` `0`.
+  - (c) 테스트: `new-tests.rc` `0`, `new-tests-count.log` `222 passed`, `new-cases.rc` `0`, `new-cases.diff` `exit=0`.
+  - (d) 비공허: `mutations.rc` `0`, `mutations.diff` `exit=0`(m0~m6 모두 `rc=1 restored=yes`와 기대 FAILED 이름), `mutations.err` 빈 파일, `sha256-mutate.diff` `exit=0`.
+  - (e) 게이트: `gate.rc` `0`, `mtime.log` `newer=0`.
+  - (f) 커밋·PR: `c1-files.log` 세 줄(`expected-files.txt`와 같다), `c1-commit.rc` `0`, `author-1.log` `재환 <jaehwan.local@localhost>`, `committed-sha256.diff` `exit=0`, `status-c1.diff` `exit=0`, `push-1.log` 끝 줄 `exit=0`, `pr-create.rc` `0`, `pr-number-ok.log` `1`, `branch-files-same.log` `same=0`.
+  - (g) CI: `run-wait.rc` `0`, `checks-count.log` 첫 줄 `0`, `checks.log` 모든 행 `pass` 원문(규칙 2; 할 일 7의 다시 돌린 경우는 `checks-count-2.log`·`checks-2.log`).
+  - (h) PR 본문: 절 순서(상시 규칙 "PR 본문 공통" 2), "완료 기준 대조" 절, 점검표(그날 규칙 수만큼, 소절 3). `home-path.log` `0`, `quotes.rc` `0`, `quotes-missing.log` 빈 파일, `quotes-check.log`·`numbers-check.log`에 0 없음. 공통 완료 기준 (P)(소절 10): `checklist.diff` `exit=0`, `ph-unfilled.log` `0`, `pr-edit.rc` `0`, `ph-posted-unfilled.log` `0`, `ph-table.diff` `exit=0`, `signature-last.log` `1`(런북을 고치지 않으므로 `cell-grep-*`은 해당 없음).
+- **병합 시 반영(영록)**: ① J-27 절(설계 5): 펜스 `j27-expected-sh`를 새 생성 결과로 바꾼다 — 옛 34줄에 `_pure.py`의 새 줄 9개(`  timed_out=0`, `      timed_out=1`, `  game_rc=$?`, 종료 코드 경고 `if`·`echo`·`fi` 세 줄, `golmok_failed=1` 줄, 함수 뒤 `golmok_failed=0`, 끝 `exit "$golmok_failed"`)가 들어간 43줄, `@W@`·`@HOME@` 자리표시 그대로 sha256 `abd6bcb6877d680b3fe6cd7d08845f4c7d450375b72ed0f4459b388feb883d17`(Opus dry-run: `origin/main`의 `_pure.py`로 같은 방법을 돌리면 옛 펜스와 바이트가 같다). C1의 `extract-wc.log` 기대에서 `expected-sh.in`의 `34`를 `43`으로, 끝 줄 `241 total`을 `250 total`로. C5의 `run.rc` 기대 `0`은 그대로 둔다(정상 실행이면 0이어야 하고, 아니면 멈춤 — 설계 4). 다만 C5 멈춤 조건에 한 문장을 더한다: "`run.rc`가 `1`이면 멈추기 전에 `apperror.log`를 먼저 세고, 0이 아니면 그 항목의 `crc-upload` 확인을 돌린 뒤 멈춘다(J-16 뒤 크래시는 `run.rc` `1`이다)." J-27c가 이 병합보다 먼저 돌면 이 항목은 필요 없다. ② mac-setup §8 #27 칸 끝에 날짜 메모 "2026-11-28 J-16 PR #N: `run_game_perf.sh`는 이제 게임 종료 코드가 0이 아니거나 시간 초과면 경고하고 1로 끝난다(가짜 편집기 테스트; 실제 UE 종료 코드는 [미확인])"(규칙 16 — 있는 글은 두고 더한다). ③ STATUS 재환 절에 J-16 행, 이 파일 "완료" 표·백로그 J-16 행, J-16b(설계 4)를 백로그에 "설계 선행 — J-27c 뒤"로.
+- **왜 재환 / 위험**: 바꿀 글자·적용 방법·판정이 모두 펜스로 정해져 있고(덩어리 16개, 결과 sha256 셋, 변형 일곱의 FAILED 목록), UE·GPU·네트워크 밖 기계 상태를 쓰지 않는다. 위험: ① **바탕이 움직임** — 이 절을 쓴 뒤 `origin/main`의 세 파일이 바뀌면 덩어리가 맞지 않는다: `base-blobs.diff`가 먼저 막고, `j16_apply.py`는 하나라도 안 맞으면 아무것도 쓰지 않는다. ② **변형 실험이 파일을 바꾼 채 끝남** — `finally`가 되돌리고, `sha256-mutate.diff`가 바이트로 확인한다. `.pyc` 묵은 캐시는 실행마다 새 `pycache_prefix`로 피한다. ③ **셸 차이** — 생성 스크립트는 `#!/bin/sh`다. Opus가 이 Mac의 `/bin/sh`(bash 3.2)·`/bin/dash`·zsh에서 세 경우를 돌려 같은 rc(0·1·1)와 같은 경고를 봤다(시간 초과 때 bash는 `Terminated` 작업 알림 한 줄을 더 낸다 — 테스트는 포함 검사라 영향 없음). CI의 Linux 행은 dash로 같은 테스트를 돈다. ④ **넓게 쓰기**(규칙 1·3·15) — 결과는 "가짜 편집기에서"로만 쓴다. 실제 엔진 종료 코드는 `[미확인]`(설계 2·4). ⑤ **J-27 펜스 어긋남** — 병합 때 영록이 고친다(설계 5).
+- **dry-run 범위(Opus 2026-11-28 문서 10)**: `origin/main` `d025f02`의 scratch 사본(`git archive`, git 저장소로 만든 것)에서 한 것: `j16_apply.py`로 펜스 `j16-patch`를 넣어 `apply.log`가 펜스 `j16-expected-apply`와 같고, 결과 sha256·numstat이 펜스 `j16-expected-sha256`·`j16-expected-numstat`과 같음(두 번째 적용은 `hunk 1 old text found 0 times`·rc 1·파일 그대로). `ruff check .` `All checks passed!`, `ruff format --check .` `124 files already formatted`, `pytest -q` 전체 `1941 passed, 3 skipped`, `check_repo.py` `OK (uproject, ini, json, links, gitattributes, conflicts, gasp)`, 두 테스트 파일만 `221 passed` → `222 passed`, `-v -k shell_script` 넷 `PASSED`(펜스 `j16-expected-cases`). `j16_mutate.py`는 m0~m6 일곱 실행 모두 `rc=1 restored=yes`, FAILED 목록이 펜스 `j16-expected-mutations`와 같고, 끝난 뒤 `_pure.py` sha256이 그대로(약 64 s). 커밋의 `git diff -U0 origin/main HEAD`에서 더한 줄 62개·지운 줄 23개가 펜스 `j16-patch`의 NEW에만 있는 줄·OLD에만 있는 줄과 개수까지 같음(펜스 대 diff). 생성 스크립트(가짜 편집기, 경로에 공백)를 `/bin/sh`·`/bin/dash`·`/bin/zsh`로 `ok`·`timeout`·`crash` 세 경우씩 돌려 rc `0`·`1`·`1`, `crash`의 경고 두 줄과 CSV 복사, `timeout`에 종료 코드 경고 없음. `origin/main`의 생성기로 J-27 꼴의 스크립트를 만들면 펜스 `j27-expected-sh`와 바이트가 같고, 고친 생성기로는 43줄(위 sha256). 이 절을 넣은 `jaehwan-tasks.md` 사본에서 할 일 1의 과제 추출(첫 줄 `#### J-16 `, `### PR 본문 공통(모든 과제)` 1)과 펜스 뽑기를 sh·zsh로 돌려 `extract-wc.log`가 위 기대 숫자·`466 total`이고 뽑은 파일이 Opus의 원본과 바이트가 같음, 그 사본에서 `check_repo.py` `OK`. 가짜 `HOME`(그 안의 `projects/golmok-jaehwan` = `origin/main` 사본을 `origin`으로 둔 git 저장소, `tools/.venv`는 실제 venv로의 링크)·가짜 `TMPDIR`에서 `-cmd.sh` 여섯(`blobs`·`base-tests`·`apply`·`new-tests`·`mutate`·`commit`)을 할 일 1~6의 확인 꼴 그대로 돌려 기대값이 모두 나옴(`base-blobs.diff`·`apply.diff`·`sha256.diff`·`numstat.diff`·`status-apply.diff`·`new-cases.diff`·`mutations.diff`·`sha256-mutate.diff`·`committed-sha256.diff`·`status-c1.diff` `exit=0`, `221 passed`·`222 passed`, `c1-commit.rc` `0`, `author-1.log` `재환 <jaehwan.local@localhost>`). 상시 규칙 3의 감사 awk를 `-cmd.sh` 열하나에 돌려 모두 `not_wrapped_lines 0`. `-cmd.sh`·`j16_extract.sh`·`j16_quotes.sh`는 `sh -n`·`bash -n`·`dash -n`·`zsh -n` 통과, 백틱 0개. `j16_quotes.sh`는 견본 본문으로 sh·zsh에서 `quotes-missing.log` 빈 파일·0 없는 표, 본문에만 있는 문자열을 넣으면 그 한 줄. dry-run하지 못한 것: `gh pr list`·`gh pr create`·`gh pr view`·`gh run list`·`gh pr checks`(네트워크 — `overlap`·`pr-open`·`run-wait`·`checks`·`checks-2`는 문법 검사만), 실제 `git fetch`·`git push`, 재환 worktree의 실제 게이트, CI의 Linux(dash)·Windows(그 테스트는 skip) 행, 실제 UE의 종료 코드(설계 4 — 이 과제 범위 밖), shellcheck(이 Mac에 없다 — 생성 스크립트와 `$E`의 펜스 스크립트는 CI의 `tools/ue/*.sh`·`tools/mac/*.sh` 범위 밖이고, `package.sh`는 주석만 바뀐다(+2 −1)).
 
 #### J-17 V-17 §0 헤드리스
 - **출처**: [pc-verify-v17.md §0](../runbooks/pc-verify-v17.md)(39 Success, Claude 레인 후속 5 확인: `GolmokGeoMath.h` NaN 가드 컴파일, `Golmok.Zone.IndexParse` Success, `Golmok.Portal.SharedInterior` Pending 형제 연기 2단계), STATUS WP-05·WP-09 행("🟡 PC 확인 V-17 §0").
@@ -954,6 +1501,7 @@ exit-request 1
 - **병합 시 반영(영록)**: STATUS 재환 절에 J-22 행. pc-verify-wp16a §11 Windows 블록 아래에 "Mac 명령(추가, 2026-11-28 J-22에서 돈 그대로)" 블록 — 이 PR `## 실행한 명령`의 할 일 2~4 명령에서 `$E` 리다이렉트·잠금 줄을 뺀 꼴(영록 Opus가 쓴다, 에셋 뒤 같은 명령으로 다시 확인). mac-setup §6 V-16 행 끝에 날짜를 단 "§11 Mac 명령은 pc-verify-wp16a §11 Mac 블록, 에셋 전 기록은 §13 아래 J-22 줄" 메모, §3 `…\Binaries\Win64\Golmok.exe` 행과 패키지 Saved 행 아래 설명에 "패키지 게임 로그는 컨테이너 폴더 `~/Library/Containers/com.YourCompany.Golmok/Data/Library/Logs/Golmok/`(J-22)" 메모(규칙 16 — 있는 글은 지우지 않는다). J-19 절은 고치지 않는다(J-19가 먼저 끝나고 자기 패키지를 쓴다).
 - **왜 재환 / 위험**: 모든 판정이 고정 기대값과의 `diff`·종료 코드로 끝나고, 검사·기록 줄이 펜스로 정해져 있다. 코드도 Astra 레인도 건드리지 않는다. 위험: ① 에셋 전 "0줄"을 통과로 읽거나 빈 검사로 만드는 것 — 매니페스트·목록 양쪽에 대조(`L_Dev` 있음)를 두었고, 기록 줄은 "에셋 뒤의 기대는 아직 확인하지 않았다"로 좁혔다(규칙 3·15). ② 옛 패키지·옛 로그를 새것으로 읽는 것 — mtime 표식(`manifest-new`·`utoc-new`·`app-log-new`)과 `Command Line:`의 이 실행 `-ExecCmds`로 막는다. ③ 세이브 복원이 날씨 답을 바꾸는 것 — `clear instant`를 먼저 둔다(설계 3). 두 번째 실행은 첫 실행의 세이브·로그 회전 때문에 같은 조건이 아니라 금지한다. ④ GPU·GUI 경합 — 쿡·앱 실행 동안 잠금을 쥔다. 수치는 재지 않는다. ⑤ 쿡·패키지 실패를 고치려는 것 — 멈추고 보고한다(쿡 경고·`DirectoriesToAlwaysCook`의 없는 `/Game/Golmok/Weather` 폴더 문구는 판정하지 않는다). ⑥ 메인 체크아웃에서 돌리는 것(2026-11-27 사고, 규칙 6) — 모든 명령이 `$W`·`$E` 절대 경로다.
 - **dry-run 범위(Opus 2026-11-28)**: `origin/main` `8a4b3c7`의 scratch 사본(`git archive`, git 저장소로 만든 것)에 이 절을 넣고 한 것: 할 일 1의 과제 추출(첫 줄 `#### J-22 `)과 펜스 추출(zsh, `wc -l` 20·17·7·13·11·13, `81 total`), 추출한 스크립트가 이 절의 펜스와 바이트가 같음. `j22-check-sh`는 가짜 `$W`(J-15가 남긴 실제 `Manifest_UFSFiles_Mac.txt` 2520줄과 `Golmok-Mac.utoc`의 사본, 표식 뒤에 복사)와 합성 `package.log`(`Package output: …/build/Mac`·`BUILD SUCCESSFUL`)·합성 CSV(머리 줄은 `IoStoreUtilities.cpp:951` 그대로, `L_Dev.umap` 한 행)에서 펜스 `j22-expected-check`와 `diff` 0 — 실제 매니페스트는 `weather.json` 1줄·`Golmok/Weather/` 0줄·`L_Dev` 있음이었다. 같은 입력에 `Golmok/Weather/MPC_GolmokWeather.uasset` 행을 더하고 utoc mtime을 옛날로 바꾸면 `csv-weather-assets 1`·`utoc-new no`로 달라졌다(빈 검사 아님). `j22-logcheck-sh`는 실제 J-15 컨테이너 로그에서 Warning 2줄·시작 줄이 각 `1`, `mpc ok, fx idle`·`no game world` `0`이고 `-ExecCmds`를 주지 않은 실행(또 `-game`과 맵 인자를 준 실행이라 이 과제의 실행 꼴과도 다르다)이라 `cmdline-execcmds`·`clear-first`·`rain-heavy`·`status-head`·`status-tail`·`exit-request`가 `0`(기대와 다름)이었다. 그 로그의 `Command Line:` 줄을 `LaunchMac.cpp:76-95` 꼴로 바꾸고 코드의 문자열(`:678-687`·`:914-944`·`MacPlatformMisc.cpp:714`)로 만든 줄을 붙인 합성 로그에서는 `diff` 0, 빈 로그에서는 9줄이 달랐다. `pgrep -fl '[g]olmok-jaehwan/(unreal/Golmok/Golmok\.uproject|build/Mac/Golmok\.app/)'`는 두 경로를 인자로 단 더미 셸 프로세스를 둘 다 찾았고(rc 0, macOS `pgrep`의 ERE 교대), 없을 때 rc 1. `j22-line-sh`와 할 일 5의 `sed -i '' "/^Mac 부분 선행(J-20, /r …"`: rc 0, 2줄(첫 줄 빈 줄), 줄 699자·864바이트(문서 7 수정 뒤, 견본 날짜 `2026-11-28`·SHA 7자리 — 처음 판에 적은 "838자"는 바이트 수로 보인다; 같은 견본으로 처음 판의 줄은 684자·836바이트), `awk getline` 확인 `diff` 0, `grep -c '^Mac 부분 선행(J-22, '` 1, numstat `2	0`, `status.diff` `exit=0`(같은 명령을 두 번 돌리면 `2`). 할 일 7의 번호 바꾸기(가짜 번호 157): rc 0, `line-final-diff.log` `exit=0`, `근거: J-22 PR.` 0줄, base 대비 numstat `2	0`, J-20 줄의 `근거: PR #153.`은 그대로. `j22-ph-awk`는 견본 본문에서 원문 인용·명령 기록·미채움을 갈랐고, 인용 검사 명령은 견본 `quotes.tsv`에서 돌았다. 파이썬 게이트(`ruff check`·`ruff format --check`·`pytest -q` 1937 passed 3 skipped·`check_repo.py` OK)는 이 절과 기록 줄이 들어간 scratch 사본에서 통과. dry-run하지 못한 것(이 과제가 재는 것): 실제 `package.sh`(쿡 시간, 새 매니페스트·utoc의 mtime), `UnrealPak` 실행(종료 코드, CSV의 Filename 칸이 차는지 — `csv-l_dev`, 머리 줄은 소스 읽기뿐), 패키지 앱 실행(`.app`에서 `-ExecCmds` 여러 명령이 도는지, `quit`의 종료 코드, 실제 로그의 `status` 여러 줄·`clear instant`의 답·세이브 복원과의 순서, `RequestExit` 줄), 실제 잠금 갱신 루프와 UE 명령, `gh pr create`·`gh pr edit`·`gh pr checks`, 실제 본문의 인용·숫자 검사. 문서 7 수정(2026-11-28, Opus): 기록 줄을 `clear instant` 포함·로그 폴더 꼴로 바꾼 뒤 그 줄에 규칙 17 b의 `grep -n -E` 0건(바꾸기 전 줄은 `Golmok.log` 때문에 1건). 할 일 4의 방화벽 명령은 이 Mac에서 `firewall-ok.log` `1`. 할 일 1의 두 `awk` 추출과 펜스 추출 `wc -l`(`105 total`)은 scratch 사본에서 돌렸다. 위 문장의 `j22-ph-awk` 결과는 그때의 기록이다. 그 펜스는 지웠고, 지금 분류는 상시 규칙 소절의 `common-ph-awk`다.
+- **결과(2026-11-28 문서 10, [#165](https://github.com/wooklym/golmok/pull/165) · `d025f02`, 리뷰 R165 → R165-2)**: pc-verify-wp16a §13 표 아래 J-20 줄 다음에 "Mac 부분 선행(J-22, 에셋 전, 2026-11-28, SHA acbd954에서 새로 만든 Development 패키지)" 한 줄(펜스가 만든 글자, `근거: PR #165.`): `package.sh` 종료 코드 0, 매니페스트에 `Config/Golmok/weather.json` 1줄, `Golmok-Mac.utoc` 목록에 `MPC_GolmokWeather`·`NS_GolmokRain` 0줄(`L_Dev`는 있다), 게임 로그에 `mpc missing, fx missing`과 `status` 끝 줄 `mpc missing | fx missing | interior no | frozen no`, 종료 코드 0. 에셋 뒤 기대는 아직 확인하지 않았다. R165는 런북 줄을 통과시키고 본문을 한 번 보류했다(점검표의 틀린 규칙 5·20 줄, 17:09~17:46 KST 멈춤의 축소, 알리지 않은 J-19 증거 폴더 삭제, 라벨만의 인용 검사 — 계기가 된 "PR 본문 공통" 17~26). repo-check check-run 하나가 GitHub에 status in_progress·conclusion success로 남았다(실행 46124073258은 completed·success — "PR 본문 공통" 19).
 
 #### J-23 19b A1 ① 회귀 헤드리스(GASP 없이) — 설계 확정(Opus 2026-11-28)
 - **출처**: [pc-verify-wp19.md](../runbooks/pc-verify-wp19.md) §A1(:43-57) — 명령 블록 :45-50(`build.ps1`, `test.ps1 -Filter Golmok.Animation -SetupDevLevel`, `test.ps1 -Filter Golmok.`), 체크 :51(컴파일 성공, 경고는 기록), :52(첫 명령 4개 Success, GaspSmoke `[Info] GASP not installed — skipped (…)`, Fallback 기대 Warning 1개 소비), :53(두 번째 명령 39개), :54(StateProvider `[Error]` 없음·p0 Info 줄), :55(`Saved/Logs/Golmok.log`에 `Character mesh '' not found` 없음, §C #14), :56(PIE `golmok.anim status` — GUI), :57(`-GolmokAnim=bogus`, 선택 — GUI). §A9 "결과 (19b PC 세션이 작성)"(:140-141, 본문 `(비어 있음)` 한 줄 — `(비어 있음)`은 파일에 두 번 있고 다른 하나는 §B9 :186). 같은 꼴의 Mac 기록: [pc-verify-v17.md](../runbooks/pc-verify-v17.md) §7 표 아래 J-17 줄(:73), [pc-verify-wp16a.md](../runbooks/pc-verify-wp16a.md) §13 표 아래 J-20 줄(:364) — 둘 다 결과 절의 표·칸은 그대로 두고 그 아래에 빈 줄 하나와 `Mac 부분 선행(J-NN, …): … 근거: PR #N.` 한 줄을 더했다(+2 −0). 테스트 소스(읽기만): `Source/Golmok/Tests/GolmokAnimationTest.cpp` — 머리 주석 :1-8(넷 다 GASP 없이 통과, GaspSmoke는 skip Info), 등록 이름 :796(`Golmok.Animation.Config`)·:1008(`.StateProvider`)·:1036(`.Fallback`)·:1060(`.GaspSmoke`), p0 Info 꼴 :134, StateProvider의 호출 :283(`GASP pawn after p0`), 마네킹 skip Info :456·:567, Fallback 기대 메시지 :50(`FallbackWarning`)·:1050(`AddExpectedMessagePlain(…, Warning, Contains, 1)`), GaspSmoke skip :1066-1077(설정·매니페스트·폰 클래스 중 하나라도 없으면 `GASP not installed — skipped (config %s, manifest %s, pawn class %s)` Info 뒤 `return true`), :1089(`GASP installed: EXECUTED`). `Animation/GolmokAnimationConfig.cpp` :230(`ParseConfig` — `mode`와 무관한 검사), :348(매니페스트 `Config/Golmok/local/gasp_manifest.json`), :552(폴백 사유 `GASP pawn class missing — add-gasp / 19b (%s)`), :587·`GolmokAnimationSubsystem.cpp:250`(`anim: falling back to ABP pawn (%s)`). `Player/GolmokCharacter.cpp:85-87`(`Character mesh '%s' not found; showing capsule. …`). `Config/Golmok/animation.json`(gasp `pawn_class` `/Game/GolmokLocal/GASP/BP_GolmokCharacter_GASP.BP_GolmokCharacter_GASP_C`). 레인([DEVELOPMENT-PLAN §7.6](../DEVELOPMENT-PLAN.md) 레인 표): `Animation/`·`Tests/GolmokAnimationTest.cpp`는 "기존 게임 시스템"(Claude, :261 "그 밖의 `Source/Golmok/Tests/*`"), `Player/GolmokCharacter.cpp`는 공유 핫스팟(:266) — 이 과제는 둘 다 고치지 않는다(판정은 로그로만 하므로 열 필요도 없다. Astra 레인 :259 `Characters/` 파일도 마찬가지). `tools/ue/test.sh`: :25-26(보고서 폴더를 실행마다 지운다), :29-30(`--setup-dev-level`이면 `py import golmok.setup_dev_level as s; s.run(),Automation RunTests <필터>;Quit`), :40-42(에디터 출력·종료 코드는 버리고 보고서로 판정), :60-64(상태 줄 `{state:<10} {fullTestPath}`, 항목 줄 `    [<type>] <message>`), :68(요약 줄 `Succeeded: … Failed: … Not run: … Succeeded with warnings: …`), :69(J-36 뒤: `failed` 0이고 `succeeded`+`succeededWithWarnings` 1 이상이면 0). `tools/ue/build.sh`(UBT 종료 코드가 0이 아니면 `Build failed`). `Content/Python/golmok/setup_dev_level.py:107-112`(`L_Dev`가 있으면 Warning 한 줄 뒤 불러오기만 하고 저장하지 않는다). `.gitignore:17-18`(`Content/Characters/`·`L_Dev.umap`은 git 밖). 상시 규칙 "Mac 에디터 로그"(`~/Library/Logs/Unreal Engine/GolmokEditor/Golmok.log`, mac-setup §8 #14 :300)·"`test.sh` 종료 코드"(J-36 #154). 2026-11-28 Opus가 읽은 기계 상태: `$W`의 `Content/GASP`·`Content/GolmokLocal`·`Config/Golmok/local` 없음, `Content/Characters/Mannequins`·`Content/Golmok/Maps/L_Dev.umap` 있음. `$W`의 마지막 전체 실행 보고서(`Saved/Automation/Report/index.json`, 2026-11-28 09:42, 39개, `succeeded` 20·`succeededWithWarnings` 19·`failed` 0)에서 Animation 4개가 모두 `Success`, GaspSmoke 항목 `GASP not installed — skipped (config ok, manifest no, pawn class missing)`, StateProvider 항목에 `GASP pawn after p0: accel 2048/2048 braking 2000/2000 friction 8.00/8.00 factor 2.00/2.00 separate 0/0 braking friction 0.00/0.00 (pawn/CDO)`, 마네킹 skip Info 없음. 같은 실행의 에디터 로그(`Golmok.log`, 09:42)에 `Character mesh '` 0줄, 폴백 줄 1줄(`LogGolmok: Verbose: anim: falling back to ABP pawn (GASP pawn class missing — add-gasp / 19b (/Game/GolmokLocal/GASP/BP_Missing.BP_Missing_C))` — 자동화가 기대 메시지로 소비해 Verbose로 찍혔다), `LogInit: Command Line: -ExecCmds="Automation RunTests Golmok.;Quit" …`(공백이 든 인자는 `이름="값"`으로 다시 이어 찍힌다), 줄 끝 `\r` 0개.
@@ -2764,6 +3312,7 @@ printf '확인(%s, 재환 worktree HEAD `%s`, 같은 생성기·같은 경로, `
 - **허용 파일**: `ci.yml` `# [WP-21 hook]` 블록(별도 커밋).
 - **완료 기준**: 로컬 `swift build -c release` + `golmok-objcap limits` 출력, CI 새 행 초록.
 - **왜 재환 / 위험**: 명령 판정. 위험: 러너 SDK 차이.
+- **메모(2026-11-28 문서 10)**: 이 과제는 J-39(아래 절, 설계 확정 — `runs-on: macos-26`, `swift build`와 `colmap` 변환 식 대조, `limits`는 CI에서 돌리지 않음)가 대신한다. J-39가 병합되면 이 절과 백로그 행에 "J-39로 대신함(PR #번호)"을 더한다(J-39 "병합 시 반영"). 위 글은 그대로 둔다.
 
 #### J-29 크래시 리포트 무인 업로드 끄기: 새 `Config/DefaultEditorSettings.ini` 훅 블록 + 크래시 없는 헤드리스 확인 — 설계 확정(Opus 2026-11-28)
 - **출처**: [DECISIONS.md](../DECISIONS.md) D-023 "D-007" 줄(:353, "CrashReportClient가 크래시 리포트(로컬 경로 포함)를 Epic으로 자동 업로드한다 … `[WP-21 hook]`"), [WP-21](WP-21-mac-recon-pipeline.md) "부수 발견"(:134)·남은 작업 5(:143 "크래시 업로드 끄기(D-007)"), [STATUS](STATUS.md) WP-21 행(:43)의 후속 목록("CrashReportClient 업로드 끄기(D-007)"), 이 파일의 옛 J-29 설계 메모. 공식 문서: [Configuration Files](https://dev.epicgames.com/documentation/en-us/unreal-engine/configuration-files-in-unreal-engine)(프로젝트 `Config/Default<CATEGORY>.ini`가 엔진 `Base` 파일을 덮는다), [Crash Reporting](https://dev.epicgames.com/documentation/en-us/unreal-engine/crash-reporting-in-unreal-engine)(Launcher 편집기 빌드는 리포트를 Epic에 보낸다, `bSendUnattendedBugReports` 기본 `true`, Editor Preferences > Privacy > Bug Reports). 엔진 소스(읽기만, `/Users/Shared/Epic Games/UE_5.8/Engine`, 2026-11-28 Opus가 읽은 줄): `Config/BaseEditorSettings.ini` :2(프로젝트 `DefaultEditorSettings.ini`가 이 값을 덮는다는 머리 주석)·:10-11(`[/Script/UnrealEd.CrashReportsPrivacySettings]` `bSendUnattendedBugReports=True`)·:13-14(`[/Script/UnrealEd.AnalyticsPrivacySettings]` `bSendUsageData=True`). `Source/Runtime/Core/Private/Mac/MacPlatformMisc.cpp` :2419-2423(크래시 때 그 키를 `GEditorSettingsIni`에서 읽는다, 기본 true)·:2425-2429(`bSendUsageData` 같음)·:2433-2438(라이선시 빌드이고 편집기가 아닐 때만 둘 다 false — Launcher 엔진은 해당하지 않는다는 엔진 주석 :2431-2432)·:2440-2445(무인 실행이고 값이 false면 `bCanRunCrashReportClient = false` — CrashReportClient를 띄우지 않는다)·:2468-2484(사람이 보는 크래시는 `-Unattended` 없이 띄운다 — 대화창, `bSendUsageData`가 false면 `-NoAnalytics`)·:2498-2502(CrashReportClient 실행 파일이 없으면 띄우지 못한다). `Source/Runtime/Core/Private/GenericPlatform/GenericPlatformCrashContext.cpp` :565(설정이 준비되면 `InitializeFromConfig`)·:800-803(`WITH_EDITOR`: 같은 키를 `GEditorSettingsIni`에서 읽는다)·:804-806(편집기가 아니고 분석 기능이 있는 빌드는 true)·:809-816(값이 false면 `ApplicationSettingsDir()/NotAllowedUnattendedBugReports`를 `OpenWrite` — 지우는 코드는 엔진에 없다, `grep -rn NotAllowedUnattendedBugReports Source`는 이 줄과 Windows의 읽기 :799뿐), `Public/GenericPlatform/GenericPlatformCrashContext.h:225`(기본 false — 그래서 편집기가 아닌 엔진 프로그램(UnrealPak 등)은 실행마다 이 마커를 쓴다). `Private/Apple/ApplePlatformFile.cpp:683-736`(`OpenWrite` = `O_CREAT|O_WRONLY` 뒤 `ftruncate(…, 0)`), `Private/Apple/ApplePlatformProcess.cpp:54-66`(`ApplicationSettingsDir` = `~/Library/Application Support/Epic/`), `Public/Misc/ConfigHierarchy.h:25`(`{PROJECT}/Config/Default{TYPE}.ini` 층), `Private/Misc/ConfigCacheIni.cpp:6638-6652`(`WITH_EDITOR` 빌드는 실행 모드와 상관없이 `EditorSettings`를 읽는다)·:6820(그 뒤 설정 준비 알림), `Source/Editor/UnrealEd/Classes/Analytics/CrashReportsPrivacySettings.h:18-25`·`AnalyticsPrivacySettings.h:18-25`(두 클래스 모두 `config=EditorSettings`). 저장소: `unreal/Golmok/Config/`에는 `DefaultEngine.ini`·`DefaultGame.ini`·`DefaultInput.ini`만 있고 `DefaultEditorSettings.ini`는 없다. `Config/Default*.ini`는 핫스팟이다([CLAUDE.md](../../CLAUDE.md) "Working alongside ChatGPT Astra", [DEVELOPMENT-PLAN §7.6](../DEVELOPMENT-PLAN.md)) — 새 파일이라 기존 줄을 바꾸거나 옮기지 않는다. `tools/scripts/check_repo.py:86-98`(`Config/*.ini`를 모두 파싱 — 새 파일도 게이트가 읽는다), :211-212·:308-314(GASP 가드의 ini 글자 검사 — 이 파일의 글자는 걸리지 않는다, Opus dry-run). 2026-11-28 Opus가 읽은 기계 상태(약 16:10 KST): `~/Library/Logs/Unreal Engine/CrashReportClient/CrashReportClient.log`(14:37) :26 `Command Line:` 줄에 `CrashReport-UE-Golmok-pid-11197-…`·`-Unattended`, :67 `DataRouterUrl: https://datarouter.ol.epicgames.com/…`, :70 `Got 7 pending files to upload`, :82 `All uploads done`. 같은 폴더의 로그 6개 모두 `All uploads done`이 있다. CrashReportClient 두 개가 CPU 약 100 %로 떠 있다(pid 16929 — 2026-11-27 02:30부터, pid 69882 — 2026-11-28 14:37부터). 마커 `~/Library/Application Support/Epic/NotAllowedUnattendedBugReports`는 0바이트, 수정 시각 2026-11-28 16:01:49(앞서 14:49) — 같은 분의 UnrealPak 로그(14:49:07, 16:01:50)와 맞는다(편집기가 아닌 프로그램이 쓴다는 위 소스와 같다). 사용자 층 `~/Library/Application Support/Epic/UnrealEngine/5.8/Saved/Config/MacEditor/EditorSettings.ini`에 `PrivacySettings` 줄 0. [mac-recon.md](../runbooks/mac-recon.md) §6 표는 #24(:249, `| 24 | Brush 다음 릴리스의 CLI 플래그 변화 |`)에서 끝나고 그 뒤가 빈 줄·§7이다. mac-setup §8 #27은 J-27 자리다.
@@ -2953,6 +3502,7 @@ done < "$E/body-numbers.txt" > "$E/numbers-check.log"
 - **병합 시 반영(영록)**: STATUS 재환 절에 J-29 행. STATUS WP-21 행(:43)의 후속 목록에서 "CrashReportClient 업로드 끄기(D-007)"에 날짜를 단 닫음 메모(편집기 무인 실행 — 사람이 보는 크래시·패키지·Windows는 [미확인]). WP-21 남은 작업 5(:143)와 DECISIONS D-023 "D-007" 줄(:353) 뒤에 날짜를 단 한 줄("2026-11-28 J-29 PR #N: 프로젝트 `DefaultEditorSettings.ini` `[WP-21 hook]`으로 끔 — D-025")을 더한다(규칙 16 — 있는 글은 지우지 않는다). DECISIONS에 **D-025**(오케스트레이터 결정, D-019, 되돌릴 수 있음): "편집기의 무인 크래시 리포트(`bSendUnattendedBugReports`)와 편집기 사용 통계(`bSendUsageData`)를 프로젝트 층에서 `False`로 둔다. 근거 D-007·D-019(외부 발송), 엔진 소스 줄(이 절 출처), J-29 마커 확인. 되돌리기: 파일 삭제. 사람이 보는 크래시의 대화창 선택은 사용자에게 남는다." 소유자에게 사실로 알린다(승인 항목이 아니다): 2026-11-28 14:37 KST J-27 실행 크래시의 리포트 7개 파일이 Epic datarouter로 올라갔고(로그 :70·:82), 2026-11-27 리포트 5건의 로그에도 `All uploads done`이 있다. 떠 있는 CrashReportClient 두 개(pid 16929·69882, CPU 약 100 %)를 끌지는 영록이 정한다(로컬 프로세스 — 되돌릴 수 있다; 이 과제는 건드리지 않는다).
 - **왜 재환 / 위험**: 파일 내용·실행 명령·판정·기록 줄이 모두 펜스로 정해져 있고, 판정은 종료 코드·`diff`·고정 개수로 끝난다. 크래시를 일으키지 않고 Astra 레인도 건드리지 않는다. 키 선택은 Opus가 엔진 소스로 했다(설계 1). 위험: ① **층이 먹지 않음**(사용자 층·Preferences가 덮음) — 음성 `0`·양성 `1` 짝이 이를 가르고, 양성 `0`이면 멈춘다(설계 6). `t*-user-privacy.log` `0`이 사용자 층이 비어 있음을 매 시점 확인한다. ② **다른 쓰는 쪽**(UnrealPak·ShaderCompileWorker·패키지 게임·다른 세션의 편집기) — `pgrep` 세 시점과 GUI 잠금으로 막고, 음성 창의 잡음은 음성 `0`이 배제한다. 양성 창 안에서 시작하고 끝난 다른 프로그램은 배제하지 못한다(남은 위험 — 잠금이 그 신호다). ③ **넓게 쓰기**(규칙 1·3·15) — 줄 문구가 "이번 실행에서 편집기 무인 실행이 읽었다"로 고정, 나머지는 `[미확인]`. ④ **음성 대조 실행 자체의 업로드 위험** — 끄기 전 설정의 무인 실행 1회(설계 2). 그래서 J-29를 다음 UE 과제보다 먼저 한다. ⑤ **핫스팟 커밋 위생** — 새 파일 하나, 표식 그대로, `[ … ] &&`로 `diff --cached`와 허용 파일을 대조한 뒤에만 커밋. ⑥ **증거 덮어쓰기** — 실행마다 기준 파일·로그 이름이 `neg`/`pos`로 나뉘고, 다시 돌리지 않는다. 수치(시간·fps)는 재지 않는다.
 - **dry-run 범위(Opus 2026-11-28)**: `origin/main` `acbd954`의 scratch 사본(`git archive`, git 저장소로 만든 것)에서 한 것: 이 절을 넣은 과제 파일에서 할 일 1의 과제 추출(첫 줄 `#### J-29 `, `### PR 본문 공통(모든 과제)` 1)과 백틱 없는 펜스 추출(zsh·sh, `wc -l` 8·12·8·14·19·19·19·6·17·37, `159 total`), 추출한 파일이 이 절의 펜스와 바이트가 같음. `j29-engine-sh`를 이 Mac의 실제 엔진에 돌림(sh·zsh 같음) — 펜스 `j29-expected-engine`과 같음. 훅 파일을 scratch `Config/`에 넣고 `check_repo.py` `OK (uproject, ini, json, links, gitattributes, conflicts, gasp)`(그 파일 맨 앞에 섹션 없는 `Key=Value`를 넣으면 실패 — 게이트가 새 파일을 읽는다), `parse_ue_ini`가 두 섹션·두 키 `False`를 읽음, `ruff check` 통과, `ruff format --check` 통과, `pytest -q` `1940 passed, 3 skipped`, staged numstat `8 0`. `j29-run-sh`·`j29-procs-sh`·`j29-check-sh`는 가짜 `$HOME`(마커·크래시 폴더·사용자 `EditorSettings.ini`·CrashReportClient 로그)과 가짜 `UnrealEditor-Cmd`(인자를 `LogInit: Command Line:` 줄로 쓰고, 프로젝트 훅 파일이 `False`일 때만 엔진처럼 `O_WRONLY` + `ftruncate(0)`으로 마커를 쓰는 셸 스크립트 — 실행 경로만 바꾼 `j29_run.sh` 사본)로 sh·zsh에서 돌려 펜스 `j29-expected-check`와 같은 열아홉 줄을 얻었다. 빈 검사가 아님(각각 기대와 다른 줄 수): 가짜 엔진이 훅을 무시 → `pos-marker-newer 0`(1줄), 음성 창 안에 다른 쓰는 쪽 → `neg-marker-newer 1`(1줄), 크래시 줄 → `*-critical 1`(2줄), 사용자 층에 개인정보 섹션 → `user-privacy 1 1 1`(1줄), `…/Binaries/Mac/UnrealEditor-Cmd` 경로의 가짜 프로세스 → `ue-procs 0 0 0`(1줄, sh·zsh), 양성 실행 전 새 크래시 폴더 → `crash-dirs differ`(1줄), CrashReportClient 로그 시각 바뀜 → `crc-log-mtime differ`(1줄), pid 목록 한 줄 더함 → `crc-pids differ`(1줄), 편집기 로그·폴더 목록 빈 파일 → 5줄. 이 Mac의 `pgrep -x CrashReportClient`는 이름이 16자를 넘어도 떠 있는 두 pid를 냈다(3차 검증 뒤: `pgrep -x CrashReportClientEditor`는 지금 rc 1 — 떠 있는 두 pid 16929·69882는 `CrashReportClient … -Unattended`다. 두 `pgrep`을 묶은 줄은 sh·zsh에서 같은 두 pid를 냈다). `j29-row-sh`(견본 날짜 `2026-11-28`·SHA `acbd954`): rc 0, 한 줄, 칸 다섯(`NF` 7), 1216바이트(3차 검증 뒤 크래시 6건 문구 — `작업 트리` 뒤 1168바이트, 그 앞은 1154바이트; sh·zsh 같은 줄), 규칙 17 b의 `grep -n -E` 0건. 할 일 7의 `sed -i '' "/^| 24 | Brush /r …"`(macOS `/usr/bin/sed`): rc 0, #24 바로 뒤, `awk getline` 확인 `diff` 0, numstat `1 0`, 더한 줄 1. 번호 바꾸기(가짜 번호 999): `row-final-diff` `exit=0`, `근거: J-29 PR.` 0줄, `근거: PR #999.` 1줄, 바뀐 줄 자기 검사 0건. `j29-quotes-sh`는 견본 본문(펜스 안팎 백틱 문자열·숫자)으로 sh·zsh에서 `quotes-missing.log` 빈 파일·0 없는 표를 냈고, 본문에만 있는 문자열을 넣으면 `quotes-missing.log`가 그 한 줄을 냈다. 엔진 `ftruncate`가 이미 0바이트인 파일의 수정 시각을 바꾸는 것은 이 Mac의 `/private/tmp`(APFS)에서 `os.ftruncate`로 확인했다(`open`만으로는 그대로). dry-run하지 못한 것(이 과제가 재는 것): 실제 편집기 실행(종료 코드, `LogInit: Command Line:` 줄의 실제 꼴, `LogExit: Exiting.` 개수, 마커가 정말 바뀌는지 — 엔진 소스와 UnrealPak 시각으로 예상한 것), 실제 `$HOME`·`$W`에서의 `diff`, 잠금 갱신 루프, `gh pr create`·`gh pr edit`·`gh pr checks`, 실제 본문의 인용·숫자·사용자 경로 검사. shellcheck는 이 Mac에 없어 돌리지 않았다(펜스 스크립트는 `$E`에 두어 CI의 `tools/ue/*.sh`·`tools/mac/*.sh` 범위 밖이다; `sh -n`·`bash -n`·`zsh -n`은 모두 통과). 문서 9 검증 지적 반영 뒤(같은 날, Opus): 할 일 1의 과제·펜스 추출을 고친 파일에서 다시 돌려 sh·zsh 모두 `159 total`(앞 숫자 그대로). 3차 검증 뒤(같은 날, Opus): `j29-procs-sh`의 `pgrep` 줄을 `CrashReportClientEditor`까지 보는 한 줄(`{ pgrep -x CrashReportClient; pgrep -x CrashReportClientEditor; } | sort -n`)로 바꿨고 줄 수는 그대로 14다(검증 지적은 15를 적었지만 한 줄을 한 줄로 바꾼 것이다) — 할 일 1의 과제·펜스 추출을 다시 돌려 sh·zsh 모두 `8 12 8 14 19 19 19 6 17 37`, `159 total`, 두 셸이 뽑은 `j29_procs.sh`가 같았다. `j29_run.sh`는 `$W`가 없는 가짜 `HOME`에서 rc 3과 `xs-run.rc` `3`을 남겼다(sh·zsh — 기다릴 파일이 생긴다). 할 일 7의 `row25-shape.log` 명령은 견본 줄에서 `1`·`7`, `checks-count.log` 명령은 pass 2행 표에서 `0`·`2`, fail 한 행을 더하면 `1`·`3`. `j29-row-sh` sh·zsh 같은 출력.
+- **결과(2026-11-28 문서 10, [#166](https://github.com/wooklym/golmok/pull/166) · `3d85160`, 리뷰 R166 — 첫 제출)**: 새 `unreal/Golmok/Config/DefaultEditorSettings.ini`의 `[WP-21 hook]` 블록이 과제 펜스와 바이트가 같다. 훅 파일이 없는 트리의 실행 뒤에는 마커 `NotAllowedUnattendedBugReports`가 바뀌지 않았고, 훅 파일이 있는 트리의 실행 뒤에는 새로 써졌다 — 그 실행에서 편집기가 값을 `False`로 읽었다(mac-recon §6 #25, `근거: PR #166.`). 과제 중 크래시·업로드는 없었다. 덮는 범위: 편집기 바이너리의 무인(`-unattended`) 실행이 값을 `False`로 읽은 것까지가 마커 확인이고, 그 뒤의 크래시에서 CrashReportClient가 뜨지 않는 것은 엔진 소스 읽기다(크래시로 확인하지 않음). 편집기 Preferences > Privacy > BugReports에서 바꾼 값은 이 사용자 계정·UE 5.8의 모든 프로젝트가 함께 쓰는 사용자 파일 `~/Library/Application Support/Epic/UnrealEngine/5.8/Saved/Config/MacEditor/EditorSettings.ini`에 저장돼(엔진 소스 `ConfigContext.cpp:476-480`·`Paths.cpp:238-245` `EngineEditorSettingsDir()`) ini 계층의 마지막 층으로 이 설정보다 앞선다 [미확인 — 엔진 소스 읽기, 실행 확인 없음; 2026-11-28 그 파일에 Privacy 항목 없음]. 덮지 않는 것: 패키지 앱([미확인]), 이 파일이 없는 트리(J-29 전 커밋), 사람이 보는 편집기 크래시의 대화창, `bSendUsageData`의 효과, Windows. B 1건(과제에 없는 사전 단계 `setup-cmd.sh`가 같은 이름 로그를 덮어씀)은 메시지로 전달했다("PR 본문 공통" 22). 이 절 "병합 시 반영"의 D-025, WP-21 남은 작업 5 메모, STATUS WP-21 행 메모는 문서 10에서 하지 않았다(영록 몫으로 남음).
 
 #### J-30a (J-30을 좁힌 것) COLMAP 희소 모델 → EXIF GPS ENU 정합(`model_aligner`) → 정합 좌표의 Brush splat, 수치 확인만 — 설계 확정(Opus 2026-11-28)
 - **출처**: [WP-21](WP-21-mac-recon-pipeline.md) "남은 작업" 4("COLMAP 희소 모델 미터·ENU 정합 → 메시·splat 좌표 공유를 끝까지 해 본다"), D-023 "좌표" 줄(Brush는 COLMAP world를 그대로 쓴다, 미터·ENU 정합은 그 모델에서 먼저 한 번 [미확인, 끝까지 해 보지 않음]), [mac-recon.md](../runbooks/mac-recon.md) M3 "정합(미터·ENU)" 문단(:93-95)과 §6 미확인 #5(:230, 확인 결과 칸 빈 칸), 공개 데이터 출처·저작자 표시 mac-recon :180(Tyrol 교회 드론 76장 5472×3648, CC BY 4.0, [Tyrol-Church](https://github.com/IRCSS/Tyrol-Church-Photogrammetry-Dataset)). 입력은 저장소 밖 `~/golmok_data/recon-smoke/objcap/tyrol/images`(JPG 76장, EXIF GPS 있음 — `exiftool`로 `DJI_0352.JPG 46.9482009166667 12.062021 1645`). 도구: `~/golmok-tools`의 COLMAP 4.2.1 `cpu_lgpl`, Brush v0.3.0, exiftool 13.64(mac-recon §1). COLMAP 4.2.1 `model_aligner` 소스 [model.cc](https://github.com/colmap/colmap/blob/4.2.1/src/colmap/exe/model.cc)(`RunModelAligner`: `--alignment_max_error`가 0 이하면 "You must provide a maximum alignment error > 0"로 실패, `--alignment_type enu`이면 참조 위치의 **첫 줄**을 ENU 원점으로 쓴다 — `ConvertCameraLocations`; `--ref_images_path` 한 줄 = `이름 x y z`, `--ref_is_gps 1`이면 위도·경도·고도), [sim3.cc](https://github.com/colmap/colmap/blob/4.2.1/src/colmap/geometry/sim3.cc) `Sim3d::ToFile`(`scale qw qx qy qz tx ty tz` 한 줄), 공식 FAQ [Geo-registration](https://colmap.github.io/faq.html#geo-registration). 저장소 도구: `tools/golmok_tools/exif.py` `read_exif`(exifread, `lat`·`lon`·`alt`, `GPSAltitudeRef` 1이면 음수), `tools/golmok_tools/splat/ply.py` `read_ply`·`positions`, `golmok-splat inspect --json`.
@@ -3300,6 +3850,7 @@ while read -r x; do printf '%s\t%s\n' "$(cat "$E"/versions.log "$E"/ref.log "$E"
 - **병합 시 반영(영록)**: STATUS 재환 절에 J-30a 행. WP-21 "남은 작업" 4 끝에 날짜 메모(희소 모델 → EXIF GPS ENU 정합과 정합 좌표 splat은 J-30a로 확인, 메시 절반은 J-30b). D-023 "좌표" 줄의 [미확인]에 날짜 메모를 더할지는 영록이 판단한다(공유 문서라 재환은 고치지 않는다). J-30b 설계(설계 13)를 이 파일에 쓰고 배정 순서를 정한다. J-30a 절의 펜스 `j30a-make-ref`·`j30a-check-align`·`j30a-ref-expected`는 J-30b가 끝날 때까지 지우거나 줄이지 않는다(J-30b 할 일 2가 이름으로 뽑는다).
 - **왜 재환 / 위험**: 명령·옵션·스크립트·기준이 모두 정해져 있고 결과가 숫자와 종료 코드로 판정된다. GUI·UE·Astra 레인·소유자 촬영이 필요 없다. 위험: ① 옵션 즉흥 — 4.2.1은 접두 철자를 받아 틀린 옵션이 조용히 통과할 수 있다(설계 4) → 명령을 글자 그대로 복사하고 `-h` 옵션 수로 막는다(규칙 1·6). ② 긴 CPU 실행(특징 추출 dry-run 324 s, peak footprint 약 36 GB, `/usr/bin/time -l` swaps 0 — 같은 세션 뒤 `lms ps`가 모델 94.58 GB 로드를 보였고 실행 중 로드 여부는 [미확인]) → 모든 실행에 `timeout`, 넘으면 멈춤. ③ "미터" 과장 — EXIF 고도 기준면 [미확인], 드론 GPS 오차 → 문장은 렌더 스크립트가 "EXIF GPS ENU에 정합, 잔차 N m"으로 고정한다(규칙 15). ④ 품질로 번지기 — floater·모습·"충분히 좋다"는 판정하지 않는다. 펜스의 숫자만 본다(품질은 V-05). ⑤ 메시 절반이 빠짐 — J-30b(설계 13), 결과 문장에 적힌다. ⑥ 도구가 저장소에 쓰기 — 모든 명령이 `cd "$E…"`로 시작하고 `status-run.diff`로 확인한다. ⑦ 실행 간 흔들림 — `mapper`·Brush는 실행마다 값이 조금 다르다(dry-run 두 번: 잔차 중앙값 1.201·1.176 m, splat 1.074·1.059 m) → 기준은 상한이고, 값을 dry-run과 같게 맞추려 하지 않는다.
 - **dry-run 범위(Opus 2026-11-28, J-30a)**: 이 Mac에서 같은 입력·같은 플래그로 할 일 2~7을 scratch 폴더(`$TMPDIR` 밖 세션 scratchpad, 저장소 밖)에서 돌렸다: 참조 파일 76/76·누락 0·sha256 위 값(메인 venv와 `$W/tools/.venv` 둘 다), `feature_extractor` rc 0(324 s, `GPS:` 76줄), `exhaustive_matcher` rc 0(29 s), `mapper` rc 0(80 s, 모델 1개, 등록 76/76, 점 68,938, 재투영 0.850 px), `model_aligner` rc 0(`=> Alignment error: 1.142564 (mean), 1.200858 (median)`; `--alignment_max_error` 3과 10이 같은 `sim3.txt`, 첫 값 32.4702), `check_align` 잔차 1.201/1.671/2.172 m·수평 0.514·수직 1.031·높이 60.98 m·`+Z`, 정합 전 모델로는 105.488 m·`-Z`, `image_undistorter` rc 0(PINHOLE 5471×3648), Brush rc 0(83 s, Metal, 191,643 splat, 같은 시드 두 번째 191,751), `golmok-splat inspect` `count` 191643·`sh_degree` 3, splat → SfM 1.074/7.028 m·대조군 93.735 m, `verdict` `verdict PASS 13/13`, 비공허 사례 rc 1(`verdict FAIL 5/13`, 할 일 6의 다섯 줄 포함), `render`·`apply`를 `origin/main` `8ba637c` scratch 사본(git init)의 mac-recon에 적용 → numstat `2	1`, 두 번째 `apply`는 `old_row 0` rc 1, 그 사본에서 `check_repo.py` OK·`pytest -q` 1937 passed·3 skipped. `mapper`+정합만 한 번 더(같은 데이터베이스): 1.176/1.634/2.155 m, COLMAP median 1.175685, 축척 33.4693. 실패 메시지 확인: `--alignment_max_error` 없음 → "You must provide a maximum alignment error > 0" rc 1, 참조 2줄 → "Cannot align with insufficient reference locations." rc 1, `--robust_alignment` → `unrecognised option` rc 1, `--alignment_typ enu`(오타) → rc 0. 펜스 6개는 `ruff format`을 거친 파일과 같은 글자다. dry-run하지 못한 것: 재환 worktree의 브랜치·커밋·push·`gh` 명령(겹침·PR·CI), 인용·숫자·자리표시 검사 파이프(본문이 없어서), `lms ps`를 명령 공통의 꼴로 감싼 부하 기록(단독 실행은 확인: `qwen3.8-flash-next … IDLE 94.58 GB`). 설계 리뷰 반영분(2026-11-28, Opus 문서 에이전트): `timeout`을 단 게이트는 `8ba637c` scratch 사본에서 rc 0(1937 passed, 3 skipped, 약 78 s), `check_splat.py`를 `aligned_txt/points3D.txt`에 돌린 출력 6줄은 `undistorted/sparse/points3D.txt`에 돌린 것과 같았다(splat → SfM 1.074/7.028 m), push 뒤 상태 비교(`status-push.diff`)·`branch-files.log`·`-nt` 확인은 git 저장소로 만든 scratch 사본에서 기대대로였다. `gh pr create`·`gh pr edit`는 dry-run하지 못했다. (보충 2026-11-28, 재환 레인 문서 7: 할 일 9의 자리표시 단계를 재검증 지적대로 분류 판정으로 바꿨다. 그 `awk`를 이 절에서 그대로 떼어 견본 본문 — `## 완료 기준 대조`의 `~~~` 블록에 이 절의 완료 기준, `## 실행한 명령`의 백틱 블록에 `<…>`가 든 명령 두 줄, 끝에 `## 자리표시 분류` 개수 표 — 에 돌리자 `placeholder-unfilled.log` `0`(원문 인용 1·명령 기록 2), 점검표 줄에 `<n>` 하나를 넣은 본문에서는 `1`이었다. 실제 게시 본문에는 돌리지 않았다.) 문서 7 수정(2026-11-28, Opus): `j30a-render`의 두 문자열 끝을 `근거: J-30a PR.` 표식으로 바꾼 뒤(펜스 45줄 그대로) 견본 로그에서 rc 0·2줄, 두 줄에 `$TMPDIR` 0, 규칙 17 b의 `grep -n -E` 0건. 할 일 1의 두 `awk` 추출(첫 줄 `#### J-30a `, dry-run 줄 1, 공통 소절 머리 1)과 `X` 추출 9개, 할 일 8의 커밋 2 `sed`(가짜 번호, 두 줄 모두 바뀜)는 scratch 사본에서 돌렸다. 위 문장의 옛 자리표시 분류 견본 결과는 그때의 기록이고, 지금 분류는 상시 규칙 소절의 `common-ph-awk`다.
+- **결과(2026-11-28 문서 10, [#167](https://github.com/wooklym/golmok/pull/167) · `b5f4df3`, 리뷰 R167 — 첫 제출)**: mac-recon M3 "정합" 문단에 날짜 메모 한 줄과 §6 #5 칸(`docs/runbooks/mac-recon.md` +2 −1). 공개 Tyrol 76장에서 COLMAP 4.2.1 `model_aligner`(EXIF GPS, `enu`, `--alignment_max_error 3`)가 끝까지 돌았다 — 등록 76/76, 카메라 중심 ↔ EXIF GPS ENU 잔차 중앙값 1.212 m · p90 1.680 m · 최대 2.180 m, 정합 좌표 Brush 3k splat → 정합 SfM 점 중앙값 1.082 m · p90 7.315 m(정합 전 모델 점과는 중앙값 94.437 m). R167은 수치를 독립으로 다시 계산해 일치를 봤다. 잔차 1.212 m는 정합에 쓴 같은 EXIF GPS에 대한 맞춤 잔차이지 독립 정확도가 아니다(leave-one-out 중앙값 1.249 m). 설계 메모(R167): splat → SfM 기준 "중앙값 ≤ 3.0 m"는 splat 전체를 +5 m 옮긴 것도 통과시킨다(리뷰에서 잰 중앙값 2.63 m) — 미터 단위 일치의 근거로 읽지 않는다(J-30b 절 위험 ⑦). 품질 판정 아님, zone 원점 변환과 메시 절반(J-30b)은 남음.
 
 #### J-31a·J-31b 엔진 안 입력 드라이버의 작은 조각 — 설계 선행
 - **출처**: mac-setup §3 표 "Win32 SendInput 드라이버 — 재설계 항목, ① 엔진 안 `InputKey`/Enhanced Input 주입을 먼저 권한다"(:146), STATUS V-17 §1·§2·V-08b·V-12가 이것을 기다린다. V-08b §10 블라인드 채점·V-15 측정이 같은 드라이버 입력을 쓴다.
@@ -3458,6 +4009,3121 @@ print("sum", (d.get("succeeded") or 0) + (d.get("succeededWithWarnings") or 0))
 - **왜 재환 / 위험**: 바꿀 줄이 정확히 정해져 있고 전후가 스텁·실제 헤드리스 양쪽에서 명령으로 판정된다. 위험: ① 종료 코드 0을 "실행됐다"로 읽는 것 — `test.sh`의 0은 "`failed` 0이고 무엇이든 성공으로 끝났다"일 뿐이다. 경고 있는 성공에는 skip Info(`MPC_GolmokWeather missing - skipped` 등)나 `NOT EXECUTED` 경고로 끝난 테스트도 들어간다. 판정은 지금처럼 상태 열과 보고서 entries로 한다(mac-setup §4 "기대 결과" 3, 규칙 15). ② 새 사례가 옛 스크립트에서도 통과하는 빈 테스트 — 할 일 4의 실패 로그로 막는다. ③ `_index()` 기본값 변경으로 기존 사례의 의미가 바뀌는 것 — 새 키의 기본값 0은 옛·새 규칙 모두에서 종료 코드를 바꾸지 않고, (a)의 옛 스크립트 실패가 두 사례뿐인 것으로 확인한다. ④ J-35와 같은 테스트 파일이다 — 둘을 동시에 열지 않는다. **J-36이 먼저**다(백로그 순서 J-20 → J-36 → J-18 → J-35; J-35는 J-36 병합 뒤 `origin/main`에서 시작한다).
 - **dry-run 범위(Opus 2026-11-28)**: `origin/main` `cff4e92`의 `tools/` scratch 사본에서 설계 4·5를 그대로 적용해 확인한 것: 기준선 44 passed, 테스트만 바꾼 상태(옛 `test.sh`)에서 `-k test_test_exit_rules_with_warnings` → `1 failed, 44 deselected`(`assert 1 == 0` 1줄, FAILED 1줄), 파일 전체 → `2 failed, 43 passed`(할 일 4의 두 이름), `test.sh`까지 바꾼 뒤 → `45 passed`, `ruff check`·`ruff format --check`(테스트 파일) 통과, `bash -n` 통과, `git diff -U0`의 `+`/`-` 줄이 두 펜스와 같고 테스트 파일의 빈 `+` 줄은 2. 새·옛 Python 블록을 실제 보고서 사본에 직접 돌린 결과: J-17 `item1b-index.json`(0/1) 옛 3 → 새 0, J-12 사본(22/17) 둘 다 0, `notRun` 3만 있는 가짜 보고서 둘 다 3. 카운트 스크립트는 `item1b-index.json`에서 펜스 `j36-counts`와 같은 8줄을 냈다. dry-run하지 못한 것: 실제 UE 실행(할 일 3·7), 재환 worktree에서의 pytest 수(N), `gh` 명령, 인용·숫자 검사 파이프(본문이 없어서).
 - **결과(2026-11-28, [#154](https://github.com/wooklym/golmok/pull/154) · `8ba637c`, 리뷰 R154)**: 커밋 2개(`82e0a84` 테스트만, `30515d5` `test.sh`·mac-setup), 바뀐 파일은 허용 파일 3개(`tools/ue/test.sh` +3 −2, `tools/tests/test_ue_mac_scripts.py` +17 −3, `docs/runbooks/mac-setup.md` +1 −1). `test.sh`는 이제 `failed == 0`이고 `succeeded + succeededWithWarnings > 0`이면 통과하고 요약 줄 끝에 `Succeeded with warnings:` 수를 찍는다(병합 diff가 펜스 `j36-sh-diff`와 같다). 스텁 pytest: 기준선 44 passed → 테스트만 바꾼 상태(옛 `test.sh`) `2 failed, 43 passed`(`test_test_runs_headless_and_prints_report`·`test_test_exit_rules_with_warnings`) → 수정 뒤 45 passed. 실제 헤드리스: `--filter Golmok.Zone.IndexParse` 고치기 전 rc 1(`Succeeded: 0  Failed: 0  Not run: 0`, `Automation tests failed`) → 고친 뒤 rc 0(`Succeeded: 0  Failed: 0  Not run: 0  Succeeded with warnings: 1`), 보고서 칸은 같은 값. 전체 39 실행 rc 0(`Succeeded: 20  Failed: 0  Not run: 0  Succeeded with warnings: 19`). 게이트 1937 passed, 3 skipped. R154는 Opus 재현 검증 2렌즈(코드: diff가 교체 블록과 바이트 일치·동작 표에서 바뀌는 경우는 설계가 말한 하나뿐 / 증거: 전후 rc와 전체 실행)였고 첫 제출에 병합됐다. 남은 B·C(명령 기록 누락 등)는 재환에게 통보했다(병합 커밋 본문). `test.ps1`은 그대로다(설계 8).
+
+#### J-37 PR 본문의 기계적 부분을 만드는 도구 `golmok_tools.jaehwan_body` 조각 1(실행한 명령·과정 기록·규칙 5 감사·완료 기준 대조·근거 파일 검사) — 설계 확정(Opus 2026-11-28)
+- **출처**: 2026-11-28 재환 PR의 보류 사유(영록 측정). 코드·런북 부분은 리뷰를 통과했고, 보류는 손으로 쓴 본문 줄 때문이었다 — 규칙 5 줄(#157·#160·#161·#163·#165, 다섯 번), 사고를 줄여 쓰거나 빠뜨림(#159·#163·#165: 정정 줄, 같은 이름 다시 쓰기, 증거 폴더 삭제, 범위 밖 경로 조회), 세지 않은 "없다·모두·첫" 문장(#160·#165), 미래형(#163), 완료 기준의 셋째 상태(#163 "부분 충족"), 없는 근거 파일(#157, #165 `extract-total.log`), 낡은 명령 사본(#163). 본문 재작업은 한 번에 재환 시간 60~80분이었다. 첫 제출로 병합된 #166(J-29)은 `-cmd.sh` 방식과 공통 소절의 awk 감사를 처음부터 쓴 과제다 — 기계적으로 만든 부분은 틀리지 않았다. 근거가 된 리뷰 지적: R165 렌즈 1·2(규칙 5 줄의 `git -C "$W" push` 두 곳 누락, `commands.txt` 7번 줄 `eval`과 "eval로 돌린 명령은 없다", 59번 줄 `rm -rf`와 "지우지 않았다", 49·50번 줄의 저장소 밖 경로, 해시 자리에 `shasum` 명령 글자 10곳, 없는 `extract-total.log`, 같은 이름 다시 쓰기 1·12번 줄), R163 렌즈 1·2("부분 충족", 미래형, 조립 시점의 명령 사본). 저장소: [tools/pyproject.toml](../../tools/pyproject.toml) :9(`requires-python = ">=3.11"` — 표준 라이브러리 `tomllib`이 있다)·:29-39(`[project.scripts]` — 핫스팟이라 건드리지 않고 `python -m golmok_tools.jaehwan_body`로 돌린다)·:49(`testpaths`)·:52·:56(ruff 줄 길이 110, `E`·`F`·`I`·`B`·`UP`). [.github/workflows/ci.yml](../../.github/workflows/ci.yml) :27-32(python 잡 네 행 — ubuntu 3.11·3.12, windows 3.12, macos 3.12)·:47(`pip install -e`)·:53(`pytest -q` — 새 테스트가 네 행에서 돈다). `.gitignore` :34(`__pycache__/`)·:37(`.pytest_cache/`). 이 파일 상시 규칙 "PR 본문 공통(모든 과제)"의 머리 **명령 기록**(`-cmd.sh` 방식, 해시 줄)·2(절 순서)·3(규칙 5 감사 펜스 `common-timeout-awk` — 줄 단위라 한 줄에 감싼 명령과 감싸지 않은 명령이 함께 있으면 `wrapped`로 센다)·4 ③(고정 문장 두 개)·14·15(충족·미충족 둘).
+- **설계 (확정, Opus 2026-11-28)**: 재환은 아래를 그대로 옮긴다. 바꿀 점이 보이면 고치지 말고 묻는다.
+  1. **무엇**: 새 파일 두 개 — `tools/golmok_tools/jaehwan_body.py`(펜스 `j37-tool-py`)와 `tools/tests/test_jaehwan_body.py`(펜스 `j37-test-py`). 표준 라이브러리만 쓴다(`argparse`·`fnmatch`·`glob`·`hashlib`·`os`·`re`·`sys`·`tempfile`·`tomllib`·`dataclasses`·`pathlib`). 콘솔 스크립트를 등록하지 않는다 — `cd "$W/tools" && .venv/bin/python -m golmok_tools.jaehwan_body "$E" …`로 돈다(`pyproject.toml`·CI·`check_repo.py`·다른 테스트는 고치지 않는다). 커밋은 하나다(핫스팟이 아니라 훅 블록이 없다).
+  2. **입력**: 증거 폴더 `E`의 `commands.txt`·모든 `*-cmd.sh`·`task.txt`, 과제 절이 펜스로 주는 명세 `body-spec.toml`(TOML — 완료 기준마다 근거 파일과 기대값, `## 결과`에 붙일 파일, 줄 수만 적을 파일, CI 표 파일, 영록 판정), 재환이 쓰는 짧은 손글 `body-notes.txt`(머리 `@요약`·`@결과`·`@미확인`·`@병합`·`@점검표`·`@일탈`), 그날의 규칙 파일(규칙 수를 센다). 명세의 검사 꼴은 `{f = "<파일>", <연산> = <값>}` 하나씩이고 연산은 `eq`·`last`(끝 줄)·`first_prefix`·`empty`·`exists`·`ge`·`contains`, 선택 `line = <번호>`다. `f`가 목록이면 처음 있는 파일을 쓴다(다시 돌린 `-2` 로그를 앞에 둔다). 영록이 판정한 기준은 `[[override]]`(`id`·`verdict` 충족 또는 미충족·`ruling` 판정 글) 세 줄로 명세 끝에 더한다.
+  3. **출력**: `E/body-audit.log`(과정 기록과 규칙 5 감사 — 언제나)와, `--audit-only`가 아니면 초안 `E/pr-body.md`(`## 요약`부터 `## 제출 전 점검표`까지, 공통 2의 절 순서). `## 자리표시 분류`와 서명 줄은 지금처럼 공통 5·6의 `ph.awk`와 조립 명령이 붙인다. 종료 코드: `0` 초안을 썼다, `2` 거부(초안을 쓰지 않고 `body-audit.log` 끝 `REFUSED` 줄에 까닭), `3` 초안을 썼고 **미충족** 줄이 있다.
+  4. **만드는 것(기계적 부분)**: ① `## 실행한 명령` — 만드는 순간의 `commands.txt` 전체(200줄 초과면 `<details>`), 그 뒤 `*-cmd.sh`마다 `- <이름>:`과 그 내용. `sh "$E/<이름>-cmd.sh"` 기록 줄 다음 줄의 해시가 지금 파일과 다르면 거부한다. `commands.txt`의 마지막 기록이 이 도구 실행이 아니면 거부한다(낡은 사본 방지 — 도구 실행 줄을 먼저 기록한다). ② 과정 기록(키마다) — `fix:`(`# 정정:` 줄과 그 대상 줄 원문, 번호 없는 정정은 설명 필요), `eval:`·`rm:`·`out:`(`$W`·`$E`·GUI 잠금 폴더·규칙 파일 밖의 경로, `E`를 다른 폴더로 정의한 줄), `dup:`(같은 이름에 `>`로 쓰는 기록이 두 곳 이상 — 공통 소절이 같은 이름으로 다시 돌리라는 검사 파일은 빼고), `rerun:`(같은 스크립트 실행 기록 두 번 이상), `nohash:`(다음 줄이 해시 값이 아님)·`hashfmt:`(해시 값만, 파일 이름 없음)·`nofile:`(기록한 스크립트가 없음)·`norec:`(실행 기록이 없는 스크립트)·`head:`(첫 줄이 `# J-`가 아님)·`nowrap:`(시간 한도 없는 네트워크·대기 명령). 그 명령 글자가 `task.txt`에 그대로 있으면(과제가 준 명령) 설명이 필요 없고, 아니면 `@일탈`에 `<키>: <설명>` 한 줄이 있어야 한다 — 없거나 모르는 키가 있으면 거부한다. ③ 규칙 5 감사 — `commands.txt`와 스크립트의 줄을 따옴표를 따라 `;`·`&&`·`||`·`|`·`&`로 쪼갠 명령 조각마다 본다(작은따옴표 문자열과 `$(`가 없는 큰따옴표 문자열은 검색 글자라 빼고, `sh -c '…'`의 안은 본다). `git`(`-C`·`-c` 꼴 포함) `fetch`·`push`·`pull`·`clone`·`ls-remote`, `gh <낱말>`, `pytest`, `curl`, `wget`, `until` 조각에서 앞에 `/usr/bin/timeout`이 있으면 감싼 것(초 단위로 센다), 없으면 감싸지 않은 것(과제 글 그대로인지 함께). 점검표 규칙 5 줄은 이 수로 도구가 쓴다. ④ `## 완료 기준 대조` — `task.txt`의 `- **완료 기준**:` 부분을 `~~~` 블록에 그대로, 그 아래 기준마다 **충족**(검사와 실제 값) 또는 **미충족**(기대와 실제)을 한 줄씩. 명세의 기준 id가 그 부분의 `(a)`… 목록과 같지 않으면 거부한다. 공통 (P) 기준(`p = true`)은 `checklist.diff`·`ph-unfilled.log`가 아직 없으면 4 ③의 "아직 안 함" 줄, 둘 다 기대값이면 고정 문장이고 그 밖은 거부한다(규칙 12 줄도 같다). ⑤ `## CI` — CI 표 파일(명세 `checks_files`, 기본 `checks-2.log` 다음 `checks.log`) 원문과 "표 N행, 둘째 칸 pass M행" 한 줄, `## 바뀐 파일` — `branch-files.log` 줄마다 한 줄.
+  5. **거부(크게 실패한다)**: 근거 파일이 없을 때(명세가 든 파일, `@점검표`·`@일탈`이 든 `*.log`·`*.rc`·`*.diff`·`*.txt` 등 파일 이름), 해시가 다를 때, 붙일 파일에 펜스처럼 시작하는 줄이 있을 때, 명세의 모르는 키, 점검표 줄이 빠지거나 겹칠 때(규칙 5·12는 도구 줄), 손글에 미래형·셋째 상태 말(`예정`·`나중에`·`보낸다`·`붙인다`·`돌린다`·`적는다`·`채운다`·`부분 충족`·`완료 보고로` 등), "모든·모두·전부·항상·첫 실행부터"가 "N개 중 N개" 꼴의 수 없이 쓰였을 때, 부정문("없다·않았다·0건")이 설명이 필요한 과정 기록(`eval:`·`rm:`·`out:`·`dup:`)과 어긋날 때, 펜스 밖에 자리표시 글자(공통 5의 `<…>`·`[]`·TODO 꼴)가 있을 때.
+  6. **손으로 남는 것**: `@요약` 1~3줄, `@결과`의 짧은 설명(선택), `@미확인`, `@병합`, `@점검표`의 규칙 5·12 말고 다른 규칙 줄(`규칙 N: …`), `@일탈`의 "설명 필요" 키마다 한 줄. 이 줄들도 위 5의 검사를 받는다.
+  7. **조각 2 — J-37b(설계 선행, 백로그 행만)**: 점검표의 규칙 2(CI 표)·6(커밋 전 staged 목록 로그)·7(작성자 로그)·10(인용·숫자 검사를 도구 안으로 — 명세 `target_logs`)·13(게이트 로그가 마지막 수정과 push보다 앞뒤인지 수정 시각으로)·16·19·20·21 줄을 증거로 만들기, `## 자리표시 분류`·서명·게시본 다시 읽기 값 검사. 그 뒤 손으로 남는 점검표 줄은 규칙 1·3·4·8·9·11·14·15·17·18이다.
+  8. **J-37 자신의 본문은 지금의 공통 소절대로 쓴다**: 공통 소절은 J-37 병합 뒤의 문서 PR에서 바뀐다(아래 "병합 시 반영(영록)"). 그래서 이 과제에서 새 도구는 할 일 5에서 이 과제 자신의 증거 폴더에 `--audit-only`로 한 번 돌 뿐이고(실제 증거로 도는지 보는 확인), 그 출력은 `## 결과`의 관찰값이다 — 감사의 "설명 필요" 키를 이 본문이 설명할 의무는 아직 없다(점검표 규칙 5 줄은 공통 3의 awk 감사대로 쓴다).
+  9. **도구가 못 잡는 것(남은 위험)**: 멈춤·시각(J-22의 17:09~17:46 정지), `.rc`가 생기기 전에 결과를 읽은 것(J-22 60번 줄), Read 도구로 본 것, `E` 별칭이 아닌 변수로 쓴 파일, 실제로 쓰였는지(`dup:`은 "같은 이름에 쓰는 기록"이라는 정적 사실이다), 경로로 부른 `pytest`(`.venv/bin/pytest` — `NET`의 앞 글자 조건이 `/`를 뺀다; 이 과제의 명령은 `python -m pytest`라 영향이 없다, J-37b 설계 메모 — 문서 10 검증).
+
+```python j37-tool-py
+"""Mechanical parts of a 재환 PR body, built from the evidence folder (J-37, standard library only).
+
+Usage (from tools/):
+
+    python -m golmok_tools.jaehwan_body <E> [--audit-only] [--spec F] [--notes F] [--out F] [--rules F]
+
+<E> is the task's evidence folder. The tool reads E/commands.txt, every E/*-cmd.sh, E/task.txt, the
+spec file the task section gives (default E/body-spec.toml) and the hand-written notes (default
+E/body-notes.txt). It writes E/body-audit.log always and, unless --audit-only, the draft E/pr-body.md
+(## 요약 up to ## 제출 전 점검표; the placeholder table and the signature stay with ph.awk).
+
+Exit codes: 0 written; 2 refused (body-audit.log says why, no draft); 3 draft written with 미충족 lines.
+"""
+
+from __future__ import annotations
+
+import argparse
+import fnmatch
+import glob
+import hashlib
+import os
+import re
+import sys
+import tempfile
+import tomllib
+from dataclasses import dataclass, field
+from pathlib import Path
+
+TOOL = "jaehwan_body"
+RULES_GLOB = ".claude/projects/*golmok/memory/jaehwan-working-rules.md"
+DEFAULT_W = "$HOME/projects/golmok-jaehwan"
+DEFAULT_ALLOW = ("$TMPDIR/claude", "$HOME/" + RULES_GLOB)
+# Files the common subsection reruns under the same name (checks after a body edit).
+COMMON_REWRITE = frozenset(
+    "rules-path.log rules-path-count.log rule-count.log checklist-lines.log checklist.diff timeout.awk "
+    "timeout-count.log timeout-audit.log timeout-audit-cmd.log timeout-audit.rc ph.tsv ph-table.md "
+    "ph-unfilled.log pr-body.md pr-body-final.md pr-edit.log pr-edit.rc posted-body.md ph-posted.tsv "
+    "ph-posted-table.md ph-posted-unfilled.log ph-table.diff signature-last.log home-path.log "
+    "body-quotes.txt tsv-quotes.txt quotes-missing.log quotes-check.log body-numbers.txt "
+    "numbers-check.log result-prose.txt quotes.rc body-build.log body-build.rc body-audit.log".split()
+)
+SPEC_KEYS = frozenset(
+    "task w_def e_def allow_paths rewrite_ok changed_files checks_files size_list result criterion "
+    "override criteria_start".split()
+)
+TABLE_KEYS = {"result": {"file"}, "criterion": {"id", "checks", "p"}, "override": {"id", "verdict", "ruling"}}
+OPS = ("eq", "last", "first_prefix", "empty", "exists", "ge", "contains")
+NET = re.compile(
+    r"(?<![\w./-])(git(?:\s+-[Cc]\s+\S+)*\s+(?:fetch|push|pull|clone|ls-remote)"
+    r"|gh\s+[a-z][\w-]*(?:\s+[a-z][\w-]*(?=\s|$))?|pytest|curl|wget|until)(?![\w-])"
+)
+TIMEOUT = re.compile(r"/usr/bin/timeout\s+(\d+)")
+HASH = re.compile(r"^([0-9a-f]{64})(?:\s+(\S+))?$")
+HASH_CMD = re.compile(
+    r'^\(?(?:cd "\$E" && )?shasum -a 256 "?(?:\$E/)?[\w.@+-]+-cmd\.sh"?\)?(?: >> "\$E/commands\.txt")?$'
+)
+SH_RUN = re.compile(r'(?:^|[;&]\s*)sh "\$\{?(\w+)\}?/([\w.@+-]+-cmd\.sh)"')
+ASSIGN = re.compile(r'(?:^|[;&]\s*)([A-Za-z_]\w*)="([^"]*)"')
+PREFIX = re.compile(r'^(?:\s*[A-Za-z_]\w*="[^"]*";)+\s*')
+WRITE = re.compile(r'(?<![>&\d])(?:\d)?>(?![>&])\s*"?\$\{?([A-Za-z_]\w*)\}?"?/([\w.@+-]+)')
+TEE = re.compile(r'\btee\s+(?!-a)"?\$\{?([A-Za-z_]\w*)\}?"?/([\w.@+-]+)')
+PATHS = (
+    re.compile(
+        r'"((?:\$HOME|\$\{HOME\}|\$TMPDIR|\$\{TMPDIR\}|~(?=/)|/(?:Users|private|var|tmp|Volumes))[^"]*)"(?!/)'
+    ),
+    re.compile(r'"\$HOME"(/[^\s"\';|&()<>]*)'),
+    re.compile(
+        r'(?<![\w$/."-])((?:\$HOME|\$\{HOME\}|\$TMPDIR|\$\{TMPDIR\}|~)/[^\s"\';|&()<>]*'
+        r"|/(?:Users|private|var|tmp|Volumes)/[^\s\"';|&()<>]*)"
+    ),
+)
+CITED = re.compile(
+    r"(?<![\w/.-])([\w@+][\w.@+-]*\.(?:log|rc|diff|txt|tsv|md|sh|json|csv|awk|ini|toml))(?![\w/-])"
+)
+FUTURE = (
+    "예정",
+    "하겠",
+    "할 것",
+    "나중에",
+    "붙인다",
+    "보낸다",
+    "돌린다",
+    "적는다",
+    "채운다",
+    "부분 충족",
+    "완료 보고로",
+)
+ABSOLUTE = ("모든", "모두", "전부", "항상", "어떤 경로든", "첫 실행부터")
+COUNTED = re.compile(r"\d+\s*(?:개|곳|줄|건|행|회|번)\s*중\s*\d+")
+NEGATION = ("없다", "없었다", "없음", "않았다", "않음", "0건", "0곳")
+NEG_KINDS = {
+    "eval": ("eval",),
+    "rm": ("rm ", "지웠", "지우", "삭제"),
+    "out": ("밖",),
+    "dup": ("덮어", "같은 이름"),
+}
+PLACEHOLDER = re.compile(r"<[^<>]+>|\[\]")
+EMAIL = re.compile(r"<[^<> @]+@[^<> @]+>")
+SIGNATURE = "작성: 재환(로컬 LLM, qwen3.8-flash-next / LM Studio)"
+P_TODO = "- ({c}) 공통 완료 기준 (P): 아직 안 함 — checklist.diff·ph-unfilled.log"
+P_DONE = (
+    "- ({c}) 초안 부분 충족 — checklist.diff exit=0, ph-unfilled.log 0. "
+    "pr-edit.rc·ph-posted-unfilled.log·ph-table.diff·signature-last.log는 "
+    "이 본문을 게시한 뒤에 생기는 파일이라 본문에 쓰지 않는다(완료 보고 메시지의 몫)"
+)
+R12_TODO = "- 규칙 12: 자리표시 분류는 아직 안 함 — ph-unfilled.log"
+R12_DONE = (
+    "- 규칙 12: 초안의 자리표시 분류 미채움이 0이었다 — ph-unfilled.log. "
+    "게시본 다시 읽기는 게시 뒤의 일이라 이 본문 밖(완료 보고 메시지)의 몫이다"
+)
+
+
+class Refused(Exception):
+    """The evidence or the inputs disagree; no draft is written."""
+
+
+@dataclass
+class Entry:
+    key: str
+    text: list[str]
+    needs_note: bool
+
+
+@dataclass
+class Audit:
+    entries: list[Entry] = field(default_factory=list)
+    wrapped: list[tuple[str, int, str, str]] = field(default_factory=list)  # loc, line, label, seconds
+    unwrapped: list[tuple[str, int, str, bool]] = field(default_factory=list)  # loc, line, label, verbatim
+    scripts: list[str] = field(default_factory=list)
+    errors: list[str] = field(default_factory=list)
+
+
+def expand(p: str) -> str:
+    home = os.environ.get("HOME") or str(Path.home())
+    tmp = os.environ.get("TMPDIR") or tempfile.gettempdir()
+    p = re.sub(r"^~(?=/|$)", lambda _: home, p)
+    p = p.replace("${HOME}", home).replace("$HOME", home).replace("${TMPDIR}", tmp).replace("$TMPDIR", tmp)
+    return os.path.normcase(os.path.realpath(p))
+
+
+def under(p: str, root: str) -> bool:
+    return p == root or p.startswith(root.rstrip(os.sep) + os.sep)
+
+
+def read_lines(path: Path) -> list[str]:
+    return path.read_text(encoding="utf-8").splitlines()
+
+
+def segments(line: str) -> list[tuple[str, str]]:
+    """Split a shell line at unquoted ; && || | &. Returns (raw text, scan text) per segment.
+
+    The scan text drops single-quoted strings (grep patterns, printf records) except the script of
+    sh/bash/zsh -c, and stops at an unquoted comment.
+    """
+    out: list[tuple[str, str]] = []
+    scan: list[str] = []
+    start = i = 0
+    quote = ""
+    keep = False
+    dq = 0
+    while i < len(line):
+        c = line[i]
+        if quote == "'":
+            if c == "'":
+                quote = ""
+            elif keep:
+                scan.append(c)
+            i += 1
+            continue
+        if c == "\\" and i + 1 < len(line):
+            scan.append(line[i : i + 2])
+            i += 2
+            continue
+        if quote == '"':
+            if c == '"':
+                quote = ""
+                if "$(" not in "".join(scan[dq:]):
+                    del scan[dq:]  # a literal string (pgrep/grep pattern), not a command
+                scan.append(c)
+            else:
+                scan.append(c)
+            i += 1
+            continue
+        if c == "'":
+            quote, keep = "'", bool(re.search(r"(?:^|\s)(?:sh|bash|zsh) -c\s*$", "".join(scan)))
+            i += 1
+            continue
+        if c == '"':
+            quote, dq = '"', len(scan) + 1
+            scan.append(c)
+            i += 1
+            continue
+        if c == "#" and (i == 0 or line[i - 1] in " \t;&|("):
+            break
+        sep = next((s for s in ("&&", "||", ";", "|", "&") if line.startswith(s, i)), "")
+        if sep and not (sep == "&" and i > 0 and line[i - 1] in "<>"):
+            out.append((line[start:i], "".join(scan)))
+            scan, i = [], i + len(sep)
+            start = i
+            continue
+        scan.append(c)
+        i += 1
+    out.append((line[start:i], "".join(scan)))
+    return [(r.strip(), s) for r, s in out if r.strip()]
+
+
+class Evidence:
+    def __init__(self, e: Path, spec: dict, task_text: str):
+        self.e = e
+        self.spec = spec
+        self.task = task_text
+        self.e_path = os.path.normcase(os.path.realpath(e))
+        self.w_path = expand(spec.get("w_def", DEFAULT_W))
+        e_def = spec.get("e_def")
+        if e_def is not None and expand(e_def) != self.e_path:
+            raise Refused(f"spec e_def {e_def!r}는 {e}가 아니다")
+        self.allow = [expand(a) for a in (*DEFAULT_ALLOW, *spec.get("allow_paths", []))]
+        self.rewrite_ok = COMMON_REWRITE | set(spec.get("rewrite_ok", []))
+        cmd = e / "commands.txt"
+        if not cmd.is_file() or cmd.stat().st_size == 0:
+            raise Refused("commands.txt가 없거나 비었다")
+        self.commands = read_lines(cmd)
+        self.scripts = {p.name: read_lines(p) for p in sorted(e.glob("*-cmd.sh"))}
+
+    def verbatim(self, raw: str) -> bool:
+        body = PREFIX.sub("", raw).strip()
+        return bool(self.task) and len(body) >= 8 and body in self.task
+
+    def aliases(self, line: str) -> tuple[dict[str, str], list[str]]:
+        roots = {"E": self.e_path, "W": self.w_path}
+        other = []
+        for name, value in ASSIGN.findall(line):
+            if "/" not in value:
+                continue
+            p = expand(value)
+            if p in (self.e_path, self.w_path):
+                roots[name] = p
+            else:
+                roots.pop(name, None)
+                if name in ("E", "W"):
+                    other.append(f"{name}={value}")
+        return roots, other
+
+    def outside(self, line: str) -> list[str]:
+        roots, other = self.aliases(line)
+        found = list(other)
+        for rx in PATHS:
+            for m in rx.finditer(line):
+                tok = m.group(1)
+                if rx is PATHS[1]:
+                    tok = "$HOME" + tok
+                p = expand(tok)
+                if any(under(p, r) for r in roots.values()):
+                    continue
+                if any(fnmatch.fnmatch(p, a) or under(p, a) for a in self.allow):
+                    continue
+                if tok not in found:
+                    found.append(tok)
+        return found
+
+
+def audit(ev: Evidence) -> Audit:
+    a = Audit()
+    cmd = ev.commands
+    writes: dict[str, list[tuple[int, str]]] = {}
+    runs: dict[str, list[int]] = {}
+
+    seen: set[tuple[str, int, int]] = set()
+
+    def note(key: str, text: list[str], needs: bool) -> None:
+        if all(en.key != key for en in a.entries):
+            a.entries.append(Entry(key, text, needs))
+
+    def scan_line(loc: str, n: int, line: str, origin: int, via: str) -> None:
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            return
+        verb = ev.verbatim(stripped)
+        tag = f"{loc}:{n}" if loc != "commands.txt" else str(n)
+        for j, (raw, scan) in enumerate(segments(stripped)):
+            m = NET.search(scan)
+            if not m or (loc, n, j) in seen:
+                continue
+            seen.add((loc, n, j))
+            label = re.sub(r"\s+-[Cc]\s+\S+", "", m.group(1))
+            t = TIMEOUT.search(scan[: m.start()])
+            if t:
+                a.wrapped.append((loc, n, label, t.group(1)))
+            else:
+                v = verb or ev.verbatim(raw)
+                a.unwrapped.append((loc, n, label, v))
+                if not v:
+                    note(f"nowrap:{tag}", [f"{tag} {label}: /usr/bin/timeout 없음", "  " + raw], True)
+        if re.search(r"(?:^|[;&|(]\s*)eval\s", stripped):
+            note(f"eval:{tag}", [f"{tag} {stripped}"], not verb)
+        if re.search(r"(?:^|[;&|(]\s*)rm\s", stripped):
+            note(f"rm:{tag}", [f"{tag} {stripped}"], not verb)
+        out = ev.outside(stripped)
+        if out:
+            note(f"out:{tag}", [f"{tag} " + " · ".join(out), "  " + stripped], not verb)
+        roots, _ = ev.aliases(stripped)
+        for rx in (WRITE, TEE):
+            for var, name in rx.findall(stripped):
+                if roots.get(var) == ev.e_path or (var not in roots and var == "E"):
+                    writes.setdefault(name, []).append((origin, via))
+
+    for n, line in enumerate(cmd, 1):
+        s = line.strip()
+        if s.startswith("#"):
+            m = re.match(r"#\s*정정:\s*(\d+)", s)
+            if s.startswith("# 정정") and not m:
+                note(f"fix:{n}", [f"{n} {s}", "  대상 줄 번호가 없다"], True)
+            elif m:
+                t = int(m.group(1))
+                ok = 1 <= t < n and not cmd[t - 1].lstrip().startswith("#")
+                body = [f"{n} {s}", f"  대상 {t}: {cmd[t - 1] if 1 <= t <= len(cmd) else '(없는 줄)'}"]
+                note(f"fix:{n}", body, not ok)
+            else:
+                note(f"comment:{n}", [f"{n} {s}"], False)
+            continue
+        if HASH.match(s) or HASH_CMD.match(s):
+            continue
+        runm = SH_RUN.search(s)
+        if runm and ev.aliases(s)[0].get(runm.group(1)) == ev.e_path:
+            name = runm.group(2)
+            runs.setdefault(name, []).append(n)
+            nxt = cmd[n].strip() if n < len(cmd) else ""
+            h = HASH.match(nxt)
+            if name not in ev.scripts:
+                note(f"nofile:{n}", [f"{n} {s}: {name}가 지금 없다"], True)
+            elif not h:
+                note(f"nohash:{n}", [f"{n} {s}: 다음 줄이 해시 값이 아니다 — {nxt[:80]}"], True)
+            else:
+                got = hashlib.sha256((ev.e / name).read_bytes()).hexdigest()
+                if h.group(1) != got:
+                    a.errors.append(f"commands.txt {n + 1}: {name} 해시가 지금 파일과 다르다({got[:12]})")
+                if h.group(2) is None:
+                    note(f"hashfmt:{n + 1}", [f"{n + 1} 해시 값만 있고 파일 이름이 없다({name})"], False)
+                elif h.group(2) != name:
+                    a.errors.append(f"commands.txt {n + 1}: 해시 줄 이름 {h.group(2)} != {name}")
+            if name in ev.scripts:
+                for k, sl in enumerate(ev.scripts[name], 1):
+                    scan_line(name, k, sl, n, name)
+            continue
+        scan_line("commands.txt", n, line, n, "")
+
+    for name, lines in ev.scripts.items():
+        a.scripts.append(name)
+        if name not in runs:
+            note(f"norec:{name}", [f"{name}: commands.txt에 실행 기록이 없다"], True)
+            for k, sl in enumerate(lines, 1):
+                scan_line(name, k, sl, -1, name)
+        if not (lines and lines[0].startswith("# J-")):
+            note(f"head:{name}", [f"{name}: 첫 줄이 '# J-'로 시작하지 않는다"], True)
+        if any(sl.startswith(("```", "~~~")) for sl in lines):
+            a.errors.append(f"{name}: 펜스처럼 시작하는 줄이 있다")
+    for name, lines_ in runs.items():
+        if len(lines_) > 1:
+            note(
+                f"rerun:{name}",
+                [f"{name}: 실행 기록 {len(lines_)}회 — 줄 " + "·".join(map(str, lines_))],
+                True,
+            )
+    for name, ws in sorted(writes.items()):
+        origins = sorted({o for o, _ in ws if o > 0})
+        vias = {v for _, v in ws}
+        if len(origins) < 2 or name in ev.rewrite_ok:
+            continue
+        if len(vias) == 1 and "" not in vias:
+            continue  # only reruns of one script: reported once as rerun:<script>
+        note(
+            f"dup:{name}",
+            [f"{name}: 같은 이름에 쓰는(>) 기록 {len(origins)}곳 — 줄 " + "·".join(map(str, origins))],
+            True,
+        )
+    if any(sl.startswith(("```", "~~~")) for sl in cmd):
+        a.errors.append("commands.txt: 펜스처럼 시작하는 줄이 있다")
+    return a
+
+
+def audit_log(a: Audit) -> str:
+    out = ["== 과정 기록"]
+    for en in a.entries:
+        out.append(f"[{en.key}]" + (" 설명 필요" if en.needs_note else ""))
+        out.extend("  " + t for t in en.text)
+    out.append("== 규칙 5 감사(명령 조각마다)")
+    out.extend(f"wrapped {loc}:{n} {label} {sec}" for loc, n, label, sec in a.wrapped)
+    out.extend(
+        f"not-wrapped {loc}:{n} {label}" + (" 과제 글 그대로" if v else "")
+        for loc, n, label, v in a.unwrapped
+    )
+    out.append(f"wrapped {len(a.wrapped)}")
+    out.append(f"not_wrapped {len(a.unwrapped)}")
+    out.extend(f"ERROR {e}" for e in a.errors)
+    return "\n".join(out) + "\n"
+
+
+def rule5_line(a: Audit) -> str:
+    secs: dict[str, int] = {}
+    for *_, s in a.wrapped:
+        secs[s] = secs.get(s, 0) + 1
+    by = "·".join(f"{s}초 {secs[s]}곳" for s in sorted(secs, key=int))
+    items = []
+    for loc, n, label, v in a.unwrapped:
+        where = f"{n}번 줄" if loc == "commands.txt" else f"{loc} {n}번 줄"
+        items.append(f"{where} {label}" + ("(과제 글 그대로)" if v else ""))
+    tail = ": " + ", ".join(items) if items else ""
+    return (
+        f"- 규칙 5: 도구 감사로 셌다(명령 조각마다, git -C 꼴 포함) — 감싼 명령 {len(a.wrapped)}곳"
+        + (f"({by})" if by else "")
+        + f", 감싸지 않은 명령 {len(a.unwrapped)}곳{tail} — body-audit.log"
+    )
+
+
+def load_notes(path: Path) -> dict[str, list[str]]:
+    sections: dict[str, list[str]] = {}
+    cur = None
+    for line in read_lines(path):
+        if line.startswith("@"):
+            cur = line[1:].strip()
+            if cur in sections:
+                raise Refused(f"notes: @{cur}가 두 번 나온다")
+            sections[cur] = []
+        elif cur is None:
+            if line.strip():
+                raise Refused("notes: 첫 @ 머리 앞에 글이 있다")
+        else:
+            sections[cur].append(line)
+    unknown = set(sections) - {"요약", "결과", "미확인", "병합", "점검표", "일탈"}
+    if unknown:
+        raise Refused(f"notes: 모르는 머리 {sorted(unknown)}")
+    return {k: [ln for ln in v if ln.strip()] for k, v in sections.items()}
+
+
+def read_value(e: Path, check: dict) -> tuple[str, str]:
+    names = check["f"] if isinstance(check["f"], list) else [check["f"]]
+    for name in names:
+        if (e / name).is_file():
+            text = (e / name).read_text(encoding="utf-8")
+            return name, text
+    raise Refused("근거 파일 없음: " + " 또는 ".join(names))
+
+
+def judge(e: Path, check: dict) -> tuple[bool, str]:
+    ops = [k for k in check if k in OPS]
+    if len(ops) != 1 or set(check) - {"f", "line", *OPS}:
+        raise Refused(f"spec 검사 꼴이 틀렸다: {check}")
+    op, want = ops[0], check[ops[0]]
+    name, text = read_value(e, check)
+    lines = text.splitlines()
+    if "line" in check:
+        k = int(check["line"])
+        lines = lines[k - 1 : k]
+        name = f"{name} {k}번째 줄"
+    got = "\n".join(lines).rstrip("\n")
+    if op == "eq":
+        return got == str(want).rstrip("\n"), f"{name} {got.replace(chr(10), '·')}"
+    if op == "last":
+        last = next((ln for ln in reversed(lines) if ln.strip()), "")
+        return last == want, f"{name} 끝 줄 {last}"
+    if op == "first_prefix":
+        first = lines[0] if lines else ""
+        return first.startswith(want), f"{name} 첫 줄 {first[: len(want) + 20]}"
+    if op == "empty":
+        return text == "", f"{name} " + ("빈 파일" if text == "" else f"{len(text.encode())}바이트")
+    if op == "exists":
+        return True, f"{name} 있음"
+    if op == "ge":
+        ok = got.strip().isdigit() and int(got.strip()) >= int(want)
+        return ok, f"{name} {got}(기준 {want} 이상)"
+    n = sum(want in ln for ln in lines)
+    return n >= 1, f"{name}에 {want} {n}줄"
+
+
+def criteria_block(task: str, start: str) -> tuple[list[str], list[str]]:
+    lines = task.splitlines()
+    idx = [i for i, ln in enumerate(lines) if ln.strip() == start]
+    if len(idx) != 1:
+        raise Refused(f"task.txt에 {start!r} 줄이 {len(idx)}개다(1이어야 한다)")
+    block = []
+    for ln in lines[idx[0] :]:
+        if block and re.match(r"^- \*\*", ln):
+            break
+        block.append(ln)
+    if any(ln.startswith("~~~") for ln in block):
+        raise Refused("완료 기준 글에 ~~~ 줄이 있다")
+    ids = [m.group(1) for ln in block if (m := re.match(r"^\s+- \(([a-z])\)", ln))]
+    return block, ids
+
+
+def criteria_lines(e: Path, spec: dict, ids: list[str]) -> tuple[list[str], bool]:
+    crits = spec.get("criterion", [])
+    if [c.get("id") for c in crits] != ids:
+        raise Refused(f"spec criterion id {[c.get('id') for c in crits]} != 완료 기준 글 {ids}")
+    over = {o["id"]: o for o in spec.get("override", [])}
+    out, unmet = [], False
+    for c in crits:
+        cid = c["id"]
+        if c.get("p"):
+            if not (e / "checklist.diff").exists() and not (e / "ph-unfilled.log").exists():
+                out.append(P_TODO.format(c=cid))
+                continue
+            for chk in [
+                {"f": "checklist.diff", "eq": "exit=0"},
+                {"f": "ph-unfilled.log", "eq": "0"},
+                *c["checks"],
+            ]:
+                ok, txt = judge(e, chk)
+                if not ok:
+                    raise Refused(f"({cid}) 공통 (P)의 근거가 기대와 다르다: {txt}")
+            out.append(P_DONE.format(c=cid))
+            continue
+        results = [judge(e, chk) for chk in c["checks"]]
+        txt = ", ".join(t for _, t in results)
+        if cid in over:
+            o = over[cid]
+            if o.get("verdict") not in ("충족", "미충족") or not o.get("ruling"):
+                raise Refused(f"override ({cid})의 verdict는 충족·미충족, ruling은 비지 않아야 한다")
+            out.append(f"- ({cid}) {o['verdict']}(영록 판정) — {o['ruling']} — 검사: {txt}")
+            continue
+        bad = [t for ok, t in results if not ok]
+        if bad:
+            unmet = True
+            out.append(f"- ({cid}) **미충족** — 기대와 다른 것: " + ", ".join(bad))
+        else:
+            out.append(f"- ({cid}) 충족 — {txt}")
+    unknown = set(over) - {c["id"] for c in crits}
+    if unknown:
+        raise Refused(f"override id {sorted(unknown)}가 완료 기준에 없다")
+    return out, unmet
+
+
+def last_record_is_tool(ev: Evidence) -> bool:
+    recs = [ln.strip() for ln in ev.commands if ln.strip() and not ln.lstrip().startswith("#")]
+    if not recs:
+        return False
+    if HASH.match(recs[-1]) and len(recs) > 1:
+        m = SH_RUN.search(recs[-2])
+        return bool(m) and any(TOOL in ln for ln in ev.scripts.get(m.group(2), []))
+    return TOOL in recs[-1]
+
+
+def lint(e: Path, notes: dict[str, list[str]], a: Audit, allowed: set[str]) -> list[str]:
+    errs = []
+    needs = {
+        k: [en.key for en in a.entries if en.needs_note and en.key.startswith(k + ":")] for k in NEG_KINDS
+    }
+    for sec in ("점검표", "일탈"):
+        for ln in notes.get(sec, []):
+            for name in CITED.findall(ln):
+                if name not in allowed and not (e / name).exists():
+                    errs.append(f"@{sec} 근거 파일 없음 {name}: {ln[:60]}")
+            for w in FUTURE:
+                if w in ln:
+                    errs.append(f"@{sec} 과거형이 아닌 말 '{w}': {ln[:60]}")
+            for w in ABSOLUTE:
+                if w in ln and not COUNTED.search(ln):
+                    errs.append(f"@{sec} '{w}'에 'N개 중 N개' 꼴의 수가 없다: {ln[:60]}")
+            if any(t in ln for t in NEGATION):
+                for kind, words in NEG_KINDS.items():
+                    if needs[kind] and any(w in ln for w in words):
+                        errs.append(f"@{sec} 부정문이 과정 기록 {needs[kind]}와 어긋난다: {ln[:60]}")
+    return errs
+
+
+def fence(text_lines: list[str], lang: str) -> list[str]:
+    return [f"```{lang}", *text_lines, "```"]
+
+
+def build(
+    e: Path, spec: dict, notes: dict[str, list[str]], a: Audit, ev: Evidence, rules: int
+) -> tuple[str, bool]:
+    errs: list[str] = []
+    out = ["## 요약", "", *notes.get("요약", []), "", "## 바뀐 파일", ""]
+    changed = spec.get("changed_files", "branch-files.log")
+    _, text = read_value(e, {"f": changed})
+    out += [f"- `{p}`" for p in text.splitlines() if p.strip()] + ["", "## 결과", ""]
+    out += [*notes.get("결과", [])]
+    for r in spec.get("result", []):
+        name, body = read_value(e, {"f": r["file"]})
+        lines = body.splitlines()
+        if any(ln.startswith(("```", "~~~")) for ln in lines):
+            errs.append(f"{name}: 펜스처럼 시작하는 줄이 있다")
+        out += ["", f"- {name}({len(lines)}줄):", "", *fence(lines, "text")]
+    block, ids = criteria_block(ev.task, spec.get("criteria_start", "- **완료 기준**:"))
+    crit, unmet = criteria_lines(e, spec, ids)
+    out += ["", "## 완료 기준 대조", "", "~~~", *block, "~~~", "", *crit, "", "## 실행한 명령", ""]
+    out.append(
+        f"도구({TOOL})가 만든 절이다 — commands.txt {len(ev.commands)}줄 전체(도구를 부른 기록 줄까지), "
+        f"스크립트 파일 {len(ev.scripts)}개, 과정 기록."
+    )
+    out.append("")
+    big = len(ev.commands) > 200
+    out += (["<details>"] if big else []) + fence(ev.commands, "text") + (["</details>"] if big else [])
+    for name, lines in ev.scripts.items():
+        out += ["", f"- {name}:", "", *fence(lines, "sh")]
+    out += ["", f"과정 기록({len(a.entries)}개, 도구가 commands.txt와 스크립트에서 뽑았다):", ""]
+    rec = [ln for en in a.entries for ln in (f"[{en.key}]", *en.text)] or ["(없음)"]
+    out += fence(rec, "text")
+    keyed = {}
+    for ln in notes.get("일탈", []):
+        m = re.match(r"^([a-z]+:[\w.@+:-]+):\s+(\S.*)$", ln)
+        if not m:
+            errs.append(f"@일탈 줄 꼴은 '<키>: <설명>': {ln[:60]}")
+            continue
+        keyed[m.group(1)] = m.group(2)
+    need = [en.key for en in a.entries if en.needs_note]
+    errs += [f"@일탈에 설명 없음: {k}" for k in need if k not in keyed]
+    errs += [f"@일탈의 키가 과정 기록에 없다: {k}" for k in keyed if k not in {en.key for en in a.entries}]
+    if keyed:
+        out += ["", "과정 기록 설명:", ""] + [f"- {k}: {v}" for k, v in keyed.items()]
+    sizes = []
+    for name in spec.get("size_list", []):
+        _, body = read_value(e, {"f": name})
+        sizes.append(f"- {name}: {len(body.splitlines())}줄")
+    out += ([""] + sizes if sizes else []) + ["", "## CI", ""]
+    cname, ctext = read_value(e, {"f": spec.get("checks_files", ["checks-2.log", "checks.log"])})
+    rows = [ln for ln in ctext.splitlines() if ln.strip()]
+    passed = sum(1 for ln in rows if ln.split("\t")[1:2] == ["pass"])
+    out += [f"{cname} 표 {len(rows)}행, 둘째 칸 pass {passed}행.", "", *fence(rows, "text")]
+    out += ["", "## 남은 [미확인]", "", *(notes.get("미확인") or ["없음"])]
+    out += ["", "## 병합 시 반영", "", *(notes.get("병합") or ["없음"]), "", "## 제출 전 점검표", ""]
+    given: dict[int, str] = {}
+    for ln in notes.get("점검표", []):
+        m = re.match(r"^규칙 (\d+): (\S.*)$", ln)
+        if not m:
+            errs.append(f"@점검표 줄 꼴은 '규칙 N: …': {ln[:60]}")
+            continue
+        n = int(m.group(1))
+        if n in (5, 12) or n in given or not 1 <= n <= rules:
+            errs.append(f"@점검표 규칙 {n}: 도구가 쓰는 줄이거나 겹치거나 범위 밖이다")
+        given[n] = m.group(2)
+    ph = e / "ph-unfilled.log"
+    r12 = R12_TODO
+    if ph.exists():
+        if ph.read_text(encoding="utf-8").strip() != "0":
+            errs.append("ph-unfilled.log가 0이 아니다")
+        r12 = R12_DONE
+    for n in range(1, rules + 1):
+        if n == 5:
+            out.append(rule5_line(a))
+        elif n == 12:
+            out.append(r12)
+        elif n in given:
+            out.append(f"- 규칙 {n}: {given[n]}")
+        else:
+            errs.append(f"@점검표에 규칙 {n} 줄이 없다")
+    out.append("")
+    allowed = {Path(RULES_GLOB).name, *(Path(p).name for p in text.splitlines() if p.strip())}
+    errs += lint(e, notes, a, allowed)
+    infence = ""
+    for k, ln in enumerate(out, 1):
+        if not infence and ln[:3] in ("```", "~~~"):
+            infence = ln[:3]
+            continue
+        if infence and ln == infence:
+            infence = ""
+            continue
+        if infence or ln in ("<details>", "</details>"):
+            continue
+        s = EMAIL.sub("", ln)
+        hits = PLACEHOLDER.findall(s) + [w for w in ("todo", "tbd", "xxx", "placeholder") if w in s.lower()]
+        if hits:
+            errs.append(f"초안 {k}번째 줄 펜스 밖 자리표시 글자 {hits}: {ln[:60]}")
+    if errs:
+        raise Refused("\n".join(errs))
+    return "\n".join(out), unmet
+
+
+def count_rules(path: Path | None) -> int:
+    if path is None:
+        home = os.environ.get("HOME") or str(Path.home())
+        found = glob.glob(os.path.join(home, RULES_GLOB))
+        if len(found) != 1:
+            raise Refused(f"규칙 파일이 {len(found)}개다(1이어야 한다)")
+        path = Path(found[0])
+    n = sum(1 for ln in read_lines(path) if re.match(r"^[0-9]+\. \*\*", ln))
+    if n == 0:
+        raise Refused(f"{path}: 규칙 줄이 없다")
+    return n
+
+
+def main(argv: list[str] | None = None) -> int:
+    ap = argparse.ArgumentParser(
+        prog="python -m golmok_tools.jaehwan_body", description=__doc__.splitlines()[0]
+    )
+    ap.add_argument("evidence", type=Path)
+    ap.add_argument("--audit-only", action="store_true")
+    ap.add_argument("--spec", type=Path)
+    ap.add_argument("--notes", type=Path)
+    ap.add_argument("--out", type=Path)
+    ap.add_argument("--rules", type=Path)
+    args = ap.parse_args(argv)
+    e = args.evidence
+    log = e / "body-audit.log"
+    a = None
+    try:
+        if not e.is_dir():
+            raise Refused(f"{e}: 폴더가 아니다")
+        spec: dict = {}
+        if not args.audit_only:
+            sp = args.spec or e / "body-spec.toml"
+            if not sp.is_file():
+                raise Refused(f"spec 없음: {sp.name}")
+            spec = tomllib.loads(sp.read_text(encoding="utf-8"))
+            bad = set(spec) - SPEC_KEYS
+            if bad:
+                raise Refused(f"spec에 모르는 키 {sorted(bad)}")
+            for table, keys in TABLE_KEYS.items():
+                for row in spec.get(table, []):
+                    if set(row) - keys:
+                        raise Refused(f"spec {table} 표에 모르는 키 {sorted(set(row) - keys)}")
+        task_p = e / "task.txt"
+        if not args.audit_only and not task_p.is_file():
+            raise Refused("task.txt 없음")
+        ev = Evidence(e, spec, task_p.read_text(encoding="utf-8") if task_p.is_file() else "")
+        a = audit(ev)
+        if a.errors:
+            raise Refused("\n".join(a.errors))
+        if args.audit_only:
+            log.write_text(audit_log(a), encoding="utf-8", newline="\n")
+            print(
+                f"audit: 과정 기록 {len(a.entries)}개, "
+                f"wrapped {len(a.wrapped)}, not_wrapped {len(a.unwrapped)}"
+            )
+            return 0
+        if not last_record_is_tool(ev):
+            raise Refused(f"commands.txt의 마지막 기록이 이 도구({TOOL}) 실행이 아니다 — 기록을 먼저 더한다")
+        rules = count_rules(args.rules)
+        notes = load_notes(args.notes or e / "body-notes.txt")
+        text, unmet = build(e, spec, notes, a, ev, rules)
+    except (Refused, tomllib.TOMLDecodeError, KeyError, ValueError, UnicodeDecodeError) as exc:
+        msg = audit_log(a) if a else ""
+        if e.is_dir():
+            log.write_text(msg + f"REFUSED {exc}\n", encoding="utf-8", newline="\n")
+        print(f"REFUSED: {exc}", file=sys.stderr)
+        return 2
+    log.write_text(audit_log(a), encoding="utf-8", newline="\n")
+    (args.out or e / "pr-body.md").write_text(text + "\n", encoding="utf-8", newline="\n")
+    print(f"pr-body: 과정 기록 {len(a.entries)}개, 미충족 {'있음' if unmet else '없음'}")
+    return 3 if unmet else 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
+```
+
+```python j37-test-py
+"""J-37: golmok_tools.jaehwan_body builds the mechanical PR-body parts from a synthetic evidence folder."""
+
+from __future__ import annotations
+
+import hashlib
+import os
+import subprocess
+import sys
+from pathlib import Path
+
+import pytest
+
+from golmok_tools import jaehwan_body as jb
+
+# Built line by line: a task-doc fence must not hold a line that starts like a heading or a criteria head.
+TASK = "\n".join(
+    [
+        "J-99 시험 과제",
+        "- **할 일**:",
+        '  1. `/usr/bin/timeout 120 git -C "$W" fetch origin > "$E/fetch.log" 2>&1; '
+        'echo "exit=$?" >> "$E/fetch.log"`',
+        '  2. `cd "$W" && gh pr edit "$(cat "$E/pr-number.log")" --body-file "$E/pr-body-final.md"`',
+        "- **완료 기준**:",
+        "  - (a) 준비: `fetch.log` 끝 줄 `exit=0`, `sha-same.log` `1`.",
+        "  - (b) CI: `checks-count.log` 첫 줄 `0`.",
+        "  - (c) PR 본문: 공통 완료 기준 (P).",
+        "- **병합 시 반영(영록)**: 없음.",
+        "(공통 소절 견본)",
+        "",
+    ]
+)
+SPEC = """task = "J-99"
+e_def = '$TMPDIR/jaehwan/J-99'
+size_list = ["fetch.log"]
+[[result]]
+file = "sha-same.log"
+[[criterion]]
+id = "a"
+checks = [{f = "fetch.log", last = "exit=0"}, {f = "sha-same.log", eq = "1"}]
+[[criterion]]
+id = "b"
+checks = [{f = ["checks-count-2.log", "checks-count.log"], line = 1, eq = "0"}]
+[[criterion]]
+id = "c"
+p = true
+checks = [{f = "home-path.log", eq = "0"}]
+"""
+RULES = "".join(f"{n}. **규칙 {n}** 설명\n" for n in range(1, 13))
+NOTES = (
+    "@요약\n시험 과제의 요약 한 줄.\n@미확인\n- 없음(시험).\n@병합\n없음\n@점검표\n"
+    + "".join(f"규칙 {n}: 규칙 {n} 일을 했다 — fetch.log\n" for n in (1, 2, 3, 4, 6, 7, 8, 9, 10, 11))
+    + "@일탈\nnowrap:3: 과제에 없는 gh 명령을 시간 한도 없이 돌렸다 — fetch.log\n"
+    + "nowrap:push-cmd.sh:3: 견본 push를 시간 한도 없이 돌렸다 — fetch.log\n"
+)
+TOOL_LINE = 'cd "$W/tools" && .venv/bin/python -m golmok_tools.jaehwan_body "$E" > "$E/body-build.log" 2>&1'
+
+
+def put(p: Path, text: str) -> Path:
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(text, encoding="utf-8", newline="\n")
+    return p
+
+
+def sha(p: Path) -> str:
+    return hashlib.sha256(p.read_bytes()).hexdigest()
+
+
+@pytest.fixture
+def ev(tmp_path, monkeypatch):
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("TMPDIR", str(tmp_path))
+    e = tmp_path / "jaehwan" / "J-99"
+    put(e / "task.txt", TASK)
+    put(e / "body-spec.toml", SPEC)
+    put(e / "body-notes.txt", NOTES)
+    put(e / "rules.md", RULES)
+    put(e / "fetch.log", "exit=0\n")
+    put(e / "sha-same.log", "1\n")
+    put(e / "checks-count.log", "0\n16\n")
+    put(e / "branch-files.log", "docs/runbooks/x.md\n")
+    put(
+        e / "checks.log",
+        "python (ubuntu-latest, 3.12)\tpass\t1m\thttps://x\t\nrepo-check\tpass\t9s\thttps://y\t\n",
+    )
+    s = put(e / "push-cmd.sh", '# J-99 push\nW="$HOME/projects/golmok-jaehwan"; E="$TMPDIR/jaehwan/J-99"\n'
+            'git -C "$W" push > "$E/push.log" 2>&1\n')  # fmt: skip
+    cmds = [
+        '/usr/bin/timeout 120 git -C "$W" fetch origin > "$E/fetch.log" 2>&1; '
+        'echo "exit=$?" >> "$E/fetch.log"',
+        'printf x > "$E/sha-same.log"',
+        'cd "$W" && gh pr list > "$E/overlap.log"',
+        'sh "$E/push-cmd.sh"',
+        f"{sha(s)}  push-cmd.sh",
+        TOOL_LINE,
+    ]
+    put(e / "commands.txt", "\n".join(cmds) + "\n")
+    return e
+
+
+def run(e: Path, *extra: str) -> int:
+    return jb.main([str(e), "--rules", str(e / "rules.md"), *extra])
+
+
+def body(e: Path) -> str:
+    return (e / "pr-body.md").read_text(encoding="utf-8")
+
+
+def add_cmd(e: Path, *lines: str) -> None:
+    with (e / "commands.txt").open("a", encoding="utf-8", newline="\n") as f:
+        f.write("".join(ln + "\n" for ln in lines))
+
+
+def test_segments_drop_literal_strings_and_keep_sh_c():
+    assert not any(jb.NET.search(s) for _, s in jb.segments('pgrep -fl "gh pr checks" > "$E/p.log"'))
+    assert not any(jb.NET.search(s) for _, s in jb.segments("grep -n -E 'git push|gh ' \"$E/c.txt\""))
+    segs = jb.segments(
+        "/usr/bin/timeout 600 sh -c 'until [ \"$(gh run list)\" -ge 2 ]; do sleep 30; done' sh x"
+    )
+    assert len(segs) == 1 and jb.NET.search(segs[0][1]).group(1) == "until"
+    assert [r for r, _ in jb.segments('a "x;y" && b || c | d; e 2>&1 & f')] == [
+        'a "x;y"',
+        "b",
+        "c",
+        "d",
+        "e 2>&1",
+        "f",
+    ]
+
+
+def test_rule5_audit_counts_segments_and_git_dash_c(ev):
+    add_cmd(
+        ev, '/usr/bin/timeout 60 gh pr checks 1 > "$E/a.log"; gh pr checks 1 > "$E/b.log"', "# 정정: 2 — 견본"
+    )
+    a = jb.audit(jb.Evidence(ev, {}, TASK))
+    got = {(loc, n, label, sec) for loc, n, label, sec in a.wrapped}
+    assert got == {("commands.txt", 1, "git fetch", "120"), ("commands.txt", 7, "gh pr checks", "60")}
+    assert [(loc, n, label, v) for loc, n, label, v in a.unwrapped] == [
+        ("commands.txt", 3, "gh pr list", False),
+        ("push-cmd.sh", 3, "git push", False),
+        ("commands.txt", 7, "gh pr checks", False),
+    ]
+    line = jb.rule5_line(a)
+    assert "감싼 명령 2곳(60초 1곳·120초 1곳)" in line and "감싸지 않은 명령 3곳" in line
+    assert "push-cmd.sh 3번 줄 git push" in line
+
+
+def test_ledger_kinds(ev):
+    put(ev / "lost-cmd.sh", "# J-99 never run\necho hi\n")
+    put(ev / "nohead-cmd.sh", "echo x\n")
+    add_cmd(
+        ev,
+        'eval "$(cat "$E/x-cmd.txt")"',
+        'rm -rf "$TMPDIR/jaehwan/J-98"; echo $? > "$E/rm.rc"',
+        'E="$TMPDIR/jaehwan/J-98"; ls "$E" > /dev/null',
+        'ls ~/.claude/projects/other/memory > "$E/ls.log"',
+        'printf y > "$E/sha-same.log"',
+        'sh "$E/push-cmd.sh"',
+        "shasum -a 256 push-cmd.sh",
+        'sh "$E/gone-cmd.sh"',
+        'sh "$E/nohead-cmd.sh"',
+        sha(ev / "nohead-cmd.sh"),
+        "# 정정: 8 — 견본 정정",
+        "# 정정 — 번호 없음",
+        'cd "$W" && gh pr edit "$(cat "$E/pr-number.log")" --body-file "$E/pr-body-final.md"',
+    )
+    a = jb.audit(jb.Evidence(ev, {}, TASK))
+    need = {en.key for en in a.entries if en.needs_note}
+    free = {en.key for en in a.entries if not en.needs_note}
+    assert {"eval:7", "rm:8", "out:8", "out:9", "out:10", "dup:sha-same.log", "rerun:push-cmd.sh"} <= need
+    assert {"nohash:12", "nofile:14", "norec:lost-cmd.sh", "head:nohead-cmd.sh", "fix:18", "nowrap:3"} <= need
+    assert {"hashfmt:16", "fix:17"} <= free
+    assert not any(k.startswith("nowrap:19") for k in need | free)  # the task text gives this command
+    fix = next(en for en in a.entries if en.key == "fix:17")
+    assert fix.text[1].startswith("  대상 8: rm -rf")
+    assert a.errors == []
+
+
+def test_hash_mismatch_is_refused(ev):
+    put(ev / "push-cmd.sh", "# J-99 push\necho changed after the run\n")
+    assert run(ev) == 2
+    assert not (ev / "pr-body.md").exists()
+    assert "해시가 지금 파일과 다르다" in (ev / "body-audit.log").read_text(encoding="utf-8")
+
+
+def test_build_two_phases(ev):
+    assert run(ev) == 0
+    text = body(ev)
+    heads = [ln for ln in text.splitlines() if ln.startswith("## ")]
+    assert heads == [
+        "## 요약", "## 바뀐 파일", "## 결과", "## 완료 기준 대조", "## 실행한 명령", "## CI",
+        "## 남은 [미확인]", "## 병합 시 반영", "## 제출 전 점검표",
+    ]  # fmt: skip
+    assert "- (a) 충족 — fetch.log 끝 줄 exit=0, sha-same.log 1" in text
+    assert "- (b) 충족 — checks-count.log 1번째 줄 0" in text
+    assert jb.P_TODO.format(c="c") in text and jb.R12_TODO in text
+    assert "- nowrap:3: 과제에 없는 gh 명령을 시간 한도 없이 돌렸다 — fetch.log" in text
+    assert "checks.log 표 2행, 둘째 칸 pass 2행." in text and "- fetch.log: 1줄" in text
+    checklist = text.split("## 제출 전 점검표\n", 1)[1]
+    assert len([ln for ln in checklist.splitlines() if ln.startswith("- 규칙 ")]) == 12
+    put(ev / "checklist.diff", "exit=0\n")
+    put(ev / "ph-unfilled.log", "0\n")
+    put(ev / "home-path.log", "0\n")
+    add_cmd(ev, "awk -f ph.awk", TOOL_LINE)
+    assert run(ev) == 0
+    assert jb.P_DONE.format(c="c") in body(ev) and jb.R12_DONE in body(ev)
+    assert (
+        f"commands.txt {len((ev / 'commands.txt').read_text(encoding='utf-8').splitlines())}줄 전체"
+        in body(ev)
+    )
+
+
+def test_unmet_and_rerun_file(ev):
+    put(ev / "checks-count-2.log", "1\n16\n")
+    assert run(ev) == 3
+    assert "- (b) **미충족** — 기대와 다른 것: checks-count-2.log 1번째 줄 1" in body(ev)
+
+
+def test_override_line(ev):
+    put(ev / "checks-count.log", "1\n16\n")
+    with (ev / "body-spec.toml").open("a", encoding="utf-8") as f:
+        f.write('[[override]]\nid = "b"\nverdict = "충족"\nruling = "pending 한 행은 run API success"\n')
+    assert run(ev) == 0
+    assert (
+        "- (b) 충족(영록 판정) — pending 한 행은 run API success — 검사: checks-count.log 1번째 줄 1"
+        in body(ev)
+    )
+
+
+@pytest.mark.parametrize(
+    ("change", "message"),
+    [
+        (lambda e: (e / "sha-same.log").unlink(), "근거 파일 없음: sha-same.log"),
+        (lambda e: add_cmd(e, "ls"), "마지막 기록이 이 도구"),
+        (lambda e: put(e / "body-spec.toml", SPEC.replace('id = "c"', 'id = "d"')), "spec criterion id"),
+        (lambda e: put(e / "body-spec.toml", "target_logs = []\n" + SPEC), "모르는 키"),
+        (lambda e: put(e / "body-spec.toml", SPEC + "pp = true\n"), "criterion 표에 모르는 키"),
+        (lambda e: put(e / "body-notes.txt", NOTES.replace("요약 한 줄", "요약 <n> 한 줄")), "자리표시 글자"),
+        (lambda e: put(e / "body-notes.txt", NOTES.replace("규칙 11: ", "규칙 13: ")), "규칙 11 줄이 없다"),
+        (
+            lambda e: put(e / "body-notes.txt", NOTES.replace("@일탈", "규칙 5: 직접 쓴 줄\n@일탈")),
+            "도구가 쓰는 줄",
+        ),
+        (
+            lambda e: put(e / "body-notes.txt", NOTES.replace("nowrap:3: ", "nowrap:4: ")),
+            "설명 없음: nowrap:3",
+        ),
+    ],
+)
+def test_refusals(ev, change, message):
+    change(ev)
+    assert run(ev) == 2
+    assert not (ev / "pr-body.md").exists()
+    assert message in (ev / "body-audit.log").read_text(encoding="utf-8")
+
+
+@pytest.mark.parametrize(
+    ("line", "message"),
+    [
+        ("규칙 1: 규칙 1 일을 했다 — extract-total.log", "근거 파일 없음 extract-total.log"),
+        ("규칙 1: 값은 완료 보고로 보낸다 — fetch.log", "과거형이 아닌 말"),
+        ("규칙 1: 모든 명령을 감쌌다 — fetch.log", "'모든'에 'N개 중 N개'"),
+        ("규칙 1: 일곱 줄 7개 중 7개, 모든 명령을 감쌌다 — fetch.log", None),
+        ("규칙 1: eval로 돌린 명령은 없다 — fetch.log", "부정문이 과정 기록 ['eval:7']"),
+    ],
+)
+def test_notes_lint(ev, line, message):
+    add_cmd(ev, 'eval "$(cat "$E/x-cmd.txt")"', TOOL_LINE)
+    put(
+        ev / "body-notes.txt",
+        NOTES.replace("규칙 1: 규칙 1 일을 했다 — fetch.log", line) + "eval:7: 견본 eval\n",
+    )
+    code = run(ev)
+    if message is None:
+        assert code == 0
+    else:
+        assert code == 2 and message in (ev / "body-audit.log").read_text(encoding="utf-8")
+
+
+def test_audit_only_cli_entry(ev):
+    tools = Path(__file__).resolve().parents[1]
+    r = subprocess.run(
+        [sys.executable, "-m", "golmok_tools.jaehwan_body", str(ev), "--audit-only"],
+        cwd=tools,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        env={**os.environ, "PYTHONIOENCODING": "utf-8"},
+        timeout=120,
+    )
+    assert r.returncode == 0, r.stderr
+    log = (ev / "body-audit.log").read_text(encoding="utf-8")
+    assert "not-wrapped push-cmd.sh:3 git push" in log and log.endswith("not_wrapped 2\n")
+```
+
+```python j37-mutate-py
+# J-37: mutation check of tests/test_jaehwan_body.py (usage: python j37_mutate.py <tools dir> <work dir>).
+# Copies the module and the test into <work dir>, never edits the repo; one line "tag rc first-failed-test".
+import hashlib
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+
+tools, work = Path(sys.argv[1]), Path(sys.argv[2])
+(work / "golmok_tools").mkdir(parents=True, exist_ok=False)
+(work / "tests").mkdir()
+shutil.copy(tools / "golmok_tools" / "__init__.py", work / "golmok_tools" / "__init__.py")
+shutil.copy(tools / "tests" / "test_jaehwan_body.py", work / "tests" / "test_jaehwan_body.py")
+src = tools / "golmok_tools" / "jaehwan_body.py"
+orig = src.read_text(encoding="utf-8")
+dst = work / "golmok_tools" / "jaehwan_body.py"
+M = [
+    ("m01", r"(?:\s+-[Cc]\s+\S+)*\s+(?:fetch", r"\s+(?:fetch"),
+    ("m02", '("&&", "||", ";", "|", "&")', '("&&", "||", "|", "&")'),
+    ("m03", "del scan[dq:]  # a literal", "pass  # a literal"),
+    ("m04", "if h.group(1) != got:", "if False:"),
+    ("m05", 'return got == str(want).rstrip("\\n"), ', "return True, "),
+    ("m06", 'raise Refused("근거 파일 없음: " + " 또는 ".join(names))', 'return names[0], ""'),
+    ("m07", "for w in FUTURE:", "for w in ():"),
+    ("m08", r'COUNTED = re.compile(r"\d+\s*(?:개|곳|줄|건|행|회|번)\s*중\s*\d+")', 'COUNTED = re.compile(r"")'),
+    ("m09", 'note(f"eval:{tag}", [f"{tag} {stripped}"], not verb)', 'note(f"eval:{tag}", [f"{tag} {stripped}"], False)'),
+    ("m10", "def last_record_is_tool(ev: Evidence) -> bool:\n", "def last_record_is_tool(ev: Evidence) -> bool:\n    return True\n"),
+    ("m11", 'if c.get("p"):', 'if c.get("p") and False:'),
+    ("m12", "if len(origins) < 2 or name in ev.rewrite_ok:", "if True:"),
+    ("m13", "return bool(self.task) and len(body) >= 8 and body in self.task", "return False"),
+    ("m14", "hits = PLACEHOLDER.findall(s) + [", "hits = [] and ["),
+    ("m15", "if len(lines_) > 1:", "if len(lines_) > 9:"),
+    ("m16", "if any(under(p, r) for r in roots.values()):", "if True:"),
+    ("m17", 'not (lines and lines[0].startswith("# J-"))', "False"),
+    ("m18", "elif not h:", "elif False:"),
+]
+
+
+def run(tag: str, text: str) -> None:
+    dst.write_text(text, encoding="utf-8")
+    cmd = [sys.executable, "-m", "pytest", "-q", "-x", "-p", "no:cacheprovider", "tests/test_jaehwan_body.py"]
+    r = subprocess.run(cmd, cwd=work, capture_output=True, text=True, encoding="utf-8", timeout=600)
+    failed = [ln.split(" ")[1].split("::")[1].split("[")[0] for ln in r.stdout.splitlines() if ln.startswith("FAILED ")]
+    print(tag, r.returncode, failed[0] if failed else "-")
+
+
+run("base", orig)
+for tag, a, b in M:
+    if orig.count(a) != 1:
+        print(tag, "pattern-count", orig.count(a))
+        continue
+    run(tag, orig.replace(a, b))
+dst.write_text(orig, encoding="utf-8")
+same = hashlib.sha256(dst.read_bytes()).hexdigest() == hashlib.sha256(src.read_bytes()).hexdigest()
+print("restored", "same" if same else "differ")
+```
+
+```text j37-expected-mutate
+base 0 -
+m01 1 test_rule5_audit_counts_segments_and_git_dash_c
+m02 1 test_segments_drop_literal_strings_and_keep_sh_c
+m03 1 test_segments_drop_literal_strings_and_keep_sh_c
+m04 1 test_hash_mismatch_is_refused
+m05 1 test_unmet_and_rerun_file
+m06 1 test_refusals
+m07 1 test_notes_lint
+m08 1 test_notes_lint
+m09 1 test_ledger_kinds
+m10 1 test_refusals
+m11 1 test_build_two_phases
+m12 1 test_ledger_kinds
+m13 1 test_ledger_kinds
+m14 1 test_refusals
+m15 1 test_ledger_kinds
+m16 1 test_ledger_kinds
+m17 1 test_ledger_kinds
+m18 1 test_ledger_kinds
+restored same
+```
+
+```sh j37-pre-sh
+# J-37 준비 확인: 겹치는 PR, 새 파일 자리, 워크트리 venv의 tomllib
+W="$HOME/projects/golmok-jaehwan"; E="$TMPDIR/jaehwan/J-37"
+cd "$W" && /usr/bin/timeout 120 gh pr list --state open --json number,headRefName,files --jq '.[]|select(any(.files[]; .path=="tools/golmok_tools/jaehwan_body.py" or .path=="tools/tests/test_jaehwan_body.py"))|"\(.number) \(.headRefName)"' > "$E/overlap.log" 2>&1; echo $? > "$E/overlap.rc"
+{ test -e "$W/tools/golmok_tools/jaehwan_body.py"; echo "tool-file=$?"; test -e "$W/tools/tests/test_jaehwan_body.py"; echo "test-file=$?"; "$W/tools/.venv/bin/python" -c 'import sys, tomllib; print("tomllib", sys.version_info >= (3, 11))'; } > "$E/pre.log" 2>&1
+```
+
+```sh j37-put-sh
+# J-37 새 파일 두 개를 펜스 추출본에서 넣고 바이트 대조
+W="$HOME/projects/golmok-jaehwan"; E="$TMPDIR/jaehwan/J-37"
+cp "$E/jaehwan_body.py" "$W/tools/golmok_tools/jaehwan_body.py"; echo $? > "$E/put-tool.rc"
+cp "$E/test_jaehwan_body.py" "$W/tools/tests/test_jaehwan_body.py"; echo $? > "$E/put-test.rc"
+cmp "$E/jaehwan_body.py" "$W/tools/golmok_tools/jaehwan_body.py" > "$E/tool-diff.log" 2>&1; echo "exit=$?" >> "$E/tool-diff.log"
+cmp "$E/test_jaehwan_body.py" "$W/tools/tests/test_jaehwan_body.py" > "$E/test-diff.log" 2>&1; echo "exit=$?" >> "$E/test-diff.log"
+git -C "$W" status --porcelain | grep -v -x -F -e '?? tools/golmok_tools/jaehwan_body.py' -e '?? tools/tests/test_jaehwan_body.py' | diff "$E/status-before.log" - > "$E/status-put.diff"; echo "exit=$?" >> "$E/status-put.diff"
+```
+
+```sh j37-gate1-sh
+# J-37 게이트 1: ruff check, ruff format, 새 테스트 파일, 전체 테스트, check_repo
+W="$HOME/projects/golmok-jaehwan"; E="$TMPDIR/jaehwan/J-37"
+cd "$W/tools" && { /usr/bin/timeout 300 .venv/bin/ruff check . && /usr/bin/timeout 300 .venv/bin/ruff format --check . && /usr/bin/timeout 600 .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_jaehwan_body.py && /usr/bin/timeout 1800 .venv/bin/python -m pytest -q && /usr/bin/timeout 300 .venv/bin/python scripts/check_repo.py; } > "$E/gate-1.log" 2>&1; echo $? > "$E/gate-1.rc"
+[ "$E/gate-1.log" -nt "$W/tools/golmok_tools/jaehwan_body.py" ] && [ "$E/gate-1.log" -nt "$W/tools/tests/test_jaehwan_body.py" ]; echo "newer=$?" > "$E/mtime-1.log"
+grep -E 'passed|All checks passed|already formatted|^OK \(' "$E/gate-1.log" > "$E/gate-1-summary.log"
+```
+
+```sh j37-mutate-sh
+# J-37 변형 18개 확인(저장소 밖 작업 폴더 E/mut에서, 저장소 파일은 고치지 않는다)
+W="$HOME/projects/golmok-jaehwan"; E="$TMPDIR/jaehwan/J-37"
+cd "$E" && /usr/bin/timeout 900 "$W/tools/.venv/bin/python" "$E/j37_mutate.py" "$W/tools" "$E/mut" > "$E/mutate.log" 2>&1; echo $? > "$E/mutate.rc"
+diff "$E/expected-mutate.txt" "$E/mutate.log" > "$E/mutate.diff"; echo "exit=$?" >> "$E/mutate.diff"
+```
+
+```sh j37-selfaudit-sh
+# J-37 새 도구를 이 과제의 증거 폴더에 돌림(감사만 — 본문은 만들지 않는다)
+W="$HOME/projects/golmok-jaehwan"; E="$TMPDIR/jaehwan/J-37"
+cd "$W/tools" && /usr/bin/timeout 120 .venv/bin/python -m golmok_tools.jaehwan_body "$E" --audit-only > "$E/tool-audit.log" 2>&1; echo $? > "$E/tool-audit.rc"
+cp "$E/body-audit.log" "$E/self-audit-1.log"; echo $? > "$E/self-audit-cp.rc"
+tail -n 2 "$E/self-audit-1.log" > "$E/self-audit-tail.log"
+grep -c -E '^(wrapped|not_wrapped) [0-9]+$' "$E/self-audit-tail.log" > "$E/self-audit-shape.log"
+```
+
+```sh j37-commit-sh
+# J-37 커밋 1: 새 파일 두 개(허용 파일과 맞을 때만), 작성자·커밋본 대조
+W="$HOME/projects/golmok-jaehwan"; E="$TMPDIR/jaehwan/J-37"
+cd "$W" && git add tools/golmok_tools/jaehwan_body.py tools/tests/test_jaehwan_body.py && git diff --cached --name-only > "$E/c1-files.log" && printf '%s\n' tools/golmok_tools/jaehwan_body.py tools/tests/test_jaehwan_body.py | cmp -s - "$E/c1-files.log" && git diff --cached --numstat | tr '\t' ' ' > "$E/c1-numstat.log" && git -c user.name="재환" -c user.email="jaehwan.local@localhost" commit -m "J-37: PR 본문의 기계적 부분 도구 golmok_tools.jaehwan_body(조각 1)와 테스트" -m "작성: 재환(로컬 LLM, qwen3.8-flash-next / LM Studio)" > "$E/c1-commit.log" 2>&1; echo $? > "$E/c1-commit.rc"
+git -C "$W" log -1 --format='%an <%ae>' > "$E/author-1.log"
+git -C "$W" show HEAD:tools/golmok_tools/jaehwan_body.py | cmp -s - "$E/jaehwan_body.py"; echo "tool-same=$?" > "$E/committed.log"; git -C "$W" show HEAD:tools/tests/test_jaehwan_body.py | cmp -s - "$E/test_jaehwan_body.py"; echo "test-same=$?" >> "$E/committed.log"
+git -C "$W" status --porcelain | diff "$E/status-before.log" - > "$E/status-c1.diff"; echo "exit=$?" >> "$E/status-c1.diff"
+```
+
+```sh j37-pub-sh
+# J-37 브랜치 올리기와 PR 열기(첫 본문은 한 문장), PR 번호
+W="$HOME/projects/golmok-jaehwan"; E="$TMPDIR/jaehwan/J-37"
+/usr/bin/timeout 300 git -C "$W" push -u origin local/jaehwan-j37-body-tool > "$E/push-1.log" 2>&1; echo "exit=$?" >> "$E/push-1.log"
+[ "$(tail -n 1 "$E/push-1.log")" = "exit=0" ] && printf '%s\n' 'CI 진행 중 — 결과는 아래에 추가' > "$E/pr-body-initial.md" && cd "$W" && /usr/bin/timeout 120 gh pr create --base main --head local/jaehwan-j37-body-tool --title "J-37: PR 본문의 기계적 부분 도구 golmok_tools.jaehwan_body(조각 1)" --body-file "$E/pr-body-initial.md" > "$E/pr-create.log" 2>&1; echo $? > "$E/pr-create.rc"
+cd "$W" && /usr/bin/timeout 60 gh pr view local/jaehwan-j37-body-tool --json number --jq .number > "$E/pr-number.log" 2> "$E/pr-number.err"
+```
+
+```sh j37-ci-sh
+# J-37 CI: 두 실행 등록 대기, 감시, 끝난 뒤의 표와 개수(하네스 백그라운드)
+W="$HOME/projects/golmok-jaehwan"; E="$TMPDIR/jaehwan/J-37"
+H=$(git -C "$W" rev-parse HEAD); cd "$W" && /usr/bin/timeout 600 sh -c 'until [ "$(gh run list --commit "$1" --json event --jq "[.[]|select(.event==\"push\" or .event==\"pull_request\")]|length")" -ge 2 ]; do sleep 30; done' sh "$H" > "$E/run-wait.log" 2>&1; echo $? > "$E/run-wait.rc"
+[ "$(cat "$E/run-wait.rc")" = 0 ] && cd "$W" && /usr/bin/timeout 1800 gh pr checks "$(cat "$E/pr-number.log")" --watch --interval 30 > "$E/checks-watch.log" 2>&1; echo "exit=$?" >> "$E/checks-watch.log"
+cd "$W" && /usr/bin/timeout 120 gh pr checks "$(cat "$E/pr-number.log")" > "$E/checks.log" 2>&1; echo $? > "$E/checks.rc"
+{ awk -F'\t' '$2 != "pass"' "$E/checks.log" | wc -l | tr -d ' '; wc -l < "$E/checks.log" | tr -d ' '; } > "$E/checks-count.log"
+```
+
+```sh j37-ci2-sh
+# J-37 CI 다시(checks-watch.log에 no checks reported가 있을 때만): 등록 대기·감시·표·개수를 -2 로그로(하네스 백그라운드)
+W="$HOME/projects/golmok-jaehwan"; E="$TMPDIR/jaehwan/J-37"
+H=$(git -C "$W" rev-parse HEAD); cd "$W" && /usr/bin/timeout 600 sh -c 'until [ "$(gh run list --commit "$1" --json event --jq "[.[]|select(.event==\"push\" or .event==\"pull_request\")]|length")" -ge 2 ]; do sleep 30; done' sh "$H" > "$E/run-wait-2.log" 2>&1; echo $? > "$E/run-wait-2.rc"
+[ "$(cat "$E/run-wait-2.rc")" = 0 ] && cd "$W" && /usr/bin/timeout 1800 gh pr checks "$(cat "$E/pr-number.log")" --watch --interval 30 > "$E/checks-watch-2.log" 2>&1; echo "exit=$?" >> "$E/checks-watch-2.log"
+cd "$W" && /usr/bin/timeout 120 gh pr checks "$(cat "$E/pr-number.log")" > "$E/checks-2.log" 2>&1; echo $? > "$E/checks-2.rc"
+{ awk -F'\t' '$2 != "pass"' "$E/checks-2.log" | wc -l | tr -d ' '; wc -l < "$E/checks-2.log" | tr -d ' '; } > "$E/checks-count-2.log"
+```
+
+```sh j37-quotes-sh
+#!/bin/sh
+# J-37: quote and number checks of the PR draft (usage: sh j37_quotes.sh <E>); needs E/pr-body.md and E/quotes.tsv.
+E=$1
+B=$(printf '\140')
+awk '/^## 결과$/{f=1;next} /^## /{f=0} f' "$E/pr-body.md" | awk -v b="$B" 'index($0, b b b) == 1 {c = !c; next} !c' > "$E/result-prose.txt"
+grep -oE "${B}[^${B}]+${B}" "$E/result-prose.txt" | sed "s/^${B}//;s/${B}\$//" | sort -u > "$E/body-quotes.txt"
+cut -f1 "$E/quotes.tsv" | sort -u > "$E/tsv-quotes.txt"
+comm -23 "$E/body-quotes.txt" "$E/tsv-quotes.txt" > "$E/quotes-missing.log"
+while IFS="$(printf '\t')" read -r q f; do if [ "$f" = "라벨" ]; then n="라벨"; else n=$(grep -F -c -- "$q" "$E/$f"); fi; printf '%s\t%s\t%s\n' "$n" "$f" "$q"; done < "$E/quotes.tsv" > "$E/quotes-check.log"
+grep -oE '[0-9]{2,}' "$E/result-prose.txt" | sort -u > "$E/body-numbers.txt"
+while read -r x; do
+  n=0
+  for f in extract-wc.log gate-1.log gate-1-summary.log mutate.log tool-audit.log body-audit.log self-audit-tail.log tool-diff.log test-diff.log c1-numstat.log committed.log sha.log checks.log; do
+    k=$(grep -c -- "$x" "$E/$f"); n=$((n + k))
+  done
+  printf '%s\t%s\n' "$n" "$x"
+done < "$E/body-numbers.txt" > "$E/numbers-check.log"
+```
+
+- **명령 공통**: 셸 변수는 Bash 호출 사이에 남지 않는다. 그래서 **모든 명령은 `W="$HOME/projects/golmok-jaehwan"; E="$TMPDIR/jaehwan/J-37";`로 시작하고**, 그 뒤는 `cd "$W" &&`·`git -C "$W"`·`"$E/…"` 절대 경로로 시작한다(상시 규칙). 아래 명령에는 이 앞머리를 적지 않았다. 돌린 명령 원문은 상시 규칙 "PR 본문 공통" 머리 **명령 기록**대로 **돌리기 전에** `printf '%s\n' '<명령>' >> "$E/commands.txt"` 한 줄로 더한다(규칙 10·19 b·21 — heredoc 금지, 적은 줄은 고치거나 지우지 않는다). **스크립트 파일**: 할 일 2부터의 명령은 모두 할 일 1이 펜스에서 뽑은 `-cmd.sh` 파일 아홉 개다(`ci2-cmd.sh`는 할 일 7의 조건일 때만 돈다)(첫 줄 `# J-37 …`, 둘째 줄 이 앞머리 — 손으로 쓰거나 고치지 않는다). 하나를 돌릴 때마다 머리 **명령 기록**의 꼴 그대로: 실행 줄 `printf '%s\n' 'sh "$E/<이름>-cmd.sh"' >> "$E/commands.txt"`, `tail -n 1` 확인, 해시 줄 `(cd "$E" && shasum -a 256 "<이름>-cmd.sh") >> "$E/commands.txt"`, 그리고 같은 호출에서 상시 규칙 "PR 본문 공통" 17의 꼴(줄 수와 첫 줄은 이 절의 값으로) `[ "$(tail -n 1 "$E/commands.txt" | grep -c -E '^[0-9a-f]{64}  <이름>-cmd\.sh$')" = 1 ] && [ "$(wc -l < "$E/<이름>-cmd.sh" | tr -d ' ')" = "<줄 수>" ] && head -n 1 "$E/<이름>-cmd.sh" | grep -q '^# J-37 ' && sh "$E/<이름>-cmd.sh"`(첫 검사가 막으면 스크립트는 돌지 않은 것이다: 17대로 그 실행 줄에 `# 정정:` 한 줄을 단 뒤 실행 줄·해시 줄을 다시 더하고 이 꼴로 다시 돈다). 이름과 줄 수: `pre-cmd.sh` 4, `put-cmd.sh` 7, `gate1-cmd.sh` 5, `mutate-cmd.sh` 4, `selfaudit-cmd.sh` 6, `commit-cmd.sh` 6, `pub-cmd.sh` 5, `ci-cmd.sh` 6, `ci2-cmd.sh` 6. `gate1-cmd.sh`·`mutate-cmd.sh`·`ci-cmd.sh`·`ci2-cmd.sh`는 **하네스의 백그라운드 실행**으로 돌리고 그 파일이 쓰는 `gate-1.rc`·`mutate.rc`·`checks-count.log`·`checks-count-2.log`가 생길 때까지 기다린다(명령은 바꾸지 않는다). 나머지는 앞쪽으로 돌린다. 각 단계의 "기대"와 다르면 **멈춤 조건**을 본다. **시간 한도**: 이 절의 네트워크·대기 명령(`git fetch`·`git push`·`gh …`·`pytest`·`until` 대기)에는 모두 `/usr/bin/timeout`이 붙어 있다. 예외는 상시 규칙 "PR 본문 공통" 6의 `gh pr edit`·`gh pr view` 두 명령이다 — 그 소절에 적힌 그대로(시간 한도 없이) 돌리고, 규칙 5 확장의 점검표 줄에서 "감싸지 않은 것" 무리에 넣는다. 이 과제는 UE·패키지·GPU·GUI 잠금을 쓰지 않는다.
+- **할 일**:
+  1. **준비**: `mkdir -p "$E" && git -C "$W" status --porcelain > "$E/status-before.log"; grep -c -v '^?? ' "$E/status-before.log" > "$E/status-before-tracked.log"` — 기대 `0`(추적 파일 변경이 있으면 멈춘다 — 앞 과제의 작업물일 수 있다; `??` 줄은 그대로 둔다). `/usr/bin/timeout 120 git -C "$W" fetch origin > "$E/fetch.log" 2>&1; echo "exit=$?" >> "$E/fetch.log"` — 기대 끝 줄 `exit=0`. `git -C "$W" switch -c local/jaehwan-j37-body-tool origin/main > "$E/switch.log" 2>&1; echo $? > "$E/switch.rc"` — 기대 `0`. `git -C "$W" rev-parse --short HEAD > "$E/sha.log"; git -C "$W" rev-parse HEAD origin/main | uniq | wc -l | tr -d ' ' > "$E/sha-same.log"` — 기대 `1`. 과제 절 뽑기(규칙 14·17 c, 상시 규칙 "PR 본문 공통" 1 — 이 절 다음 제목은 문서 순서가 바뀔 수 있어 다음 과제 id가 아니라 `##`·`###`·`####` 제목 어느 것에서든 끝낸다): `git -C "$W" show origin/main:docs/plan/jaehwan-tasks.md > "$E/tasks-main.md"; git -C "$W" rev-parse origin/main > "$E/main-rev.log"; { awk 'f && /^(##|###|####) /{f=0} /^#### J-37 /{f=1} f' "$E/tasks-main.md"; awk '/^### PR 본문 공통\(모든 과제\)$/{f=1} /^## 리뷰·병합 절차$/{f=0} f' "$E/tasks-main.md"; } > "$E/task.txt"` — 기대 `head -1 "$E/task.txt"`가 `#### J-37 `로 시작, `grep -c -x '### PR 본문 공통(모든 과제)' "$E/task.txt"` `1`. 펜스 추출(손으로 옮기지 않는다 — 이 명령에는 백틱이 없다, 백틱 세 개는 `sprintf`로 만든다): `printf '%s\n' "j37-tool-py jaehwan_body.py" "j37-test-py test_jaehwan_body.py" "j37-mutate-py j37_mutate.py" "j37-expected-mutate expected-mutate.txt" "j37-pre-sh pre-cmd.sh" "j37-put-sh put-cmd.sh" "j37-gate1-sh gate1-cmd.sh" "j37-mutate-sh mutate-cmd.sh" "j37-selfaudit-sh selfaudit-cmd.sh" "j37-commit-sh commit-cmd.sh" "j37-pub-sh pub-cmd.sh" "j37-ci-sh ci-cmd.sh" "j37-ci2-sh ci2-cmd.sh" "j37-quotes-sh j37_quotes.sh" "common-ph-awk ph.awk" | while read -r n f; do awk -v n="$n" 'BEGIN {b = sprintf("%c%c%c", 96, 96, 96)} $0 == b && x {x = 0} x {print} !x && $0 ~ ("^" b "[a-z]+ " n "$") {x = 1}' "$E/task.txt" > "$E/$f"; done; cd "$E" && wc -l jaehwan_body.py test_jaehwan_body.py j37_mutate.py expected-mutate.txt pre-cmd.sh put-cmd.sh gate1-cmd.sh mutate-cmd.sh selfaudit-cmd.sh commit-cmd.sh pub-cmd.sh ci-cmd.sh ci2-cmd.sh j37_quotes.sh ph.awk > "$E/extract-wc.log"`(zsh는 따옴표 없는 변수를 낱말로 나누지 않으므로 `read -r n f`로 나눈다) — 기대(앞 숫자, 순서대로): `745`, `292`, `55`, `20`, `4`, `7`, `5`, `4`, `6`, `6`, `5`, `6`, `6`, `17`, `37`, 끝 줄 `1215 total`. 그다음 `pre-cmd.sh`(4줄) — 기대 `overlap.rc` `0`·`overlap.log` 빈 파일, `pre.log` 세 줄 `tool-file=1`·`test-file=1`·`tomllib True`.
+  2. **파일 넣기**: `put-cmd.sh`(7줄) — 기대 `put-tool.rc`·`put-test.rc` `0`, `tool-diff.log`·`test-diff.log` 각각 `exit=0` 한 줄(펜스 추출본과 바이트가 같다), `status-put.diff` `exit=0` 한 줄(새 파일 두 개가 추적되지 않은 파일로만 보인다).
+  3. **게이트 1**: `gate1-cmd.sh`(5줄, 백그라운드) — 기대 `gate-1.rc` `0`(rc 124 = 시간 초과, 다시 돌리지 않고 멈춤), `mtime-1.log` `newer=0`, `gate-1-summary.log` 다섯 줄(`All checks passed!`, `… files already formatted`, `22 passed …`로 시작하는 줄, 전체 `pytest -q`의 `… passed, … skipped …` 줄, `OK (uproject, ini, json, links, gitattributes, conflicts, gasp)`).
+  4. **변형 확인**: `mutate-cmd.sh`(4줄, 백그라운드 — 저장소 밖 `$E/mut`에 모듈·테스트를 복사해 변형 18개를 하나씩 넣고 새 테스트를 돌린다, 저장소 파일은 고치지 않는다) — 기대 `mutate.rc` `0`, `mutate.diff` `exit=0` 한 줄(펜스 `j37-expected-mutate`와 같다 — `base 0 -`, 변형마다 `m<번호> 1 <처음 실패한 테스트>`, 끝 줄 `restored same`). `$E/mut`가 이미 있으면 스크립트가 실패한다(다시 돌리지 않고 멈춘다).
+  5. **자기 증거 폴더 감사**: `selfaudit-cmd.sh`(6줄) — 기대 `tool-audit.rc` `0`, `tool-audit.log` 한 줄이 `audit: 과정 기록 `으로 시작, `self-audit-cp.rc` `0`, `self-audit-shape.log` `2`(`self-audit-tail.log`가 `wrapped <수>`·`not_wrapped <수>` 두 줄). 값(과정 기록 수, 두 수)은 판정하지 않고 `## 결과`에 기록만 한다(설계 8). `tool-audit.rc`가 `2`면(도구가 거부 — 해시가 다르거나 펜스 꼴 줄) 멈추고 `self-audit-1.log` 끝 줄을 보낸다.
+  6. **커밋·push·PR**: `commit-cmd.sh`(6줄) — 기대 `c1-files.log` 두 줄 `tools/golmok_tools/jaehwan_body.py`·`tools/tests/test_jaehwan_body.py`(이 순서), `c1-numstat.log` 두 줄 `745 0 tools/golmok_tools/jaehwan_body.py`·`292 0 tools/tests/test_jaehwan_body.py`, `c1-commit.rc` `0`, `author-1.log` `재환 <jaehwan.local@localhost>`, `committed.log` 두 줄 `tool-same=0`·`test-same=0`, `status-c1.diff` `exit=0` 한 줄. `pub-cmd.sh`(5줄) — 기대 `push-1.log` 끝 줄 `exit=0`, `pr-create.rc` `0`, `grep -c -x '[0-9][0-9]*' "$E/pr-number.log"` `1`(`pr-number.err`는 판정하지 않는다). 브랜치 파일: `git -C "$W" diff --name-only origin/main...HEAD > "$E/branch-files.log"` — 기대 `c1-files.log`와 같은 두 줄.
+  7. **CI**: `ci-cmd.sh`(6줄, 백그라운드 — 두 실행 등록 대기 뒤에 감시) — 기대 `run-wait.rc` `0`(0이 아니면 다시 돌리지 않고 멈춘다), `checks-count.log` 첫 줄 `0`, 둘째 줄 1 이상. 판정은 `checks.log` 표로만 한다(상시 규칙 "PR 본문 공통" 12 — `checks-watch.log`의 `exit=`는 기록만). `grep -c -F 'no checks reported' "$E/checks-watch.log" > "$E/no-checks.log"` — `0`이면 위 `checks-count.log`로 판정한다. `1` 이상이면 첫 로그들은 그대로 두고 `checks-count.log`는 판정하지 않으며, `ci2-cmd.sh`(6줄, 백그라운드)를 머리 **명령 기록**의 꼴대로 돌린다 — 기대 `run-wait-2.rc` `0`(0이 아니면 다시 돌리지 않고 멈춘다), `checks-count-2.log` 첫 줄 `0`, 둘째 줄 1 이상. 그 뒤 `## CI`·완료 기준 (f)·멈춤 조건의 `checks.log`·`checks-count.log`는 `checks-2.log`·`checks-count-2.log`로 읽는다.
+  8. **PR 본문**: PR 본문·자리표시 분류·칸 자기 검사·근거 표기는 상시 규칙 "PR 본문 공통(모든 과제)"을 따른다(이 절과 다르면 그 소절을 따른다). 이 과제에는 런북 줄이 없어 커밋 2와 칸 자기 검사가 없다. `## 결과`에는 관찰한 값만 둔다: `extract-wc.log`, `gate-1-summary.log`, `mutate.log` 스무 줄, `tool-audit.log`, `self-audit-tail.log`, `c1-numstat.log`, `committed.log`(로그 원문은 모두 백틱 펜스 블록에 그대로) — 그 펜스 밖에는 과제 번호·규칙 번호·날짜를 쓰지 않는다. `gate-1.log`·`self-audit-1.log`는 본문에 붙이지 않는다 — `## 실행한 명령` 끝의 줄 수 목록(상시 규칙 "PR 본문 공통" 2 크기)에 이 두 파일만 적는다. `## 남은 [미확인]`에는 설계 9의 여섯 가지와 "Windows·Linux에서는 CI의 python 행으로만 돌았다"를 적는다. `## 병합 시 반영`에는 아래 "병합 시 반영(영록)"을 옮기지 않고 "영록이 STATUS와 이 과제 파일의 공통 소절을 고친다" 한 문장만 쓴다. `## 완료 기준 대조`는 아래 (a)~(g) 한 줄씩(과제 글에 백틱 펜스가 들어 있어 물결 펜스 `~~~`를 쓴다). 본문 초안은 `$E/pr-body.md`. 사용자 경로 검사: `grep -c -F "$HOME" "$E/pr-body.md" > "$E/home-path.log"` — 기대 `0`(0이 아니면 그 줄을 `~` 기준으로 고쳐 다시 센다). 게시 전 검사(규칙 10 e·f): `## 결과` 절의 펜스 밖 백틱 문자열마다 근거 로그 **한 개**를 `"$E/quotes.tsv"`에 `<문자열><탭><파일 이름>`으로 적는다 — 파일 이름은 펜스 `j37-quotes-sh` 안의 숫자 검사 목록에 든 것만 쓰고, 로그 인용이 아닌 파일 이름·명령은 파일 칸에 `라벨`. 그다음 `sh "$E/j37_quotes.sh" "$E"; echo $? > "$E/quotes.rc"` — 기대 `quotes.rc` `0`, `quotes-missing.log` 빈 파일, `cut -f1 "$E/quotes-check.log" | grep -c -x '0'` `0`, `cut -f1 "$E/numbers-check.log" | grep -c -x '0'` `0`. 한 자리 숫자는 숫자 검사에 걸리지 않으므로 문맥 문자열(예: `m04 1 test_hash_mismatch_is_refused`)로 인용 검사에 넣는다. 0이 나온 것은 고치거나 지우고 같은 명령을 다시 돌린다. 그다음 상시 규칙 "PR 본문 공통" 3(점검표 대조, 규칙 5 줄은 그 소절의 awk 감사)·5(자리표시 분류)·6(조립·게시·다시 읽기)을 적힌 그대로 돌린다.
+- **허용 파일**: `tools/golmok_tools/jaehwan_body.py`(새 파일, 펜스 `j37-tool-py` 그대로), `tools/tests/test_jaehwan_body.py`(새 파일, 펜스 `j37-test-py` 그대로) — 커밋 하나. 그 밖의 저장소 파일은 고치지 않는다: `tools/pyproject.toml`(핫스팟 — 콘솔 스크립트 등록 없음), CI, `check_repo.py`, 다른 테스트, 공유 문서, 이 과제 파일. `$E`의 펜스 추출본·스크립트·`mut/`은 저장소 밖이다. 생성물(`__pycache__/`·`.pytest_cache/`)은 `.gitignore`다.
+- **멈춤 조건(정하지 말고 영록에게 묻는다)**: `status-before-tracked.log`가 0이 아닐 때. `fetch.log`·`push-1.log`가 `exit=0`으로 끝나지 않을 때. `switch.rc`가 0이 아니거나 `sha-same.log`가 1이 아닐 때. `head -1 "$E/task.txt"`가 `#### J-37 `로 시작하지 않을 때. `extract-wc.log`가 기대와 다를 때. `overlap.rc`가 0이 아니거나 `overlap.log`가 비어 있지 않을 때. `pre.log`가 기대 세 줄과 다를 때. 스크립트의 `wc -l`·첫 줄 확인이 막을 때(돌리지 않고 그 파일을 연다 — 규칙 20). `put-tool.rc`·`put-test.rc`가 0이 아니거나 `tool-diff.log`·`test-diff.log`·`status-put.diff`·`status-c1.diff`가 `exit=0` 한 줄이 아닐 때. `gate-1.rc`가 0이 아닐 때(rc 124 포함 — 다른 파일을 고치거나 `ruff format`으로 바꾸지 않는다; 새 두 파일도 손으로 고치지 않는다). `mtime-1.log`가 `newer=0`이 아니거나 `gate-1-summary.log`가 다섯 줄이 아닐 때. `mutate.rc`가 0이 아니거나 `mutate.diff`가 `exit=0` 한 줄이 아닐 때(특히 `m<번호> 0 -` — 그 변형을 테스트가 잡지 못했다). `tool-audit.rc`가 0이 아니거나 `self-audit-cp.rc`가 0이 아니거나 `self-audit-shape.log`가 `2`가 아닐 때. `c1-files.log`·`c1-numstat.log`·`c1-commit.rc`·`author-1.log`·`committed.log`가 기대와 다를 때(`cmp`가 막아 커밋이 안 됐으면 `c1-commit.rc`가 `1`이다 — 그것도 멈춤). `branch-files.log`가 두 줄이 아닐 때. `pr-create.rc`가 0이 아니거나 `pr-number.log`가 숫자 한 줄이 아닐 때. `run-wait.rc`가 0이 아닐 때. `ci2-cmd.sh`를 돌렸을 때 `run-wait-2.rc`가 0이 아니거나 `checks-2.log`에 `pass`가 아닌 행이 있을 때. `checks.log`에 `pass`가 아닌 행이 있을 때. `home-path.log`가 두 번 고친 뒤에도 0이 아닐 때. `quotes.rc`가 0이 아닐 때. 상시 규칙 "PR 본문 공통" 9의 공통 멈춤 조건. 그 밖에 이 절의 "기대"와 다른 값이 하나라도 나올 때.
+- **완료 기준**:
+  - (a) 준비: `status-before-tracked.log` `0`, `fetch.log` 끝 줄 `exit=0`, `switch.rc` `0`, `sha-same.log` `1`, `task.txt` 첫 줄 `#### J-37 `, `extract-wc.log` 원문(기대 숫자와 같다), `overlap.rc` `0`·`overlap.log` 빈 파일, `pre.log` 세 줄 `tool-file=1`·`test-file=1`·`tomllib True`.
+  - (b) 파일: `put-tool.rc`·`put-test.rc` `0`, `tool-diff.log`·`test-diff.log` `exit=0`, `status-put.diff` `exit=0`.
+  - (c) 게이트·변형: `gate-1.rc` `0`, `mtime-1.log` `newer=0`, `gate-1-summary.log` 다섯 줄, `mutate.rc` `0`, `mutate.diff` `exit=0`(`mutate.log` 스무 줄 원문).
+  - (d) 자기 감사: `tool-audit.rc` `0`, `self-audit-cp.rc` `0`, `self-audit-shape.log` `2`. 값은 기록이다(설계 8).
+  - (e) 커밋·PR: `c1-files.log` 두 줄, `c1-numstat.log` 두 줄, `c1-commit.rc` `0`, `author-1.log` `재환 <jaehwan.local@localhost>`, `committed.log` `tool-same=0`·`test-same=0`, `status-c1.diff` `exit=0`, `push-1.log` 끝 줄 `exit=0`, `pr-create.rc` `0`, `pr-number.log` 숫자 한 줄, `branch-files.log` 두 줄.
+  - (f) CI: `run-wait.rc` `0`, `checks-count.log` 첫 줄 `0`, `checks.log` 모든 행 `pass` 원문(규칙 2), `no-checks.log` 원문; `no-checks.log`가 1 이상이면 `run-wait-2.rc` `0`, `checks-count-2.log` 첫 줄 `0`, `checks-2.log` 모든 행 `pass` 원문.
+  - (g) PR 본문: 절 순서(상시 규칙 "PR 본문 공통" 2), "완료 기준 대조" 절, 점검표(그날 규칙 수만큼, 소절 3). `home-path.log` `0`, `quotes.rc` `0`, `quotes-missing.log` 빈 파일, `quotes-check.log`·`numbers-check.log`에 0 없음. 공통 완료 기준 (P)(소절 10): `checklist.diff` `exit=0`, `ph-unfilled.log` `0`, `pr-edit.rc` `0`, `ph-posted-unfilled.log` `0`, `ph-table.diff` `exit=0`, `signature-last.log` `1`.
+- **병합 시 반영(영록)**: STATUS 재환 절에 J-37 행, 이 파일 "완료" 표에 한 줄, 백로그에 J-37b 행(설계 선행 — 설계 7). 그다음 **문서 PR(Opus)** 하나로 상시 규칙 "PR 본문 공통(모든 과제)"을 고친다(규칙 16 — 있는 글은 지우지 않고 날짜를 단 문장으로 덧붙이거나 바꾼 항목에 "(J-37 뒤)"를 단다): ① 머리 문단 끝에 — "J-37 뒤(2026-11-28 문서 10)에 **설계 확정되는 과제**는 PR 본문 초안 `pr-body.md`를 도구로 만든다: 과제 절이 펜스 `<과제>-body-spec`(TOML)을 주고 할 일 1이 그것을 `$E/body-spec.toml`로 뽑는다. 재환은 `$E/body-notes.txt`(머리 `@요약`·`@결과`·`@미확인`·`@병합`·`@점검표`·`@일탈`)만 Write 도구로 쓴다. 기록 줄 `cd "$W/tools" && .venv/bin/python -m golmok_tools.jaehwan_body "$E" > "$E/body-build.log" 2>&1; echo $? > "$E/body-build.rc"`를 **먼저** `commands.txt`에 더하고 같은 명령을 돌린다(도구는 마지막 기록이 자기 실행이 아니면 거부한다). 그 전에 설계된 과제(J-23·J-24·J-25·J-30a·J-30b)는 옛 절차 그대로다." ② 2(절 순서)에 — "도구를 쓰는 과제는 `## 요약`부터 `## 제출 전 점검표`까지를 도구가 쓴다. 쓰는 순서: 도구 → 3 → 5 → 도구를 한 번 더(기록 줄을 다시 더한 뒤 — 4 ③의 두 줄이 고정 문장이 된다) → 3 → 5 → 6. 손으로 `pr-body.md`를 고치지 않는다 — 고칠 것은 `body-notes.txt`(설명)나 `commands.txt`의 `# 정정:` 줄(기록)이다." ③ 3(점검표)의 규칙 5 줄에 — "도구를 쓰는 과제는 규칙 5 줄을 도구가 명령 조각 단위 감사로 쓴다(`body-audit.log`). `common-timeout-awk` 감사는 옛 절차의 과제만 쓴다." ④ 9(공통 멈춤)에 — "`body-build.rc`가 `2`이면 `body-audit.log`의 끝 `REFUSED` 줄을 읽고, `@일탈` 설명·빠진 점검표 줄·없는 근거 파일 이름처럼 손글의 문제면 `body-notes.txt`만 고쳐 같은 기록·명령을 다시 돈다(같은 이름 — 예외 목록에 `body-build.log`·`body-build.rc`·`body-audit.log`·`pr-body.md`를 더한다). 해시가 다르다·펜스 꼴 줄·명세 오류면 고치지 않고 멈춘다. `3`(미충족)이면 그 과제 절의 멈춤 조건을 본다." ⑤ 15에 — "도구를 쓰는 과제의 완료 기준 대조는 도구가 명세로 계산한다(영록 판정은 명세 `[[override]]` 세 줄로만 들어간다)." 이 다섯 문장은 Opus가 그 문서 PR에서 과제 파일 dry-run(뽑기·펜스·도구 실행)과 함께 확정한다.
+- **왜 재환 / 위험**: 코드·테스트·변형 목록·실행 명령·판정이 모두 펜스로 정해져 있고, 재환은 펜스를 뽑아 `cp`로 넣고 `cmp`로 확인한다(설계·문구 판단 없음). 판정은 종료 코드·`cmp`·`diff`·고정 개수로 끝난다. Astra 레인·핫스팟·UE·GPU를 건드리지 않는다. 위험: ① **Windows·Linux CI** — 도구는 경로를 `os.path.realpath`·`normcase`로 비교하고, 테스트는 `HOME`·`TMPDIR`를 `monkeypatch`로 정하고 파일을 `newline="\n"`으로 쓰며, `-m` 실행 테스트는 `PYTHONIOENCODING=utf-8`을 준다. 이 Mac에서 돌린 것은 Python 3.12뿐이다 — 3.11·Windows는 CI 행이 처음 확인한다(빨강이면 멈춘다 — 재환이 고치지 않는다, 영록이 펜스를 고친다). ② **추출 손상** — 줄 수 `wc -l`과 바이트 `cmp`가 막는다. ③ **변형 실행이 저장소를 바꿈** — 변형은 `$E/mut` 사본에서만 돌고 끝에 `restored same`을 찍는다. ④ **자기 감사가 재환의 기록 실수를 드러냄** — `tool-audit.rc` `2`면 멈춘다(이 과제의 목적과 같은 방향의 신호다). ⑤ **도구의 휴리스틱(경로·따옴표·`dup:`)이 틀린 신호를 낼 수 있음** — 조각 1에서는 이 과제 본문에 영향이 없고(설계 8), 문서 PR 전에 영록이 실제 폴더(J-37의 `self-audit-1.log`)로 다시 본다.
+- **dry-run 범위(Opus 2026-11-28)**: `origin/main` `d025f02`의 scratch 사본(`git archive`, git 저장소로 만든 것)에서 한 것: 두 새 파일을 넣고 `ruff check .` 통과, `ruff format --check .` 통과(이 Mac의 ruff 0.17.6 — `$W` venv와 같은 판), `pytest -q tests/test_jaehwan_body.py` `22 passed`, 전체 `pytest -q` `1962 passed, 3 skipped`, `check_repo.py` `OK (uproject, ini, json, links, gitattributes, conflicts, gasp)`(이 절을 넣은 과제 파일 포함). 변형 18개(펜스 `j37-mutate-py`)를 main venv와 `$W` venv의 python으로 각각 돌려 같은 스무 줄 — 변형마다 테스트 하나 이상이 실패했다(펜스 `j37-expected-mutate`). 할 일 전체를 가짜 `HOME`·`TMPDIR`(이 절을 넣은 과제 파일을 커밋한 맨 저장소를 `origin`으로 한 사본, `tools/.venv`는 main venv 링크, `gh`는 기록만 하는 스텁)에서 zsh와 sh로 한 번씩 돌렸다: 할 일 1의 뽑기(첫 줄 `#### J-37 `, `### PR 본문 공통(모든 과제)` 1, `extract-wc.log` 위 기대 숫자와 `1215 total`(문서 10 검증 뒤 `ci2-cmd.sh` 6줄을 더한 값), 두 셸이 뽑은 파일이 이 절의 펜스와 바이트가 같음), 스크립트 여덟 개가 rc 0(문서 10 검증 뒤 더한 `ci2-cmd.sh`는 `ci-cmd.sh`와 `-2` 이름만 다르고 `sh -n`·`zsh -n`·`bash -n` 통과 — 스텁 실행은 하지 않았다), 이 절의 모든 "기대" 값(`pre.log` 세 줄, `cmp` `exit=0`, `gate-1-summary.log` 다섯 줄, `mutate.diff` `exit=0`, `tool-audit.rc` `0`·`self-audit-shape.log` `2`, `c1-numstat.log` `745 0`·`292 0`, `committed.log` `tool-same=0`·`test-same=0`, 상태 `diff` `exit=0`, 스텁 PR 번호, `checks-count.log` `0`·`2`)이 두 셸에서 같았다. 그 가짜 폴더의 자기 감사는 아직 실행 기록이 없던 `ci-cmd.sh`·`commit-cmd.sh`·`pub-cmd.sh` 세 개를 `norec:`로 냈고(그 셋은 할 일 5 뒤에 돈다 — 설계 8대로 기록만 한다), 감싼 명령 10곳·감싸지 않은 명령 0곳이었다. 펜스 `j37-quotes-sh`는 견본 본문에서 sh·zsh 같은 출력, 본문에만 있는 문자열을 넣으면 `quotes-missing.log`가 그 한 줄, 로그에 없는 문자열은 세기 `0` 한 줄. 모든 펜스 셸 스크립트 `sh -n`·`bash -n`·`zsh -n` 통과, 펜스 안의 셸 명령에 백틱 0개. **실제 증거에 돌려 본 것**: 병합 뒤 지워진 J-22 증거 폴더를 다시 만든 사본 — `commands.txt`는 PR #165 첫 게시 본문의 펜스 141줄(조립 시점 사본), `-cmd.sh` 29개는 재환 세션 기록의 Write·Edit를 다시 적용한 내용(J-29 사본으로 확인: Edit를 다시 적용하자 기록된 해시 35개가 모두 맞았다), `task.txt`는 `acbd954`에서 같은 awk로 뽑은 것. `--audit-only`가 과정 기록 56개(설명 필요 34)를 냈다: `eval:7`, `rm:59`·`out:59`(J-19 폴더 `rm -rf`), `out:7`(`E`를 J-19 폴더로 정의), `out:49`·`out:50`(저장소 밖 `~/.claude/projects/…` 조회), `nohash:` 14개(해시 자리에 `shasum` 명령 글자 10개 — 54~86번 줄 — 와 51·52·117·125번 줄), `hashfmt:` 11개(값만 적힌 해시), `nofile:96`, 번호 없는 정정 `fix:97`, `rerun:` 5개(`assemble-checks1-cmd.sh` 3회 등), `dup:main-rev.log`(1·12번 줄)·`dup:tasks-main.md`(2·12번 줄)·`dup:checks-2.log`·`dup:checks-watch-2.log`(75·86번 줄). 규칙 5 감사는 감싼 명령 17곳·감싸지 않은 명령 10곳 — `commands.txt` 9번 줄 `git fetch`·16번 줄 `gh pr list`, `pushpr-cmd.sh` 3번 줄 `git push`·7·10번 줄, `commit2-cmd.sh` 13번 줄 `git push`, `ciwatch-cmd.sh` 3번 줄 뒤쪽 `gh pr checks`, `wait2-cmd.sh` 12번 줄, `c6-cmd.sh` 4·5번 줄로 R165 렌즈 2가 손으로 센 목록과 같고, 스크립트 안 감싼 13곳의 초 분포(120초 7·60초 2·600초 1·1800초 3)도 R165가 맞다고 한 수와 같다. 같은 사본에 공통 3의 awk 감사를 돌리면 `ciwatch-cmd.sh` 3번 줄을 놓치고(한 줄에 감싼 명령이 함께 있다) `facts-cmd.sh` 9번 줄·`verify-cmd.sh` 13번 줄의 검색 글자를 감싸지 않은 것으로 센다. 첫 게시 본문(#165)의 손글 줄(점검표 21, 일탈 9, 대조 9)을 도구의 손글 검사에 넣으면(첫 `ls`에 없던 파일만 없다고 보고, 그 뒤 이름순의 파일은 있다고 놓은 사본) 14건으로 거부했다: `extract-total.log` 없음, 규칙 20 줄 "eval로 돌린 명령은 없다"와 `eval:7`, 규칙 16·19 줄과 `rm:59`, 수 없는 "모든·전부" 7건, 규칙 17 줄의 줄인 이름 `cell-lines-1·2-count.log` 2건(실제 이름으로 쓰라는 공통 4 ①), "부분 충족" 1건. 도구가 잡지 못한 것: 17:09~17:46 정지, 60번 줄의 게이트 종료 전 읽기(설계 9). J-29 사본(`commands.txt`는 #166 본문 펜스 100줄)에서는 `hashfmt:2`, `nohash:15`·`nohash:94`(파일보다 먼저 적은 기록), `rerun:` 셋, `dup:fetch.log`(1·3번 줄 — 리뷰에서 지적되지 않았던 같은 이름 다시 쓰기)를 냈다(J-29 사본의 `out:11`은 사본 경로 탓이다 — 실제 `TMPDIR`에서는 `E` 자신이다). **dry-run하지 못한 것**: Python 3.11(ubuntu CI 행)과 Windows(CI 행)에서의 실행 — 이 Mac에는 3.12만 있다(ruff `target-version = "py311"` 검사는 통과); 실제 `$W`·실제 `gh pr create`·`gh pr checks`·CI 표; 이 과제 자신의 실제 증거 폴더에서의 `--audit-only` 결과 값(할 일 5가 잰다); `build` 경로(본문 생성)를 실제 과제 증거로 끝까지 — 테스트의 합성 폴더로만 돌렸고 그 초안을 공통 `common-ph-awk`에 넣으면 미채움 0이었다. shellcheck는 이 Mac에 없어 돌리지 않았다(펜스 스크립트는 `$E`에 두어 CI shellcheck 범위 밖이다). 런북 줄이 없어 칸 자기 검사 `grep -n -E` 대상이 없다.
+
+#### J-39 CI `objcap-colmap (macos-26)`: golmok-objcap `swift build` + 고정 `poses.json`의 `colmap` 내보내기를 Python COLMAP 읽기로 대조(J-28을 대신함) — 설계 확정(Opus 2026-11-28)
+- **출처**: 옛 J-28 행·절(이 파일 "J-28 CI `swift build`(golmok-objcap) — 설계 선행": 테스트 타깃 없음, 텍스트 검사만, CI에 swift 단계 없음 — 이 절이 대신한다). [mac-recon.md](../runbooks/mac-recon.md) :18(메시·텍스처 = `golmok-objcap`, D-023 후보)·:114(`colmap` 실험 경로 — splat을 메시와 같은 좌표계로, 렌즈 왜곡·Brush 수용 [미확인]). [tools/mac/objcap/README.md](../../tools/mac/objcap/README.md) §1(:11-19 `--scratch-path`로 저장소 밖에 빌드, `.build/`는 `.gitignore`)·§5(:109-132 변환 식, Buddha에서 한 번 손으로 검증, [미확인] 1~5). 소스(읽기만): `tools/mac/objcap/Sources/golmok-objcap/Colmap.swift` :19-22(인자 2·3개가 아니면 2)·:35(`let flip = simd_double3x3(diagonal: SIMD3<Double>(1, -1, -1))`)·:37-45(가드 — `image`·`translation` 3·`transform_matrix_rows` 4·`intrinsics_rows` 3·`image_file_info`의 정수 `pixel_width`·`pixel_height`가 없으면 `lacks image/pose/intrinsics; skipped`)·:46-48(LUT 최대 절댓값은 가드를 지난 샘플만)·:50-58(`R_w2c = (R_pose·flip)ᵀ`, `t = −R_w2c·C`, `simd_quatd`, `PINHOLE W H fx fy cx cy`, 이미지 줄 뒤 빈 줄)·:94-96(stderr `… N images, M points -> … (EXPERIMENTAL)`, `in the LUTs = %.5f`, 하나라도 쓰면 0). `main.swift` :132-150(사용법 글)·:152-155(`usageError` — stderr, 종료 2)·:569-570(인자 없음 → `missing command`)·:175·:300(`#available(macOS 26.0, *)` 안의 `lensDistortionData` — macOS 26 SDK가 있어야 컴파일된다)·:304(`intrinsics_rows`가 nil이면 JSON `null`). `Package.swift`(테스트 타깃 없음, 의존성 없음), `tools/tests/test_mac_objcap.py:62-65`(패키지 폴더에는 `.swift`·`.md`·`.gitignore`만 — 그래서 fixture는 `tools/tests/fixtures/objcap/`에 둔다). `tools/pyproject.toml` `testpaths = ["tests"]`(pytest 기본 `python_files`는 `test_*.py`·`*_test.py` — `objcap_colmap_check.py`는 수집되지 않는다; 같은 꼴의 수집 안 되는 도우미 `tools/tests/zone_util.py`·`mesh_util.py`가 이미 있다). `.github/workflows/ci.yml`(origin/main `d025f02`, 161줄, 끝 줄 `  # [/J-10 hook]`; 핫스팟 — 앞선 훅 블록 `[J-11 hook]` :96-131·`[J-10 hook]` :133-161이 파일 끝에 덧붙인 꼴). 러너(2026-11-28 Opus 측정): main `d025f02` CI 실행 46137095982의 `python (macos-latest, 3.12)` 잡 로그 "Set up job" — `Image: macos-26-arm64`, `Version: 20261117.0516.1`, macOS 26.7.2. 그 이미지의 공식 소프트웨어 목록 [macos-26-arm64-Readme @ 20261117.0516](https://github.com/actions/runner-images/blob/macos-26-arm64/20261117.0516/images/macos/macos-26-arm64-Readme.md): Xcode `26.6 (default)`(17F113)·26.5·26.4.1·26.3·26.2·26.1.1·26.0.1, SDK macOS 26.0~26.5. 라벨 표 [actions/runner-images README](https://github.com/actions/runner-images#available-images): macOS 26 Arm64 = `macos-latest`, `macos-26`; 같은 README "only one major version of Xcode will be supported per macOS version". 비용: [GitHub Actions billing](https://docs.github.com/en/billing/concepts/product-billing/github-actions) "The use of standard GitHub-hosted runners is free: In public repositories." — `gh repo view --json isPrivate,visibility` `{"isPrivate":false,"visibility":"PUBLIC"}`(2026-11-28). 이 Mac(2026-11-28): macOS 27.2.1, `Xcode 27.2`(27B52), `Apple Swift version 6.4.2`, `$W/tools/.venv/bin/python` 3.12. J-38(`read_colmap_images_txt`)은 origin/main에 없다(`git grep read_colmap_images_txt origin/main` 0줄, 다른 브랜치·scratch에도 없음).
+- **설계 (확정, Opus 2026-11-28)**: 재환은 아래를 그대로 옮긴다. 바꿀 점이 보이면 고치지 말고 묻는다.
+  1. **무엇을 증명하나**: CI가 매 push·PR마다 ① `golmok-objcap`이 컴파일되고 ② 인자 없이 사용법을 내고 종료 2이며 ③ `colmap`이 고정 입력을 결정적으로 바꾸고 ④ 그 출력을 **다른 언어의 다른 코드**(표준 라이브러리 Python)가 README §5의 식으로 대조한다. 대조는 카메라 중심(`−R(q)ᵀt`가 `translation`과 1e-6 안), 회전(행렬 `R(q)`가 `(R_pose·diag(1,−1,−1))ᵀ`와 1e-9 안 — 쿼터니언을 직접 비교하지 않으므로 `q`와 `−q` 둘 다 통과), `PINHOLE` 네 값·픽셀 크기(1e-9), 건너뛴 샘플 뒤의 id가 1부터 이어지는지, 점 0개다. **확인하는 것은 변환 식뿐이다**: 렌즈 왜곡, track 없는 points3D를 Brush가 받는지, 시각 겹침, 점 밀도(README §5 [미확인] 1~4)는 그대로 [미확인]이다. `limits`·`run`은 돌리지 않는다(VM 러너의 `PhotogrammetrySession` 지원은 [미확인]이고 `run`은 이미지·GPU가 필요하다).
+  2. **러너(정함)**: 새 잡 `objcap-colmap`, 이름 `objcap-colmap (macos-26)`, `runs-on: macos-26`(파이썬 행렬과 따로). `macos-latest`가 아니라 `macos-26`으로 고정하는 이유: `-latest`는 1~2달에 걸쳐 다음 macOS로 옮겨 간다(runner-images README) — Xcode 메이저가 바뀌면 SDK가 바뀐다. `macos-26`에는 Xcode 26.x만 있고 SDK가 macOS 26이라 :175·:300의 `#available(macOS 26.0, *)` API가 컴파일된다(이 Mac은 Xcode 27.2라 CI와 다른 툴체인이다 — 두 쪽 다 이 과제가 잰다). Xcode는 고정하지 않는다(패치판은 이미지가 바꾼다 — 경로 고정은 이미지 갱신 때 깨진다). 첫 스텝이 `sw_vers`·`xcodebuild -version`·`swift --version`을 로그에 찍고, 할 일 7이 그 줄을 기록한다. **첫 CI 실행이 컴파일에서 실패하면 멈춘다**(SDK·`is only available in` 오류 줄을 보낸다) — Swift를 고치지 않고, 라벨을 바꾸지 않고, PR을 열지 않는다.
+  3. **훅 블록**: `ci.yml` 끝(`  # [/J-10 hook]` 뒤)에 펜스 `j39-hook-yaml` 44줄(첫 줄 빈 줄)을 `cat >>`로 붙인다 — 별도 커밋(커밋 2, `ci.yml` 하나). 표식은 이 파일의 앞선 두 블록처럼 과제 id `# [J-39 hook]` … `# [/J-39 hook]`이다(J-10·J-11 선례; WP-21 표식은 WP-21 레인 파일에 쓴다). 기존 줄은 한 줄도 바꾸지 않는다. 스텝 셸은 `bash`(`-eo pipefail`)라 종료 코드를 `rc=0; … || rc=$?`로 받은 뒤 출력을 찍고 `test`로 판정한다(그래야 실패해도 stderr가 로그에 남는다). Python은 `actions/setup-python@v7` 3.12(다른 잡과 같은 판, `pip` 설치 없음 — 확인 스크립트는 표준 라이브러리만), `-I`로 돈다. 잡 30분, 빌드 스텝 20분.
+  4. **fixture(손으로 쓴 것)**: 새 파일 `tools/tests/fixtures/objcap/poses-min.json` = 펜스 `j39-fixture-json` 79줄. 샘플 4개: 1 = x축 회전(7-24-25 삼각형, `R_pose·flip`이 일반 회전), 2 = `intrinsics_rows: null`(`main.swift:304`가 쓰는 꼴 — 건너뛰어야 하고, 그 LUT 0.5는 세지 않아야 한다), 3 = 두 3-4-5 회전의 곱, 4 = z축 180° 회전(`R_w2c`가 y축 180° — `w = 0`인 쿼터니언, 부호가 갈리기 쉬운 경우). 어느 회전도 단위 행렬이 아니다. LUT 최대 절댓값은 샘플 1의 `-0.0044` → stderr `in the LUTs = 0.00440`. 점군(`.ply`)은 넘기지 않는다(`.ply`는 커밋 금지 — CLAUDE.md) → `0 points`.
+  5. **확인 스크립트**: 새 파일 `tools/tests/objcap_colmap_check.py` = 펜스 `j39-check-py` 164줄(표준 라이브러리만, ruff·ruff format 통과, pytest 수집 밖 — 다른 CI 행의 passed·skipped 수가 그대로다). J-38의 읽기 함수는 쓰지 않는다: origin/main에 없고(출처), 독립된 읽기가 교차 확인에는 오히려 낫다 — Swift가 쓰고, 다른 코드가 COLMAP의 `ReadImagesText` 꼴(주석·빈 줄을 건너 이미지 줄, 그다음 줄은 그대로 POINTS2D)로 읽는다. stdout은 고정 판정 줄(`OK …`/`FAIL …`, 숫자 없음)과 끝 줄 `RESULT PASS`(0)·`RESULT FAIL`(1)이고, 잰 차이는 stderr로만 간다 — 그래서 기대 출력을 `diff`로 고정할 수 있다.
+  6. **음성 확인(커밋하지 않음)**: ⓐ Swift 변이: 펜스 `j39-mutant-sh`가 `Colmap.swift` :35의 `SIMD3<Double>(1, -1, -1)`을 `(1, 1, 1)`로 바꾸고 저장소 밖(`$E/build-mut`)에 다시 빌드한 뒤 **같은 스크립트 안에서** `git checkout --`으로 되돌린다. 그 바이너리의 출력은 회전 세 줄만 `FAIL`이고 중심은 `OK`여야 한다(뒤집기를 빼도 `C = −R(q)ᵀt`는 그대로라서 — 회전 대조가 따로 있어야 하는 이유) — 펜스 `j39-expected-check-flip`. ⓑ 출력 변이(빌드 없음, 펜스 `j39-neg-sh`): 이미지 1의 TX 부호(→ `FAIL center 1`만), 카메라 2의 fx 끝에 숫자 하나(→ `FAIL camera 2`만), 이미지 3 줄 빼기(→ `FAIL images`·이미지 3의 세 줄), 모든 쿼터니언 부호 뒤집기(→ `RESULT PASS` — 부호 거짓 실패가 없다). 기대는 펜스 `j39-expected-neg`.
+  7. **이 Mac의 절반(CPU만)**: `swift build -c release --package-path "$W/tools/mac/objcap" --scratch-path "$E/build"`(README §1 꼴 — 산출물은 저장소 밖, `git status`가 그대로), 그 바이너리로 CI와 같은 확인(펜스 `j39-run-sh`, 기대 `j39-expected-run-good`). GPU·UE·패키지 앱을 쓰지 않으므로 GUI 잠금은 잡지 않고 **확인만** 한다(영록이 성능을 재는 중이면 빌드하지 않는다 — 상시 규칙 "GPU·GUI 공유"). LM Studio 모델이 로드된 채 도는 것은 괜찮다(통합 메모리 128 GB 중 약 94.6 GB, Swift 빌드는 CPU·수 GB). 빌드 시간은 판정하지 않는다(참고값도 쓰지 않는다).
+  8. **CI 증거**: 커밋 1·2를 함께 push한 브랜치의 push 실행에서 새 잡이 `success`인지 **PR을 열기 전에** 본다(펜스 `j39-ci-sh`, `c2`) — 빨강이면 main이 아닌 작업 브랜치에서 멈춘다. 그다음 PR, 커밋 3(README 한 줄), HEAD의 push 실행(`c3`), 등록 대기와 `gh pr checks` 표, 그리고 HEAD의 push 실행에서 새 잡만 다시 돌려 **attempt 1~8**(펜스 `j39-attempts-sh`, J-10·J-11 꼴 — 모든 push에 붙는 새 필수 행이 간헐로 빨강이면 모든 PR이 막힌다; 공개 저장소라 비용은 없고 시간만 든다). 결론은 표·API의 `conclusion`으로만 읽는다(상시 규칙 "PR 본문 공통" 12).
+  9. **README 메모 한 줄**: §5 "검증했다" 목록 끝(`  - 희소 점이 이미지 안에 투영되는 비율은 평균 96.9%였다.` 줄) 바로 뒤에 펜스 `j39-readme-sh`가 만든 한 줄. 있는 글(Buddha "검증했다"·[미확인] 1~5)은 그대로 둔다(규칙 16). 줄은 `근거: J-39 PR.`로 끝나고, PR 번호가 나온 뒤 같은 커밋 3 안에서 `근거: PR #<번호>.`로 바꾼다(J-29 설계 7과 같은 꼴). 런북 칸이 아니지만 칸 자기 검사(상시 규칙 "PR 본문 공통" 7)를 이 줄에도 돌린다.
+  10. **커밋 셋**: 커밋 1 = fixture·확인 스크립트(두 파일). 커밋 2 = `ci.yml` 훅 블록만(핫스팟 규칙 — 별도 커밋; 커밋 1이 먼저여야 첫 CI 실행에서 파일이 있다). 커밋 3 = README 한 줄. force-push·rebase 없음.
+  11. **바꾸지 않는 것**: Swift 소스(변이는 할 일 5 안에서만, 커밋 금지), `Package.swift`, `test_mac_objcap.py`, `check_repo.py`, `tools/pyproject.toml`, 등록 목록 테스트, 공유 문서, 이 과제 파일.
+
+```yaml j39-hook-yaml
+
+  # [J-39 hook] golmok-objcap (tools/mac/objcap): swift build, then the colmap export of a fixed poses.json checked by a Python COLMAP reader; macos-26 has the Xcode 26 SDK that main.swift needs
+  objcap-colmap:
+    name: objcap-colmap (macos-26)
+    runs-on: macos-26
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          lfs: false  # Swift sources and a JSON fixture only
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Toolchain versions
+        run: |
+          sw_vers
+          xcodebuild -version
+          swift --version
+      - name: swift build (release)
+        timeout-minutes: 20
+        run: swift build -c release --package-path tools/mac/objcap --scratch-path "$RUNNER_TEMP/objcap-build"
+      - name: Usage without arguments (exit 2)
+        run: |
+          rc=0
+          "$RUNNER_TEMP/objcap-build/release/golmok-objcap" 2> "$RUNNER_TEMP/usage.txt" || rc=$?
+          cat "$RUNNER_TEMP/usage.txt"
+          test "$rc" = 2
+          grep -q -F 'golmok-objcap: missing command' "$RUNNER_TEMP/usage.txt"
+          for c in limits run colmap; do grep -q -F "golmok-objcap $c" "$RUNNER_TEMP/usage.txt"; done
+      - name: colmap export of the fixture
+        run: |
+          rc=0
+          "$RUNNER_TEMP/objcap-build/release/golmok-objcap" colmap tools/tests/fixtures/objcap/poses-min.json "$RUNNER_TEMP/colmap" 2> "$RUNNER_TEMP/colmap.txt" || rc=$?
+          cat "$RUNNER_TEMP/colmap.txt"
+          test "$rc" = 0
+          grep -q -F 'golmok-objcap colmap: 3 images, 0 points -> ' "$RUNNER_TEMP/colmap.txt"
+          grep -q -F 'in the LUTs = 0.00440' "$RUNNER_TEMP/colmap.txt"
+          test "$(grep -c -F 'lacks image/pose/intrinsics; skipped' "$RUNNER_TEMP/colmap.txt")" = 1
+      - name: Check the export with the Python COLMAP reader
+        run: python -I tools/tests/objcap_colmap_check.py tools/tests/fixtures/objcap/poses-min.json "$RUNNER_TEMP/colmap"
+  # [/J-39 hook]
+```
+
+```json j39-fixture-json
+{
+  "format": "golmok-objcap poses v1",
+  "notes": [
+    "J-39 CI fixture, hand-written (not an Object Capture output). Read by golmok-objcap colmap and tools/tests/objcap_colmap_check.py.",
+    "Sample 2 has intrinsics_rows null, so colmap skips it; its lens_distortion table (0.5) must not count.",
+    "Rotations: about x (7-24-25 triple), a product of two 3-4-5 turns, and a 180 degree turn; none is the identity."
+  ],
+  "sample_count": 4,
+  "samples": [
+    {
+      "sample_id": 1,
+      "image": "IMG_0001.JPG",
+      "translation": [1.5, -2.25, 3.0],
+      "transform_matrix_rows": [
+        [1.0, 0.0, 0.0, 1.5],
+        [0.0, 0.28, -0.96, -2.25],
+        [0.0, 0.96, 0.28, 3.0],
+        [0.0, 0.0, 0.0, 1.0]
+      ],
+      "intrinsics_rows": [
+        [1500.0, 0.0, 959.5],
+        [0.0, 1501.0, 539.25],
+        [0.0, 0.0, 1.0]
+      ],
+      "lens_distortion": {"center": [959.5, 539.25], "radial_lookup_table": [0.0, 0.0012, -0.0044, 0.003]},
+      "image_file_info": {"pixel_width": 1920, "pixel_height": 1080}
+    },
+    {
+      "sample_id": 2,
+      "image": "IMG_0002.JPG",
+      "translation": [9.0, 9.0, 9.0],
+      "transform_matrix_rows": [
+        [1.0, 0.0, 0.0, 9.0],
+        [0.0, 1.0, 0.0, 9.0],
+        [0.0, 0.0, 1.0, 9.0],
+        [0.0, 0.0, 0.0, 1.0]
+      ],
+      "intrinsics_rows": null,
+      "lens_distortion": {"center": [960.0, 540.0], "radial_lookup_table": [0.0, 0.5]},
+      "image_file_info": {"pixel_width": 1920, "pixel_height": 1080}
+    },
+    {
+      "sample_id": 3,
+      "image": "IMG_0003.JPG",
+      "translation": [-4.0, 0.5, 10.125],
+      "transform_matrix_rows": [
+        [0.48, -0.64, 0.6, -4.0],
+        [0.8, 0.6, 0.0, 0.5],
+        [-0.36, 0.48, 0.8, 10.125],
+        [0.0, 0.0, 0.0, 1.0]
+      ],
+      "intrinsics_rows": [
+        [4289.25, 0.0, 2736.0],
+        [0.0, 4289.25, 1824.0],
+        [0.0, 0.0, 1.0]
+      ],
+      "lens_distortion": {"center": [2736.0, 1824.0], "radial_lookup_table": [0.0, 0.002]},
+      "image_file_info": {"pixel_width": 5472, "pixel_height": 3648}
+    },
+    {
+      "sample_id": 4,
+      "image": "IMG_0004.JPG",
+      "translation": [0.0, 1.75, -6.5],
+      "transform_matrix_rows": [
+        [-1.0, 0.0, 0.0, 0.0],
+        [0.0, -1.0, 0.0, 1.75],
+        [0.0, 0.0, 1.0, -6.5],
+        [0.0, 0.0, 0.0, 1.0]
+      ],
+      "intrinsics_rows": [
+        [1852.5, 0.0, 1368.0],
+        [0.0, 1852.5, 770.0],
+        [0.0, 0.0, 1.0]
+      ],
+      "lens_distortion": null,
+      "image_file_info": {"pixel_width": 2736, "pixel_height": 1540}
+    }
+  ]
+}
+```
+
+```python j39-check-py
+"""J-39: check a golmok-objcap ``colmap`` export against its poses.json (a CI script, not a pytest module).
+
+usage: python -I objcap_colmap_check.py <poses.json> <colmap dir>
+
+stdout: one fixed verdict line per check (``OK ...`` / ``FAIL ...``), then ``RESULT PASS`` (exit 0) or
+``RESULT FAIL`` (exit 1). Exit 2: usage or read error. The measured differences go to stderr (log only).
+
+The formula is the one Colmap.swift and tools/mac/objcap/README.md section 5 state:
+R_w2c = (R_pose * diag(1, -1, -1))^T and t_w2c = -R_w2c * C with C = translation. This script reads the
+COLMAP text model with its own reader (standard library only), rebuilds the camera centre -R(q)^T * t and
+compares the rotation through the matrix R(q), so q and -q both pass. It checks the conversion formula only:
+lens distortion, point tracks and splat-trainer acceptance are not checked here.
+"""
+
+from __future__ import annotations
+
+import json
+import math
+import sys
+from pathlib import Path
+
+ROTATION_TOL = 1e-9
+CENTER_TOL = 1e-6
+INTRINSICS_TOL = 1e-9
+FLIP = (1.0, -1.0, -1.0)
+
+
+def valid_samples(poses: dict) -> list[dict]:
+    """The samples Colmap.swift converts (the fields its guard needs), in file order."""
+    out = []
+    for s in poses.get("samples", []):
+        t, m, k = s.get("translation"), s.get("transform_matrix_rows"), s.get("intrinsics_rows")
+        info = s.get("image_file_info")
+        if (
+            isinstance(s.get("image"), str)
+            and isinstance(t, list)
+            and len(t) == 3
+            and isinstance(m, list)
+            and len(m) == 4
+            and isinstance(k, list)
+            and len(k) == 3
+            and isinstance(info, dict)
+            and isinstance(info.get("pixel_width"), int)
+            and isinstance(info.get("pixel_height"), int)
+        ):
+            out.append(s)
+    return out
+
+
+def read_cameras(path: Path) -> dict[int, tuple[str, int, int, list[float]]]:
+    cams = {}
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        f = line.split()
+        cams[int(f[0])] = (f[1], int(f[2]), int(f[3]), [float(x) for x in f[4:]])
+    return cams
+
+
+def read_images(path: Path) -> dict[int, tuple[list[float], list[float], int, str, str]]:
+    """COLMAP images.txt: an image line, then its POINTS2D line (read as is, may be empty)."""
+    images = {}
+    lines = path.read_text(encoding="utf-8").splitlines()
+    i = 0
+    while i < len(lines):
+        line = lines[i].strip()
+        i += 1
+        if not line or line.startswith("#"):
+            continue
+        f = line.split()
+        points = lines[i].strip() if i < len(lines) else "(missing)"
+        i += 1
+        q = [float(x) for x in f[1:5]]
+        t = [float(x) for x in f[5:8]]
+        images[int(f[0])] = (q, t, int(f[8]), " ".join(f[9:]), points)
+    return images
+
+
+def count_points(path: Path) -> int:
+    lines = path.read_text(encoding="utf-8").splitlines()
+    return sum(1 for x in lines if x.strip() and not x.startswith("#"))
+
+
+def quat_to_matrix(q: list[float]) -> list[list[float]]:
+    w, x, y, z = q
+    return [
+        [1 - 2 * (y * y + z * z), 2 * (x * y - w * z), 2 * (x * z + w * y)],
+        [2 * (x * y + w * z), 1 - 2 * (x * x + z * z), 2 * (y * z - w * x)],
+        [2 * (x * z - w * y), 2 * (y * z + w * x), 1 - 2 * (x * x + y * y)],
+    ]
+
+
+def expected_w2c(rows: list[list[float]]) -> list[list[float]]:
+    # (R_pose * F)^T: element [i][j] = R_pose[j][i] * F[i]
+    return [[rows[j][i] * FLIP[i] for j in range(3)] for i in range(3)]
+
+
+def check(poses_path: Path, model: Path) -> tuple[list[str], list[str]]:
+    samples = valid_samples(json.loads(poses_path.read_text(encoding="utf-8")))
+    cams = read_cameras(model / "cameras.txt")
+    images = read_images(model / "images.txt")
+    n_points = count_points(model / "points3D.txt")
+    out: list[str] = []
+    err: list[str] = []
+    ids = list(range(1, len(samples) + 1))
+
+    def verdict(ok: bool, label: str) -> None:
+        out.append(("OK " if ok else "FAIL ") + label)
+
+    verdict(sorted(images) == ids, "images")
+    for i, s in zip(ids, samples, strict=True):
+        img = images.get(i)
+        if img is None:
+            verdict(False, f"image {i} {s['image']}")
+            verdict(False, f"rotation {i}")
+            verdict(False, f"center {i}")
+            continue
+        q, t, cam_id, name, points = img
+        verdict(name == s["image"] and cam_id == i and points == "", f"image {i} {s['image']}")
+        norm = math.sqrt(sum(v * v for v in q))
+        r = quat_to_matrix([v / norm for v in q])
+        r_exp = expected_w2c(s["transform_matrix_rows"])
+        d_rot = max(abs(r[a][b] - r_exp[a][b]) for a in range(3) for b in range(3))
+        err.append(f"rotation {i} max_abs_diff {d_rot!r} quat_norm_minus_1 {norm - 1.0!r}")
+        verdict(d_rot <= ROTATION_TOL and abs(norm - 1.0) <= ROTATION_TOL, f"rotation {i}")
+        c = [-sum(r[b][a] * t[b] for b in range(3)) for a in range(3)]
+        d_c = max(abs(c[a] - s["translation"][a]) for a in range(3))
+        err.append(f"center {i} max_abs_diff {d_c!r}")
+        verdict(d_c <= CENTER_TOL, f"center {i}")
+    for i, s in zip(ids, samples, strict=True):
+        cam = cams.get(i)
+        k, info = s["intrinsics_rows"], s["image_file_info"]
+        want = [k[0][0], k[1][1], k[0][2], k[1][2]]
+        ok = (
+            cam is not None
+            and cam[:3] == ("PINHOLE", info["pixel_width"], info["pixel_height"])
+            and len(cam[3]) == 4
+            and all(abs(a - b) <= INTRINSICS_TOL for a, b in zip(cam[3], want, strict=True))
+        )
+        verdict(ok, f"camera {i}")
+    verdict(sorted(cams) == ids, "cameras")
+    verdict(n_points == 0, "points")
+    out.append("RESULT " + ("PASS" if all(x.startswith("OK ") for x in out) else "FAIL"))
+    return out, err
+
+
+def main(argv: list[str]) -> int:
+    if len(argv) != 2:
+        print("usage: objcap_colmap_check.py <poses.json> <colmap dir>", file=sys.stderr)
+        return 2
+    try:
+        out, err = check(Path(argv[0]), Path(argv[1]))
+    except (OSError, ValueError, KeyError, IndexError, TypeError) as e:
+        print(f"objcap_colmap_check: cannot read input: {e!r}", file=sys.stderr)
+        return 2
+    for line in err:
+        print(line, file=sys.stderr)
+    print("\n".join(out))
+    return 0 if out[-1] == "RESULT PASS" else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))
+```
+
+```text j39-expected-check-pass
+OK images
+OK image 1 IMG_0001.JPG
+OK rotation 1
+OK center 1
+OK image 2 IMG_0003.JPG
+OK rotation 2
+OK center 2
+OK image 3 IMG_0004.JPG
+OK rotation 3
+OK center 3
+OK camera 1
+OK camera 2
+OK camera 3
+OK cameras
+OK points
+RESULT PASS
+```
+
+```text j39-expected-check-flip
+OK images
+OK image 1 IMG_0001.JPG
+FAIL rotation 1
+OK center 1
+OK image 2 IMG_0003.JPG
+FAIL rotation 2
+OK center 2
+OK image 3 IMG_0004.JPG
+FAIL rotation 3
+OK center 3
+OK camera 1
+OK camera 2
+OK camera 3
+OK cameras
+OK points
+RESULT FAIL
+```
+
+```sh j39-pre-sh
+#!/bin/sh
+# J-39: repo state the design relies on (usage: sh j39_pre.sh <W>), one "label value" per line, read-only.
+W=$1
+c() { printf '%s %s\n' "$1" "$2"; }
+c ci-lines "$(wc -l < "$W/.github/workflows/ci.yml" | tr -d ' ')"
+c ci-tail "$(tail -n 1 "$W/.github/workflows/ci.yml")"
+c ci-j39 "$(grep -c -F 'J-39 hook' "$W/.github/workflows/ci.yml")"
+c ci-macos-latest "$(grep -c -F '{ os: macos-latest, python: "3.12" }' "$W/.github/workflows/ci.yml")"
+c flip-line "$(grep -c -x -F '    let flip = simd_double3x3(diagonal: SIMD3<Double>(1, -1, -1))' "$W/tools/mac/objcap/Sources/golmok-objcap/Colmap.swift")"
+c usage-colmap "$(grep -c -F 'golmok-objcap colmap <poses.json> <outDir> [<pointcloud.ply>]   EXPERIMENTAL' "$W/tools/mac/objcap/Sources/golmok-objcap/main.swift")"
+c lut-format "$(grep -c -F 'in the LUTs = %.5f' "$W/tools/mac/objcap/Sources/golmok-objcap/Colmap.swift")"
+c readme-anchor "$(grep -c -x -F '  - 희소 점이 이미지 안에 투영되는 비율은 평균 96.9%였다.' "$W/tools/mac/objcap/README.md")"
+c readme-next "$(grep -A 1 -x -F '  - 희소 점이 이미지 안에 투영되는 비율은 평균 96.9%였다.' "$W/tools/mac/objcap/README.md" | tail -n 1)"
+c readme-j39 "$(grep -c -F 'J-39' "$W/tools/mac/objcap/README.md")"
+if [ -e "$W/tools/tests/fixtures/objcap" ]; then c fixture-dir present; else c fixture-dir absent; fi
+if [ -e "$W/tools/tests/objcap_colmap_check.py" ]; then c check-script present; else c check-script absent; fi
+c gitignore-build "$(grep -c -x -F '.build/' "$W/tools/mac/objcap/.gitignore")"
+c venv-python "$("$W/tools/.venv/bin/python" -c 'import sys; print(sys.version_info >= (3, 11))')"
+```
+
+```text j39-expected-pre
+ci-lines 161
+ci-tail   # [/J-10 hook]
+ci-j39 0
+ci-macos-latest 1
+flip-line 1
+usage-colmap 1
+lut-format 1
+readme-anchor 1
+readme-next - [미확인]:
+readme-j39 0
+fixture-dir absent
+check-script absent
+gitignore-build 1
+venv-python True
+```
+
+```sh j39-overlap-sh
+#!/bin/sh
+# J-39: open PRs and remote astra/local/claude branches that touch this task's paths (usage: sh j39_overlap.sh <E> <W>); run after git fetch.
+E=$1
+W=$2
+P='^(\.github/workflows/ci\.yml|tools/mac/objcap/|tools/tests/objcap_colmap_check\.py|tools/tests/fixtures/objcap/)'
+cd "$W" || exit 3
+/usr/bin/timeout 120 gh pr list --state open --limit 200 --json number,headRefName,files --jq '.[] | . as $p | .files[] | "\($p.number) \($p.headRefName) \(.path)"' > "$E/overlap-prs-all.log" 2> "$E/overlap-prs.err"
+printf 'pr-list-rc %s\n' "$?"
+awk '{print $3}' "$E/overlap-prs-all.log" | grep -c -E "$P" | sed 's/^/pr-hits /'
+git -C "$W" for-each-ref --format='%(refname:short)' refs/remotes/origin/astra refs/remotes/origin/local refs/remotes/origin/claude > "$E/overlap-branches.log"
+printf 'branches %s\n' "$(wc -l < "$E/overlap-branches.log" | tr -d ' ')"
+while read -r b; do
+  git -C "$W" diff --name-only "origin/main...$b" 2> /dev/null | grep -E "$P" | sed "s|^|$b |"
+done < "$E/overlap-branches.log" > "$E/overlap-branch-hits.log"
+printf 'branch-hits %s\n' "$(wc -l < "$E/overlap-branch-hits.log" | tr -d ' ')"
+/usr/bin/timeout 60 gh repo view --json visibility --jq .visibility | sed 's/^/visibility /'
+```
+
+```sh j39-run-sh
+#!/bin/sh
+# J-39: the CI checks run locally on one built binary (usage: sh j39_run.sh <E> <tag> <bin> <W> <expected check stdout>).
+E=$1
+T=$2
+B=$3
+W=$4
+X=$5
+F="$W/tools/tests/fixtures/objcap/poses-min.json"
+PY="$W/tools/.venv/bin/python"
+c() { printf '%s %s\n' "$1" "$2"; }
+/usr/bin/timeout 60 "$B" > "$E/$T-usage.out" 2> "$E/$T-usage.err"
+c usage-rc "$?"
+c usage-missing "$(grep -c -F 'golmok-objcap: missing command' "$E/$T-usage.err")"
+for k in limits run colmap; do c "usage-$k" "$(grep -c -F "golmok-objcap $k" "$E/$T-usage.err")"; done
+if [ -e "$E/$T-colmap" ]; then c colmap-dir-new 0; else c colmap-dir-new 1; fi
+/usr/bin/timeout 60 "$B" colmap "$F" "$E/$T-colmap" > "$E/$T-colmap.out" 2> "$E/$T-colmap.err"
+c colmap-rc "$?"
+c colmap-count "$(grep -c -F 'golmok-objcap colmap: 3 images, 0 points -> ' "$E/$T-colmap.err")"
+c colmap-skipped "$(grep -c -F 'lacks image/pose/intrinsics; skipped' "$E/$T-colmap.err")"
+c colmap-lut "$(grep -c -F 'in the LUTs = 0.00440' "$E/$T-colmap.err")"
+c colmap-files "$(ls "$E/$T-colmap" 2> /dev/null | wc -l | tr -d ' ')"
+/usr/bin/timeout 60 "$PY" -I "$W/tools/tests/objcap_colmap_check.py" "$F" "$E/$T-colmap" > "$E/$T-check.out" 2> "$E/$T-check.err"
+c check-rc "$?"
+c check-lines "$(wc -l < "$E/$T-check.out" | tr -d ' ')"
+c check-last "$(tail -n 1 "$E/$T-check.out")"
+if [ -s "$X" ] && [ -s "$E/$T-check.out" ]; then diff "$X" "$E/$T-check.out" > "$E/$T-check.diff"; c check-diff "$?"; else c check-diff empty; fi
+```
+
+```text j39-expected-run-good
+usage-rc 2
+usage-missing 1
+usage-limits 1
+usage-run 1
+usage-colmap 1
+colmap-dir-new 1
+colmap-rc 0
+colmap-count 1
+colmap-skipped 1
+colmap-lut 1
+colmap-files 3
+check-rc 0
+check-lines 16
+check-last RESULT PASS
+check-diff 0
+```
+
+```text j39-expected-run-mut
+usage-rc 2
+usage-missing 1
+usage-limits 1
+usage-run 1
+usage-colmap 1
+colmap-dir-new 1
+colmap-rc 0
+colmap-count 1
+colmap-skipped 1
+colmap-lut 1
+colmap-files 3
+check-rc 1
+check-lines 16
+check-last RESULT FAIL
+check-diff 0
+```
+
+```sh j39-neg-sh
+#!/bin/sh
+# J-39: output-level wrong cases for the check script, made from the good export (usage: sh j39_neg.sh <E> <W>).
+E=$1
+W=$2
+F="$W/tools/tests/fixtures/objcap/poses-min.json"
+PY="$W/tools/.venv/bin/python"
+G="$E/good-colmap"
+for k in tsign fx drop qneg; do
+  mkdir "$E/neg-$k" || exit 3
+  cp "$G/cameras.txt" "$G/images.txt" "$G/points3D.txt" "$E/neg-$k/" || exit 3
+done
+awk '$1 == "1" && NF == 10 {$6 = (substr($6, 1, 1) == "-") ? substr($6, 2) : "-" $6} {print}' "$G/images.txt" > "$E/neg-tsign/images.txt"
+awk '$1 == "2" && $2 == "PINHOLE" {$5 = $5 "1"} {print}' "$G/cameras.txt" > "$E/neg-fx/cameras.txt"
+awk 'skip {skip = 0; next} $1 == "3" && NF == 10 {skip = 1; next} {print}' "$G/images.txt" > "$E/neg-drop/images.txt"
+awk 'function neg(v) {return (substr(v, 1, 1) == "-") ? substr(v, 2) : "-" v} $1 != "#" && NF == 10 {for (i = 2; i <= 5; i++) $i = neg($i)} {print}' "$G/images.txt" > "$E/neg-qneg/images.txt"
+for k in tsign fx drop qneg; do
+  /usr/bin/timeout 60 "$PY" -I "$W/tools/tests/objcap_colmap_check.py" "$F" "$E/neg-$k" > "$E/neg-$k.out" 2> "$E/neg-$k.err"
+  printf '%s rc %s\n' "$k" "$?"
+  grep -E '^(FAIL |RESULT )' "$E/neg-$k.out" | sed "s/^/$k /"
+done
+```
+
+```text j39-expected-neg
+tsign rc 1
+tsign FAIL center 1
+tsign RESULT FAIL
+fx rc 1
+fx FAIL camera 2
+fx RESULT FAIL
+drop rc 1
+drop FAIL images
+drop FAIL image 3 IMG_0004.JPG
+drop FAIL rotation 3
+drop FAIL center 3
+drop RESULT FAIL
+qneg rc 0
+qneg RESULT PASS
+```
+
+```sh j39-mutant-sh
+#!/bin/sh
+# J-39: flip mutant of Colmap.swift built outside the repo, then restored with git (usage: sh j39_mutant.sh <E> <W>).
+E=$1
+W=$2
+S=tools/mac/objcap/Sources/golmok-objcap/Colmap.swift
+c() { printf '%s %s\n' "$1" "$2"; }
+c before-clean "$(git -C "$W" status --porcelain -- "$S" | wc -l | tr -d ' ')"
+c before-flip "$(grep -c -F 'SIMD3<Double>(1, -1, -1)' "$W/$S")"
+if [ "$(git -C "$W" status --porcelain -- "$S" | wc -l | tr -d ' ')" = 0 ] && [ "$(grep -c -F 'SIMD3<Double>(1, -1, -1)' "$W/$S")" = 1 ]; then
+  sed -i '' 's/SIMD3<Double>(1, -1, -1)/SIMD3<Double>(1, 1, 1)/' "$W/$S"
+  c sed-rc "$?"
+else
+  c sed-rc skipped
+  exit 3
+fi
+c mutant-flip "$(grep -c -F 'SIMD3<Double>(1, 1, 1)' "$W/$S")"
+c mutant-numstat "$(git -C "$W" diff --numstat -- "$S" | tr '\t' ' ')"
+/usr/bin/timeout 900 swift build -c release --package-path "$W/tools/mac/objcap" --scratch-path "$E/build-mut" > "$E/build-mut.log" 2>&1
+c build-rc "$?"
+git -C "$W" checkout -- "$S"
+c restore-rc "$?"
+c after-clean "$(git -C "$W" status --porcelain -- "$S" | wc -l | tr -d ' ')"
+c after-flip "$(grep -c -F 'SIMD3<Double>(1, -1, -1)' "$W/$S")"
+```
+
+```text j39-expected-mutant
+before-clean 0
+before-flip 1
+sed-rc 0
+mutant-flip 1
+mutant-numstat 1 1 tools/mac/objcap/Sources/golmok-objcap/Colmap.swift
+build-rc 0
+restore-rc 0
+after-clean 0
+after-flip 1
+```
+
+```ruby j39-yaml-rb
+# J-39: job list and the new job of ci.yml (usage: /usr/bin/ruby j39_yaml.rb <ci.yml>)
+require "yaml"
+y = YAML.load_file(ARGV[0])
+puts y["jobs"].keys.join(" ")
+j = y["jobs"]["objcap-colmap"]
+puts j["name"]
+puts j["runs-on"]
+puts j["timeout-minutes"]
+puts j["steps"].map { |s| s["name"] || s["uses"] }.join(" | ")
+```
+
+```text j39-expected-yaml
+python repo-check tiles-validate viewer-smoke shellcheck objcap-colmap
+objcap-colmap (macos-26)
+macos-26
+30
+actions/checkout@v7 | actions/setup-python@v7 | Toolchain versions | swift build (release) | Usage without arguments (exit 2) | colmap export of the fixture | Check the export with the Python COLMAP reader
+exit=0
+```
+
+```sh j39-ci-sh
+#!/bin/sh
+# J-39: wait for the push run of HEAD and its objcap-colmap job, then record jobs, job log and toolchain lines (usage: sh j39_ci.sh <E> <tag> <W>).
+E=$1
+T=$2
+W=$3
+J='objcap-colmap (macos-26)'
+H=$(git -C "$W" rev-parse HEAD)
+cd "$W" || exit 3
+printf 'head %s\n' "$H"
+/usr/bin/timeout 600 sh -c 'until [ -n "$(gh run list --workflow CI --commit "$1" --event push --json databaseId --jq ".[0].databaseId // empty" 2> /dev/null)" ]; do sleep 30; done' sh "$H" > "$E/$T-runwait.log" 2>&1
+printf 'runwait-rc %s\n' "$?"
+RUN=$(/usr/bin/timeout 60 gh run list --workflow CI --commit "$H" --event push --json databaseId --jq '.[0].databaseId')
+printf 'run %s\n' "$RUN"
+/usr/bin/timeout 2400 sh -c 'until [ "$(gh api "repos/wooklym/golmok/actions/runs/$1/attempts/1/jobs" --jq ".jobs[] | select(.name == \"$2\") | .status" 2> /dev/null)" = completed ]; do sleep 30; done' sh "$RUN" "$J" > "$E/$T-jobwait.log" 2>&1
+printf 'jobwait-rc %s\n' "$?"
+/usr/bin/timeout 60 gh api "repos/wooklym/golmok/actions/runs/$RUN/attempts/1/jobs" --jq '.jobs[] | [.name, .status, .conclusion, .id] | @tsv' > "$E/$T-jobs.tsv" 2> "$E/$T-jobs.err"
+printf 'jobs-rc %s\n' "$?"
+OK=$(cut -f1-3 "$E/$T-jobs.tsv" | grep -c -x -F "$(printf '%s\tcompleted\tsuccess' "$J")")
+printf 'job-success %s\n' "$OK"
+JID=$(awk -F '\t' -v j="$J" '$1 == j {print $4}' "$E/$T-jobs.tsv")
+/usr/bin/timeout 120 gh api --allow-escape-sequences "repos/wooklym/golmok/actions/jobs/$JID/logs" > "$E/$T-job.log" 2> "$E/$T-job.err"
+printf 'joblog-rc %s\n' "$?"
+if [ "$OK" != 1 ]; then
+  grep -n -E 'error:|is only available in|cannot find|FAIL |RESULT |exit code' "$E/$T-job.log" > "$E/$T-failed-lines.log"
+  printf 'failed-lines %s\n' "$(wc -l < "$E/$T-failed-lines.log" | tr -d ' ')"
+fi
+grep -E 'ProductVersion:|Xcode [0-9]+\.|Build version|Apple Swift version' "$E/$T-job.log" | sed -E 's/^.*[0-9]Z //' > "$E/$T-toolchain.log"
+printf 'toolchain-lines %s\n' "$(wc -l < "$E/$T-toolchain.log" | tr -d ' ')"
+printf 'result-pass %s\n' "$(grep -c -F 'RESULT PASS' "$E/$T-job.log")"
+```
+
+```sh j39-attempts-sh
+#!/bin/sh
+# J-39: objcap-colmap job attempts 1..8 on one push run, rerunning only that job; stops at the first non-success (usage: sh j39_attempts.sh <E> <tag>; the run id is the run line of E/<tag>-ci.log).
+E=$1
+RUN=$(sed -n 's/^run //p' "$1/$2-ci.log")
+J='objcap-colmap (macos-26)'
+cd "$E" || exit 3
+[ -n "$RUN" ] || exit 3
+printf 'run %s\n' "$RUN"
+n=1
+while [ "$n" -le 8 ]; do
+  if [ "$n" -ge 2 ]; then
+    JOB=$(/usr/bin/timeout 60 gh api "repos/wooklym/golmok/actions/runs/$RUN/attempts/$((n - 1))/jobs" --jq ".jobs[] | select(.name == \"$J\") | .id")
+    /usr/bin/timeout 120 gh run rerun -R wooklym/golmok "$RUN" --job "$JOB" > "$E/rerun-$n.log" 2>&1
+    printf 'attempt %s rerun-rc %s\n' "$n" "$?"
+    /usr/bin/timeout 600 sh -c 'until [ "$(gh run view -R wooklym/golmok "$1" --json attempt --jq .attempt 2> /dev/null)" = "$2" ]; do sleep 10; done' sh "$RUN" "$n" > "$E/attempt-wait-$n.log" 2>&1
+    printf 'attempt %s attempt-wait-rc %s\n' "$n" "$?"
+  fi
+  /usr/bin/timeout 2400 sh -c 'until [ "$(gh api "repos/wooklym/golmok/actions/runs/$1/attempts/$2/jobs" --jq ".jobs[] | select(.name == \"$3\") | .status" 2> /dev/null)" = completed ]; do sleep 30; done' sh "$RUN" "$n" "$J" > "$E/job-wait-$n.log" 2>&1
+  printf 'attempt %s job-wait-rc %s\n' "$n" "$?"
+  C=$(/usr/bin/timeout 60 gh api "repos/wooklym/golmok/actions/runs/$RUN/attempts/$n/jobs" --jq ".jobs[] | select(.name == \"$J\") | .conclusion")
+  printf '%s\t%s\n' "$n" "$C" >> "$E/attempts.tsv"
+  printf 'attempt %s conclusion %s\n' "$n" "$C"
+  [ "$C" = success ] || exit 1
+  n=$((n + 1))
+done
+```
+
+```sh j39-readme-sh
+#!/bin/sh
+# J-39: prints the one README section 5 memo line (usage: sh j39_readme.sh <E>); the date comes from E/run-date.log.
+E=$1
+date=$(cat "$E/run-date.log")
+printf '%s %s %s\n' '-' "$date" '메모(J-39): CI 잡 `objcap-colmap (macos-26)`이 push·PR마다 이 패키지를 `swift build -c release`로 빌드하고, 손으로 쓴 `tools/tests/fixtures/objcap/poses-min.json`(샘플 4개 — 1개는 `intrinsics_rows`가 null이라 건너뛴다)을 `colmap`으로 바꾼 뒤 `tools/tests/objcap_colmap_check.py`(표준 라이브러리만 쓰는 COLMAP 텍스트 읽기)가 위 식의 카메라 중심·회전 행렬(쿼터니언 부호와 무관)·PINHOLE 값을 대조한다. 위 Buddha 검증 기록은 그대로이고, CI가 확인하는 것은 변환 식뿐이다 — 아래 [미확인] 1~4(렌즈 왜곡, track 없는 점을 Brush가 받는지, 시각 겹침, 점 밀도)는 그대로다. 근거: J-39 PR.'
+```
+
+```sh j39-bodycheck-sh
+#!/bin/sh
+# J-39: quotes and numbers check of the PR body draft (usage: sh j39_bodycheck.sh <E>); needs E/pr-body.md and E/quotes.tsv.
+E=$1
+B=$(printf '\140')
+CK=checks.log
+if [ -e "$E/checks-2.log" ]; then CK=checks-2.log; fi
+printf '%s\n' pre.log local-toolchain.log build.log run-good.log good-check.out good-colmap.err neg.log mutant.log \
+  run-mut.log mut-check.out yaml.log hook-numstat.log c1-numstat.log base-counts.log gate1-counts.log \
+  c2-ci.log c2-toolchain.log c3-ci.log c3-toolchain.log attempts.tsv readme-line-final.txt readme-numstat.log \
+  "$CK" checks-final.log > "$E/body-logs.log"
+awk '/^## 결과$/{f=1;next} /^## /{f=0} f' "$E/pr-body.md" | awk -v b="$B" 'index($0, b b b) == 1 {c = !c; next} !c' > "$E/result-prose.txt"
+grep -oE "${B}[^${B}]+${B}" "$E/result-prose.txt" | sed "s/^${B}//;s/${B}\$//" | sort -u > "$E/body-quotes.txt"
+cut -f1 "$E/quotes.tsv" | sort -u > "$E/tsv-quotes.txt"
+comm -23 "$E/body-quotes.txt" "$E/tsv-quotes.txt" > "$E/quotes-missing.log"
+while IFS="$(printf '\t')" read -r q f; do
+  if [ "$f" = "라벨" ]; then
+    n="라벨"
+  elif grep -q -x -F -- "$f" "$E/body-logs.log"; then
+    n=$(grep -F -c -- "$q" "$E/$f")
+  else
+    n="목록밖"
+  fi
+  printf '%s\t%s\t%s\n' "$n" "$f" "$q"
+done < "$E/quotes.tsv" > "$E/quotes-check.log"
+grep -oE '[0-9]{2,}' "$E/result-prose.txt" | sort -u > "$E/body-numbers.txt"
+while read -r x; do
+  n=0
+  while read -r f; do
+    k=$(grep -c -- "$x" "$E/$f")
+    n=$((n + k))
+  done < "$E/body-logs.log"
+  printf '%s\t%s\n' "$n" "$x"
+done < "$E/body-numbers.txt" > "$E/numbers-check.log"
+printf 'quotes_missing %s\n' "$(wc -l < "$E/quotes-missing.log" | tr -d ' ')"
+printf 'quotes_zero %s\n' "$(cut -f1 "$E/quotes-check.log" | grep -c -x -E '0|목록밖')"
+printf 'numbers_zero %s\n' "$(cut -f1 "$E/numbers-check.log" | grep -c -x '0')"
+```
+
+```sh j39-extract-cmd
+# J-39 과제·펜스 추출(할 일 1)
+W="$HOME/projects/golmok-jaehwan"; E="$TMPDIR/jaehwan/J-39"; PY="$W/tools/.venv/bin/python";
+git -C "$W" show origin/main:docs/plan/jaehwan-tasks.md > "$E/tasks-main.md"; git -C "$W" rev-parse origin/main > "$E/main-rev.log"; { awk '/^#### J-39 /{f=1;print;next} f && /^(#### |## )/{f=0} f' "$E/tasks-main.md"; awk '/^### PR 본문 공통\(모든 과제\)$/{f=1} /^## 리뷰·병합 절차$/{f=0} f' "$E/tasks-main.md"; } > "$E/task.txt"
+printf '%s\n' "j39-hook-yaml hook.yml" "j39-fixture-json poses-min.json" "j39-check-py objcap_colmap_check.py" "j39-expected-check-pass expected-check-pass.txt" "j39-expected-check-flip expected-check-flip.txt" "j39-pre-sh j39_pre.sh" "j39-expected-pre expected-pre.txt" "j39-overlap-sh j39_overlap.sh" "j39-run-sh j39_run.sh" "j39-expected-run-good expected-run-good.txt" "j39-expected-run-mut expected-run-mut.txt" "j39-neg-sh j39_neg.sh" "j39-expected-neg expected-neg.txt" "j39-mutant-sh j39_mutant.sh" "j39-expected-mutant expected-mutant.txt" "j39-yaml-rb j39_yaml.rb" "j39-expected-yaml expected-yaml.txt" "j39-ci-sh j39_ci.sh" "j39-attempts-sh j39_attempts.sh" "j39-readme-sh j39_readme.sh" "j39-bodycheck-sh j39_bodycheck.sh" "j39-commit1-cmd commit1-cmd.sh" "j39-commit2-cmd commit2-cmd.sh" "j39-commit3-cmd commit3-cmd.sh" "j39-readme-cmd readme-cmd.sh" "j39-readmepr-cmd readmepr-cmd.sh" "j39-fence-lines expected-fence-lines.txt" "common-ph-awk ph.awk" | while read -r n f; do awk -v n="$n" 'BEGIN {b = sprintf("%c%c%c", 96, 96, 96)} x && $0 == b {x = 0} x {print} !x && index($0, b) == 1 && $0 ~ (" " n "$") {x = 1}' "$E/task.txt" > "$E/$f"; done; cd "$E" && wc -l hook.yml poses-min.json objcap_colmap_check.py expected-check-pass.txt expected-check-flip.txt j39_pre.sh expected-pre.txt j39_overlap.sh j39_run.sh expected-run-good.txt expected-run-mut.txt j39_neg.sh expected-neg.txt j39_mutant.sh expected-mutant.txt j39_yaml.rb expected-yaml.txt j39_ci.sh j39_attempts.sh j39_readme.sh j39_bodycheck.sh commit1-cmd.sh commit2-cmd.sh commit3-cmd.sh readme-cmd.sh readmepr-cmd.sh ph.awk | sed '$d' | awk '{print $1, $2}' | diff "$E/expected-fence-lines.txt" - > "$E/fence-lines.diff"; echo "exit=$?" >> "$E/fence-lines.diff"
+```
+
+```sh j39-commit1-cmd
+# J-39 커밋 1(fixture·확인 스크립트)
+W="$HOME/projects/golmok-jaehwan"; E="$TMPDIR/jaehwan/J-39"; PY="$W/tools/.venv/bin/python";
+cd "$W" && printf '%s\n' tools/tests/fixtures/objcap/poses-min.json tools/tests/objcap_colmap_check.py > "$E/c1-expected.txt" && git add tools/tests/fixtures/objcap/poses-min.json tools/tests/objcap_colmap_check.py && git diff --cached --name-only > "$E/c1-files.log" && cmp -s "$E/c1-files.log" "$E/c1-expected.txt" && git diff --cached --numstat | tr '\t' ' ' > "$E/c1-numstat.log" && git -c user.name="재환" -c user.email="jaehwan.local@localhost" commit -m "J-39: golmok-objcap colmap 변환 CI 확인용 fixture·확인 스크립트(테스트 수집 밖)" -m "작성: 재환(로컬 LLM, qwen3.8-flash-next / LM Studio)" > "$E/c1-commit.log" 2>&1; echo $? > "$E/c1-commit.rc"; git -C "$W" log -1 --format='%an <%ae>' > "$E/author-1.log"; git -C "$W" show HEAD:tools/tests/objcap_colmap_check.py | cmp -s - "$E/objcap_colmap_check.py"; echo "check-py=$?" > "$E/c1-same.log"; git -C "$W" show HEAD:tools/tests/fixtures/objcap/poses-min.json | cmp -s - "$E/poses-min.json"; echo "fixture=$?" >> "$E/c1-same.log"
+```
+
+```sh j39-commit2-cmd
+# J-39 커밋 2(ci.yml 훅 블록만)
+W="$HOME/projects/golmok-jaehwan"; E="$TMPDIR/jaehwan/J-39"; PY="$W/tools/.venv/bin/python";
+cd "$W" && git add .github/workflows/ci.yml && git diff --cached --name-only > "$E/c2-files.log" && [ "$(cat "$E/c2-files.log")" = ".github/workflows/ci.yml" ] && git -c user.name="재환" -c user.email="jaehwan.local@localhost" commit -m "J-39: [J-39 hook] CI objcap-colmap 잡(macos-26) — swift build·colmap 내보내기 확인" -m "작성: 재환(로컬 LLM, qwen3.8-flash-next / LM Studio)" > "$E/c2-commit.log" 2>&1; echo $? > "$E/c2-commit.rc"; git -C "$W" log -1 --format='%an <%ae>' > "$E/author-2.log"; git -C "$W" show --numstat --format= HEAD | tr '\t' ' ' > "$E/c2-numstat.log"
+```
+
+```sh j39-commit3-cmd
+# J-39 커밋 3(README 메모 한 줄)
+W="$HOME/projects/golmok-jaehwan"; E="$TMPDIR/jaehwan/J-39"; PY="$W/tools/.venv/bin/python";
+cd "$W" && git add tools/mac/objcap/README.md && git diff --cached --name-only > "$E/c3-files.log" && [ "$(cat "$E/c3-files.log")" = "tools/mac/objcap/README.md" ] && git -c user.name="재환" -c user.email="jaehwan.local@localhost" commit -m "J-39: objcap README §5 — CI가 colmap 변환 식을 확인한다는 메모" -m "작성: 재환(로컬 LLM, qwen3.8-flash-next / LM Studio)" > "$E/c3-commit.log" 2>&1; echo $? > "$E/c3-commit.rc"; git -C "$W" log -1 --format='%an <%ae>' > "$E/author-3.log"
+```
+
+```sh j39-readme-cmd
+# J-39 README 메모 넣기(표식 그대로)
+W="$HOME/projects/golmok-jaehwan"; E="$TMPDIR/jaehwan/J-39"; PY="$W/tools/.venv/bin/python";
+cd "$W" && [ "$(grep -c -x -F '  - 희소 점이 이미지 안에 투영되는 비율은 평균 96.9%였다.' tools/mac/objcap/README.md)" = 1 ] && [ "$(grep -c -F 'J-39' tools/mac/objcap/README.md)" = 0 ] && sed -i '' "/^  - 희소 점이 이미지 안에 투영되는 비율은 평균 96\.9%였다\.\$/r $E/readme-line.txt" tools/mac/objcap/README.md; echo $? > "$E/readme-insert.rc"; cd "$W" && awk '/^  - 희소 점이 이미지 안에 투영되는 비율은 평균 96\.9%였다\.$/{getline a; print a}' tools/mac/objcap/README.md | diff - "$E/readme-line.txt" > "$E/readme-diff.log"; echo "exit=$?" >> "$E/readme-diff.log"
+```
+
+```sh j39-readmepr-cmd
+# J-39 README 메모의 근거를 PR 번호로
+W="$HOME/projects/golmok-jaehwan"; E="$TMPDIR/jaehwan/J-39"; PY="$W/tools/.venv/bin/python";
+N=$(cat "$E/pr-number.log"); sed "s/ 근거: J-39 PR\.\$/ 근거: PR #$N./" "$E/readme-line.txt" > "$E/readme-line-final.txt"; cd "$W" && [ "$(grep -c ' 근거: J-39 PR\.$' tools/mac/objcap/README.md)" = 1 ] && sed -i '' "s/ 근거: J-39 PR\.\$/ 근거: PR #$N./" tools/mac/objcap/README.md; echo $? > "$E/readme-pr.rc"; cd "$W" && awk '/^  - 희소 점이 이미지 안에 투영되는 비율은 평균 96\.9%였다\.$/{getline a; print a}' tools/mac/objcap/README.md | diff - "$E/readme-line-final.txt" > "$E/readme-final-diff.log"; echo "exit=$?" >> "$E/readme-final-diff.log"; grep -c ' 근거: J-39 PR\.$' tools/mac/objcap/README.md > "$E/readme-marker-left.log"; cmp -s "$E/readme-line.txt" "$E/readme-line-final.txt"; echo "same=$?" > "$E/readme-changed.log"; git -C "$W" diff --numstat origin/main -- tools/mac/objcap/README.md | tr '\t' ' ' > "$E/readme-numstat.log"
+```
+
+```text j39-fence-lines
+44 hook.yml
+79 poses-min.json
+164 objcap_colmap_check.py
+16 expected-check-pass.txt
+16 expected-check-flip.txt
+18 j39_pre.sh
+14 expected-pre.txt
+16 j39_overlap.sh
+26 j39_run.sh
+15 expected-run-good.txt
+15 expected-run-mut.txt
+20 j39_neg.sh
+14 expected-neg.txt
+23 j39_mutant.sh
+9 expected-mutant.txt
+9 j39_yaml.rb
+6 expected-yaml.txt
+29 j39_ci.sh
+25 j39_attempts.sh
+5 j39_readme.sh
+36 j39_bodycheck.sh
+3 commit1-cmd.sh
+3 commit2-cmd.sh
+3 commit3-cmd.sh
+3 readme-cmd.sh
+3 readmepr-cmd.sh
+37 ph.awk
+```
+
+- **명령 공통**: 셸 변수는 Bash 호출 사이에 남지 않는다. 그래서 **모든 명령은 `W="$HOME/projects/golmok-jaehwan"; E="$TMPDIR/jaehwan/J-39"; PY="$W/tools/.venv/bin/python";`로 시작하고**, 그 뒤는 `cd "$W" &&`·`cd "$W/tools" &&`·`git -C "$W"`·`"$E/…"` 절대 경로로 시작한다. 아래 명령에는 이 앞머리를 적지 않았다. 돌린 명령은 상시 규칙 "PR 본문 공통" 머리의 **명령 기록**대로 돌리기 **전에** 한 줄씩 `"$E/commands.txt"`에 더한다(규칙 19·21 — heredoc 없음, 고치거나 지우지 않음). **`-cmd.sh` 파일(정함)**: 이 절에서 `-cmd.sh`로 기록하는 명령은 여섯 개뿐이다 — `extract-cmd.sh`(할 일 1, 4줄 — 아직 `task.txt`가 없으므로 펜스 `j39-extract-cmd`의 네 줄을 **Write 도구로** 그대로 쓴다), `commit1-cmd.sh`·`commit2-cmd.sh`·`commit3-cmd.sh`·`readme-cmd.sh`·`readmepr-cmd.sh`(각 3줄 — 할 일 1의 펜스 추출이 만든다, Write로 다시 쓰지 않는다). 여섯 모두 첫 줄 `# J-39 `, 둘째 줄이 위 앞머리 전체다. 돌리기 전에 짧은 실행 줄(`sh "$E/<이름>-cmd.sh"`)과 해시 줄(`(cd "$E" && shasum -a 256 "<이름>-cmd.sh") >> "$E/commands.txt"`)을 더하고, 같은 호출에서 상시 규칙 "PR 본문 공통" 17의 꼴(줄 수와 첫 줄은 이 절의 값으로) `[ "$(tail -n 1 "$E/commands.txt" | grep -c -E '^[0-9a-f]{64}  <이름>-cmd\.sh$')" = 1 ] && [ "$(wc -l < "$E/<이름>-cmd.sh" | tr -d ' ')" = "<줄 수>" ] && head -n 1 "$E/<이름>-cmd.sh" | grep -q '^# J-39 ' && sh "$E/<이름>-cmd.sh"`로 돌린다(`<줄 수>`는 `extract-cmd.sh` `4`, 나머지 `3`; 첫 검사가 막으면 스크립트는 돌지 않은 것이다: 17대로 그 실행 줄에 `# 정정:` 한 줄을 단 뒤 실행 줄·해시 줄을 다시 더하고 이 꼴로 다시 돈다). 그 밖의 명령은 모두 한 줄 기록이다(작은따옴표는 `'\''`). **펜스 스크립트**: 할 일 1의 추출이 만든 `j39_*.sh`·`j39_yaml.rb`·기대값 파일은 `fence-lines.diff`가 `exit=0`이고 `expected-fence-lines.txt`가 `27`줄일 때만, 이 절에 적힌 실행 줄 그대로 돌린다(상시 규칙 소절 11의 같은 호출 확인을 줄마다 덧붙이지 않는다 — 스물일곱 개의 줄 수를 한 번에 확인했다; 점검표 규칙 20 줄의 증거는 `fence-lines.diff`). 펜스 스크립트 안의 네트워크·대기 명령(`gh`·`until`·`swift build`)은 모두 `/usr/bin/timeout`을 달고 있다(Opus 감사 0건 — dry-run 범위). **시간 한도**: 이 절에 적힌 네트워크·대기 명령(`git fetch`·`git push`·`gh …`·`pytest`·`until`·`swift build`)은 모두 `/usr/bin/timeout`이 붙어 있다. 예외는 상시 규칙 "PR 본문 공통" 6의 `gh pr edit`·`gh pr view` 두 명령이다(그 소절 그대로, 점검표 규칙 5 줄의 "감싸지 않은 것" 무리). **백그라운드**: `swift build`(할 일 3)·`j39_mutant.sh`(할 일 5)·`pytest` 기준선과 게이트 세 번·`j39_ci.sh` 두 번·등록 대기·`gh pr checks --watch`·`j39_attempts.sh`는 **항상** 하네스의 백그라운드 실행으로 돌리고, 그 명령이 쓰는 파일(`.rc`, watch는 `checks-watch.log`의 `exit=` 줄)이 생길 때까지 기다린다(명령은 바꾸지 않는다). `j39_ci.sh` 두 번·`j39_attempts.sh`는 상시 규칙 "PR 본문 공통" 18대로 끝 파일을 2분마다 읽는다(끝 표시: `c2-ci.log`·`c3-ci.log`는 끝 줄이 `result-pass `로 시작하는 것, `attempts.log`는 할 일 10의 `attempts.rc`). 그 밖은 앞쪽으로 돈다. 각 단계의 "기대"와 다르면 **멈춤 조건**을 본다.
+  - **GUI·GPU 잠금 확인**(잡지 않는다): `L="$TMPDIR/claude/gui-foreground.lock"; if [ -e "$L" ]; then cat "$L"; else echo "no lock"; fi > "$E/lock-check.log"; date -u +%FT%TZ >> "$E/lock-check.log"` — 기대 첫 줄 `no lock`. 다른 줄이 있으면 **지우지 않고** 그 줄을 영록에게 보내고 기다린다(할 일 3·5의 빌드 바로 전에 각각 `lock-check-3.log`·`lock-check-5.log` 이름으로 한 번씩 더 — 명령은 파일 이름만 다르다).
+- **할 일**:
+  1. **준비**: `mkdir -p "$E" && git -C "$W" status --porcelain --untracked-files=no | wc -l | tr -d ' ' > "$E/status-before-tracked.log"; git -C "$W" status --porcelain > "$E/status-before.log"` — 기대 `status-before-tracked.log` `0`(`status-before.log`의 `??` 줄은 기록만 — 앞 과제의 생성물일 수 있다). `/usr/bin/timeout 120 git -C "$W" fetch origin > "$E/fetch.log" 2>&1; echo $? > "$E/fetch.rc"` — 기대 `0`. `git -C "$W" switch -c local/jaehwan-j39-objcap-ci origin/main > "$E/switch.log" 2>&1; echo $? > "$E/switch.rc"` — 기대 `0`. 과제·펜스 추출(규칙 14·17 c, 상시 규칙 "PR 본문 공통" 1): 펜스 `j39-extract-cmd`의 네 줄을 Write 도구로 `"$E/extract-cmd.sh"`에 쓰고 명령 공통의 `-cmd.sh` 방식으로 돌린다 — 기대: `head -1 "$E/task.txt"`가 `#### J-39 `로 시작, `grep -c '^- \*\*dry-run 범위(Opus 2026-11-28, J-39)\*\*' "$E/task.txt"` `1`, `grep -c -x '### PR 본문 공통(모든 과제)' "$E/task.txt"` `1`, `fence-lines.diff` `exit=0` 한 줄, `wc -l < "$E/expected-fence-lines.txt" | tr -d ' '` `27`(0이면 빈 비교다 — 규칙 15)(Write로 쓴 `extract-cmd.sh`는 해시 줄이 기록이다). 상태: `sh "$E/j39_pre.sh" "$W" > "$E/pre.log" 2>&1; diff "$E/expected-pre.txt" "$E/pre.log" > "$E/pre.diff"; echo "exit=$?" >> "$E/pre.diff"` — 기대 `exit=0` 한 줄. 겹침·공개 여부: `sh "$E/j39_overlap.sh" "$E" "$W" > "$E/overlap.log" 2>&1; echo $? > "$E/overlap.rc"` — 기대 rc `0`, 다섯 줄 `pr-list-rc 0`·`pr-hits 0`·`branches <수>`(기록만)·`branch-hits 0`·`visibility PUBLIC`. 잠금 확인. 툴체인(기록): `{ sw_vers; /usr/bin/timeout 60 xcodebuild -version; /usr/bin/timeout 60 swift --version; } > "$E/local-toolchain.log" 2>&1; echo $? > "$E/local-toolchain.rc"` — 기대 rc `0`, `grep -c -E '^Xcode (2[6-9]|[3-9][0-9])\.' "$E/local-toolchain.log"` `1`(Xcode 26 이상 — macOS 26 SDK).
+  2. **기준선·파일 넣기**: pytest 기준선(백그라운드, 파일을 넣기 **전**): `cd "$W/tools" && /usr/bin/timeout 1800 "$PY" -m pytest -q > "$E/testbase.log" 2>&1; echo $? > "$E/testbase.rc"` — 기대 `0`. `grep -E '^[0-9]+ passed' "$E/testbase.log" | grep -o -E '[0-9]+ (passed|skipped|failed|errors?)' > "$E/base-counts.log"` — 기대 비지 않음(`test -s`), 기록만. 넣기: `mkdir -p "$W/tools/tests/fixtures/objcap" && cp "$E/poses-min.json" "$W/tools/tests/fixtures/objcap/poses-min.json" && cp "$E/objcap_colmap_check.py" "$W/tools/tests/objcap_colmap_check.py"; echo $? > "$E/put.rc"` — 기대 `0`. 상태(이후 같은 꼴을 이름만 바꿔 쓴다 — `status-<이름>.diff`): `git -C "$W" status --porcelain | grep -v -x -F -e '?? tools/tests/fixtures/objcap/' -e '?? tools/tests/objcap_colmap_check.py' | diff "$E/status-before.log" - > "$E/status-put.diff"; echo "exit=$?" >> "$E/status-put.diff"` — 기대 `exit=0` 한 줄.
+  3. **이 Mac 빌드(백그라운드)**: 잠금 확인(`lock-check-3.log`). `cd "$W" && /usr/bin/timeout 900 swift build -c release --package-path "$W/tools/mac/objcap" --scratch-path "$E/build" > "$E/build.log" 2>&1; echo $? > "$E/build.rc"` — 기대 `0`(124 = 시간 초과, 다시 돌리지 않고 멈춤). `test -x "$E/build/release/golmok-objcap"; echo "bin=$?" > "$E/bin.log"` — 기대 `bin=0`. 기록만: `grep -c -F 'Build complete!' "$E/build.log" > "$E/build-complete.log"; grep -c -E ' warning: ' "$E/build.log" > "$E/build-warnings.log"`. 상태: 할 일 2의 꼴로 `status-build.diff` — 기대 `exit=0` 한 줄(빌드 산출물은 `$E/build`에만 있다).
+  4. **이 Mac에서 CI 확인(정상)**: `sh "$E/j39_run.sh" "$E" good "$E/build/release/golmok-objcap" "$W" "$E/expected-check-pass.txt" > "$E/run-good.log" 2>&1; diff "$E/expected-run-good.txt" "$E/run-good.log" > "$E/run-good.diff"; echo "exit=$?" >> "$E/run-good.diff"` — 기대 `exit=0` 한 줄(`good-check.out`이 펜스 `j39-expected-check-pass` 열여섯 줄과 같다는 줄 `check-diff 0` 포함). 출력 변이: `sh "$E/j39_neg.sh" "$E" "$W" > "$E/neg.log" 2>&1; echo $? > "$E/neg.rc"; diff "$E/expected-neg.txt" "$E/neg.log" > "$E/neg.diff"; echo "exit=$?" >> "$E/neg.diff"` — 기대 `neg.rc` `0`, `neg.diff` `exit=0` 한 줄.
+  5. **Swift 변이(백그라운드, 커밋 없음)**: 잠금 확인(`lock-check-5.log`). `sh "$E/j39_mutant.sh" "$E" "$W" > "$E/mutant.log" 2>&1; echo $? > "$E/mutant.rc"` — 기대 rc `0`. `diff "$E/expected-mutant.txt" "$E/mutant.log" > "$E/mutant.diff"; echo "exit=$?" >> "$E/mutant.diff"` — 기대 `exit=0` 한 줄. 변이 바이너리: `sh "$E/j39_run.sh" "$E" mut "$E/build-mut/release/golmok-objcap" "$W" "$E/expected-check-flip.txt" > "$E/run-mut.log" 2>&1; diff "$E/expected-run-mut.txt" "$E/run-mut.log" > "$E/run-mut.diff"; echo "exit=$?" >> "$E/run-mut.diff"` — 기대 `exit=0` 한 줄. 되돌림 확인: `git -C "$W" diff --quiet -- tools/mac/objcap; echo "objcap-diff=$?" > "$E/objcap-clean.log"` — 기대 `objcap-diff=0`. 상태: `status-mut.diff` — 기대 `exit=0` 한 줄.
+  6. **게이트·커밋 1**: 게이트(규칙 13, 백그라운드): `cd "$W/tools" && . .venv/bin/activate && { /usr/bin/timeout 300 ruff check . && /usr/bin/timeout 300 ruff format --check . && /usr/bin/timeout 1800 pytest -q && /usr/bin/timeout 300 python scripts/check_repo.py; } > "$E/gate-1.log" 2>&1; echo $? > "$E/gate-1.rc"` — 기대 `0`(rc 124 = 시간 초과, 다시 돌리지 않고 멈춤). `grep -E '^[0-9]+ passed' "$E/gate-1.log" | grep -o -E '[0-9]+ (passed|skipped|failed|errors?)' > "$E/gate1-counts.log"; test -s "$E/base-counts.log" && diff "$E/base-counts.log" "$E/gate1-counts.log" > "$E/counts.diff"; echo "exit=$?" >> "$E/counts.diff"` — 기대 `exit=0` 한 줄(새 두 파일이 pytest에 잡히지 않는다 — passed·skipped 수가 그대로). `[ "$E/gate-1.log" -nt "$W/tools/tests/objcap_colmap_check.py" ] && [ "$E/gate-1.log" -nt "$W/tools/tests/fixtures/objcap/poses-min.json" ]; echo "newer=$?" > "$E/mtime-1.log"` — 기대 `newer=0`. 커밋 1: `commit1-cmd.sh`(명령 공통의 `-cmd.sh` 방식) — 기대 `c1-files.log` 두 줄(`tools/tests/fixtures/objcap/poses-min.json`·`tools/tests/objcap_colmap_check.py`), `c1-numstat.log` 두 줄 `79 0 tools/tests/fixtures/objcap/poses-min.json`·`164 0 tools/tests/objcap_colmap_check.py`, `c1-commit.rc` `0`, `author-1.log` `재환 <jaehwan.local@localhost>`, `c1-same.log` 두 줄 `check-py=0`·`fixture=0`(확인이 막아 커밋이 안 됐으면 `c1-commit.rc` `1` — 멈춤).
+  7. **커밋 2(훅)·브랜치 push·첫 CI(PR 전)**: 붙이기: `cd "$W" && [ "$(tail -n 1 .github/workflows/ci.yml)" = "  # [/J-10 hook]" ] && cat "$E/hook.yml" >> .github/workflows/ci.yml; echo $? > "$E/hook-append.rc"` — 기대 `0`(같은 명령을 다시 돌리면 끝 줄이 달라 `1` — 멈춤). YAML: `/usr/bin/ruby "$E/j39_yaml.rb" "$W/.github/workflows/ci.yml" > "$E/yaml.log" 2>&1; echo "exit=$?" >> "$E/yaml.log"; diff "$E/expected-yaml.txt" "$E/yaml.log" > "$E/yaml.diff"; echo "exit=$?" >> "$E/yaml.diff"` — 기대 `yaml.diff` `exit=0` 한 줄. 바이트 일치: `cd "$W" && git diff -U0 -- .github/workflows/ci.yml | grep '^+' | grep -v '^+++' | cut -c2- | diff "$E/hook.yml" - > "$E/hook.diff"; echo "exit=$?" >> "$E/hook.diff"` — 기대 `exit=0` 한 줄. `cd "$W" && git diff --numstat -- .github/workflows/ci.yml | tr '\t' ' ' > "$E/hook-numstat.log"` — 기대 `44 0 .github/workflows/ci.yml`. 게이트(백그라운드): 할 일 6의 게이트를 `gate-2.log`·`gate-2.rc`로 — 기대 `0`, `[ "$E/gate-2.log" -nt "$W/.github/workflows/ci.yml" ]; echo "newer=$?" > "$E/mtime-2.log"` `newer=0`. 커밋 2: `commit2-cmd.sh` — 기대 `c2-files.log` 한 줄 `.github/workflows/ci.yml`, `c2-commit.rc` `0`, `author-2.log` `재환 <jaehwan.local@localhost>`, `c2-numstat.log` `44 0 .github/workflows/ci.yml`. push: `/usr/bin/timeout 300 git -C "$W" push -u origin local/jaehwan-j39-objcap-ci > "$E/push-1.log" 2>&1; echo "exit=$?" >> "$E/push-1.log"` — 기대 끝 줄 `exit=0`. 첫 CI(백그라운드): `sh "$E/j39_ci.sh" "$E" c2 "$W" > "$E/c2-ci.log" 2>&1` — 기대(`grep -c -x`로 각각 `1`): `runwait-rc 0`·`jobwait-rc 0`·`jobs-rc 0`·`job-success 1`·`joblog-rc 0`·`result-pass 1`, 그리고 `failed-lines` 줄 없음. `c2-toolchain.log`(러너의 `ProductVersion`·`Xcode`·`Build version`·`Swift` 줄)는 기록만. **`job-success 0`이면 멈춘다**: PR을 열지 않고, Swift·`ci.yml`·라벨을 바꾸지 않고, `c2-jobs.tsv`·`c2-failed-lines.log`·`c2-toolchain.log`를 영록에게 보낸다(컴파일 오류면 SDK·`is only available in` 줄이 거기 있다).
+  8. **PR**: `printf '%s\n' 'CI 진행 중 — 결과는 아래에 추가' > "$E/pr-body-initial.md"; cd "$W" && /usr/bin/timeout 120 gh pr create --base main --head local/jaehwan-j39-objcap-ci --title "J-39: CI objcap-colmap (macos-26) — golmok-objcap swift build + colmap 내보내기를 Python 읽기로 대조" --body-file "$E/pr-body-initial.md" > "$E/pr-create.log" 2>&1; echo $? > "$E/pr-create.rc"` — 기대 `0`. `cd "$W" && /usr/bin/timeout 120 gh pr view local/jaehwan-j39-objcap-ci --json number --jq .number > "$E/pr-number.log" 2> "$E/pr-number.err"` — 기대 `grep -c -x '[0-9][0-9]*' "$E/pr-number.log"` `1`, `wc -l < "$E/pr-number.log" | tr -d ' '` `1`.
+  9. **README 한 줄·커밋 3·push**: `date +%F > "$E/run-date.log"; sh "$E/j39_readme.sh" "$E" > "$E/readme-line.txt"; echo $? > "$E/readme-line.rc"; wc -l < "$E/readme-line.txt" | tr -d ' ' > "$E/readme-line-count.log"` — 기대 rc `0`, `1`. 넣기: `readme-cmd.sh` — 기대 `readme-insert.rc` `0`, `readme-diff.log` `exit=0` 한 줄(다시 돌리면 `J-39`가 이미 있어 `readme-insert.rc` `1` — 멈춤). 칸 자기 검사 1(상시 규칙 "PR 본문 공통" 7): `cd "$W" && git diff -U0 origin/main -- tools/mac/objcap/README.md | grep '^+[^+]' > "$E/cell-lines-1.txt"; wc -l < "$E/cell-lines-1.txt" | tr -d ' ' > "$E/cell-lines-1-count.log"; grep -n -E '\.log|영록|R[0-9]{3}' "$E/cell-lines-1.txt" > "$E/cell-grep-1.log"; wc -l < "$E/cell-grep-1.log" | tr -d ' ' > "$E/cell-grep-1-count.log"` — 기대 `1`·`0`(0이 아니면 손으로 고치지 않고 멈춘다). 번호: `readmepr-cmd.sh` — 기대 `readme-pr.rc` `0`, `readme-final-diff.log` `exit=0` 한 줄, `readme-marker-left.log` `0`, `readme-changed.log` `same=1`, `readme-numstat.log` `1 0 tools/mac/objcap/README.md`. 칸 자기 검사 2: 위 명령의 `-1`을 `-2`로 바꾼 것(`cell-lines-2.txt`·`cell-lines-2-count.log`·`cell-grep-2.log`·`cell-grep-2-count.log`) — 기대 `1`·`0`. 상태: `git -C "$W" status --porcelain | grep -v -x -F ' M tools/mac/objcap/README.md' | diff "$E/status-before.log" - > "$E/status-readme.diff"; echo "exit=$?" >> "$E/status-readme.diff"` — 기대 `exit=0` 한 줄. 게이트(백그라운드): `gate-3.log`·`gate-3.rc` — 기대 `0`, `[ "$E/gate-3.log" -nt "$W/tools/mac/objcap/README.md" ]; echo "newer=$?" > "$E/mtime-3.log"` `newer=0`(`test_mac_objcap.py`가 README를 읽는다). 커밋 3: `commit3-cmd.sh` — 기대 `c3-files.log` 한 줄 `tools/mac/objcap/README.md`, `c3-commit.rc` `0`, `author-3.log` `재환 <jaehwan.local@localhost>`. `/usr/bin/timeout 300 git -C "$W" push > "$E/push-2.log" 2>&1; echo "exit=$?" >> "$E/push-2.log"` — 기대 끝 줄 `exit=0`. `git -C "$W" diff --name-only origin/main...HEAD > "$E/branch-files.log"` — 기대 네 줄 `.github/workflows/ci.yml`·`tools/mac/objcap/README.md`·`tools/tests/fixtures/objcap/poses-min.json`·`tools/tests/objcap_colmap_check.py`(이 순서). `git -C "$W" status --porcelain | diff "$E/status-before.log" - > "$E/status-final.diff"; echo "exit=$?" >> "$E/status-final.diff"` — 기대 `exit=0` 한 줄.
+  10. **HEAD의 CI·PR 표·8회**: HEAD의 push 실행(백그라운드): `sh "$E/j39_ci.sh" "$E" c3 "$W" > "$E/c3-ci.log" 2>&1` — 기대 할 일 7과 같은 여섯 줄(`failed-lines` 없음). 등록 대기(백그라운드): `H=$(git -C "$W" rev-parse HEAD); cd "$W" && /usr/bin/timeout 600 sh -c 'until [ "$(gh run list --commit "$1" --json event --jq "[.[]|select(.event==\"push\" or .event==\"pull_request\")]|length")" -ge 2 ]; do sleep 30; done' sh "$H" > "$E/run-wait.log" 2>&1; echo $? > "$E/run-wait.rc"` — 기대 `0`(0이 아니면 다시 돌리지 않고 멈춘다). 표(백그라운드, `run-wait.rc` `0` 뒤): `cd "$W" && /usr/bin/timeout 1800 gh pr checks "$(cat "$E/pr-number.log")" --watch --interval 30 > "$E/checks-watch.log" 2>&1; echo "exit=$?" >> "$E/checks-watch.log"; /usr/bin/timeout 120 gh pr checks "$(cat "$E/pr-number.log")" > "$E/checks.log" 2>&1` — 판정은 표로만: `{ awk -F'\t' 'NF && $2 != "pass"' "$E/checks.log" | wc -l | tr -d ' '; awk -F'\t' 'NF' "$E/checks.log" | wc -l | tr -d ' '; grep -c -F 'objcap-colmap (macos-26)' "$E/checks.log"; } > "$E/checks-count.log"` — 기대 세 줄: `0`, 1 이상, `2`(push·pull_request 두 행). `checks-watch.log`에 `no checks reported`가 있으면 첫 두 로그는 그대로 두고 watch·표 두 명령과 이 `checks-count` 명령을 이름에 `-2`를 붙여 한 번 더 돌린다(`checks-watch-2.log`·`checks-2.log`·`checks-count-2.log`) — 이후 `## CI`·완료 기준 (h)·멈춤 조건의 `checks.log`·`checks-count.log`는 `-2` 파일로 읽는다(펜스 `j39-bodycheck-sh`는 `checks-2.log`가 있으면 그것을 본다). 8회(규칙 11, 백그라운드, 표가 모두 `pass`가 된 뒤, 이 동안 push하지 않는다): `sh "$E/j39_attempts.sh" "$E" c3 > "$E/attempts.log" 2>&1; echo $? > "$E/attempts.rc"` — 기대 rc `0`, `wc -l < "$E/attempts.tsv" | tr -d ' '` `8`, `cut -f2 "$E/attempts.tsv" | sort | uniq -c | sed -E 's/^ +//'` `8 success`(main에는 이 잡이 없어 규칙 11의 main 쪽 횟수는 해당 없음). 마지막 표: `cd "$W" && /usr/bin/timeout 120 gh pr checks "$(cat "$E/pr-number.log")" > "$E/checks-final.log" 2>&1; awk -F'\t' 'NF && $2 != "pass"' "$E/checks-final.log" | wc -l | tr -d ' ' > "$E/checks-final-count.log"` — 기대 `0`.
+  11. **PR 본문**: PR 본문·자리표시 분류·칸 자기 검사·근거 표기는 상시 규칙 "PR 본문 공통(모든 과제)"을 따른다(이 절과 다르면 그 소절을 따른다). `## 결과`에는 관찰한 값만 둔다(로그 원문은 백틱 펜스 블록에): `pre.log`, `local-toolchain.log`, `run-good.log`, `good-check.out`(열여섯 줄), `neg.log`, `mutant.log`, `run-mut.log`, `mut-check.out`, `yaml.log`, `hook-numstat.log`, `c1-numstat.log`, `base-counts.log`·`gate1-counts.log`, `c2-ci.log`·`c2-toolchain.log`, `c3-ci.log`·`c3-toolchain.log`, `attempts.tsv`, `checks-final.log`, `readme-line-final.txt`. 과제 번호·규칙 번호·날짜는 이 절 펜스 밖에 쓰지 않는다. 빌드 시간은 쓰지 않는다. `build.log`·`good-colmap.err`·`c2-job.log`·`c3-job.log`는 본문에 붙이지 않는다(경로가 길다 — `## 실행한 명령` 끝의 줄 수 목록에만). `## 남은 [미확인]`: README §5 [미확인] 1~4(렌즈 왜곡, track 없는 점의 Brush 수용, 시각 겹침, 점 밀도) 그대로; VM 러너의 `limits`·`run`(돌리지 않음); 러너 이미지 갱신 뒤에도 컴파일되는지(이번 이미지는 `c2-toolchain.log`); 저장소가 비공개로 바뀌면 macOS 러너 분이 과금된다는 것(공개 저장소의 표준 러너는 무료 — GitHub 공식 문서; 공개 여부 변경은 D-019 항목이라 영록·소유자 몫). `## 병합 시 반영`에는 "영록이 STATUS·DECISIONS·이 과제 파일(J-28 행)을 고친다" 한 문장만. `## 완료 기준 대조`는 아래 (a)~(i) 한 줄씩(물결 펜스 `~~~`). 본문 초안은 `$E/pr-body.md`. 사용자 경로 검사: `grep -c -F "$HOME" "$E/pr-body.md" > "$E/home-path.log"` — 기대 `0`(0이 아니면 그 줄을 `~` 기준으로 고쳐 다시 센다; 펜스 안 원문이면 그 줄만 `~`로 바꾼 사본임을 펜스 위 한 문장에 적는다). 게시 전 검사(규칙 10 e·f): `## 결과`의 펜스 밖 백틱 문자열마다 근거 로그 **한 개**를 `"$E/quotes.tsv"`에 `<문자열><탭><파일 이름>`으로 적는다 — 파일 이름은 펜스 `j39-bodycheck-sh`의 목록(`body-logs.log`에 찍힌다)에 있는 것만, 로그 인용이 아닌 파일 이름·명령은 파일 칸 `라벨`. 검사: `cd "$E" && sh "$E/j39_bodycheck.sh" "$E" > "$E/bodycheck.log" 2>&1; echo $? > "$E/bodycheck.rc"` — 기대 rc `0`, 세 줄 `quotes_missing 0`·`quotes_zero 0`·`numbers_zero 0`(0이 아닌 줄은 `quotes-missing.log`·`quotes-check.log`·`numbers-check.log`에서 그 항목을 찾아 본문을 고치거나 지운 뒤 같은 명령을 다시 돌린다). 한 자리 숫자는 숫자 검사에 걸리지 않으므로 문맥 문자열(예: `job-success 1`)로 인용 검사에 넣는다. 그다음 상시 규칙 "PR 본문 공통" 3(점검표 대조 — 규칙 5 줄은 그 소절의 `common-timeout-awk` 감사 + `-cmd.sh` 파일마다의 감사)·5(자리표시 분류)·6(조립·게시·다시 읽기)을 적힌 그대로 돌린다.
+- **허용 파일**: `tools/tests/fixtures/objcap/poses-min.json`(새 파일, 펜스 `j39-fixture-json` 그대로 — 커밋 1), `tools/tests/objcap_colmap_check.py`(새 파일, 펜스 `j39-check-py` 그대로 — 커밋 1), `.github/workflows/ci.yml`(파일 끝의 `# [J-39 hook]` 블록 44줄만 — 커밋 2 단독), `tools/mac/objcap/README.md`(§5의 그 줄 뒤 한 줄만 — 커밋 3). `tools/mac/objcap/Sources/golmok-objcap/Colmap.swift`는 할 일 5의 `j39_mutant.sh` 안에서만 잠깐 바뀌고 같은 스크립트가 되돌린다(커밋 금지, `objcap-clean.log`로 확인). 그 밖의 저장소 파일은 고치지 않는다: 다른 Swift·`Package.swift`·`.gitignore`, 테스트 파일, `check_repo.py`, `tools/pyproject.toml`, 등록 목록 테스트, 공유 문서, 이 과제 파일. 빌드 산출물은 `$E/build`·`$E/build-mut`에만 둔다.
+- **멈춤 조건(정하지 말고 영록에게 묻는다)**: `status-before-tracked.log`가 `0`이 아닐 때. `fetch.rc`·`switch.rc`가 `0`이 아닐 때. `task.txt` 첫 줄·dry-run 줄·소절 줄 수가 기대와 다를 때. `fence-lines.diff`가 `exit=0` 한 줄이 아니거나 `expected-fence-lines.txt`가 `27`줄이 아닐 때. `pre.diff`가 `exit=0` 한 줄이 아닐 때(특히 `ci-tail`이 다르다 — 다른 훅이 먼저 병합됐다, 붙일 자리를 스스로 정하지 않는다). `overlap.rc`가 `0`이 아니거나 `overlap.log`가 기대와 다를 때(`visibility`가 `PUBLIC`이 아니면 macOS 러너 비용 문제 — D-019, 멈춤). 잠금 파일에 다른 기록이 있을 때(지우지 않는다). `local-toolchain.rc`가 `0`이 아니거나 Xcode 26 이상 줄이 없을 때. `testbase.rc`·`put.rc`·`build.rc`가 `0`이 아니거나(124 포함 — 다시 돌리지 않는다) `bin.log`가 `bin=0`이 아닐 때. `run-good.diff`·`neg.diff`·`mutant.diff`·`run-mut.diff`가 `exit=0` 한 줄이 아닐 때 — 확인 스크립트·fixture·Swift를 고치지 않는다(원문 로그를 보낸다). `mutant.rc`가 `0`이 아닐 때, 또는 `objcap-clean.log`가 `objcap-diff=0`이 아닐 때: 이때만 `git -C "$W" checkout -- tools/mac/objcap/Sources/golmok-objcap/Colmap.swift > "$E/restore-2.log" 2>&1; echo $? > "$E/restore-2.rc"`를 한 번 돌려 자기 변이를 되돌리고(다른 파일은 건드리지 않는다), `git -C "$W" status --porcelain > "$E/status-stop.log"`를 남긴 뒤 멈춘다. `status-*.diff` 중 하나가 `exit=0` 한 줄이 아닐 때. `gate-1.rc`·`gate-2.rc`·`gate-3.rc`가 `0`이 아닐 때(`ruff format`으로 고치지 않는다). `counts.diff`가 `exit=0` 한 줄이 아닐 때(새 파일이 pytest에 잡혔다). `mtime-*.log`가 `newer=0`이 아닐 때. `hook-append.rc`가 `0`이 아니거나 `yaml.diff`·`hook.diff`가 `exit=0` 한 줄이 아니거나 `hook-numstat.log`가 기대와 다를 때. `c1-*`·`c2-*`·`c3-*`·`author-*`가 기대와 다를 때(확인이 막아 `c*-commit.rc` `1`인 것도 멈춤). `push-1.log`·`push-2.log`가 `exit=0`으로 끝나지 않을 때. **`c2-ci.log`·`c3-ci.log`가 기대 여섯 줄과 다를 때**(특히 `job-success 0` — 할 일 7의 멈춤: PR 전이면 PR을 열지 않는다; Swift·`ci.yml`·`runs-on`을 바꾸지 않는다; `runwait-rc 124`·`jobwait-rc 124`도 다시 돌리지 않는다). `pr-create.rc`가 `0`이 아니거나 `pr-number.log`가 숫자 한 줄이 아닐 때. `readme-line.rc`·`readme-insert.rc`·`readme-pr.rc`가 `0`이 아니거나 `readme-*` 확인이 기대와 다를 때. `cell-lines-1-count.log`·`cell-lines-2-count.log`가 `1`이 아니거나 `cell-grep-*-count.log`가 `0`이 아닐 때. `branch-files.log`가 기대 네 줄이 아닐 때. `run-wait.rc`가 `0`이 아닐 때. `checks-count.log`(다시 돌린 경우 `-2`)가 기대 세 줄과 다를 때. `attempts.rc`가 `0`이 아닐 때(남은 attempt를 돌리지 않는다 — `attempts.log`·`attempts.tsv`를 보낸다). `checks-final-count.log`가 `0`이 아닐 때. `home-path.log`가 두 번 고친 뒤에도 `0`이 아닐 때. `bodycheck.rc`가 `0`이 아닐 때. 상시 규칙 "PR 본문 공통" 9의 공통 멈춤 조건. macOS 권한 창이 뜰 때(누르지 않는다). 그 밖에 이 절의 "기대"와 다른 값이 하나라도 나올 때.
+- **완료 기준**:
+  - (a) 준비: `status-before-tracked.log` `0`, `fetch.rc`·`switch.rc` `0`, `task.txt` 첫 줄 `#### J-39 `, `fence-lines.diff` `exit=0`, `expected-fence-lines.txt` `27`줄, `pre.diff` `exit=0`, `overlap.rc` `0`·`overlap.log`(`pr-hits 0`·`branch-hits 0`·`visibility PUBLIC`), `lock-check.log` 첫 줄 `no lock`, `local-toolchain.log`에 Xcode 26 이상 한 줄.
+  - (b) 이 Mac 빌드: `testbase.rc` `0`, `put.rc` `0`, `lock-check-3.log` 첫 줄 `no lock`, `build.rc` `0`, `bin.log` `bin=0`, `status-put.diff`·`status-build.diff` `exit=0`.
+  - (c) 정상 확인: `run-good.diff` `exit=0`(`good-check.out` 열여섯 줄 원문, 끝 줄 `RESULT PASS`), `neg.rc` `0`, `neg.diff` `exit=0`(`qneg RESULT PASS` 포함).
+  - (d) Swift 변이: `lock-check-5.log` 첫 줄 `no lock`, `mutant.rc` `0`, `mutant.diff` `exit=0`, `run-mut.diff` `exit=0`(회전 세 줄만 `FAIL`, `RESULT FAIL`), `objcap-clean.log` `objcap-diff=0`, `status-mut.diff` `exit=0`.
+  - (e) 커밋 1: `gate-1.rc` `0`, `counts.diff` `exit=0`, `mtime-1.log` `newer=0`, `c1-files.log`·`c1-numstat.log`·`c1-commit.rc`·`author-1.log`·`c1-same.log` 기대대로.
+  - (f) 커밋 2·첫 CI: `hook-append.rc` `0`, `yaml.diff`·`hook.diff` `exit=0`, `hook-numstat.log` `44 0 .github/workflows/ci.yml`, `gate-2.rc` `0`, `mtime-2.log` `newer=0`, `c2-files.log`·`c2-commit.rc`·`author-2.log`·`c2-numstat.log` 기대대로, `push-1.log` 끝 줄 `exit=0`, `c2-ci.log`의 여섯 줄(`job-success 1`·`result-pass 1` 포함), `pr-create.rc` `0`, `pr-number.log` 숫자 한 줄.
+  - (g) 커밋 3: `readme-line.rc` `0`, `readme-line-count.log` `1`, `readme-insert.rc` `0`, `readme-diff.log` `exit=0`, `cell-lines-1-count.log` `1`, `cell-grep-1-count.log` `0`, `readme-pr.rc` `0`, `readme-final-diff.log` `exit=0`, `readme-marker-left.log` `0`, `readme-changed.log` `same=1`, `readme-numstat.log` `1 0 tools/mac/objcap/README.md`, `cell-lines-2-count.log` `1`, `cell-grep-2-count.log` `0`, `status-readme.diff` `exit=0`, `gate-3.rc` `0`, `mtime-3.log` `newer=0`, `c3-files.log`·`c3-commit.rc`·`author-3.log` 기대대로, `push-2.log` 끝 줄 `exit=0`, `branch-files.log` 네 줄, `status-final.diff` `exit=0`.
+  - (h) CI: `c3-ci.log` 여섯 줄, `run-wait.rc` `0`, `checks-count.log` `0`·1 이상·`2`, `checks.log` 모든 행 `pass` 원문, `attempts.rc` `0`, `attempts.tsv` 8줄 `8 success`, `checks-final-count.log` `0`.
+  - (i) PR 본문: 절 순서(상시 규칙 "PR 본문 공통" 2), "완료 기준 대조" 절, 점검표(그날 규칙 수만큼, 소절 3), `home-path.log` `0`, `bodycheck.rc` `0`과 세 줄 `quotes_missing 0`·`quotes_zero 0`·`numbers_zero 0`. 공통 완료 기준 (P)(소절 10): `checklist.diff` `exit=0`, `ph-unfilled.log` `0`, `pr-edit.rc` `0`, `ph-posted-unfilled.log` `0`, `ph-table.diff` `exit=0`, `signature-last.log` `1`, `cell-grep-1-count.log`·`cell-grep-2-count.log` `0`.
+- **병합 시 반영(영록)**: 이 파일의 J-28 행·절에 "J-39로 대신함(PR #N)" 메모(지우지 않는다 — 규칙 16). STATUS 재환 절에 J-39 행. DECISIONS에 오케스트레이터 결정 1줄(D-019, 되돌릴 수 있음): "CI 새 필수 잡 `objcap-colmap (macos-26)` — `runs-on: macos-26` 고정(Xcode 26 SDK, `-latest` 이동을 피함), Xcode 고정 없음, `colmap` 변환 식만 대조(손으로 쓴 fixture + 표준 라이브러리 Python 읽기), `limits`·`run`은 CI에서 돌리지 않음. 공개 저장소라 무료 — 비공개로 바꾸면 macOS 분 과금(D-019)." WP-21 남은 작업의 objcap 항목에 날짜 메모(변환 식이 CI 계약이 됐다 — 렌즈 왜곡·Brush 수용은 [미확인] 그대로).
+- **왜 재환 / 위험**: 파일 셋·훅 블록·실행 명령·기대 출력·음성 사례가 모두 펜스로 정해져 있고, 판정은 종료 코드·`diff`·고정 줄 수·API `conclusion`으로 끝난다. 설계·룩 판정이 없고 Astra 레인(§7.6 표: `Source/Golmok/Characters/`·오디오)·UE·GPU를 건드리지 않는다. 위험: ① **러너 SDK** — `macos-26`(Xcode 26.6 기본, SDK 26.5)에서 컴파일되는지는 이 Mac(Xcode 27.2)로 증명되지 않는다. 첫 push 실행을 PR 전에 보고, 빨강이면 작업 브랜치에서 멈춘다(main은 빨강이 되지 않는다). ② **핫스팟 충돌** — 할 일 1의 `pre.log` `ci-tail`과 `overlap.log`가 다른 훅의 선병합·열린 PR을 막는다. ③ **쿼터니언 부호 거짓 실패** — 행렬 비교이고 `qneg` 음성 사례가 통과를 확인한다. ④ **빈 검사** — Swift 변이가 회전 줄을, 출력 변이가 중심·카메라·개수 줄을 각각 `FAIL`로 만든다. 중심 대조만으로는 뒤집기 변이를 못 잡는다는 것도 변이 결과가 보인다. ⑤ **Swift 소스를 남김** — 변이는 한 스크립트 안에서 되돌리고 `objcap-clean.log`·`status-mut.diff`가 확인한다. ⑥ **간헐 빨강** — 8회. ⑦ **넓게 쓰기**(규칙 1·3·15) — README 줄·본문은 "변환 식만"으로 고정, 품질·Brush·왜곡은 [미확인]. ⑧ **비용** — 공개라 무료, 비공개 전환은 D-019 항목(남은 [미확인]에 적는다). 빌드 시간·fps는 재지 않는다.
+- **dry-run 범위(Opus 2026-11-28, J-39)**: (문서 10 검증 뒤) `j39-ci-sh`는 잡 로그를 jobs-logs API(`gh api --allow-escape-sequences …/actions/jobs/<id>/logs`)로 읽는다 — `gh run view --job --log`는 그 실행의 다른 잡이 아직 돌면 거부한다(gh `view.go`가 `run.Status`도 본다); 끝난 잡 140954702577에서 읽기만으로 확인: `joblog-rc 0`, 420줄(`gh run view --job --log`와 같은 줄 수), sh·zsh 같음; `--allow-escape-sequences` 없이는 gh 2.106이 이 끝점을 거부하고 rc 1. 진행 중인 실행 46143202192(viewer-smoke in_progress)에서 끝난 잡 140973493605: jobs-logs API rc 0·419줄, `gh run view --job --log` rc 1('still in progress'). 스크립트 30줄 → 29줄, 찍는 라벨과 할 일 7·10의 기대 여섯 줄은 그대로. (문서 10 2차 검증 뒤) `j39-attempts-sh`의 `gh run rerun`·`gh run view`는 `-R wooklym/golmok`을 단다 — 스크립트가 `cd "$E"`(git 저장소 밖)에서 돌아 `-R` 없이는 'failed to determine base repo'로 rc 1(읽기만으로 확인: git 밖 폴더에서 `gh run view 46141640821 --json attempt` rc 1, `-R wooklym/golmok`을 달면 `1` rc 0). 스크립트 줄 수는 25 그대로. 그 밖: origin/main `d025f02`의 scratch 사본(`git archive`, git 저장소로 만든 것)에서 한 것: fixture·확인 스크립트를 넣고 `ruff check .` 통과, `ruff format --check .` 통과, `pytest -q` `1940 passed, 3 skipped`(J-29 dry-run의 main 값과 같음 — 새 파일은 수집되지 않음, `--collect-only`에 0줄), `check_repo.py` `OK (uproject, ini, json, links, gitattributes, conflicts, gasp)`, `test_mac_objcap.py` `10 passed`(README 한 줄 넣은 뒤). 훅 블록을 `ci.yml` 끝에 붙여 `/usr/bin/ruby` 2.6.10 Psych가 펜스 `j39-expected-yaml`과 같은 다섯 줄을 냄, numstat `44 0`, 지운 줄 0, 표식 2줄, 탭 0. Swift 빌드는 돌리지 않았다(이 workflow는 빌드 금지) — 대신 `Colmap.swift`의 가드·식·출력 꼴을 그대로 옮긴 Python 대역(Shepperd 쿼터니언, Python `repr` = 최단 왕복 표기)과 `main.swift`의 사용법 글을 그대로 내는 가짜 바이너리, `Colmap.swift`에 `(1, 1, 1)`이 있으면 변이 바이너리를 만드는 가짜 `swift`로 펜스 `j39-run-sh`·`j39-neg-sh`·`j39-mutant-sh`를 sh·zsh에서 돌려 펜스 `j39-expected-run-good`·`j39-expected-neg`·`j39-expected-mutant`·`j39-expected-run-mut`와 같은 출력을 얻었다(두 셸 바이트 같음, 변이 뒤 `git status` 그대로). 같은 대역으로 CI 스텝 네 개(`run:` 글을 Ruby로 뽑아 `bash --noprofile --norc -eo pipefail`)가 정상에서 모두 0, 뒤집기 변이에서 마지막 스텝만 1, 사용법이 0으로 끝나는 가짜 바이너리에서 사용법·`colmap` 스텝이 1. 확인 스크립트가 잰 차이(대역 출력): 회전 최대 2.2e-16, 중심 최대 1.8e-15. `j39-pre-sh`는 원본 사본에서 펜스 `j39-expected-pre`와 같음(sh·zsh), 변경 뒤 사본에서 다섯 줄이 달라짐(빈 검사 아님). `j39-overlap-sh`는 실제 저장소에서 `pr-hits 0`·`branches 121`·`branch-hits 0`(sh·zsh), 가짜 `origin/local/*` 브랜치가 `ci.yml`을 바꾼 scratch 복제에서 `branch-hits 1`. `j39-ci-sh`·`j39-attempts-sh`(attempt 1, 다시 돌리기 없음)는 잡 이름만 `python (macos-latest, 3.12)`로 바꾼 사본을 main `d025f02`의 완료된 실행 46137095982에 읽기만으로 돌려 `job-success 1`·`attempt 1 conclusion success`(sh·zsh 같음), 결론 글자를 바꾼 사본에서 `job-success 0`과 실패 로그 파일 생성. `-cmd.sh` 다섯 개(커밋 셋·README 둘)는 앞머리만 scratch 경로로 바꾼 사본을 scratch 복제에서 sh·zsh로 돌려 위 기대값(`c1-numstat.log` `79 0`·`164 0`, `c2-numstat.log` `44 0`, `readme-numstat.log` `1 0`, 작성자 `재환 <jaehwan.local@localhost>`, 가짜 번호 999로 `readme-marker-left.log` `0`)을 얻었다. README 줄(견본 날짜)의 칸 자기 검사 `grep -n -E` 0건. `j39-bodycheck-sh`는 견본 본문에서 sh·zsh 같은 출력, 로그에 없는 인용을 넣으면 `quotes_zero 1`. 상시 규칙 `common-timeout-awk`를 펜스 스크립트와 `-cmd.sh` 여섯 개에 돌려 `not-wrapped` 0줄(옛 이름 `pytest-base-counts.log`·커밋 글 "pytest"의 거짓 걸림을 이름을 바꿔 없앴다). 모든 `j39_*.sh`가 `sh -n`·`bash -n`·`zsh -n` 통과. 이 절을 넣은 과제 파일에서 `extract-cmd.sh`(앞머리·`git show`만 scratch로 바꾼 사본)를 sh·zsh로 돌려 `fence-lines.diff` `exit=0`, 뽑은 27개가 펜스 원본과 바이트 같음. shellcheck는 이 Mac에 없어 돌리지 않았다(펜스 스크립트는 `$E`에 있어 CI shellcheck 범위 밖). dry-run하지 못한 것(이 과제가 재는 것): 실제 `swift build`(이 Mac Xcode 27.2, CI Xcode 26.6), 실제 Swift 출력의 숫자 꼴·`simd_quatd` 부호, `Build complete!` 줄, 실제 변이 빌드, CI 실행 전부(첫 push·PR·8회 다시 돌리기 — `gh run rerun`은 쓰기라 하지 않았다), `gh pr create`·`edit`·`view`, 실제 본문의 인용·숫자·사용자 경로 검사.
+
+#### J-38 `golmok-align --poses-format colmap`: COLMAP 텍스트 모델의 카메라 중심을 GPS prior에(Mac 경로) + mac-recon M3 보조 확인 명령 고침 — 설계 확정(Opus 2026-11-28)
+- **출처**: [ROADMAP](../ROADMAP.md) 1.4(:136 — 정합은 `golmok-align` GPS prior → ICP, 실 Zone은 V-05), D-023 Mac 경로(ROADMAP :69 — splat 포즈는 COLMAP), [WP-21](WP-21-mac-recon-pipeline.md) :36(미터·ENU 정합은 희소 모델에서 한 번, `model_aligner` 또는 `golmok-align` [미확인])·남은 작업 4(:142). 코드(`origin/main` `d025f02`에서 Opus가 읽음): `tools/golmok_tools/align/poses.py` :1-7·:47(`--poses`는 RealityScan CSV만 읽는다), `tools/golmok_tools/align/cli.py` :105-106(`--poses`와 `--gps`가 있으면 `read_realityscan_csv`를 무조건 부른다)·:111(카메라 위치를 옛 zone 변환으로 area ENU에 옮긴다 — 위치를 zone-local로 본다)·:118-120(`--already-georeferenced`면 축척 1)·:138-139(`--gps`만 주면 `SystemExit("--poses와 --gps는 함께 줘야 한다")`, zone·베이스맵을 읽은 뒤), `tools/golmok_tools/align/prior.py` :82-122(`fit_prior` RANSAC 시드 0 고정 — 같은 입력이면 같은 결과). 런북: [mac-recon.md](../runbooks/mac-recon.md) :95(M3 "정합" 문단의 보조 확인 줄 — `--gps`만 있고 `--poses`가 없어 위 :138-139로 멈춘다; Opus가 합성 zone으로 재현, 아래 테스트 `test_gps_without_poses_is_still_refused`)·:148(`golmok-align`은 Mac 실데이터로 아직 돌리지 않았다), [align.md](../runbooks/align.md) :28(`--already-georeferenced` 줄). 이 줄 :95는 J-30a 펜스 `j30a-apply`의 앵커다(그 펜스의 `anchor` 글자와 같다) — J-30a가 바로 뒤에 날짜 메모를 넣는다. 형식(공식): [COLMAP Output Format](https://colmap.github.io/format.html) — `images.txt`는 이미지마다 두 줄(`IMAGE_ID, QW, QX, QY, QZ, TX, TY, TZ, CAMERA_ID, NAME` / `POINTS2D[] as (X, Y, POINT3D_ID)`), 포즈는 world → camera 사영, 쿼터니언은 Eigen과 같은 Hamilton 규약(스칼라 먼저), 카메라 중심은 `-R^t * T`, 이름은 이미지 폴더 기준 상대 경로, 폴더에 바이너리와 텍스트가 함께 있으면 COLMAP은 바이너리를 쓴다, 형식 변환은 `model_converter`. 같은 문서는 빈 POINTS2D 줄과 이름 속 공백을 따로 적지 않는다(아래 설계 2). 실제 파일(읽기만): J-30a dry-run의 COLMAP 4.2.1 `model_converter` 출력 `aligned_txt/images.txt` — 머리 주석 네 줄(넷째 `# Number of images: 76, …`), 같은 폴더에 `rigs.txt`·`frames.txt`도 있다(4.x). 저장소의 다른 쓰는 쪽: `tools/mac/objcap/Sources/golmok-objcap/Colmap.swift` :32(머리 주석 앞 세 줄 — `# Number of images` 줄은 없다)·:58(`…\(name)\n\n` — 이미지마다 머리 줄 뒤 **빈** POINTS2D 줄).
+- **설계 (확정, Opus 2026-11-28)**: 재환은 아래를 그대로 옮긴다. 바꿀 점이 보이면 고치지 말고 묻는다.
+  1. **CLI**: `golmok-align run`에 `--poses-format {realityscan,colmap}`(기본 `realityscan`)을 더한다. `colmap`이면 `--poses`는 `images.txt` 파일이나 그것이 든 모델 폴더다. 기본값은 지금 동작 그대로다: 분기의 `else`가 지금의 `poses.read_realityscan_csv(args.poses)` 한 줄이고, 분기 판정은 `getattr(args, "poses_format", "realityscan")`이라 이 속성이 없는 `Namespace`(기존 `tests/test_align.py`의 `run_args`)도 옛 경로로 간다 — 그래서 `tests/test_align.py`는 고치지 않고 그대로 통과해야 한다(할 일 2·4의 `align_base`·`align_after`). `colmap` 경로의 `ValueError`만 `SystemExit("--poses-format colmap: …")`로 바꾼다(RealityScan 경로의 오류 처리는 바꾸지 않는다 — `UnicodeDecodeError`도 `ValueError`라 둘을 함께 감싸면 CSV 경로가 달라진다). 미룬 것: Object Capture `poses.json` 읽기와 `--poses-axes` — objcap 좌표는 Y-up(mac-recon :113)이라 `meshio.to_enu` 축 규약을 정해야 하는 설계 문제다(V-05 앞 Claude 레인). `tools/pyproject.toml`(핫스팟)은 고치지 않는다 — 새 의존성(numpy만)도 새 콘솔 스크립트도 없다.
+  2. **리더 `read_colmap_images_txt(path) -> list[CameraPose]`(`poses.py`, 순수 함수)**: 줄 번호 `i`로 걷는다. `#` 줄과 머리 줄 자리의 빈 줄은 건너뛴다(끝의 빈 줄 포함). 머리 줄을 읽으면 **다음 한 줄은 내용과 상관없이** 그 이미지의 POINTS2D 줄로 먹는다(`i += 2`) — 빈 줄을 먼저 지우고 두 줄씩 짝짓는 흔한 잘못(objcap 출력은 모든 POINTS2D가 빈 줄이라 이미지가 반으로 준다)을 막는다. 머리 줄 필드가 10개 미만이면 `ValueError("<path>:<줄 번호>: image header needs 10 fields (…), got N")`. 쿼터니언은 정규화하고(노름이 0·비유한이면 줄 번호와 함께 `ValueError`), `R(q)`(Hamilton, `QW QX QY QZ` 순서)는 world → camera이므로 중심은 `C = -Rᵀt`. 중심이 유한하지 않으면 `ValueError`. `NAME`은 열째 필드부터 끝까지를 공백 하나로 이은 것이다(이름 속 공백을 COLMAP 자신이 어떻게 다루는지는 [미확인] — 문서에 없다). 짝짓기는 지금의 `poses.join`(파일 stem, 대소문자 무시) 그대로다 — `sub/DJI_0352.JPG`도 stem `dji_0352`로 `gps_priors.csv`의 `DJI_0352.jpg`와 맞는다.
+  3. **`colmap_images_path(path)`**: 폴더가 아니면 그 경로 그대로. 폴더면 `images.txt`가 있을 때 그것, `images.bin`만 있으면 `ValueError("<폴더> has images.bin but no images.txt; convert it first: mkdir -p <폴더>_txt && colmap model_converter --input_path <폴더> --output_path <폴더>_txt --output_type TXT")`, 둘 다 없으면 `ValueError("<폴더> has no images.txt")`. 바이너리는 읽지 않는다(이 과제는 텍스트 한 형식만 — 바이너리 파서는 코드가 늘고 J-30a가 이미 TXT를 만든다). 이 실패 문구들은 할 일 4가 한 번씩 일으켜 읽는다(규칙 8, 펜스 `j38-errmsg-py`).
+  4. **좌표계 단서(런북 줄과 PR에 적는다)**: 읽은 위치는 RealityScan CSV와 **똑같이** zone-local로 쓰인다(cli.py :111이 옛 zone 변환을 적용한다). `model_aligner` ENU 모델은 원점이 참조 첫 장의 GPS라 zone 원점과 다를 수 있다 — 그 차이는 GPS prior의 이동이 메우지만(`--already-georeferenced`로 축척 1), 그 보정이 충돌 메시에 맞으려면 메시가 같은 COLMAP 모델 좌표에서 나와야 한다. 그것은 운영자가 확인할 일이고 V-05 전까지 [미확인]이다. 이 과제는 읽기와 prior 연결만 증명한다 — 실데이터 정합 품질 주장이 아니다(규칙 1·3·15).
+  5. **테스트(새 파일 `tools/tests/test_align_colmap.py`, 펜스 `j38-test-py` 그대로 — 기존 `tests/test_align.py`는 고치지 않는다)** 13개: Hamilton·스칼라 먼저 고정 사례(z축 90°), `-Rᵀt` 고정 사례, 알려진 중심의 Sim3 장면(축척 2.5·yaw 35°·먼 이동) 12장에 QR로 만든 무작위 회전, `q`·`-q` 번갈아, 빈·비지 않은 POINTS2D 줄 섞음, 끝 빈 줄 셋 → 1e-9로 복원, objcap 꼴(`…NAME\n\n`), 노름 3.7의 쿼터니언, 하위 폴더·공백 이름과 `join`, 필드 9개 머리 줄 → `images.txt:7:` `ValueError`, 영 쿼터니언 → `images.txt:5:`, 폴더 해석 셋(텍스트·바이너리만·빈 폴더), 기본값 `realityscan`, 그리고 `test_align`의 합성 zone(`make_perturbed_zone` — 이동 (30, −20) m, `test_gps_prior_path`와 같은 장면)에서 CLI 끝까지: 같은 카메라를 CSV로 준 실행과 `--poses-format colmap`으로 준 실행의 `gps_prior` 짝 수(12)·inlier 수가 같고 RMSE·이동이 1e-6 안에서 같다, `images.bin`만 있는 폴더는 `SystemExit`(변환 명령 문구), `--gps`만 준 옛 런북 꼴은 여전히 `--poses와 --gps는 함께 줘야 한다`. 테스트 쪽의 쿼터니언은 회전 행렬에서 Shepperd 방법으로 만든다(리더의 식을 복사하지 않는다 — 식 오류가 서로 지워지지 않게).
+  6. **변형(펜스 `j38-mutants-sh`, `tools/` 사본에서만 — `$W`는 바뀌지 않는다)** 다섯: ① `minus` `-` 빼기(`C = Rᵀt`), ② `r-not-rt` `Rᵀ` 대신 `R`, ③ `blank-filter` 빈 줄을 먼저 지움, ④ `xyzw` 쿼터니언을 `QX QY QZ QW`로 읽음, ⑤ `no-dispatch` CLI가 형식을 무시. 각자 고정 FAILED 목록(펜스 `j38-expected-mut`)과 `diff`한다 — ①②④는 5개, ③은 6개, ⑤는 2개가 떨어진다. 코드를 넣기 **전에** 새 테스트만 넣은 실행(할 일 3)은 12 failed·1 passed다(통과하는 하나는 옛 동작을 고정하는 `test_gps_without_poses_is_still_refused`).
+  7. **런북(규칙 16 — 기록은 덧붙이고, 명령 줄은 고친다)**: :95는 결과 기록이 아니라 **돌지 않는 명령**이므로 그 줄을 고친다 — 그러나 조용히 바꾸지 않고, 바로 그 문단 끝(J-30a 메모 뒤, J-30b 메모가 이미 있으면 그 뒤, `**왜곡 제거 (Brush 입력)**` 앞 빈 줄 바로 앞)에 날짜 메모 한 줄을 더해 옛 꼴이 왜 멈췄는지와 바뀐 것을 남긴다. align.md에는 :28 바로 뒤에 사용법 한 줄. 세 줄의 글자는 펜스 `j38-render-py`가 만들고(테스트 수는 `tests-new.log`에서 읽는다 — 손으로 옮기지 않는다) 펜스 `j38-apply-py`가 넣는다(:95 옛 글자·Brush 머리·align 앵커가 각각 정확히 1번이고 Brush 머리 앞이 빈 줄이며 J-38 메모가 0번일 때만, 아니면 rc 1로 아무것도 쓰지 않는다). 폴더 이름 `$R/aligned_txt`는 J-30a 할 일 4의 `aligned_txt`(`model_converter --input_path …/aligned --output_path …/aligned_txt --output_type TXT`)와 같다. 세 줄 끝은 `근거: J-38 PR.` 표식이고 커밋 2가 `근거: PR #번호.`로 바꾼다(상시 규칙 "PR 본문 공통" 8). 세 줄에 `.log`·`영록`·`R`+세 자리 숫자가 없다(Opus dry-run, 칸 자기 검사 0건).
+  8. **순서(겹침)**: J-30a가 **병합된 뒤에만** 한다 — :95를 바꾸면 J-30a 펜스 `j30a-apply`의 앵커가 사라진다. 할 일 2의 `pre.diff`가 막는다(`origin/main` mac-recon에 :95 옛 글자 1, `근거: PR #`로 끝나는 J-30a 메모 1, `근거: J-30a PR.` 0). J-30b와는 앞뒤 어느 쪽이든 된다: J-30b의 앵커(J-30a 메모 줄·§6 #6 옛 행)를 건드리지 않고, J-38 메모에 `메모(J-30b, `가 없어 `j30b-pre-sh`의 네 값이 그대로다(Opus dry-run — J-38 적용 뒤 문서에서 `expected-pre`와 같음). J-30b가 J-38 뒤에 돌면 J-30b 메모는 J-30a 메모 바로 뒤, J-38 메모 앞에 들어간다(그쪽 `memo-order.log` `adjacent` 그대로). 둘 다 같은 런북을 고치므로 열린 PR이 있으면 할 일 2의 `overlap.log`가 막는다. 이 절은 J-30b의 추출 경계(`/^## 재환에게 맞지 않는 것/`)를 바꾸지 않으려고 `#### J-30b` 절 **바로 앞**에 둔다 — 이 절의 추출 끝은 `/^#### J-30b /`다.
+  9. **커밋 둘**: 다섯 파일 모두 핫스팟·Astra 레인이 아니다(CLAUDE.md §7.6 목록 — `align/`·`tests/test_align_colmap.py`·두 런북은 없다; 레지스트리 테스트도 고치지 않는다). 커밋 1 = 다섯 파일(표식 그대로), 커밋 2 = 두 런북의 표식만 PR 번호로.
+  10. **기록만 하는 실데이터 확인(할 일 6)**: J-30a 실행 폴더(`$TMPDIR/jaehwan/J-30a`)의 `aligned_txt/images.txt`와 `ref_gps.txt`가 있으면 새 리더로 읽어 등록 수·이름 수·`gps_priors` 꼴 CSV(참조 파일을 옮긴 것)와 짝지은 수, J-30a `check_align.py`와 같은 두 줄 짝 파싱과의 최대 차이를 적는다. 판정 근거가 아니다(같은 실행의 J-30a 수치가 정합 확인이다). 없으면 `realcheck skipped`를 적고 넘어간다. J-30a 폴더는 읽기만 한다.
+
+```sh j38-start-cmd
+# J-38 할 일 1: 시작 상태·fetch·브랜치·과제 절·펜스 추출(Write 도구로 이 펜스를 그대로 쓴다)
+W="$HOME/projects/golmok-jaehwan"; E="$TMPDIR/jaehwan/J-38"; PY="$W/tools/.venv/bin/python";
+git -C "$W" status --porcelain --untracked-files=no | wc -l | tr -d ' ' > "$E/status-before-tracked.log"
+git -C "$W" status --porcelain > "$E/status-before.log"
+[ "$(cat "$E/status-before-tracked.log")" = 0 ] || exit 3
+/usr/bin/timeout 120 git -C "$W" fetch origin > "$E/fetch.log" 2>&1; echo $? > "$E/fetch.rc"
+[ "$(cat "$E/fetch.rc")" = 0 ] || exit 4
+git -C "$W" switch -c local/jaehwan-j38-colmap-poses origin/main > "$E/switch.log" 2>&1; echo $? > "$E/switch.rc"
+[ "$(cat "$E/switch.rc")" = 0 ] || exit 5
+git -C "$W" show origin/main:docs/plan/jaehwan-tasks.md > "$E/tasks-main.md"
+git -C "$W" rev-parse origin/main > "$E/main-rev.log"
+{ awk '/^#### J-38 /{f=1} /^#### J-30b /{f=0} f' "$E/tasks-main.md"; awk '/^### PR 본문 공통\(모든 과제\)$/{f=1} /^## 리뷰·병합 절차$/{f=0} f' "$E/tasks-main.md"; } > "$E/task.txt"
+X() { awk -v n="$1" 'BEGIN {b = sprintf("%c%c%c", 96, 96, 96)} x && $0 == b {x = 0} x {print} !x && index($0, b) == 1 && $0 ~ (" " n "$") {x = 1}' "$E/task.txt" > "$E/$2"; }
+X j38-start-cmd start-fence.sh; X j38-pre-cmd j38-pre-cmd.sh; X j38-first-cmd j38-first-cmd.sh; X j38-code-cmd j38-code-cmd.sh
+X j38-mut-cmd j38-mut-cmd.sh; X j38-real-cmd j38-real-cmd.sh; X j38-runbook-cmd j38-runbook-cmd.sh; X j38-gate-cmd j38-gate-cmd.sh
+X j38-c1-cmd j38-c1-cmd.sh; X j38-marker-cmd j38-marker-cmd.sh; X j38-c2-cmd j38-c2-cmd.sh; X j38-ci-cmd j38-ci-cmd.sh
+X j38-edit-py j38_edit.py; X j38-test-py test_align_colmap.py; X j38-pre-sh j38_pre.sh; X j38-render-py j38_render.py
+X j38-apply-py j38_apply.py; X j38-errmsg-py j38_errmsg.py; X j38-realcheck-py j38_realcheck.py; X j38-mutate-py j38_mutate.py
+X j38-mutants-sh j38_mutants.sh; X j38-bodycheck-sh j38_bodycheck.sh; X common-ph-awk ph.awk; X common-timeout-awk timeout.awk
+X j38-expected-blobs expected-blobs.txt; X j38-expected-pre expected-pre.txt; X j38-expected-pre-summary expected-pre-summary.txt
+X j38-expected-first expected-first.txt; X j38-expected-code expected-code.txt; X j38-expected-sha expected-sha.txt
+X j38-expected-errmsg expected-errmsg.txt; X j38-expected-mut expected-mut.txt; X j38-expected-runbook expected-runbook.txt
+X j38-fence-lines expected-fence-lines.txt
+cd "$E" && wc -l start-fence.sh j38-pre-cmd.sh j38-first-cmd.sh j38-code-cmd.sh j38-mut-cmd.sh j38-real-cmd.sh j38-runbook-cmd.sh j38-gate-cmd.sh j38-c1-cmd.sh j38-marker-cmd.sh j38-c2-cmd.sh j38-ci-cmd.sh j38_edit.py test_align_colmap.py j38_pre.sh j38_render.py j38_apply.py j38_errmsg.py j38_realcheck.py j38_mutate.py j38_mutants.sh j38_bodycheck.sh ph.awk timeout.awk expected-blobs.txt expected-pre.txt expected-pre-summary.txt expected-first.txt expected-code.txt expected-sha.txt expected-errmsg.txt expected-mut.txt expected-runbook.txt | sed '$d' | awk '{print $1, $2}' | diff "$E/expected-fence-lines.txt" - > "$E/fence-lines.diff"; echo "exit=$?" >> "$E/fence-lines.diff"
+cmp "$E/start-fence.sh" "$E/j38-start-cmd.sh" > "$E/start-cmp.log" 2>&1; echo "cmp=$?" >> "$E/start-cmp.log"
+{ head -n 1 "$E/task.txt" | cut -c1-9; grep -c '^- \*\*dry-run 범위(Opus 2026-11-28, J-38)\*\*' "$E/task.txt"; grep -c -x '### PR 본문 공통(모든 과제)' "$E/task.txt"; wc -l < "$E/expected-fence-lines.txt" | tr -d ' '; cat "$E/fence-lines.diff"; tail -n 1 "$E/start-cmp.log"; } > "$E/start-summary.log"
+printf '%s\n' '#### J-38' 1 1 33 'exit=0' 'cmp=0' | diff - "$E/start-summary.log" > "$E/start.diff"; echo "exit=$?" >> "$E/start.diff"
+```
+
+```sh j38-pre-cmd
+# J-38 할 일 2: 시작 상태 확인(저장소 파일을 바꾸지 않는다)
+W="$HOME/projects/golmok-jaehwan"; E="$TMPDIR/jaehwan/J-38"; PY="$W/tools/.venv/bin/python";
+git -C "$W" rev-parse origin/main:tools/golmok_tools/align/poses.py origin/main:tools/golmok_tools/align/cli.py > "$E/blobs.log" 2>&1
+diff "$E/expected-blobs.txt" "$E/blobs.log" > "$E/blobs.diff"; echo "exit=$?" >> "$E/blobs.diff"
+git -C "$W" ls-tree --name-only origin/main tools/tests/test_align_colmap.py | wc -l | tr -d ' ' > "$E/testfile-main.log"
+git -C "$W" show origin/main:docs/runbooks/mac-recon.md > "$E/mac-recon-main.md"
+git -C "$W" show origin/main:docs/runbooks/align.md > "$E/align-main.md"
+sh "$E/j38_pre.sh" "$E/mac-recon-main.md" "$E/align-main.md" > "$E/pre.log" 2>&1
+diff "$E/expected-pre.txt" "$E/pre.log" > "$E/pre.diff"; echo "exit=$?" >> "$E/pre.diff"
+cd "$W" && /usr/bin/timeout 120 gh pr list --state open --json number,headRefName,files --jq '.[]|select(any(.files[]; .path=="docs/runbooks/mac-recon.md" or .path=="docs/runbooks/align.md" or (.path|startswith("tools/golmok_tools/align/")) or .path=="tools/tests/test_align_colmap.py"))|"\(.number) \(.headRefName)"' > "$E/overlap.log" 2>&1; echo $? > "$E/overlap.rc"
+L="$TMPDIR/claude/gui-foreground.lock"; if [ -e "$L" ]; then cat "$L"; else echo "no lock"; fi > "$E/lock-check-a.log"; date -u +%FT%TZ >> "$E/lock-check-a.log"
+{ date -u +%FT%TZ; uptime; /usr/bin/timeout 20 "$HOME/.lmstudio/bin/lms" ps; } > "$E/load-before.log" 2>&1
+cd "$W/tools" && /usr/bin/timeout 600 "$PY" -I -m pytest -q -p no:cacheprovider tests/test_align.py > "$E/align-base.log" 2>&1; echo $? > "$E/align-base.rc"
+{ cat "$E/blobs.diff"; printf 'testfile_on_main %s\n' "$(cat "$E/testfile-main.log")"; cat "$E/pre.diff"; printf 'overlap_rc %s\n' "$(cat "$E/overlap.rc")"; printf 'overlap_lines %s\n' "$(wc -l < "$E/overlap.log" | tr -d ' ')"; printf 'lock %s\n' "$(head -n 1 "$E/lock-check-a.log")"; printf 'align_base_rc %s\n' "$(cat "$E/align-base.rc")"; printf 'align_base %s\n' "$(grep -o -E '[0-9]+ (passed|failed|skipped|error)' "$E/align-base.log" | paste -s -d ' ' -)"; } > "$E/pre-summary.log"
+diff "$E/expected-pre-summary.txt" "$E/pre-summary.log" > "$E/pre-summary.diff"; echo "exit=$?" >> "$E/pre-summary.diff"
+```
+
+```sh j38-first-cmd
+# J-38 할 일 3: 테스트 먼저 — 코드 바꾸기 전에 새 테스트 파일만 넣고 돌린다(실패해야 한다)
+W="$HOME/projects/golmok-jaehwan"; E="$TMPDIR/jaehwan/J-38"; PY="$W/tools/.venv/bin/python";
+cp "$E/test_align_colmap.py" "$W/tools/tests/test_align_colmap.py"; echo $? > "$E/test-cp.rc"
+cmp "$E/test_align_colmap.py" "$W/tools/tests/test_align_colmap.py" > "$E/test-cmp.log" 2>&1; echo "cmp=$?" >> "$E/test-cmp.log"
+cd "$W/tools" && /usr/bin/timeout 600 "$PY" -I -m pytest -q -p no:cacheprovider tests/test_align_colmap.py > "$E/tests-first.log" 2>&1; echo $? > "$E/tests-first.rc"
+git -C "$W" status --porcelain | grep -v -x -F '?? tools/tests/test_align_colmap.py' | diff "$E/status-before.log" - > "$E/status-first.diff"; echo "exit=$?" >> "$E/status-first.diff"
+{ printf 'test_cp_rc %s\n' "$(cat "$E/test-cp.rc")"; tail -n 1 "$E/test-cmp.log"; printf 'tests_first_rc %s\n' "$(cat "$E/tests-first.rc")"; grep '^FAILED ' "$E/tests-first.log" | sed 's/ - .*//' | LC_ALL=C sort; printf 'tests_first %s\n' "$(grep -o -E '[0-9]+ (passed|failed|skipped|error)' "$E/tests-first.log" | paste -s -d ' ' -)"; tail -n 1 "$E/status-first.diff"; } > "$E/first-summary.log"
+diff "$E/expected-first.txt" "$E/first-summary.log" > "$E/first.diff"; echo "exit=$?" >> "$E/first.diff"
+```
+
+```sh j38-code-cmd
+# J-38 할 일 4: 코드 바꾸기(펜스 j38-edit-py)·새 테스트·기존 테스트·실패 문구(규칙 8)
+W="$HOME/projects/golmok-jaehwan"; E="$TMPDIR/jaehwan/J-38"; PY="$W/tools/.venv/bin/python";
+cd "$W" && /usr/bin/timeout 120 "$PY" -I "$E/j38_edit.py" "$W" > "$E/edit.log" 2>&1; echo $? > "$E/edit.rc"
+[ "$(cat "$E/edit.rc")" = 0 ] || exit 3
+cd "$W" && shasum -a 256 tools/golmok_tools/align/poses.py tools/golmok_tools/align/cli.py tools/tests/test_align_colmap.py > "$E/sha.log"
+diff "$E/expected-sha.txt" "$E/sha.log" > "$E/sha.diff"; echo "exit=$?" >> "$E/sha.diff"
+cd "$W" && git diff --numstat -- tools/golmok_tools/align/poses.py tools/golmok_tools/align/cli.py | tr '\t' ' ' > "$E/code-numstat.log"
+cd "$W/tools" && /usr/bin/timeout 600 "$PY" -I -m pytest -v -p no:cacheprovider tests/test_align_colmap.py > "$E/tests-new.log" 2>&1; echo $? > "$E/tests-new.rc"
+cd "$W/tools" && /usr/bin/timeout 600 "$PY" -I -m pytest -q -p no:cacheprovider tests/test_align.py > "$E/align-after.log" 2>&1; echo $? > "$E/align-after.rc"
+mkdir "$E/err" && cd "$E" && /usr/bin/timeout 120 "$PY" -I "$E/j38_errmsg.py" "$E/err" > "$E/errmsg.log" 2>&1; echo $? > "$E/errmsg.rc"
+diff "$E/expected-errmsg.txt" "$E/errmsg.log" > "$E/errmsg.diff"; echo "exit=$?" >> "$E/errmsg.diff"
+git -C "$W" status --porcelain | grep -v -x -F -e ' M tools/golmok_tools/align/cli.py' -e ' M tools/golmok_tools/align/poses.py' -e '?? tools/tests/test_align_colmap.py' | diff "$E/status-before.log" - > "$E/status-code.diff"; echo "exit=$?" >> "$E/status-code.diff"
+{ printf 'edit_rc %s\n' "$(cat "$E/edit.rc")"; cat "$E/edit.log"; tail -n 1 "$E/sha.diff"; cat "$E/code-numstat.log"; printf 'tests_new_rc %s\n' "$(cat "$E/tests-new.rc")"; printf 'tests_new_passed_lines %s\n' "$(grep -c ' PASSED' "$E/tests-new.log")"; printf 'tests_new %s\n' "$(grep -o -E '[0-9]+ (passed|failed|skipped|error)' "$E/tests-new.log" | paste -s -d ' ' -)"; printf 'align_after_rc %s\n' "$(cat "$E/align-after.rc")"; printf 'align_after %s\n' "$(grep -o -E '[0-9]+ (passed|failed|skipped|error)' "$E/align-after.log" | paste -s -d ' ' -)"; printf 'errmsg_rc %s\n' "$(cat "$E/errmsg.rc")"; tail -n 1 "$E/errmsg.diff"; tail -n 1 "$E/status-code.diff"; } > "$E/code-summary.log"
+diff "$E/expected-code.txt" "$E/code-summary.log" > "$E/code.diff"; echo "exit=$?" >> "$E/code.diff"
+```
+
+```sh j38-mut-cmd
+# J-38 할 일 5: 변형 다섯 — tools/ 사본에서만(worktree는 바뀌지 않는다)
+W="$HOME/projects/golmok-jaehwan"; E="$TMPDIR/jaehwan/J-38"; PY="$W/tools/.venv/bin/python";
+cd "$E" && /usr/bin/timeout 1200 sh "$E/j38_mutants.sh" "$W" "$E" "$PY" > "$E/mutants.log" 2>&1; echo $? > "$E/mutants.rc"
+diff "$E/expected-mut.txt" "$E/mutants.log" > "$E/mutants.diff"; echo "exit=$?" >> "$E/mutants.diff"
+cd "$W" && shasum -a 256 tools/golmok_tools/align/poses.py tools/golmok_tools/align/cli.py tools/tests/test_align_colmap.py | diff "$E/expected-sha.txt" - > "$E/sha-after-mut.diff"; echo "exit=$?" >> "$E/sha-after-mut.diff"
+{ printf 'mutants_rc %s\n' "$(cat "$E/mutants.rc")"; tail -n 1 "$E/mutants.diff"; tail -n 1 "$E/sha-after-mut.diff"; } > "$E/mut-summary.log"
+printf '%s\n' 'mutants_rc 0' 'exit=0' 'exit=0' | diff - "$E/mut-summary.log" > "$E/mut.diff"; echo "exit=$?" >> "$E/mut.diff"
+```
+
+```sh j38-real-cmd
+# J-38 할 일 6: (기록만) J-30a 정합 모델에 새 리더 — 판정 아님, J-30a 폴더는 읽기만
+W="$HOME/projects/golmok-jaehwan"; E="$TMPDIR/jaehwan/J-38"; PY="$W/tools/.venv/bin/python";
+J="$TMPDIR/jaehwan/J-30a"
+if [ -s "$J/aligned_txt/images.txt" ] && [ -s "$J/ref_gps.txt" ]; then cd "$E" && /usr/bin/timeout 120 "$PY" -I "$E/j38_realcheck.py" "$J/aligned_txt/images.txt" "$J/ref_gps.txt" "$E/gps_priors_j30a.csv" > "$E/realcheck.log" 2>&1; echo $? > "$E/realcheck.rc"; else echo "realcheck skipped: no J-30a model" > "$E/realcheck.log"; echo skip > "$E/realcheck.rc"; fi
+```
+
+```sh j38-runbook-cmd
+# J-38 할 일 7: 런북 세 줄(렌더·넣기·확인·칸 자기 검사 1)
+W="$HOME/projects/golmok-jaehwan"; E="$TMPDIR/jaehwan/J-38"; PY="$W/tools/.venv/bin/python";
+cd "$E" && /usr/bin/timeout 120 "$PY" -I "$E/j38_render.py" "$E" "$(date +%F)" > "$E/runbook-lines.txt" 2> "$E/render.err"; echo $? > "$E/render.rc"
+[ "$(cat "$E/render.rc")" = 0 ] || exit 3
+cd "$W" && /usr/bin/timeout 120 "$PY" -I "$E/j38_apply.py" docs/runbooks/mac-recon.md docs/runbooks/align.md "$E/runbook-lines.txt" > "$E/apply.log" 2>&1; echo $? > "$E/apply.rc"
+cd "$W" && git diff --numstat -- docs/runbooks/mac-recon.md docs/runbooks/align.md | tr '\t' ' ' > "$E/doc-numstat.log"
+cd "$W" && git diff -U0 -- docs/runbooks/mac-recon.md | grep -E '^\+[^+]' | sed 's/^+//' > "$E/added-mr.txt"
+cd "$W" && git diff -U0 -- docs/runbooks/align.md | grep -E '^\+[^+]' | sed 's/^+//' > "$E/added-al.txt"
+sed -n '1,2p' "$E/runbook-lines.txt" | diff - "$E/added-mr.txt" > "$E/added-mr.diff"; echo "exit=$?" >> "$E/added-mr.diff"
+sed -n '3p' "$E/runbook-lines.txt" | diff - "$E/added-al.txt" > "$E/added-al.diff"; echo "exit=$?" >> "$E/added-al.diff"
+cd "$W" && git diff -U0 -- docs/runbooks/mac-recon.md docs/runbooks/align.md | grep -E '^-' | grep -v -E '^--- ' | sed 's/^-//' > "$E/removed.txt"
+sh "$E/j38_pre.sh" "$W/docs/runbooks/mac-recon.md" "$W/docs/runbooks/align.md" > "$E/post.log" 2>&1
+cd "$W" && git diff -U0 origin/main -- docs/runbooks/mac-recon.md docs/runbooks/align.md | grep '^+[^+]' > "$E/cell-lines-1.txt"; wc -l < "$E/cell-lines-1.txt" | tr -d ' ' > "$E/cell-lines-1-count.log"; grep -n -E '\.log|영록|R[0-9]{3}' "$E/cell-lines-1.txt" > "$E/cell-grep-1.log"; wc -l < "$E/cell-grep-1.log" | tr -d ' ' > "$E/cell-grep-1-count.log"
+git -C "$W" status --porcelain | grep -v -x -F -e ' M docs/runbooks/align.md' -e ' M docs/runbooks/mac-recon.md' -e ' M tools/golmok_tools/align/cli.py' -e ' M tools/golmok_tools/align/poses.py' -e '?? tools/tests/test_align_colmap.py' | diff "$E/status-before.log" - > "$E/status-doc.diff"; echo "exit=$?" >> "$E/status-doc.diff"
+{ printf 'render_rc %s\n' "$(cat "$E/render.rc")"; printf 'lines %s\n' "$(wc -l < "$E/runbook-lines.txt" | tr -d ' ')"; printf 'angle %s\n' "$(grep -c '<' "$E/runbook-lines.txt")"; printf 'marker %s\n' "$(grep -c ' 근거: J-38 PR\.$' "$E/runbook-lines.txt")"; printf 'apply_rc %s\n' "$(cat "$E/apply.rc")"; cat "$E/apply.log"; cat "$E/doc-numstat.log"; tail -n 1 "$E/added-mr.diff"; tail -n 1 "$E/added-al.diff"; printf 'removed_old95 %s\n' "$(grep -c -F -- '--ground`(리포트만' "$E/removed.txt")"; printf 'removed_lines %s\n' "$(wc -l < "$E/removed.txt" | tr -d ' ')"; cat "$E/post.log"; printf 'cell_lines %s\n' "$(cat "$E/cell-lines-1-count.log")"; printf 'cell_grep %s\n' "$(cat "$E/cell-grep-1-count.log")"; tail -n 1 "$E/status-doc.diff"; } > "$E/runbook-summary.log"
+diff "$E/expected-runbook.txt" "$E/runbook-summary.log" > "$E/runbook.diff"; echo "exit=$?" >> "$E/runbook.diff"
+```
+
+```sh j38-gate-cmd
+# J-38 할 일 8·10: 파이썬 게이트(usage: sh j38-gate-cmd.sh <번호 1 또는 2>, 하네스 백그라운드)
+W="$HOME/projects/golmok-jaehwan"; E="$TMPDIR/jaehwan/J-38"; PY="$W/tools/.venv/bin/python";
+G=$1
+cd "$W/tools" && . .venv/bin/activate && { /usr/bin/timeout 300 ruff check . && /usr/bin/timeout 300 ruff format --check . && /usr/bin/timeout 1800 pytest -q -p no:cacheprovider && /usr/bin/timeout 300 python scripts/check_repo.py; } > "$E/gate-$G.log" 2>&1; echo $? > "$E/gate-$G.rc"
+for f in docs/runbooks/align.md docs/runbooks/mac-recon.md tools/golmok_tools/align/cli.py tools/golmok_tools/align/poses.py tools/tests/test_align_colmap.py; do if [ "$E/gate-$G.log" -nt "$W/$f" ]; then echo "newer $f"; else echo "OLDER $f"; fi; done > "$E/mtime-$G.log"
+{ printf 'gate_rc %s\n' "$(cat "$E/gate-$G.rc")"; printf 'older %s\n' "$(grep -c '^OLDER ' "$E/mtime-$G.log")"; printf 'failed_words %s\n' "$(grep -c -E '[0-9]+ failed' "$E/gate-$G.log")"; tail -n 1 "$E/gate-$G.log"; } > "$E/gate-$G-summary.log"
+```
+
+```sh j38-c1-cmd
+# J-38 할 일 9: 커밋 1·push·PR 열기·PR 번호
+W="$HOME/projects/golmok-jaehwan"; E="$TMPDIR/jaehwan/J-38"; PY="$W/tools/.venv/bin/python";
+printf '%s\n' docs/runbooks/align.md docs/runbooks/mac-recon.md tools/golmok_tools/align/cli.py tools/golmok_tools/align/poses.py tools/tests/test_align_colmap.py > "$E/c1-expected.txt"
+cd "$W" && git add docs/runbooks/align.md docs/runbooks/mac-recon.md tools/golmok_tools/align/cli.py tools/golmok_tools/align/poses.py tools/tests/test_align_colmap.py && git diff --cached --name-only > "$E/c1-files.log" && cmp -s "$E/c1-files.log" "$E/c1-expected.txt" && git -c user.name="재환" -c user.email="jaehwan.local@localhost" commit -m "J-38: golmok-align --poses-format colmap(COLMAP images.txt 카메라 중심) + 런북 M3 보조 확인 명령" -m "작성: 재환(로컬 LLM, qwen3.8-flash-next / LM Studio)" > "$E/c1-commit.log" 2>&1; echo $? > "$E/c1-commit.rc"
+git -C "$W" log -1 --format='%an <%ae>' > "$E/author-c1.log"
+[ "$(cat "$E/c1-commit.rc")" = 0 ] || exit 3
+/usr/bin/timeout 300 git -C "$W" push -u origin local/jaehwan-j38-colmap-poses > "$E/push.log" 2>&1; echo "exit=$?" >> "$E/push.log"
+[ "$(tail -n 1 "$E/push.log")" = "exit=0" ] || exit 4
+git -C "$W" diff --name-only origin/main...HEAD > "$E/branch-files.log"
+git -C "$W" status --porcelain | diff "$E/status-before.log" - > "$E/status-push.diff"; echo "exit=$?" >> "$E/status-push.diff"
+printf '%s\n' 'CI 진행 중 — 결과는 아래에 추가' > "$E/pr-body-initial.md"
+cd "$W" && /usr/bin/timeout 120 gh pr create --base main --head local/jaehwan-j38-colmap-poses --title "J-38: golmok-align --poses-format colmap — COLMAP images.txt 카메라 중심(Mac 경로), mac-recon M3 보조 확인 명령" --body-file "$E/pr-body-initial.md" > "$E/pr-create.log" 2>&1; echo $? > "$E/pr-create.rc"
+cd "$W" && /usr/bin/timeout 120 gh pr view local/jaehwan-j38-colmap-poses --json number --jq .number > "$E/pr-number.log" 2> "$E/pr-number.err"
+{ printf 'c1_commit_rc %s\n' "$(cat "$E/c1-commit.rc")"; cmp -s "$E/c1-files.log" "$E/c1-expected.txt"; printf 'c1_files_same %s\n' "$?"; cat "$E/author-c1.log"; tail -n 1 "$E/push.log"; cmp -s "$E/branch-files.log" "$E/c1-expected.txt"; printf 'branch_files_same %s\n' "$?"; tail -n 1 "$E/status-push.diff"; printf 'pr_create_rc %s\n' "$(cat "$E/pr-create.rc")"; printf 'pr_number_ok %s\n' "$(grep -c -x '[0-9][0-9]*' "$E/pr-number.log")"; printf 'pr_number_lines %s\n' "$(wc -l < "$E/pr-number.log" | tr -d ' ')"; } > "$E/c1-summary.log"
+printf '%s\n' 'c1_commit_rc 0' 'c1_files_same 0' '재환 <jaehwan.local@localhost>' 'exit=0' 'branch_files_same 0' 'exit=0' 'pr_create_rc 0' 'pr_number_ok 1' 'pr_number_lines 1' | diff - "$E/c1-summary.log" > "$E/c1.diff"; echo "exit=$?" >> "$E/c1.diff"
+```
+
+```sh j38-marker-cmd
+# J-38 할 일 10: 근거 표식을 PR 번호로(커밋 2 전, 칸 자기 검사 2)
+W="$HOME/projects/golmok-jaehwan"; E="$TMPDIR/jaehwan/J-38"; PY="$W/tools/.venv/bin/python";
+N=$(cat "$E/pr-number.log")
+sed "s/ 근거: J-38 PR\./ 근거: PR #$N./" "$E/runbook-lines.txt" > "$E/runbook-lines-final.txt"
+cd "$W" && sed -i '' "s/ 근거: J-38 PR\./ 근거: PR #$N./" docs/runbooks/mac-recon.md docs/runbooks/align.md; echo $? > "$E/runbook-pr.rc"
+cd "$W" && git diff -U0 origin/main -- docs/runbooks/mac-recon.md | grep -E '^\+[^+]' | sed 's/^+//' > "$E/added-mr-final.txt"
+cd "$W" && git diff -U0 origin/main -- docs/runbooks/align.md | grep -E '^\+[^+]' | sed 's/^+//' > "$E/added-al-final.txt"
+{ sed -n '1,2p' "$E/runbook-lines-final.txt" | diff - "$E/added-mr-final.txt"; echo "exit=$?"; sed -n '3p' "$E/runbook-lines-final.txt" | diff - "$E/added-al-final.txt"; echo "exit=$?"; } > "$E/added-final.diff"
+cd "$W" && git diff --numstat origin/main -- docs/runbooks/mac-recon.md docs/runbooks/align.md | tr '\t' ' ' > "$E/doc-numstat-final.log"
+cd "$W" && git diff -U0 origin/main -- docs/runbooks/mac-recon.md docs/runbooks/align.md | grep '^+[^+]' > "$E/cell-lines-2.txt"; wc -l < "$E/cell-lines-2.txt" | tr -d ' ' > "$E/cell-lines-2-count.log"; grep -n -E '\.log|영록|R[0-9]{3}' "$E/cell-lines-2.txt" > "$E/cell-grep-2.log"; wc -l < "$E/cell-grep-2.log" | tr -d ' ' > "$E/cell-grep-2-count.log"
+{ printf 'runbook_pr_rc %s\n' "$(cat "$E/runbook-pr.rc")"; cat "$E/added-final.diff"; printf 'marker_left %s\n' "$(cat "$W/docs/runbooks/mac-recon.md" "$W/docs/runbooks/align.md" | grep -c ' 근거: J-38 PR\.')"; printf 'pr_refs %s\n' "$(grep -c " 근거: PR #$N\.$" "$E/runbook-lines-final.txt")"; cat "$E/doc-numstat-final.log"; printf 'cell_lines %s\n' "$(cat "$E/cell-lines-2-count.log")"; printf 'cell_grep %s\n' "$(cat "$E/cell-grep-2-count.log")"; } > "$E/marker-summary.log"
+printf '%s\n' 'runbook_pr_rc 0' 'exit=0' 'exit=0' 'marker_left 0' 'pr_refs 3' '1 0 docs/runbooks/align.md' '2 1 docs/runbooks/mac-recon.md' 'cell_lines 3' 'cell_grep 0' | diff - "$E/marker-summary.log" > "$E/marker.diff"; echo "exit=$?" >> "$E/marker.diff"
+```
+
+```sh j38-c2-cmd
+# J-38 할 일 10: 커밋 2·push(게이트 2 뒤)
+W="$HOME/projects/golmok-jaehwan"; E="$TMPDIR/jaehwan/J-38"; PY="$W/tools/.venv/bin/python";
+printf '%s\n' docs/runbooks/align.md docs/runbooks/mac-recon.md > "$E/c2-expected.txt"
+cd "$W" && git add docs/runbooks/align.md docs/runbooks/mac-recon.md && git diff --cached --name-only > "$E/c2-files.log" && cmp -s "$E/c2-files.log" "$E/c2-expected.txt" && git -c user.name="재환" -c user.email="jaehwan.local@localhost" commit -m "J-38: 런북 줄의 근거를 PR 번호로" -m "작성: 재환(로컬 LLM, qwen3.8-flash-next / LM Studio)" > "$E/c2-commit.log" 2>&1; echo $? > "$E/c2-commit.rc"
+git -C "$W" log -1 --format='%an <%ae>' > "$E/author-c2.log"
+[ "$(cat "$E/c2-commit.rc")" = 0 ] || exit 3
+/usr/bin/timeout 300 git -C "$W" push > "$E/push-2.log" 2>&1; echo "exit=$?" >> "$E/push-2.log"
+git -C "$W" diff --name-only origin/main...HEAD > "$E/branch-files-2.log"
+git -C "$W" status --porcelain | diff "$E/status-before.log" - > "$E/status-final.diff"; echo "exit=$?" >> "$E/status-final.diff"
+{ printf 'c2_commit_rc %s\n' "$(cat "$E/c2-commit.rc")"; cmp -s "$E/c2-files.log" "$E/c2-expected.txt"; printf 'c2_files_same %s\n' "$?"; cat "$E/author-c2.log"; tail -n 1 "$E/push-2.log"; cmp -s "$E/branch-files-2.log" "$E/c1-expected.txt"; printf 'branch_files_same %s\n' "$?"; tail -n 1 "$E/status-final.diff"; } > "$E/c2-summary.log"
+printf '%s\n' 'c2_commit_rc 0' 'c2_files_same 0' '재환 <jaehwan.local@localhost>' 'exit=0' 'branch_files_same 0' 'exit=0' | diff - "$E/c2-summary.log" > "$E/c2.diff"; echo "exit=$?" >> "$E/c2.diff"
+```
+
+```sh j38-ci-cmd
+# J-38 할 일 11: CI 등록 대기·감시·표(하네스 백그라운드)
+W="$HOME/projects/golmok-jaehwan"; E="$TMPDIR/jaehwan/J-38"; PY="$W/tools/.venv/bin/python";
+H=$(git -C "$W" rev-parse HEAD); cd "$W" && /usr/bin/timeout 600 sh -c 'until [ "$(gh run list --commit "$1" --json event --jq "[.[]|select(.event==\"push\" or .event==\"pull_request\")]|length")" -ge 2 ]; do sleep 30; done' sh "$H" > "$E/run-wait.log" 2>&1; echo $? > "$E/run-wait.rc"
+[ "$(cat "$E/run-wait.rc")" = 0 ] || exit 3
+cd "$W" && /usr/bin/timeout 1800 gh pr checks "$(cat "$E/pr-number.log")" --watch --interval 30 > "$E/checks-watch.log" 2>&1; echo "exit=$?" >> "$E/checks-watch.log"
+cd "$W" && /usr/bin/timeout 120 gh pr checks "$(cat "$E/pr-number.log")" > "$E/checks.log" 2>&1; echo $? > "$E/checks.rc"
+awk -F'\t' 'NF' "$E/checks.log" | wc -l | tr -d ' ' > "$E/checks-rows.log"; awk -F'\t' 'NF && $2 != "pass"' "$E/checks.log" | wc -l | tr -d ' ' > "$E/checks-notpass.log"
+if grep -q 'no checks reported' "$E/checks-watch.log"; then cd "$W" && /usr/bin/timeout 1800 gh pr checks "$(cat "$E/pr-number.log")" --watch --interval 30 > "$E/checks-watch-2.log" 2>&1; echo "exit=$?" >> "$E/checks-watch-2.log"; fi
+if [ -e "$E/checks-watch-2.log" ]; then cd "$W" && /usr/bin/timeout 120 gh pr checks "$(cat "$E/pr-number.log")" > "$E/checks-2.log" 2>&1; echo $? > "$E/checks-2.rc"; awk -F'\t' 'NF' "$E/checks-2.log" | wc -l | tr -d ' ' > "$E/checks-rows-2.log"; awk -F'\t' 'NF && $2 != "pass"' "$E/checks-2.log" | wc -l | tr -d ' ' > "$E/checks-notpass-2.log"; fi
+```
+
+```python j38-edit-py
+# J-38: the code change as exact replacements (usage: python -I j38_edit.py <W>); anchors once each.
+import sys
+from pathlib import Path
+
+W = Path(sys.argv[1])
+POSES = W / "tools/golmok_tools/align/poses.py"
+CLI = W / "tools/golmok_tools/align/cli.py"
+POSES_DOC_OLD = '''Georeferenced projects export grid coordinates.
+"""
+'''
+POSES_DOC_NEW = '''Georeferenced projects export grid coordinates.
+
+COLMAP text model images.txt (Mac path, D-023; https://colmap.github.io/format.html): camera centres
+-R^T t from the world-to-camera pose, read by read_colmap_images_txt (golmok-align --poses-format colmap).
+"""
+'''
+POSES_TAIL = '''def _quat_wxyz_to_rot(qw: float, qx: float, qy: float, qz: float) -> np.ndarray:
+    """Hamilton quaternion, scalar first (COLMAP/Eigen order) -> 3x3 rotation. q is normalised first."""
+    q = np.array([qw, qx, qy, qz], dtype=np.float64)
+    n = float(np.linalg.norm(q))
+    if not np.isfinite(n) or n < 1e-12:
+        raise ValueError(f"quaternion norm {n} is not usable")
+    w, x, y, z = q / n
+    return np.array(
+        [
+            [1 - 2 * (y * y + z * z), 2 * (x * y - w * z), 2 * (x * z + w * y)],
+            [2 * (x * y + w * z), 1 - 2 * (x * x + z * z), 2 * (y * z - w * x)],
+            [2 * (x * z - w * y), 2 * (y * z + w * x), 1 - 2 * (x * x + y * y)],
+        ]
+    )
+
+
+def read_colmap_images_txt(path: str | Path) -> list[CameraPose]:
+    """Camera centres from a COLMAP text model images.txt.
+
+    Each image is a header line IMAGE_ID QW QX QY QZ TX TY TZ CAMERA_ID NAME followed by exactly one
+    POINTS2D line, which is empty when the image has no keypoints, so the line after a header is always
+    consumed whatever it holds. '#' lines and blank lines where a header is expected are skipped.
+    (QW, QX, QY, QZ, TX, TY, TZ) is world-to-camera, so the centre is C = -R^T t. NAME is the fields
+    from the tenth on, joined by one space (how COLMAP itself treats spaces in names is unverified).
+    """
+    p = Path(path)
+    lines = p.read_text(encoding="utf-8").splitlines()
+    out: list[CameraPose] = []
+    i = 0
+    while i < len(lines):
+        s = lines[i].strip()
+        if not s or s.startswith("#"):
+            i += 1
+            continue
+        tok = s.split()
+        if len(tok) < 10:
+            raise ValueError(
+                f"{p}:{i + 1}: image header needs 10 fields "
+                f"(IMAGE_ID QW QX QY QZ TX TY TZ CAMERA_ID NAME), got {len(tok)}"
+            )
+        try:
+            qw, qx, qy, qz, tx, ty, tz = (float(v) for v in tok[1:8])
+            rot = _quat_wxyz_to_rot(qw, qx, qy, qz)
+        except ValueError as e:
+            raise ValueError(f"{p}:{i + 1}: {e}") from e
+        centre = -rot.T @ np.array([tx, ty, tz], dtype=np.float64)
+        if not np.all(np.isfinite(centre)):
+            raise ValueError(f"{p}:{i + 1}: camera centre is not finite")
+        out.append(CameraPose(name=" ".join(tok[9:]), position=centre))
+        i += 2  # this image's POINTS2D line (may be empty)
+    return out
+
+
+def colmap_images_path(path: str | Path) -> Path:
+    """images.txt itself, or a COLMAP model folder that holds it. A folder with only images.bin is refused."""
+    p = Path(path)
+    if not p.is_dir():
+        return p
+    if (p / "images.txt").is_file():
+        return p / "images.txt"
+    if (p / "images.bin").is_file():
+        raise ValueError(
+            f"{p} has images.bin but no images.txt; convert it first: "
+            f"mkdir -p {p}_txt && colmap model_converter "
+            f"--input_path {p} --output_path {p}_txt --output_type TXT"
+        )
+    raise ValueError(f"{p} has no images.txt")
+'''
+CLI_PAIRS = [
+    (
+        '''        [--poses cameras.csv --gps gps_priors.csv] [--write]
+''',
+        '''        [--poses cameras.csv --gps gps_priors.csv] [--write]
+    golmok-align run ... --poses aligned_txt/images.txt --poses-format colmap --gps gps_priors.csv
+''',
+    ),
+    (
+        '''    2. Optional GPS prior: camera positions (RealityScan CSV, zone-local) vs GPS -> similarity; the
+''',
+        '''    2. Optional GPS prior: camera positions (RealityScan CSV, or COLMAP images.txt centres with
+       --poses-format colmap; zone-local) vs GPS -> similarity; the
+''',
+    ),
+    (
+        '''        cams = poses.read_realityscan_csv(args.poses)
+''',
+        '''        if getattr(args, "poses_format", "realityscan") == "colmap":
+            try:
+                cams = poses.read_colmap_images_txt(poses.colmap_images_path(args.poses))
+            except ValueError as e:
+                raise SystemExit(f"--poses-format colmap: {e}") from e
+        else:
+            cams = poses.read_realityscan_csv(args.poses)
+''',
+    ),
+    (
+        '''    r.add_argument("--poses", help="RealityScan 카메라 CSV (#name,x,y,alt,...)")
+''',
+        '''    r.add_argument("--poses", help="RealityScan 카메라 CSV (#name,x,y,alt,...) 또는 COLMAP images.txt")
+    r.add_argument(
+        "--poses-format",
+        choices=("realityscan", "colmap"),
+        default="realityscan",
+        help="--poses 형식: realityscan(카메라 CSV) 또는 colmap(텍스트 모델 images.txt나 그 폴더)",
+    )
+''',
+    ),
+]
+p = POSES.read_text(encoding="utf-8")
+c = CLI.read_text(encoding="utf-8")
+END = "    return [(p, by_stem[_stem(p.name)]) for p in poses if _stem(p.name) in by_stem]\n"
+counts = [p.count(POSES_DOC_OLD), int(p.endswith(END))]
+counts += [c.count(o) for o, _ in CLI_PAIRS]
+print("anchors", *counts)
+if counts != [1] * len(counts):
+    sys.exit(1)
+p = p.replace(POSES_DOC_OLD, POSES_DOC_NEW) + "\n\n" + POSES_TAIL
+for o, n in CLI_PAIRS:
+    c = c.replace(o, n)
+POSES.write_text(p, encoding="utf-8")
+CLI.write_text(c, encoding="utf-8")
+print("edited")
+```
+
+```python j38-test-py
+"""golmok-align --poses-format colmap: COLMAP images.txt camera centres (J-38, Mac path D-023)."""
+
+import json
+import math
+
+import numpy as np
+import pytest
+
+from golmok_tools.align import poses
+from golmok_tools.align.cli import build_parser, main
+
+HEADER = (
+    "# Image list with two lines of data per image:\n"
+    "#   IMAGE_ID, QW, QX, QY, QZ, TX, TY, TZ, CAMERA_ID, NAME\n"
+    "#   POINTS2D[] as (X, Y, POINT3D_ID)\n"
+    "# Number of images: 6, mean observations per image: 1.5\n"
+)
+
+
+def random_rotation(rng):
+    """Uniform-ish proper rotation from QR (independent of the parser's quaternion formula)."""
+    q, r = np.linalg.qr(rng.normal(size=(3, 3)))
+    q = q @ np.diag(np.sign(np.diag(r)))
+    if np.linalg.det(q) < 0:
+        q[:, 0] *= -1
+    return q
+
+
+def rot_to_quat_wxyz(m):
+    """Shepperd's method: rotation matrix -> Hamilton quaternion (w, x, y, z), w >= 0."""
+    tr = np.trace(m)
+    if tr > 0:
+        s = math.sqrt(tr + 1.0) * 2
+        q = [0.25 * s, (m[2, 1] - m[1, 2]) / s, (m[0, 2] - m[2, 0]) / s, (m[1, 0] - m[0, 1]) / s]
+    elif m[0, 0] > m[1, 1] and m[0, 0] > m[2, 2]:
+        s = math.sqrt(1.0 + m[0, 0] - m[1, 1] - m[2, 2]) * 2
+        q = [(m[2, 1] - m[1, 2]) / s, 0.25 * s, (m[0, 1] + m[1, 0]) / s, (m[0, 2] + m[2, 0]) / s]
+    elif m[1, 1] > m[2, 2]:
+        s = math.sqrt(1.0 + m[1, 1] - m[0, 0] - m[2, 2]) * 2
+        q = [(m[0, 2] - m[2, 0]) / s, (m[0, 1] + m[1, 0]) / s, 0.25 * s, (m[1, 2] + m[2, 1]) / s]
+    else:
+        s = math.sqrt(1.0 + m[2, 2] - m[0, 0] - m[1, 1]) * 2
+        q = [(m[1, 0] - m[0, 1]) / s, (m[0, 2] + m[2, 0]) / s, (m[1, 2] + m[2, 1]) / s, 0.25 * s]
+    q = np.array(q)
+    return q if q[0] >= 0 else -q
+
+
+def image_line(image_id, centre, rot_w2c, name, sign=1.0, qscale=1.0):
+    """One COLMAP header line for a camera at centre with world-to-camera rotation rot_w2c."""
+    q = sign * qscale * rot_to_quat_wxyz(rot_w2c)
+    t = -rot_w2c @ centre
+    vals = " ".join(repr(float(v)) for v in (*q, *t))
+    return f"{image_id} {vals} 1 {name}"
+
+
+def sim3_scene(n=12, seed=7):
+    """Known centres: a Sim3 (scale 2.5, yaw 35 deg, far translation) of a random point set."""
+    rng = np.random.default_rng(seed)
+    base = rng.uniform(-10, 10, (n, 3))
+    c, s = math.cos(math.radians(35)), math.sin(math.radians(35))
+    yaw = np.array([[c, -s, 0], [s, c, 0], [0, 0, 1.0]])
+    centres = 2.5 * base @ yaw.T + np.array([1234.5, -876.25, 42.0])
+    rots = [random_rotation(rng) for _ in range(n)]
+    return centres, rots
+
+
+def test_quaternion_order_and_hamilton_convention():
+    # 90 deg about +z, scalar first: x axis -> y axis
+    h = math.sqrt(0.5)
+    r = poses._quat_wxyz_to_rot(h, 0.0, 0.0, h)
+    assert np.allclose(r, [[0, -1, 0], [1, 0, 0], [0, 0, 1]], atol=1e-12)
+
+
+def test_centre_is_minus_r_transpose_t(tmp_path):
+    # world-to-camera R = Rz(90), camera centre C = (1, 2, 3): t = -R C = (2, -1, -3)
+    h = math.sqrt(0.5)
+    (tmp_path / "images.txt").write_text(
+        HEADER + f"1 {h} 0 0 {h} 2.0 -1.0 -3.0 1 a.jpg\n\n", encoding="utf-8"
+    )
+    (got,) = poses.read_colmap_images_txt(tmp_path / "images.txt")
+    assert got.name == "a.jpg"
+    assert np.allclose(got.position, [1.0, 2.0, 3.0], atol=1e-12)
+
+
+def test_sim3_scene_centres_recovered_with_both_quaternion_signs(tmp_path):
+    centres, rots = sim3_scene()
+    body = []
+    for i, (c, r) in enumerate(zip(centres, rots, strict=True)):
+        body.append(image_line(i + 1, c, r, f"DJI_{i:04d}.JPG", sign=-1.0 if i % 2 else 1.0))
+        body.append("" if i % 3 else "10.5 20.25 -1 30.0 40.0 7")  # empty and non-empty POINTS2D lines
+    (tmp_path / "images.txt").write_text(HEADER + "\n".join(body) + "\n\n\n", encoding="utf-8")
+    got = poses.read_colmap_images_txt(tmp_path / "images.txt")
+    assert [p.name for p in got] == [f"DJI_{i:04d}.JPG" for i in range(len(centres))]
+    err = max(float(np.abs(p.position - c).max()) for p, c in zip(got, centres, strict=True))
+    assert err < 1e-9
+
+
+def test_objcap_writer_layout_header_then_empty_line(tmp_path):
+    # tools/mac/objcap Colmap.swift writes "...NAME\n\n" for every image (no keypoints)
+    centres, rots = sim3_scene(n=4, seed=11)
+    text = HEADER + "".join(
+        image_line(i + 1, c, r, f"IMG_{i}.HEIC") + "\n\n"
+        for i, (c, r) in enumerate(zip(centres, rots, strict=True))
+    )
+    (tmp_path / "images.txt").write_text(text, encoding="utf-8")
+    got = poses.read_colmap_images_txt(tmp_path / "images.txt")
+    assert len(got) == 4
+    assert np.allclose(np.array([p.position for p in got]), centres, atol=1e-9)
+
+
+def test_non_unit_quaternion_is_normalised(tmp_path):
+    centres, rots = sim3_scene(n=3, seed=5)
+    body = [
+        image_line(i + 1, c, r, f"n{i}.png", qscale=3.7) + "\n"
+        for i, (c, r) in enumerate(zip(centres, rots, strict=True))
+    ]
+    (tmp_path / "images.txt").write_text("".join(f"{b}\n" for b in body), encoding="utf-8")
+    got = poses.read_colmap_images_txt(tmp_path / "images.txt")
+    assert np.allclose(np.array([p.position for p in got]), centres, atol=1e-9)
+
+
+def test_name_with_subfolder_and_space_joins_to_gps_stem(tmp_path):
+    centres, rots = sim3_scene(n=2, seed=3)
+    text = HEADER + image_line(1, centres[0], rots[0], "sub/DJI_0352.JPG") + "\n\n"
+    text += image_line(2, centres[1], rots[1], "my photo 2.JPG") + "\n1 2 -1\n"
+    (tmp_path / "images.txt").write_text(text, encoding="utf-8")
+    got = poses.read_colmap_images_txt(tmp_path / "images.txt")
+    assert [p.name for p in got] == ["sub/DJI_0352.JPG", "my photo 2.JPG"]
+    fixes = [
+        poses.GpsFix("DJI_0352.jpg", 46.9, 12.0, 1645.0),
+        poses.GpsFix("my photo 2.jpg", 46.9, 12.0, None),
+    ]
+    assert [p.name for p, _ in poses.join(got, fixes)] == ["sub/DJI_0352.JPG", "my photo 2.JPG"]
+
+
+def test_malformed_header_reports_line_number(tmp_path):
+    centres, rots = sim3_scene(n=1, seed=2)
+    text = HEADER + image_line(1, centres[0], rots[0], "a.jpg") + "\n\n" + "2 1 0 0 0 0 0 0 1\n\n"
+    (tmp_path / "images.txt").write_text(text, encoding="utf-8")
+    with pytest.raises(ValueError, match=r"images\.txt:7: image header needs 10 fields .*got 9"):
+        poses.read_colmap_images_txt(tmp_path / "images.txt")
+
+
+def test_zero_quaternion_reports_line_number(tmp_path):
+    (tmp_path / "images.txt").write_text(HEADER + "1 0 0 0 0 1 2 3 1 z.jpg\n\n", encoding="utf-8")
+    with pytest.raises(ValueError, match=r"images\.txt:5: quaternion norm 0\.0 is not usable"):
+        poses.read_colmap_images_txt(tmp_path / "images.txt")
+
+
+def test_model_folder_text_and_binary_only(tmp_path):
+    model = tmp_path / "aligned_txt"
+    model.mkdir()
+    (model / "images.txt").write_text(HEADER, encoding="utf-8")
+    assert poses.colmap_images_path(model) == model / "images.txt"
+    assert poses.colmap_images_path(model / "images.txt") == model / "images.txt"
+    binonly = tmp_path / "aligned"
+    binonly.mkdir()
+    (binonly / "images.bin").write_bytes(b"\0")
+    with pytest.raises(
+        ValueError, match=r"images\.bin but no images\.txt.*colmap model_converter --input_path"
+    ):
+        poses.colmap_images_path(binonly)
+    empty = tmp_path / "empty"
+    empty.mkdir()
+    with pytest.raises(ValueError, match=r"has no images\.txt"):
+        poses.colmap_images_path(empty)
+
+
+def test_poses_format_default_is_realityscan():
+    a = build_parser().parse_args(["run", "--zone", "z", "--basemap", "b"])
+    assert a.poses_format == "realityscan"
+    b = build_parser().parse_args(["run", "--zone", "z", "--basemap", "b", "--poses-format", "colmap"])
+    assert b.poses_format == "colmap"
+
+
+# -- end to end on the test_align synthetic zone (same scene as test_align.test_gps_prior_path) ---------
+
+
+@pytest.fixture(scope="module")
+def scene(tmp_path_factory):
+    pytest.importorskip("trimesh")
+    pytest.importorskip("scipy")
+    ta = pytest.importorskip("test_align")
+    from argparse import Namespace
+
+    from golmok_tools.basemap.build import build
+    from golmok_tools.zone import transform as zt
+
+    d = tmp_path_factory.mktemp("bm")
+    ta.tb.write_shp(d / "bld.shp")
+    ta.tb.write_dem(d / "dem.tif")
+    bm = build(
+        Namespace(
+            buildings=d / "bld.shp",
+            dem=[str(d / "dem.tif")],
+            ortho=[],
+            center=f"{ta.LAT},{ta.LON}",
+            radius=400.0,
+            out=d / "out",
+            height_field="A16",
+            floors_field="FLOORS",
+            usage_field="A9",
+            id_field="A1",
+            src_crs=None,
+            encoding="cp949",
+            tile_size=200.0,
+            terrain_spacing=10.0,
+            texture_size=512,
+            geoid_offset=0.0,
+            exclude=None,
+            no_terrain=False,
+        )
+    )
+    basemap = (d / "out", bm)
+    origin = (ta.LAT, ta.LON, bm["origin"]["height_ellipsoidal"])
+    rng = np.random.default_rng(3)
+    truth = rng.uniform(-12, 12, (12, 3))
+    truth[:, 2] = 1.6
+    local = truth - np.array([30.0, -20.0, 0.0])  # camera centres in zone-local
+    lon, lat, h = zt.enu_to_lonlat(truth + rng.normal(0, 1.0, truth.shape), origin)
+    g = tmp_path_factory.mktemp("in")
+    (g / "gps.csv").write_text(
+        "name,lat,lon,alt\n"
+        + "\n".join(
+            f"IMG_{i:04d}.tif,{la},{lo},{hh}" for i, (la, lo, hh) in enumerate(zip(lat, lon, h, strict=True))
+        ),
+        encoding="utf-8",
+    )
+    csv_lines = ["#name,x,y,alt,yaw,pitch,roll,f,px,py,k1,k2,k3,k4,t1,t2"]
+    csv_lines += [
+        f"IMG_{i:04d}.DNG,{p[0]},{p[1]},{p[2]},0,0,0,30,0,0,0,0,0,0,0,0" for i, p in enumerate(local)
+    ]
+    (g / "cams.csv").write_text("\n".join(csv_lines), encoding="utf-8")
+    model = g / "aligned_txt"
+    model.mkdir()
+    rots = [random_rotation(rng) for _ in range(len(local))]
+    body = []
+    for i, (c, r) in enumerate(zip(local, rots, strict=True)):
+        body.append(image_line(i + 1, c, r, f"IMG_{i:04d}.JPG", sign=-1.0 if i % 2 else 1.0))
+        body.append("" if i % 2 else "1.0 2.0 -1")
+    (model / "images.txt").write_text(HEADER + "\n".join(body) + "\n", encoding="utf-8")
+    return ta, basemap, g
+
+
+COMMON = ["--ground", "--already-georeferenced", "--max-points", "20000", "--max-corr-m", "3.0"]
+COMMON += ["--max-shift-m", "50", "--max-yaw-deg", "10"]
+
+
+def _cli(ta, basemap, g, tmp_path, capsys, extra):
+    zone = ta.make_perturbed_zone(tmp_path, basemap, yaw_deg=0.0, shift=(30.0, -20.0))
+    argv = ["run", "--zone", str(zone), "--basemap", str(basemap[0]), "--gps", str(g / "gps.csv")]
+    capsys.readouterr()
+    rc = main(argv + extra + COMMON)
+    return rc, json.loads(capsys.readouterr().out)
+
+
+def test_colmap_prior_matches_realityscan_csv_run(scene, tmp_path, capsys):
+    ta, basemap, g = scene
+    (tmp_path / "csv").mkdir()
+    (tmp_path / "colmap").mkdir()
+    rc_csv, csv_rep = _cli(ta, basemap, g, tmp_path / "csv", capsys, ["--poses", str(g / "cams.csv")])
+    rc_col, col_rep = _cli(
+        ta,
+        basemap,
+        g,
+        tmp_path / "colmap",
+        capsys,
+        ["--poses", str(g / "aligned_txt"), "--poses-format", "colmap"],
+    )
+    assert rc_csv == 0 and rc_col == 0
+    a, b = csv_rep["gps_prior"], col_rep["gps_prior"]
+    assert a["pairs"] == b["pairs"] == 12
+    assert a["inliers"] == b["inliers"]
+    assert b["rmse_m"] == pytest.approx(a["rmse_m"], abs=1e-6)
+    assert np.allclose(b["shift_m"], a["shift_m"], atol=1e-6)
+    assert np.allclose(col_rep["correction_area_enu"]["shift_m"][:2], [30.0, -20.0], atol=0.5)
+
+
+def test_colmap_binary_only_folder_stops_with_converter_hint(scene, tmp_path, capsys):
+    ta, basemap, g = scene
+    binonly = tmp_path / "aligned"
+    binonly.mkdir()
+    (binonly / "images.bin").write_bytes(b"\0")
+    with pytest.raises(
+        SystemExit, match=r"--poses-format colmap: .*images\.bin but no images\.txt.*model_converter"
+    ):
+        _cli(ta, basemap, g, tmp_path, capsys, ["--poses", str(binonly), "--poses-format", "colmap"])
+
+
+def test_gps_without_poses_is_still_refused(scene, tmp_path, capsys):
+    # the form of docs/runbooks/mac-recon.md M3 before J-38 (--gps, no --poses)
+    ta, basemap, g = scene
+    with pytest.raises(SystemExit, match="--poses와 --gps는 함께 줘야 한다"):
+        _cli(ta, basemap, g, tmp_path, capsys, [])
+```
+
+```sh j38-pre-sh
+#!/bin/sh
+# J-38: runbook state before the task (usage: sh j38_pre.sh <mac-recon.md> <align.md>), read-only.
+MR=$1
+AL=$2
+OLD95='- 보조 확인은 `golmok-align run --zone "$Z" --basemap ~/golmok_basemap/yeonnam --gps "$CAP/photos_blurred/_golmok/gps_priors.csv" --ground`(리포트만, [align.md](align.md))다.'
+ANCHOR='- 이미 RealityScan에서 GPS로 지오레퍼런싱했으면 `--already-georeferenced`(스케일 1 고정).'
+printf 'old95 %s\n' "$(grep -c -x -F -- "$OLD95" "$MR")"
+printf 'j30a_memo %s\n' "$(grep -c -E '^- [0-9]{4}-[0-9]{2}-[0-9]{2} 메모\(J-30a, .* 근거: PR #[0-9]+\.$' "$MR")"
+printf 'j30a_marker %s\n' "$(grep -c -F '근거: J-30a PR.' "$MR")"
+printf 'j38_memo %s\n' "$(grep -c -F '메모(J-38)' "$MR")"
+printf 'brush_head %s\n' "$(grep -c -x -F '**왜곡 제거 (Brush 입력)**' "$MR")"
+printf 'align_anchor %s\n' "$(grep -c -x -F -- "$ANCHOR" "$AL")"
+printf 'align_colmap %s\n' "$(grep -c -F -- '--poses-format' "$AL")"
+```
+
+```python j38-render-py
+# J-38: the three runbook lines (usage: python -I j38_render.py <E> <YYYY-MM-DD>); stdout = 3 lines.
+import re
+import sys
+from pathlib import Path
+
+e, day = Path(sys.argv[1]), sys.argv[2]
+last = [ln for ln in (e / "tests-new.log").read_text(encoding="utf-8").splitlines() if ln.strip()][-1]
+m = re.search(r"(\d+) passed", last)
+if m is None or "failed" in last or "error" in last:
+    sys.exit(f"tests-new.log last line is not a clean pass: {last}")
+n = m.group(1)
+new95 = (
+    '- 보조 확인은 `golmok-align run --zone "$Z" --basemap ~/golmok_basemap/yeonnam '
+    '--poses "$R/aligned_txt/images.txt" --poses-format colmap --already-georeferenced '
+    '--gps "$CAP/photos_blurred/_golmok/gps_priors.csv" --ground`(리포트만, [align.md](align.md))다. '
+    "근거: J-38 PR."
+)
+memo = (
+    f"- {day} 메모(J-38): 이 문단 `- 보조 확인은` 줄의 옛 꼴(`--poses` 없이 `--gps`만)은 `golmok-align`이 "
+    "`--poses와 --gps는 함께 줘야 한다`로 멈춰 돌지 않았다(합성 zone 시험으로 재현). 그래서 RealityScan CSV만 "
+    "읽던 `--poses`에 `--poses-format colmap`을 더해 COLMAP 텍스트 모델 `images.txt`(또는 그 폴더)의 카메라 "
+    '중심 `-Rᵀt`를 읽게 했다. `$R/aligned_txt`는 `model_aligner … --output_path "$R/aligned"` 뒤 '
+    '`mkdir -p "$R/aligned_txt" && colmap model_converter --input_path "$R/aligned" --output_path '
+    '"$R/aligned_txt" --output_type TXT`의 출력이다(J-30a와 같은 폴더 이름). `images.bin`만 있는 폴더는 '
+    "변환 명령을 알려 주며 멈춘다. 위치는 RealityScan CSV와 똑같이 zone-local로 쓰인다 — ENU 원점이 zone "
+    "원점과 다르면 GPS prior의 이동이 그 차이를 메우지만, 충돌 메시가 같은 좌표계인지는 [미확인]이다(V-05 전, "
+    f"실데이터 실행 없음). 합성 시험 {n}개 통과(같은 장면의 RealityScan CSV 실행과 GPS prior 짝 수·RMSE가 "
+    "같다)는 읽기와 prior 연결의 확인이지 정합 품질 판정이 아니다. 근거: J-38 PR."
+)
+aline = (
+    "- Mac(D-023, COLMAP) 포즈: `--poses aligned_txt/images.txt --poses-format colmap`(그 `images.txt`가 든 "
+    "모델 폴더를 줘도 된다. 기본 `realityscan`은 위 CSV다). 카메라 중심은 COLMAP 정의대로 `-Rᵀt`이고 CSV처럼 "
+    "zone-local 위치로 쓴다. `model_aligner`로 미터·ENU에 정합한 모델이면 `--already-georeferenced`를 붙인다. "
+    "`images.bin`만 있으면 `colmap model_converter … --output_type TXT`로 바꾼다([mac-recon.md](mac-recon.md) "
+    "M3). 충돌 메시와 같은 좌표계인지는 [미확인]이다(V-05). 근거: J-38 PR."
+)
+print(new95)
+print(memo)
+print(aline)
+```
+
+```python j38-apply-py
+# J-38: put the three lines in (usage: python -I j38_apply.py <mac-recon.md> <align.md> <lines file>).
+import sys
+from pathlib import Path
+
+mr, al, lines_file = Path(sys.argv[1]), Path(sys.argv[2]), Path(sys.argv[3])
+new95, memo, aline = lines_file.read_text(encoding="utf-8").splitlines()
+old95 = (
+    '- 보조 확인은 `golmok-align run --zone "$Z" --basemap ~/golmok_basemap/yeonnam '
+    '--gps "$CAP/photos_blurred/_golmok/gps_priors.csv" --ground`(리포트만, [align.md](align.md))다.'
+)
+head = "**왜곡 제거 (Brush 입력)**"
+anchor = "- 이미 RealityScan에서 GPS로 지오레퍼런싱했으면 `--already-georeferenced`(스케일 1 고정)."
+m = mr.read_text(encoding="utf-8").split("\n")
+a = al.read_text(encoding="utf-8").split("\n")
+ok = m.count(old95) == 1 and m.count(head) == 1 and a.count(anchor) == 1
+blank = ok and m.index(old95) < m.index(head) and m[m.index(head) - 1] == ""
+print("old95", m.count(old95))
+print("brush_head", m.count(head))
+print("blank_before_head", int(bool(blank)))
+print("j38_memo", sum("메모(J-38)" in x for x in m))
+print("align_anchor", a.count(anchor))
+if not blank or any("메모(J-38)" in x for x in m):
+    sys.exit(1)
+m[m.index(old95)] = new95
+m.insert(m.index(head) - 1, memo)
+a.insert(a.index(anchor) + 1, aline)
+mr.write_text("\n".join(m), encoding="utf-8")
+al.write_text("\n".join(a), encoding="utf-8")
+print("applied")
+```
+
+```python j38-errmsg-py
+# J-38 rule 8: each refusal message once (usage: python -I j38_errmsg.py <empty folder>); paths shown as D.
+import sys
+from pathlib import Path
+
+from golmok_tools.align import poses
+
+d = Path(sys.argv[1])
+b = d / "aligned"
+b.mkdir()
+(b / "images.bin").write_bytes(b"\0")
+(d / "empty").mkdir()
+(d / "bad.txt").write_text("# c\n1 1 0 0 0 0 0 0 1\n\n", encoding="utf-8")
+(d / "zero.txt").write_text("1 0 0 0 0 1 2 3 1 z.jpg\n\n", encoding="utf-8")
+cases = [
+    (poses.colmap_images_path, b),
+    (poses.colmap_images_path, d / "empty"),
+    (poses.read_colmap_images_txt, d / "bad.txt"),
+    (poses.read_colmap_images_txt, d / "zero.txt"),
+]
+for f, arg in cases:
+    try:
+        f(arg)
+        print("no error")
+    except ValueError as x:
+        print(str(x).replace(str(d), "D"))
+```
+
+```python j38-realcheck-py
+# J-38 optional, record only: the new reader on J-30a's aligned COLMAP text model (not a quality check).
+import csv
+import sys
+from pathlib import Path
+
+import numpy as np
+
+from golmok_tools.align import poses
+
+images, ref, out = Path(sys.argv[1]), Path(sys.argv[2]), Path(sys.argv[3])
+cams = poses.read_colmap_images_txt(poses.colmap_images_path(images))
+rows = [ln.split() for ln in ref.read_text(encoding="utf-8").splitlines() if ln.strip()]
+with open(out, "w", newline="", encoding="utf-8") as f:
+    w = csv.writer(f)
+    w.writerow(["name", "lat", "lon", "alt"])
+    w.writerows(r[:4] for r in rows)
+pairs = poses.join(cams, poses.read_gps_csv(out))
+two = [ln for ln in images.read_text(encoding="utf-8").splitlines() if not ln.startswith("#")][0::2]
+ref_c = {}
+for ln in two:
+    p = ln.split()
+    qw, qx, qy, qz = (float(v) for v in p[1:5])
+    n = (qw * qw + qx * qx + qy * qy + qz * qz) ** 0.5
+    qw, qx, qy, qz = qw / n, qx / n, qy / n, qz / n
+    r = np.array(
+        [
+            [1 - 2 * (qy * qy + qz * qz), 2 * (qx * qy - qw * qz), 2 * (qx * qz + qw * qy)],
+            [2 * (qx * qy + qw * qz), 1 - 2 * (qx * qx + qz * qz), 2 * (qy * qz - qw * qx)],
+            [2 * (qx * qz - qw * qy), 2 * (qy * qz + qw * qx), 1 - 2 * (qx * qx + qy * qy)],
+        ]
+    )
+    ref_c[p[9]] = -r.T @ np.array([float(v) for v in p[5:8]])
+diff = max(float(np.abs(c.position - ref_c[c.name]).max()) for c in cams)
+print("colmap_images", len(cams))
+print("names_unique", len({c.name for c in cams}))
+print("ref_rows", len(rows))
+print("matched", len(pairs))
+print(f"max_diff_vs_two_line_parse_m {diff:.9f}")
+```
+
+```python j38-mutate-py
+# J-38: one text replacement in a copied file (usage: python -I j38_mutate.py <file> <old> <new>).
+import sys
+from pathlib import Path
+
+p, old, new = Path(sys.argv[1]), sys.argv[2], sys.argv[3]
+s = p.read_text(encoding="utf-8")
+if s.count(old) != 1:
+    sys.exit(f"anchor count {s.count(old)}")
+p.write_text(s.replace(old, new), encoding="utf-8")
+```
+
+```sh j38-mutants-sh
+#!/bin/sh
+# J-38: five mutants on a copy of tools/ (usage: sh j38_mutants.sh <W> <E> <python>); the worktree is not changed.
+W=$1
+E=$2
+PY=$3
+M="$E/mut/tools"
+if [ -e "$E/mut" ]; then echo "mut folder exists"; exit 2; fi
+mkdir -p "$M" "$E/mut/orig" || exit 2
+cp -R "$W/tools/golmok_tools" "$W/tools/tests" "$W/tools/pyproject.toml" "$M/" || exit 2
+cp "$M/golmok_tools/align/poses.py" "$M/golmok_tools/align/cli.py" "$E/mut/orig/" || exit 2
+printf 'import_from_copy %s\n' "$(cd "$M" && PYTHONPATH="$M" "$PY" -c 'import sys; from pathlib import Path; import golmok_tools.align.poses as p; print(int(Path(p.__file__).resolve() == (Path(sys.argv[1]) / "golmok_tools/align/poses.py").resolve()))' "$M")"
+one() {
+  "$PY" -I "$E/j38_mutate.py" "$M/golmok_tools/align/$2" "$3" "$4" || exit 3
+  (cd "$M" && PYTHONPATH="$M" /usr/bin/timeout 600 "$PY" -m pytest -q -p no:cacheprovider tests/test_align_colmap.py > "$E/mut-$1.log" 2>&1)
+  echo "== $1"
+  grep '^FAILED ' "$E/mut-$1.log" | sed 's/ - .*//' | LC_ALL=C sort
+  printf 'failed %s\n' "$(grep -o -E '[0-9]+ failed' "$E/mut-$1.log" | tail -n 1 | cut -d' ' -f1)"
+  printf 'passed %s\n' "$(grep -o -E '[0-9]+ passed' "$E/mut-$1.log" | tail -n 1 | cut -d' ' -f1)"
+  cp "$E/mut/orig/poses.py" "$E/mut/orig/cli.py" "$M/golmok_tools/align/" || exit 4
+}
+one minus poses.py 'centre = -rot.T @' 'centre = rot.T @'
+one r-not-rt poses.py 'centre = -rot.T @' 'centre = -rot @'
+one blank-filter poses.py 'lines = p.read_text(encoding="utf-8").splitlines()' 'lines = [ln for ln in p.read_text(encoding="utf-8").splitlines() if ln.strip()]'
+one xyzw poses.py 'qw, qx, qy, qz, tx, ty, tz = (float(v) for v in tok[1:8])' 'qx, qy, qz, qw, tx, ty, tz = (float(v) for v in tok[1:8])'
+one no-dispatch cli.py 'if getattr(args, "poses_format", "realityscan") == "colmap":' 'if False:'
+```
+
+```sh j38-bodycheck-sh
+#!/bin/sh
+# J-38: quotes and numbers check of the PR body draft (usage: sh j38_bodycheck.sh <E>)
+E=$1
+CK=checks.log
+if [ -e "$E/checks-2.log" ]; then CK=checks-2.log; fi
+printf '%s\n' blobs.log pre.log pre-summary.log align-base.log tests-first.log first-summary.log sha.log \
+  code-numstat.log tests-new.log align-after.log errmsg.log code-summary.log mutants.log realcheck.log \
+  apply.log doc-numstat.log runbook-summary.log marker-summary.log doc-numstat-final.log gate-1-summary.log \
+  gate-2-summary.log c1-summary.log c2-summary.log "$CK" > "$E/body-logs.log"
+awk '/^## 결과$/{f=1;next} /^## /{f=0} f' "$E/pr-body.md" | awk '/^```/{c=!c;next} !c' \
+  | grep -oE '`[^`]+`' | sed 's/^`//;s/`$//' | sort -u > "$E/body-quotes.txt"
+cut -f1 "$E/quotes.tsv" | sort -u > "$E/tsv-quotes.txt"
+comm -23 "$E/body-quotes.txt" "$E/tsv-quotes.txt" > "$E/quotes-missing.log"
+while IFS="$(printf '\t')" read -r q f; do
+  if [ "$f" = "라벨" ]; then
+    n="라벨"
+  elif grep -q -x -F -- "$f" "$E/body-logs.log"; then
+    n=$(grep -F -c -- "$q" "$E/$f")
+  else
+    n="목록밖"
+  fi
+  printf '%s\t%s\t%s\n' "$n" "$f" "$q"
+done < "$E/quotes.tsv" > "$E/quotes-check.log"
+awk '/^## 결과$/{f=1;next} /^## /{f=0} f' "$E/pr-body.md" | awk '/^```/{c=!c;next} !c' \
+  | grep -oE '[0-9]{2,}' | sort -u > "$E/body-numbers.txt"
+while read -r x; do
+  n=0
+  while read -r f; do
+    k=$(grep -c -- "$x" "$E/$f")
+    n=$((n + k))
+  done < "$E/body-logs.log"
+  printf '%s\t%s\n' "$n" "$x"
+done < "$E/body-numbers.txt" > "$E/numbers-check.log"
+printf 'quotes_missing %s\n' "$(wc -l < "$E/quotes-missing.log" | tr -d ' ')"
+printf 'quotes_zero %s\n' "$(cut -f1 "$E/quotes-check.log" | grep -c -x -E '0|목록밖')"
+printf 'numbers_zero %s\n' "$(cut -f1 "$E/numbers-check.log" | grep -c -x '0')"
+```
+
+```text j38-expected-blobs
+81c59086bc8abda072f6dfa26c66242a0c05abaf
+2b54ba7f7fd9b0307dd251061b1703087fc9da33
+```
+
+```text j38-expected-pre
+old95 1
+j30a_memo 1
+j30a_marker 0
+j38_memo 0
+brush_head 1
+align_anchor 1
+align_colmap 0
+```
+
+```text j38-expected-pre-summary
+exit=0
+testfile_on_main 0
+exit=0
+overlap_rc 0
+overlap_lines 0
+lock no lock
+align_base_rc 0
+align_base 9 passed
+```
+
+```text j38-expected-first
+test_cp_rc 0
+cmp=0
+tests_first_rc 1
+FAILED tests/test_align_colmap.py::test_centre_is_minus_r_transpose_t
+FAILED tests/test_align_colmap.py::test_colmap_binary_only_folder_stops_with_converter_hint
+FAILED tests/test_align_colmap.py::test_colmap_prior_matches_realityscan_csv_run
+FAILED tests/test_align_colmap.py::test_malformed_header_reports_line_number
+FAILED tests/test_align_colmap.py::test_model_folder_text_and_binary_only
+FAILED tests/test_align_colmap.py::test_name_with_subfolder_and_space_joins_to_gps_stem
+FAILED tests/test_align_colmap.py::test_non_unit_quaternion_is_normalised
+FAILED tests/test_align_colmap.py::test_objcap_writer_layout_header_then_empty_line
+FAILED tests/test_align_colmap.py::test_poses_format_default_is_realityscan
+FAILED tests/test_align_colmap.py::test_quaternion_order_and_hamilton_convention
+FAILED tests/test_align_colmap.py::test_sim3_scene_centres_recovered_with_both_quaternion_signs
+FAILED tests/test_align_colmap.py::test_zero_quaternion_reports_line_number
+tests_first 12 failed 1 passed
+exit=0
+```
+
+```text j38-expected-code
+edit_rc 0
+anchors 1 1 1 1 1 1
+edited
+exit=0
+17 3 tools/golmok_tools/align/cli.py
+72 0 tools/golmok_tools/align/poses.py
+tests_new_rc 0
+tests_new_passed_lines 13
+tests_new 13 passed
+align_after_rc 0
+align_after 9 passed
+errmsg_rc 0
+exit=0
+exit=0
+```
+
+```text j38-expected-sha
+77bc5d5b69a121ecfb3065b70e1c0df9600282cda2b01878cb0677db458e7db0  tools/golmok_tools/align/poses.py
+fec15debf575bf9ca934da0748dcb5d6dd7276902780b1c100c11c276a64061e  tools/golmok_tools/align/cli.py
+9bdcbe283ec2307ea0a716c460e99d57aad2ddf83a1a27bb4772caba49d0b209  tools/tests/test_align_colmap.py
+```
+
+```text j38-expected-errmsg
+D/aligned has images.bin but no images.txt; convert it first: mkdir -p D/aligned_txt && colmap model_converter --input_path D/aligned --output_path D/aligned_txt --output_type TXT
+D/empty has no images.txt
+D/bad.txt:2: image header needs 10 fields (IMAGE_ID QW QX QY QZ TX TY TZ CAMERA_ID NAME), got 9
+D/zero.txt:1: quaternion norm 0.0 is not usable
+```
+
+```text j38-expected-mut
+import_from_copy 1
+== minus
+FAILED tests/test_align_colmap.py::test_centre_is_minus_r_transpose_t
+FAILED tests/test_align_colmap.py::test_colmap_prior_matches_realityscan_csv_run
+FAILED tests/test_align_colmap.py::test_non_unit_quaternion_is_normalised
+FAILED tests/test_align_colmap.py::test_objcap_writer_layout_header_then_empty_line
+FAILED tests/test_align_colmap.py::test_sim3_scene_centres_recovered_with_both_quaternion_signs
+failed 5
+passed 8
+== r-not-rt
+FAILED tests/test_align_colmap.py::test_centre_is_minus_r_transpose_t
+FAILED tests/test_align_colmap.py::test_colmap_prior_matches_realityscan_csv_run
+FAILED tests/test_align_colmap.py::test_non_unit_quaternion_is_normalised
+FAILED tests/test_align_colmap.py::test_objcap_writer_layout_header_then_empty_line
+FAILED tests/test_align_colmap.py::test_sim3_scene_centres_recovered_with_both_quaternion_signs
+failed 5
+passed 8
+== blank-filter
+FAILED tests/test_align_colmap.py::test_colmap_prior_matches_realityscan_csv_run
+FAILED tests/test_align_colmap.py::test_malformed_header_reports_line_number
+FAILED tests/test_align_colmap.py::test_name_with_subfolder_and_space_joins_to_gps_stem
+FAILED tests/test_align_colmap.py::test_non_unit_quaternion_is_normalised
+FAILED tests/test_align_colmap.py::test_objcap_writer_layout_header_then_empty_line
+FAILED tests/test_align_colmap.py::test_sim3_scene_centres_recovered_with_both_quaternion_signs
+failed 6
+passed 7
+== xyzw
+FAILED tests/test_align_colmap.py::test_centre_is_minus_r_transpose_t
+FAILED tests/test_align_colmap.py::test_colmap_prior_matches_realityscan_csv_run
+FAILED tests/test_align_colmap.py::test_non_unit_quaternion_is_normalised
+FAILED tests/test_align_colmap.py::test_objcap_writer_layout_header_then_empty_line
+FAILED tests/test_align_colmap.py::test_sim3_scene_centres_recovered_with_both_quaternion_signs
+failed 5
+passed 8
+== no-dispatch
+FAILED tests/test_align_colmap.py::test_colmap_binary_only_folder_stops_with_converter_hint
+FAILED tests/test_align_colmap.py::test_colmap_prior_matches_realityscan_csv_run
+failed 2
+passed 11
+```
+
+```text j38-expected-runbook
+render_rc 0
+lines 3
+angle 0
+marker 3
+apply_rc 0
+old95 1
+brush_head 1
+blank_before_head 1
+j38_memo 0
+align_anchor 1
+applied
+1 0 docs/runbooks/align.md
+2 1 docs/runbooks/mac-recon.md
+exit=0
+exit=0
+removed_old95 1
+removed_lines 1
+old95 0
+j30a_memo 1
+j30a_marker 0
+j38_memo 1
+brush_head 1
+align_anchor 1
+align_colmap 1
+cell_lines 3
+cell_grep 0
+exit=0
+```
+
+```text j38-fence-lines
+27 start-fence.sh
+15 j38-pre-cmd.sh
+8 j38-first-cmd.sh
+14 j38-code-cmd.sh
+7 j38-mut-cmd.sh
+4 j38-real-cmd.sh
+16 j38-runbook-cmd.sh
+6 j38-gate-cmd.sh
+15 j38-c1-cmd.sh
+12 j38-marker-cmd.sh
+11 j38-c2-cmd.sh
+9 j38-ci-cmd.sh
+138 j38_edit.py
+294 test_align_colmap.py
+13 j38_pre.sh
+39 j38_render.py
+29 j38_apply.py
+25 j38_errmsg.py
+38 j38_realcheck.py
+9 j38_mutate.py
+25 j38_mutants.sh
+36 j38_bodycheck.sh
+37 ph.awk
+10 timeout.awk
+2 expected-blobs.txt
+7 expected-pre.txt
+8 expected-pre-summary.txt
+17 expected-first.txt
+14 expected-code.txt
+3 expected-sha.txt
+4 expected-errmsg.txt
+39 expected-mut.txt
+27 expected-runbook.txt
+```
+
+- **명령 공통**: 셸 변수는 Bash 호출 사이에 남지 않는다. 그래서 **모든 명령은 `W="$HOME/projects/golmok-jaehwan"; E="$TMPDIR/jaehwan/J-38"; PY="$W/tools/.venv/bin/python";`로 시작한다**(이 앞머리가 각 `-cmd.sh` 펜스의 둘째 줄이다). 아래 명령에는 이 앞머리를 적지 않았다. 이 과제의 단계는 모두 위 `-cmd.sh` 펜스 스크립트다(상시 규칙 "PR 본문 공통" 머리의 **긴 명령은 스크립트 파일로**): 할 일 1만 펜스 `j38-start-cmd`를 Write 도구로 `"$E/j38-start-cmd.sh"`에 그대로 쓰고(그 스크립트가 자기 펜스를 다시 뽑아 `cmp`한다), 나머지 열한 개는 할 일 1이 `task.txt`에서 뽑는다. 손으로 고치지 않는다. **실행 꼴(모든 `-cmd.sh`, 규칙 19·20·21)**: 돌리기 전에 `printf '%s\n' 'sh "$E/<이름>-cmd.sh"' >> "$E/commands.txt"`(게이트는 `'sh "$E/j38-gate-cmd.sh" 1'`·`'sh "$E/j38-gate-cmd.sh" 2'`) 한 줄, 그 직후 `tail -n 1 "$E/commands.txt"` 확인, 해시 줄 `(cd "$E" && shasum -a 256 "<이름>-cmd.sh") >> "$E/commands.txt"`. 그다음 한 호출로 `[ "$(tail -n 1 "$E/commands.txt" | grep -c -E '^[0-9a-f]{64}  <이름>-cmd\.sh$')" = 1 ] && [ "$(wc -l < "$E/<이름>-cmd.sh" | tr -d ' ')" = "<줄 수>" ] && head -n 1 "$E/<이름>-cmd.sh" | grep -q '^# J-38 ' && sh "$E/<이름>-cmd.sh"; echo $? > "$E/<이름>-run.rc"`(상시 규칙 "PR 본문 공통" 17의 꼴 끝에 `-run.rc` 기록을 붙인 것이다 — 이 절의 실행은 이 한 꼴뿐이다. 첫 검사가 막으면 스크립트는 돌지 않았고 `-run.rc`는 `1`이다: 17대로 그 실행 줄에 `# 정정:` 한 줄을 단 뒤 실행 줄·해시 줄을 다시 더하고 이 꼴로 다시 돈다(다시 돌 때도 `-run.rc`는 같은 이름에 쓴다 — 앞의 `1`은 `# 정정:` 줄로 기록에 남는다; 상시 규칙 '다시 돌린 로그는 번호 접미사'의 '같은 명령을 다시 돌린다' 예외). `<이름>`이 `j38-gate`면 정규식은 `j38-gate-cmd\.sh`다)(게이트는 `sh "$E/j38-gate-cmd.sh" 1` 뒤 `> "$E/j38-gate-1-run.rc"`처럼 번호를 넣는다). `<줄 수>`는 펜스 `j38-fence-lines`의 그 파일 값이다(`<이름>-run.rc`는 기록이고, 판정은 각 할 일의 `.diff`·요약 파일로 한다 — 스크립트가 중간 확인에서 멈추면 `-run.rc`가 3·4·5다). **timeout(규칙 5)**: 네트워크·대기 명령(`git fetch`·`git push`·모든 `gh`·`pytest`·`until` 루프·파이썬 스크립트)은 스크립트 안에서 모두 `/usr/bin/timeout`으로 감쌌고 시간은 고정이다. 상시 규칙 "PR 본문 공통" 6의 `gh pr edit`·`gh pr view` 두 명령만 그 소절의 글자 그대로(timeout 없이) 쓴다. 게이트 두 번(`j38-gate-cmd.sh`)·`j38-mut-cmd.sh`·`j38-ci-cmd.sh`는 **하네스의 백그라운드 실행**으로 돌리고 그 `-run.rc` 파일이 생길 때까지 상시 규칙 "PR 본문 공통" 18대로 기다린다(끝 파일 `<이름>-run.rc`, 시간 한도 합: 게이트 2700초, 변형 1200초, CI 4440초 — `-2` watch까지 포함). 나머지는 앞쪽에서 돈다. 이 과제는 UE·GPU·COLMAP을 쓰지 않는다 — GUI 잠금은 확인만 하고 잡지 않는다(할 일 2, `no lock`이 아니면 지우지 않고 그 줄을 영록에게 보내고 기다린다).
+- **할 일**:
+  1. **준비(`j38-start-cmd.sh`, 27줄)**: `mkdir -p "$E"`. 펜스 `j38-start-cmd`를 Write 도구로 `"$E/j38-start-cmd.sh"`에 쓴다. 위 실행 꼴로 돌린다. 기대 `start.diff` `exit=0` 한 줄(`start-summary.log` = `#### J-38`·`1`·`1`·`33`·`exit=0`·`cmp=0`). 스크립트가 먼저 멈추면(`j38-start-run.rc` `3` = 시작 전에 추적 파일 변경이 있다, `4` = fetch 실패, `5` = 브랜치 만들기 실패) 다시 돌리지 않고 그 로그와 함께 묻는다. 펜스 추출 34개(그중 `expected-fence-lines.txt`를 뺀 33개가 줄 수 확인 대상)가 이 호출에서 끝나므로 이후 스크립트의 줄 수 확인은 `fence-lines.diff`와 실행 꼴의 `wc -l`이 둘 다 본다.
+  2. **시작 상태(`j38-pre-cmd.sh`, 15줄)**: 기대 `pre-summary.diff` `exit=0` 한 줄 — `origin/main`의 `poses.py`·`cli.py`가 이 설계가 편집 스크립트의 앵커를 잡은 그 내용이고(`blobs.diff`), 새 테스트 파일이 `origin/main`에 없고, mac-recon·align의 일곱 값이 펜스 `j38-expected-pre`와 같고(J-30a 병합 뒤·J-38 전), 겹치는 열린 PR이 없고, 잠금이 없고, 기존 `tests/test_align.py`가 `9 passed`. `load-before.log`는 기록만(LM Studio 모델 로드 여부를 PR에 적는다 — 판정 아님).
+  3. **테스트 먼저(`j38-first-cmd.sh`, 8줄)**: 새 테스트 파일만 넣고(코드 전) 돌린다. 기대 `first.diff` `exit=0` 한 줄(`tests_first_rc 1`, FAILED 12개 이름, `12 failed 1 passed`). 이것이 비공허 증거다(설계 6).
+  4. **코드(`j38-code-cmd.sh`, 14줄)**: 펜스 `j38-edit-py`가 정확한 글자 바꾸기 다섯 개와 `poses.py` 끝 덧붙이기 하나를 한다(앵커가 모두 정확히 1번일 때만 — `edit.log` 첫 줄 `anchors 1 1 1 1 1 1`, 아니면 rc 1로 아무것도 쓰지 않는다). diff 패치 대신 이 꼴을 쓴 까닭: 패치의 빈 문맥 줄은 공백 하나라 문서 편집 중 줄 끝 공백이 지워지면 `git apply`가 깨진다. 기대 `code.diff` `exit=0` 한 줄 — `edit.rc` `0`·`anchors 1 1 1 1 1 1`·`edited`, 세 파일 sha256이 펜스 `j38-expected-sha`와 같고, numstat `17 3 …cli.py`·`72 0 …poses.py`, 새 테스트 `PASSED` 13줄·`13 passed`, 기존 `tests/test_align.py` `9 passed`(할 일 2와 같은 수), 실패 문구 넷이 펜스 `j38-expected-errmsg`와 같다(규칙 8 — 문구를 읽고 맞는 말인지 PR에 적는다), 작업 트리는 세 파일만 바뀜. `edit.rc`가 0이 아니면 스크립트가 rc 3으로 멈춘다(코드를 손으로 고치지 않는다 — `origin/main`의 두 파일이 설계 때와 다르면 할 일 2의 `blobs.diff`가 먼저 막는다).
+  5. **변형(`j38-mut-cmd.sh`, 7줄, 백그라운드)**: 기대 `mut.diff` `exit=0` 한 줄 — `mutants.log`가 펜스 `j38-expected-mut`와 같고(`import_from_copy 1` = 사본의 코드를 시험했다), 세 파일 sha256이 그대로(`sha-after-mut.diff`). `$E/mut`이 이미 있으면 스크립트가 rc 2로 멈춘다(지우지 않고 묻는다).
+  6. **(기록만) 실데이터 읽기(`j38-real-cmd.sh`, 4줄)**: `realcheck.rc`가 `0`이면 `realcheck.log` 다섯 줄을 PR `## 결과`에 원문으로 둔다(J-30a dry-run 폴더에서는 `colmap_images 76`·`names_unique 76`·`ref_rows 76`·`matched 76`·`max_diff_vs_two_line_parse_m 0.000000000` — 재환의 J-30a 실행 폴더에서는 같지 않을 수 있다, 기록만). `skip`이면 그 한 줄을 둔다. 이 값으로 판정하지 않는다. 다만 `realcheck.rc`가 `0`·`skip`이 아니거나(리더가 실제 COLMAP 출력에서 멈췄다) `max_diff…`가 `0.000000000`이 아니면 멈추고 묻는다.
+  7. **런북 세 줄(`j38-runbook-cmd.sh`, 16줄)**: 기대 `runbook.diff` `exit=0` 한 줄(펜스 `j38-expected-runbook` — 렌더 3줄·`<` 0·표식 3, `apply.log` 여섯 줄, numstat `1 0 docs/runbooks/align.md`·`2 1 docs/runbooks/mac-recon.md`, 더한 줄이 렌더 결과와 같음, 지운 줄은 옛 :95 하나, 적용 뒤 `j38_pre.sh` 값, 칸 자기 검사 1 `cell_lines 3`·`cell_grep 0`, 작업 트리는 다섯 파일만). `apply.py`를 두 번 돌리지 않는다(두 번째는 `old95 0`·`j38_memo 1`로 rc 1 — 그게 정상이다).
+  8. **게이트 1(`j38-gate-cmd.sh` 인자 `1`, 6줄, 백그라운드, 규칙 13)**: 기대 `gate-1-summary.log` 첫 세 줄 `gate_rc 0`·`older 0`·`failed_words 0`(넷째 줄 `check_repo.py`의 `OK (…)` 줄은 기록). 전체 pytest 수는 판정하지 않는다(환경마다 skip이 다를 수 있다 — 새 파일 수는 할 일 4가 본다).
+  9. **커밋 1·push·PR(`j38-c1-cmd.sh`, 15줄)**: 기대 `c1.diff` `exit=0` 한 줄(커밋 파일 다섯이 정한 목록과 같음 — 규칙 6, 작성자 `재환 <jaehwan.local@localhost>` — 규칙 7, push `exit=0`, 브랜치 파일 다섯, 작업 트리 `status-before.log`와 같음, `pr-create.rc` `0`, PR 번호 숫자 한 줄). 첫 본문은 상시 규칙 "PR 본문 공통" 2의 한 문장뿐이다.
+  10. **커밋 2(`j38-marker-cmd.sh` 12줄 → `j38-gate-cmd.sh` 인자 `2` 백그라운드 → `j38-c2-cmd.sh` 11줄)**: 표식 셋을 `근거: PR #번호.`로 — 기대 `marker.diff` `exit=0` 한 줄(칸 자기 검사 2 `cell_lines 3`·`cell_grep 0`). 게이트 2 — 기대 `gate-2-summary.log` 첫 세 줄 `gate_rc 0`·`older 0`·`failed_words 0`. 커밋 2·push — 기대 `c2.diff` `exit=0` 한 줄.
+  11. **CI(`j38-ci-cmd.sh`, 9줄, 백그라운드)**: 등록 대기(이 절의 대기 절차다 — 상시 규칙 "CI 감시의 등록 전 경합"은 이 절을 따른다) 뒤 watch·표. 결론은 표에서 읽는다(상시 규칙 "PR 본문 공통" 12): 기대 `run-wait.rc` `0`, `checks.rc` `0`, `checks-rows.log` 1 이상, `checks-notpass.log` `0`. 그래도 `checks-watch.log`에 `no checks reported`가 있으면 스크립트가 첫 로그를 두고 watch·표·두 `awk`를 `-2` 이름(`checks-watch-2.log`·`checks-2.log`·`checks-2.rc`·`checks-rows-2.log`·`checks-notpass-2.log`)으로 한 번 더 돈다(상시 규칙 "다시 돌린 로그는 번호 접미사"). `checks-2.log`가 있으면 이후 `## CI`·완료 기준 (h)·멈춤 조건의 `checks.log`·`checks.rc`·`checks-rows.log`·`checks-notpass.log`는 `-2` 파일로 읽는다(펜스 `j38-bodycheck-sh`도 그것을 대상에 넣는다).
+  12. **PR 본문**: PR 본문·자리표시 분류·칸 자기 검사·근거 표기는 상시 규칙 "PR 본문 공통(모든 과제)"을 따른다(이 절과 다르면 그 소절을 따른다). `## 결과`에는 관찰한 값만 둔다(로그 원문은 백틱 펜스 블록에): `pre-summary.log`·`first-summary.log`·`code-summary.log`·`errmsg.log`·`mutants.log`·`realcheck.log`·`runbook-summary.log`·`marker-summary.log`·`gate-1-summary.log`·`gate-2-summary.log`·`c1-summary.log`·`c2-summary.log` 원문, `tests-new.log`의 끝 줄, `runbook-lines-final.txt` 세 줄(런북에 들어간 글자), 각 `-run.rc`(펜스 블록 하나에 `파일 이름 값` 줄로 — `.rc`는 인용 검사 목록에 없으므로 펜스 밖에서 백틱으로 인용하지 않는다), `load-before.log`의 `lms ps` 줄(모델 로드 여부). 실패 문구 넷이 맞는 말인지(규칙 8)를 한 문장씩 펜스 밖에 쓴다. 과제 번호·규칙 번호·날짜는 이 절에 쓰지 않는다. 시간·메모리는 판정 근거가 아니므로 쓰지 않는다. `## 남은 [미확인]`: 실데이터에서 충돌 메시와 카메라가 같은 좌표계인지(V-05), 이름 속 공백을 COLMAP이 어떻게 다루는지, Object Capture `poses.json`·축 옵션(미룸), 바이너리 모델 직접 읽기(안 함). `## 병합 시 반영`은 아래 "병합 시 반영(영록)"의 글자를 옮긴다. `## 완료 기준 대조`는 아래 (a)~(i) 한 줄씩. 본문 초안은 `$E/pr-body.md`. 게시 전 검사(규칙 10 e·f): `## 결과` 절의 펜스 밖 백틱 문자열마다 근거 로그 **한 개**를 `"$E/quotes.tsv"`에 `문자열<탭>파일 이름`으로 적는다 — 파일 이름은 펜스 `j38-bodycheck-sh`의 대상 목록(`body-logs.log`에 찍힌다)에 있는 것만, 로그 인용이 아닌 파일 이름·명령은 파일 칸에 `라벨`. 검사: `cd "$E" && /usr/bin/timeout 120 sh "$E/j38_bodycheck.sh" "$E" > "$E/bodycheck.log" 2>&1; echo $? > "$E/bodycheck.rc"` — 기대 rc `0`, 세 줄 `quotes_missing 0`·`quotes_zero 0`·`numbers_zero 0`(0이 아니면 `quotes-missing.log`·`quotes-check.log`·`numbers-check.log`에서 그 항목을 찾아 본문을 고치거나 지운 뒤 같은 명령을 다시 돌린다 — 게시 전 검사 예외). 규칙 5 줄: 상시 규칙 "PR 본문 공통" 3의 감사 호출(`common-timeout-awk` → `timeout.awk`, 할 일 1이 이미 뽑았다 — 줄 수 `10` 확인은 그 호출에 있다)과 머리 **명령 기록**의 스크립트 파일마다의 감사(`timeout-audit-cmd.log`)를 그 소절 글자 그대로 한 호출로 — 기대 `timeout-audit.rc` `0`, `timeout-audit.log` `not_wrapped_lines 0`, `timeout-audit-cmd.log`의 파일마다 `not_wrapped_lines 0`. 그다음 소절 3(점검표 대조)·5(자리표시 분류)·6(조립·게시·다시 읽기)을 적힌 그대로 돌린다.
+- **허용 파일**: `tools/golmok_tools/align/poses.py`·`tools/golmok_tools/align/cli.py`(펜스 `j38-edit-py`가 만든 그대로 — 손으로 고치지 않는다), `tools/tests/test_align_colmap.py`(새 파일, 펜스 `j38-test-py` 그대로), `docs/runbooks/mac-recon.md`(:95 한 줄 바꿈 + M3 "정합" 문단 끝에 메모 한 줄), `docs/runbooks/align.md`(:28 뒤 한 줄). 커밋 2는 두 런북의 표식만 바꾼다. 그 밖의 저장소 파일은 건드리지 않는다(`tools/tests/test_align.py`·`tools/pyproject.toml`·CI·`check_repo.py`·공유 문서·Astra 레인 포함). 스크립트·로그·사본은 `$E`에만. J-30a 폴더는 읽기만 한다.
+- **멈춤 조건(정하지 말고 영록에게 묻는다)**: `j38-start-run.rc`가 0이 아니거나 `start.diff`가 `exit=0` 한 줄이 아닐 때(특히 `cmp=1` = Write로 쓴 스크립트가 펜스와 다르다 — 고쳐 쓰지 말고 묻는다, `33`이 아님 = 펜스 목록이 다르다). `pre-summary.diff`가 `exit=0`이 아닐 때 — 특히 `blobs.diff`가 다름(`origin/main`의 두 코드 파일이 바뀌었다 — 편집 앵커가 맞지 않을 수 있다), `j30a_memo 0`·`j30a_marker 1`(J-30a가 아직 병합되지 않았다), `old95 0`(런북 :95가 바뀌었다), `j38_memo 1`·`align_colmap 1`(이미 했다), `overlap_lines`가 0이 아님, `lock`이 `no lock`이 아님(지우지 않는다), `align_base`가 `9 passed`가 아님. `first.diff`·`code.diff`·`mut.diff`·`runbook.diff`·`marker.diff`·`c1.diff`·`c2.diff`가 `exit=0` 한 줄이 아닐 때(그 단계의 요약 파일과 함께 — 편집·테스트·렌더·적용 스크립트를 고치지 않는다, 같은 스크립트를 다시 돌리지 않는다). `-run.rc`가 0이 아닐 때(스크립트 안의 확인이 멈췄다). 할 일 6의 위 조건. `gate-1-summary.log`·`gate-2-summary.log`의 첫 세 줄이 기대와 다를 때(rc 124 = 시간 초과 포함 — 다시 돌리지 않는다, 다른 파일을 고치거나 `ruff format`으로 바꾸지 않는다). `run-wait.rc`가 0이 아닐 때(다시 돌리지 않는다), `checks.rc`가 0이 아니거나 `checks-rows.log`가 0이거나 `checks-notpass.log`가 0이 아닐 때(`-2`면 그 파일). `bodycheck.rc`가 0이 아니거나 두 번 고친 뒤에도 세 줄이 `0`이 아닐 때. `timeout-audit.rc`가 0이 아니거나 `not_wrapped_lines`가 0이 아닐 때. 상시 규칙 "PR 본문 공통" 9의 공통 멈춤 조건. 그 밖에 이 절의 "기대"와 다른 값이 하나라도 나올 때.
+- **완료 기준**(각 줄은 충족 또는 미충족뿐이다):
+  - (a) 준비: `j38-start-run.rc` `0`, `start.diff` `exit=0`.
+  - (b) 시작 상태: `j38-pre-run.rc` `0`, `pre-summary.diff` `exit=0`.
+  - (c) 테스트 먼저: `j38-first-run.rc` `0`, `first.diff` `exit=0`(12 failed·1 passed).
+  - (d) 코드·테스트·실패 문구: `j38-code-run.rc` `0`, `code.diff` `exit=0`(sha256 셋, 새 13 passed, 기존 `tests/test_align.py` 9 passed 그대로, 실패 문구 넷).
+  - (e) 변형: `j38-mut-run.rc` `0`, `mut.diff` `exit=0`(다섯 변형이 펜스 `j38-expected-mut`의 FAILED 줄 그대로).
+  - (f) 런북: `j38-runbook-run.rc` `0`, `runbook.diff` `exit=0`(칸 자기 검사 1 `3`·`0` 포함), 할 일 6의 `realcheck.log`가 `## 결과`에 있다(값은 기록만).
+  - (g) 게이트·커밋 1·PR: `gate-1-summary.log` 첫 세 줄 기대대로, `c1.diff` `exit=0`.
+  - (h) 커밋 2·CI: `marker.diff` `exit=0`(칸 자기 검사 2 `3`·`0` 포함), `gate-2-summary.log` 첫 세 줄 기대대로, `c2.diff` `exit=0`, `run-wait.rc` `0`, `checks.rc` `0`, `checks-rows.log` 1 이상, `checks-notpass.log` `0`(`-2`면 그 파일), `checks.log` 원문이 `## CI`에 있다(규칙 2).
+  - (i) PR 본문: 절 순서(상시 규칙 "PR 본문 공통" 2), "완료 기준 대조" 절과 점검표(그날 규칙 수만큼, 소절 3), `bodycheck.rc` `0`·`bodycheck.log` 세 줄 `0`, `timeout-audit.log`·`timeout-audit-cmd.log` `not_wrapped_lines 0`. 공통 완료 기준 (P)(소절 10): `checklist.diff` `exit=0`, `ph-unfilled.log` `0`, `pr-edit.rc` `0`, `ph-posted-unfilled.log` `0`, `ph-table.diff` `exit=0`, `signature-last.log` `1`.
+- **병합 시 반영(영록)**: STATUS 재환 절에 J-38 행. WP-21 "남은 작업" 4 끝에 날짜 메모("`golmok-align --poses-format colmap`으로 COLMAP 텍스트 모델 카메라 중심을 GPS prior에 줄 수 있다 — 합성 시험만, 실데이터 정합은 V-05"). WP-21 :36의 "`model_aligner` 또는 `golmok-align`" [미확인]은 그대로 둔다(둘 다 실데이터로 끝까지 돌지 않았다). mac-recon :148의 "`golmok-align`은 Mac 실데이터로 아직 돌리지 않았다"도 그대로 맞다. 이 파일 백로그의 J-38 행을 "완료"로 옮긴다. 후속 후보(영록이 행을 연다): Object Capture `poses.json` 리더와 `--poses-axes`(축 규약 설계 먼저, Claude 레인), 실데이터 `golmok-align` Mac 첫 실행(C-02 뒤, V-05), `--poses-format colmap`에 없는 경로를 주면 FileNotFoundError 트레이스백 — RealityScan 경로와 같다, 두 경로 모두 SystemExit로 바꾸는 작은 후속(문서 10 검증).
+- **왜 재환 / 위험**: 코드·테스트·런북 글자가 모두 펜스로 정해져 있고(코드는 앵커 바꾸기 스크립트, 결과는 sha256), 판정은 고정 기대 파일과의 `diff`다. UE·GPU·COLMAP·GUI·소유자 입력이 필요 없고 CI 네 Python 행이 새 테스트를 돈다. 위험: ① 규약 함정(world → camera라 `C = t`나 `R`을 쓴 식이 단순한 시험을 통과한다) → 무작위 회전·`-q`·고정 사례와 변형 ①②④가 막는다. ② 빈 POINTS2D 줄(글자대로 읽는 구현자가 빈 줄을 지우기 쉽다) → 펜스에 두 꼴을 다 넣었고 변형 ③이 막는다. ③ 기본 동작 변경 → 기본 `realityscan`, `getattr` 기본값, 기존 `tests/test_align.py` 9개가 그대로 통과해야 한다. ④ 런북 겹침(J-30a·J-30b가 같은 문단을 고친다) → `pre.diff`·`overlap.log`, J-30b와의 양립은 dry-run으로 확인(설계 8). ⑤ 과장 — 합성 시험은 읽기와 prior 연결만 증명한다 → 메모 문장은 렌더가 고정한다(설계 4). ⑥ 전체 pytest 수가 13 늘어난다 — 전체 수를 인용하는 뒤 과제는 다시 센다(J-24는 자기 파일 수만 인용한다). ⑦ GPU·UE가 없어 크래시 업로드 노출이 없다.
+- **dry-run 범위(Opus 2026-11-28, J-38)**: `origin/main` `d025f02`의 scratch 사본(세션 scratchpad, `git archive` → git 저장소)에서 한 것: ① 코드 — 펜스 `j38-edit-py`를 손대지 않은 `poses.py`·`cli.py`에 적용 → `anchors 1 1 1 1 1 1`·sha256이 펜스 `j38-expected-sha`와 같음, 두 번째 적용은 `anchors 0 0 1 0 1 0` rc 1(아무것도 쓰지 않음). `ruff check .`·`ruff format --check .`(설정 `tools/pyproject.toml`) 통과, 전체 `pytest -q` 1953 passed·3 skipped(새 13 포함 — 시간·환경 참고값), `check_repo.py` `OK (uproject, ini, json, links, gitattributes, conflicts, gasp)`. 새 테스트 파일만 넣고 코드 전: 12 failed·1 passed. 변형 다섯: 펜스 `j38-expected-mut`와 같은 FAILED 줄(minus 5·r-not-rt 5·blank-filter 6·xyzw 5·no-dispatch 2), 각 변형 뒤 원본 복원 sha256 같음. ② 흐름 전체 — J-30a 병합을 흉내 낸 `origin`(J-30a 펜스 `j30a-render`·`j30a-apply`로 J-30a dry-run 로그에서 줄을 만들어 넣고 `근거: PR #170.`으로 바꿈) + 이 절을 넣은 `jaehwan-tasks.md`를 bare 원격으로, 그 clone을 가짜 `$W`(편집 설치를 가리키는 venv)로, `HOME`·`TMPDIR`(끝 `/` 있음 — macOS와 같은 꼴)를 scratch로, `gh`는 기록하는 가짜(목록 빈 출력·PR 999·실행 2개·표 2행 pass)로 두고 할 일 1~11의 스크립트를 이 절의 실행 꼴 그대로(기록 줄·해시 줄·`wc -l`·`head` 확인) zsh에서 돌렸다 — `start.diff`·`pre-summary.diff`·`first.diff`·`code.diff`·`mut.diff`·`runbook.diff`·`c1.diff`·`marker.diff`·`c2.diff` 모두 `exit=0`, 게이트 두 번 `gate_rc 0`·`older 0`·`failed_words 0`, `realcheck.rc` `0`(J-30a dry-run 폴더 사본에서 다섯 줄 `76`·`76`·`76`·`76`·`0.000000000`), CI 네 값 `0`·`0`·`2`·`0`, 브랜치 커밋 둘 작성자 `재환 <jaehwan.local@localhost>`, 바뀐 파일 다섯(+386 −4), 런북 세 줄 끝 `근거: PR #999.`. 같은 흐름을 스크립트만 `zsh`로 돌려도 모든 값이 같았다. 공통 감사(`common-timeout-awk`)로 `commands.txt`와 열두 `-cmd.sh`가 모두 `not_wrapped_lines 0`. ③ 분기 — 시작 전 추적 파일 변경이 있으면 `j38-start-cmd.sh` rc 3, `checks-watch.log`에 `no checks reported`가 있으면 `-2` 로그 다섯 개가 생기고 표 `2`·`0`. `j38_pre.sh`는 지금의 실제 `origin/main`에서 `j30a_memo 0`(멈춤 조건이 막는다), sh·zsh 같은 출력. J-30b와의 양립: J-38 적용 뒤 문서에서 `j30b-pre-sh` 출력이 `j30b-expected-pre`와 같고, 그 뒤 `j30b-apply-py`가 `applied`·`memo-order` `adjacent`·`memo_lines 2`(J-30a·J-30b·J-38 메모 순서), 거꾸로 J-30b를 먼저 넣은 문서에서도 `j38_pre.sh`가 `expected-pre`와 같고 J-38 메모가 J-30b 메모 뒤에 들어가며 두 번째 적용은 rc 1. `j38-bodycheck-sh`는 견본 본문에서 sh·zsh 모두 세 줄 `0`, 없는 인용·없는 숫자를 넣으면 `quotes_zero 1`·`numbers_zero 1`. 이 절을 넣은 파일에서 J-30a·J-30b의 추출 결과는 넣기 전과 바이트로 같다(`#### J-30b` 앞에 넣었기 때문). 셸 펜스는 `sh -n`·`zsh -n`·`bash -n` 통과, 런북 세 줄의 `grep -n -E '\.log|영록|R[0-9]{3}'` 0건. dry-run하지 못한 것: 재환 worktree·실제 `gh`(겹침 목록·PR 열기·번호·등록 대기·CI 감시)·GitHub push, CI 네 Python 행(로컬은 3.12 하나), 실제 J-30a 실행 폴더(J-30a는 2026-11-28 20시 현재 재환이 진행 중 — 할 일 6은 그 폴더가 있으면 읽는다), 실제 `lms ps`, shellcheck(이 Mac에 실행 파일이 없다 — CI의 shellcheck 잡은 `tools/ue/*.sh`·`tools/mac/*.sh`만 본다(`.github/workflows/ci.yml` :133) — 이 절의 `$E` 스크립트는 그 대상이 아니다), 실제 본문의 인용·숫자 검사. 펜스 파이썬 스크립트 중 `j38_edit.py`는 바꿀 코드 글자를 담은 한 줄이 110자를 넘어 `ruff check`의 E501 하나가 남는다(저장소 밖 `$E` 스크립트라 게이트 대상이 아니다).
 
 #### J-30b Object Capture 메시를 J-30a의 GPS-ENU 정합 좌표로: 카메라 중심 Sim3(Umeyama) + OBJ 정점 ↔ 정합 SfM 점 거리, 수치 확인만 — 설계 확정(Opus 2026-11-28)
 - **출처**: [WP-21](WP-21-mac-recon-pipeline.md) "남은 작업" 4("COLMAP 희소 모델 미터·ENU 정합 → 메시·splat 좌표 공유를 끝까지 해 본다"), [D-023](../DECISIONS.md) "좌표" 줄(:352 — 메시와 splat이 좌표를 공유하려면 하나의 COLMAP 희소 모델에서 나와야 하고, Object Capture는 실행마다 자기 좌표계를 만든다), [mac-recon.md](../runbooks/mac-recon.md) M4 "좌표" 줄(:113 — 메시·포즈·점군은 같은 실행끼리만 같은 좌표계, zone-local로 옮기는 도구는 없다, §6 #6), §6 #6 행(:231, 확인 결과 칸 빈 칸), objcap 결과 표 Tyrol `full` 행(:186 — 125,678 정점 / 250,000 삼각형), 저작자 표시 :180(Tyrol 교회 드론 76장 CC BY 4.0). 이 절 위의 J-30a 설계 1·12·13(메시 절반은 J-30b, 새 저장소 코드 없음, `$TMPDIR`이 지워질 수 있으니 `aligned`·`aligned_txt`가 있는지 먼저 확인하고 없으면 J-30a 할 일 3~4를 다시 돌린다 — 축척은 실행마다 다르다). 포즈의 뜻: [tools/mac/objcap/README.md](../../tools/mac/objcap/README.md) §4(:80-107 — Apple 문서는 축·방향·단위를 적지 않는다, 측정으로 `Pose.transform`은 camera→world이고 `translation`이 카메라 중심, 메시·점군·포즈는 같은 좌표계, Tyrol에서 +Y가 위·거의 미터). 입력(저장소 밖, 읽기만): `~/golmok_data/recon-smoke/objcap/tyrol-full/poses.json`(`"format" : "golmok-objcap poses v1"`, 샘플 76, 이미지 이름 76개 모두 다름, `translation` 없는 샘플 0 — Opus 확인)과 같은 실행의 `obj/baked_mesh_32dae850.obj`(28,710,632 B, `v ` 줄 125,678개 모두 필드 4개; `summary.json`의 `settings.detail` `full`, `results.poses.sample_count` 76). 유사변환 식: Umeyama, "Least-squares estimation of transformation parameters between two point patterns", IEEE TPAMI 13(4), 1991, [doi:10.1109/34.88573](https://doi.org/10.1109/34.88573)(반사를 막는 `diag(1, 1, -1)` 보정 포함). 최근접 거리: [`scipy.spatial.cKDTree`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.spatial.cKDTree.html)(`$W/tools/.venv`의 scipy 1.18.1 — J-30a `j30a-check-splat`와 같은 것).
@@ -3843,8 +7509,8 @@ mirror last verdict FAIL 4/10
   - (g) 런북: `render.rc`·`apply.rc` `0`, `runbook-lines.txt` 2줄·`<` 0, `apply.log` 네 줄, `numstat.log` `2 1 docs/runbooks/mac-recon.md`, `added.diff` `exit=0`, 지운 줄 `1`, `memo-order.log` `adjacent`·`memo_lines 2`, `cell-lines-1-count.log` `2`, `cell-grep-1-count.log` `0`, `status-apply.diff` `exit=0`.
   - (h) 게이트·커밋·CI: `gate.rc` `0`·`mtime.log` `newer=0`, `c1-files.log` 한 줄·`c1-commit.rc` `0`·`author-c1.log` `재환 <jaehwan.local@localhost>`, `push.log` 끝 줄 `exit=0`, `branch-files.log` 한 줄, `status-push.diff` `exit=0`, `pr-create.rc` `0`·`pr-number.log` 숫자 한 줄. 커밋 2: `runbook-pr.rc` `0`, `added-final.diff` `exit=0`, `근거: J-30b PR.` 0줄, `origin/main` 대비 numstat `2 1 docs/runbooks/mac-recon.md`, `cell-lines-2-count.log` `2`, `cell-grep-2-count.log` `0`, `gate-2.rc` `0`, `mtime-2.log` `newer=0`, `c2-files.log` 한 줄·`c2-commit.rc` `0`·`author-c2.log` 기대대로, `push-2.log` 끝 줄 `exit=0`, `branch-files-2.log` 한 줄, `status-final.diff` `exit=0`. CI: `run-wait.rc` `0`, `checks.rc` `0`, `checks-rows.log` 1 이상, `checks-notpass.log` `0`(`-2`로 다시 돌린 경우 그 파일), `checks.log` 원문이 `## CI`에 있다(규칙 2).
   - (i) PR 본문: 절 순서(상시 규칙 "PR 본문 공통" 2), "완료 기준 대조" 절과 점검표(그날 규칙 수만큼, 소절 3), `bodycheck.rc` `0`·`bodycheck.log` 세 줄 `0`, `timeout-audit.log` `not_wrapped_lines 0`. 공통 완료 기준 (P)(소절 10): `checklist.diff` `exit=0`, `ph-unfilled.log` `0`, `pr-edit.rc` `0`, `ph-posted-unfilled.log` `0`, `ph-table.diff` `exit=0`, `signature-last.log` `1`.
-- **병합 시 반영(영록)**: STATUS 재환 절에 J-30b 행. WP-21 "남은 작업" 4 끝에 날짜 메모(희소 모델 → EXIF GPS ENU 정합·정합 좌표 splat은 J-30a, Object Capture 메시의 같은 좌표 변환은 J-30b로 수치 확인 — 공개 Tyrol 1회, 품질 판정 아님, zone 원점 변환과 실촬영은 남음). D-023 "좌표" 줄의 [미확인]에 날짜 메모를 더할지는 영록이 판단한다(공유 문서라 재환은 고치지 않는다). 이 파일 백로그의 J-30b 행을 "완료"로 옮긴다.
-- **왜 재환 / 위험**: 입력·스크립트·기준·문장이 모두 펜스로 정해져 있고 결과가 숫자와 종료 코드로 판정된다. GPU·UE·GUI·Astra 레인·소유자 촬영이 필요 없다(기본 경로는 파이썬 계산 몇 초). 위험: ① J-30a 출력이 지워졌거나 다른 실행의 것이 섞임 → 설계 3의 파일 8개 확인과 두 가지 같은 실행 확인, 없으면 고정된 다시 만드는 경로(할 일 2), 섞였으면 멈춤. ② 축·규약 모호(Apple이 포즈 축을 문서화하지 않음) → 카메라 중심만 쓰고 회전은 쓰지 않는다. 반사가 필요하거나 축척이 1에서 멀면 FAIL이고 뒤집어 맞추지 않는다(설계 2·5). ③ 다시 만드는 경로의 메모리 — J-30a dry-run의 특징 추출 peak footprint 약 36 GB에 LM Studio 모델 약 94.6 GB가 함께 올라가 있으면 128 GB를 넘을 수 있다 → `timeout`과 rc로만 판정하고, 넘으면 멈춘다(시간·메모리 수치는 판정 근거가 아니다). ④ 과장 — 76장 드론 사진의 교회 하나에서 잔차가 작다는 것은 골목 결과가 아니다 → 문장은 렌더 스크립트가 고정한다(규칙 3·15), 품질·이음매는 V-05. ⑤ 빈 검사 — 기준이 두 dry-run에서 왔고, 틀린 셋 셋이 각각 다른 줄로 떨어진다(설계 6). ⑥ 라이선스 — Tyrol CC BY 4.0, 저작자 표시 :180, 커밋·업로드 없음.
+- **병합 시 반영(영록)**: STATUS 재환 절에 J-30b 행. WP-21 "남은 작업" 4 끝에 날짜 메모(희소 모델 → EXIF GPS ENU 정합·정합 좌표 splat은 J-30a, Object Capture 메시의 같은 좌표 변환은 J-30b로 수치 확인 — 공개 Tyrol 1회, 품질 판정 아님, zone 원점 변환과 실촬영은 남음). D-023 "좌표" 줄의 [미확인]에 날짜 메모를 더할지는 영록이 판단한다(공유 문서라 재환은 고치지 않는다). 이 파일 백로그의 J-30b 행을 "완료"로 옮긴다. 메시만 옮긴 오프셋 대조군(위험 ⑦, J-30c 후보)을 백로그에 더할지 영록이 정한다(2026-11-28 R167 메모).
+- **왜 재환 / 위험**: 입력·스크립트·기준·문장이 모두 펜스로 정해져 있고 결과가 숫자와 종료 코드로 판정된다. GPU·UE·GUI·Astra 레인·소유자 촬영이 필요 없다(기본 경로는 파이썬 계산 몇 초). 위험: ① J-30a 출력이 지워졌거나 다른 실행의 것이 섞임 → 설계 3의 파일 8개 확인과 두 가지 같은 실행 확인, 없으면 고정된 다시 만드는 경로(할 일 2), 섞였으면 멈춤. ② 축·규약 모호(Apple이 포즈 축을 문서화하지 않음) → 카메라 중심만 쓰고 회전은 쓰지 않는다. 반사가 필요하거나 축척이 1에서 멀면 FAIL이고 뒤집어 맞추지 않는다(설계 2·5). ③ 다시 만드는 경로의 메모리 — J-30a dry-run의 특징 추출 peak footprint 약 36 GB에 LM Studio 모델 약 94.6 GB가 함께 올라가 있으면 128 GB를 넘을 수 있다 → `timeout`과 rc로만 판정하고, 넘으면 멈춘다(시간·메모리 수치는 판정 근거가 아니다). ④ 과장 — 76장 드론 사진의 교회 하나에서 잔차가 작다는 것은 골목 결과가 아니다 → 문장은 렌더 스크립트가 고정한다(규칙 3·15), 품질·이음매는 V-05. ⑤ 빈 검사 — 기준이 두 dry-run에서 왔고, 틀린 셋 셋이 각각 다른 줄로 떨어진다(설계 6). ⑥ 라이선스 — Tyrol CC BY 4.0, 저작자 표시 :180, 커밋·업로드 없음. ⑦ 거리 기준의 뜻(2026-11-28 R167 설계 메모 — 영록): J-30a의 splat → SfM 기준(중앙값 ≤ 3.0 m)은 splat 전체를 +5 m 옮긴 것도 통과시켰다(R167 리뷰에서 잰 중앙값 2.63 m). 이 절의 메시 → SfM 기준(중앙값 ≤ 3.0 m · p90 ≤ 12.0 m)도 같은 꼴이라 미터 단위 일치로 읽지 않는다. 몇 m 어긋남 가운데 이 절이 잡는 것: 메시는 카메라 중심과 **같은** Sim3로 옮기므로, Sim3가 카메라 중심을 몇 m 어긋나게 옮기면 카메라 잔차 기준(중앙값 ≤ 0.5 m · p90 ≤ 1.0 m)이 떨어뜨린다. 잡지 못하는 것: 포즈(`poses.json`)와 OBJ 사이의 몇 m 평행 이동(메시만 어긋남) — 대조군(옮기기 전 정점, 중앙값 ≥ 30.0 m)과 틀린 셋 셋(설계 6)은 수십 m 어긋남만 본다(Opus 판단, 이 절에서 재지 않음). 그래서 런북 줄은 잰 메시 → SfM 중앙값을 그대로 적을 뿐이고(렌더 스크립트의 글자 그대로 — 펜스·기대값·판정 수는 바꾸지 않는다), 메시만 옮긴 오프셋 대조군은 후속이다(J-30c 후보).
 - **dry-run 범위(Opus 2026-11-28, J-30b)**: 이 Mac에서 같은 입력으로 scratch 폴더(세션 scratchpad, 저장소 밖)에서 돌렸다: `poses.json`·OBJ sha256(위 `j30b-expected-sha`), `j30b-check-py`를 J-30a dry-run의 두 정합 모델(`aligned_txt`, 같은 데이터베이스의 두 번째 `mapper` + 정합 `al2_txt`)과 정합 전 모델(`sparse_txt`)에 — 13줄, 값은 설계 5·6(약 3 s, 정합 전 모델 약 10 s — 참고값, LM Studio 모델 로드 여부 기록 안 함), `j30b-verdict-py` 두 정합 모델 `verdict PASS 10/10`, 틀린 셋 셋이 `j30b-expected-neg`와 같은 FAIL 줄(두 모델 모두), `j30b-source-sh`를 파일 8개가 있는 폴더·하나를 지운 폴더에 — `source j30a`·`source rerun`, J-30a 같은 실행 확인 ①(`j30a-check-align`을 J-30a dry-run 폴더에 다시 돌린 출력이 그 폴더의 `align-check.log`와 같음)·②(`sfm_points 68938` 같음), `j30b-render-py`·`j30b-apply-py`를 `origin/main` `acbd954` scratch 사본(git init)에 J-30a 메모 줄을 J-30a 펜스로 넣고 `근거: PR #170.`으로 바꾼 상태의 mac-recon에 적용 → `apply.log` 네 줄, numstat `2 1`, `added.diff` `exit=0`, `memo-order.log` `adjacent`·`memo_lines 2`, 칸 자기 검사 `2`·`0`, 두 번째 적용 `j30b_memo 1` rc 1, 커밋 2 `sed`(가짜 번호) 뒤 `근거: J-30b PR.` 0줄, 그 사본을 clone한 가짜 `$W`에서 할 일 1·3~6의 명령을 이 절의 글자 그대로(`gh` 명령 제외, push는 로컬 원격으로) zsh로 돌려 모든 기대값(펜스 추출·`pre`·`source`·같은 실행 확인·판정·틀린 셋 줄은 `sh`로도 한 번 더 같음) — 파이썬 게이트(timeout을 단 꼴) 두 번 rc 0(1940 passed, 3 skipped), 커밋 두 개 작성자 `재환 <jaehwan.local@localhost>`, `branch-files*.log` 한 줄, `status-*.diff` `exit=0`. CI 표 두 `awk`는 PR #161의 `gh pr checks` 출력(16행 모두 pass)에서 `16`·`0`, pass가 아닌 행 하나를 더하면 `17`·`1`. `j30b-pre-sh`는 그 사본에서 `expected-pre`와 같고, 지금의 `origin/main`(J-30a 미병합)에서는 `j30a_memo 0`(멈춤 조건이 막는다). 셸 펜스 넷은 `sh`·`zsh`로 같은 출력, `bash -n`·`sh -n`·`zsh -n` 통과, shellcheck v0.11.0 `--severity=warning` 0건. 파이썬 펜스 다섯은 `ruff check`·`ruff format --check` 통과(설정 `tools/pyproject.toml`). 할 일 1의 두 `awk` 추출과 펜스 추출을 이 절을 넣은 `jaehwan-tasks.md` scratch 사본에서 돌려 `fence-lines.diff` `exit=0`, 추출본이 이 절의 펜스와 바이트로 같음, 할 일 2 중 COLMAP이 아닌 명령(J-30a 펜스 셋 추출 `98 total`, 입력 76장·해시, `make_ref.py` rc 0·`ref.diff` `exit=0`·sha256 위 값, 입력 해시 전후 같음)과 `align-gate.log` `awk`(J-30a dry-run의 `align-check.log`로 `rerun-align ok`, 중앙값을 3.201로 바꾸면 `rerun-align bad`). `j30b-bodycheck-sh`·`j30b-timeout-awk`는 견본 본문·견본 `commands.txt`(감싼 줄·안 감싼 줄·`# 정정:` 줄)에 돌려 기대값을 냈고, 견본에 0건 인용 하나·없는 숫자 하나를 넣으면 `quotes_zero 1`·`numbers_zero 1`이었다. dry-run하지 못한 것: 재환 worktree에서의 실행과 `gh` 명령(겹침·PR 열기·번호·등록 대기·CI watch)·GitHub으로의 push, 실제 J-30a 실행 폴더(아직 없다 — J-30a 미실행), 다시 만드는 경로의 COLMAP 실행 자체(J-30a dry-run의 같은 명령으로 대신함), 실제 본문의 인용·숫자 검사. 문서 9 검증 지적 반영 뒤(같은 날, Opus): `j30b-bodycheck-sh` 40줄 — 견본 본문의 `negcheck.diff` `exit=0` 인용(`quotes.tsv`에 `exit=0`과 `negcheck.diff`)이 옛 38줄 펜스에서는 `목록밖`·`quotes_zero 1`, 새 펜스에서는 `quotes_zero 0`(sh·zsh, `sh -n`·`zsh -n` 통과). `j30b-timeout-awk` 9줄은 감사 자신의 기록 줄(`timeout-audit.log`가 든 줄)을 세지 않는다. 할 일 1의 과제·펜스 추출을 고친 파일에서 다시 돌려 sh·zsh 모두 `fence-lines.diff` `exit=0`, `expected-fence-lines.txt` 14줄.
 
 ## 재환에게 맞지 않는 것 (이유)
