@@ -681,3 +681,50 @@ def test_add_gasp_refuses_while_an_editor_runs(gasp_env):
     assert result.returncode == 1
     assert "close the Unreal Editor first (running: 4242" in result.stderr
     assert e.calls() == []
+
+
+@posix_only
+def test_add_gasp_refuses_while_gasp_project_editor_runs(gasp_env):
+    # J-35 ①: the other blocking branch — an editor on the GASP project. The command line names only
+    # GASP_58.uproject (never "Golmok.uproject"), so the guard must catch it via *"$GaspProject"*.
+    e = gasp_env
+    exe = "/Users/tester/Epic Games/UE_5.8/Engine/Binaries/Mac/UnrealEditor"
+    Path(e.env["FAKE_PS_LIST"]).write_text(f"4243 {exe}\n", encoding="utf-8")
+    Path(e.env["FAKE_PS_CMDS"]).write_text(
+        f"4243 {exe} -Project={e.gasp_project}/GASP_58.uproject\n", encoding="utf-8"
+    )
+    result = e.run("add-gasp.sh", "--verify")
+    assert result.returncode == 1
+    assert "close the Unreal Editor first (running: 4243" in result.stderr
+    assert e.calls() == []
+
+
+@posix_only
+def test_add_gasp_ignores_editor_on_other_project(gasp_env):
+    # J-35 ②: UnrealEditor* exe but the command line matches neither project → no refusal, and the
+    # run reaches the editor stub (rc 0, non-empty calls) rather than failing for some other reason.
+    e = gasp_env
+    exe = "/Users/tester/Epic Games/UE_5.8/Engine/Binaries/Mac/UnrealEditor"
+    Path(e.env["FAKE_PS_LIST"]).write_text(f"4244 {exe}\n", encoding="utf-8")
+    Path(e.env["FAKE_PS_CMDS"]).write_text(
+        f"4244 {exe} -Project=/Users/tester/Other/Other.uproject\n", encoding="utf-8"
+    )
+    e.respond("verify", ok=True, messages=[])
+    result = e.run("add-gasp.sh", "--verify")
+    assert result.returncode == 0, result.stderr
+    assert "close the Unreal Editor" not in result.stderr
+    assert e.calls() != []
+
+
+@posix_only
+def test_add_gasp_ignores_non_editor_with_golmok_project(gasp_env):
+    # J-35 ③: the name filter (exe basename starting with UnrealEditor, as Name LIKE 'UnrealEditor%'
+    # in add-gasp.ps1) must ignore other processes even when Golmok.uproject is in their command line.
+    e = gasp_env
+    Path(e.env["FAKE_PS_LIST"]).write_text("4245 /usr/bin/vim\n", encoding="utf-8")
+    Path(e.env["FAKE_PS_CMDS"]).write_text(f"4245 /usr/bin/vim {e.project}\n", encoding="utf-8")
+    e.respond("verify", ok=True, messages=[])
+    result = e.run("add-gasp.sh", "--verify")
+    assert result.returncode == 0, result.stderr
+    assert "close the Unreal Editor" not in result.stderr
+    assert e.calls() != []
