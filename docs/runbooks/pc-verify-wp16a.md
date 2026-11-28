@@ -361,6 +361,8 @@ Select-String "$env:TEMP\utoc.csv" -Pattern 'Golmok/Weather/(MPC_GolmokWeather|N
 | 빗소리 | T24 레이어 있음 — 깨짐(클릭·급정지)만, 밸런스는 wp13 §9·C-08 | |
 | STATUS 판정 | 통과/부분/차단·남은 항목 | |
 
+Mac 부분 선행(J-20, 에셋 전, 합성 zone 있음(z_synthetic_002는 청크·콜리전 에셋 없음), SHA 5475c7a, GUI 잠금은 파이프라인 전체 동안 보유): §1 완료 — `build.sh`(라벨) 종료 코드 0 저장(`runner-stdout.log`), `Result: Succeeded`·`Target is up to date`(업투데이트라 컴파일 TU 없음), 로그 전체 Warning·Error grep 0건, Niagara UBT 경고 문구는 이 업투데이트 빌드에서 안 보임 [미확인: 전면 재컴파일에서의 Niagara 경고 문구]. §3 `Golmok.Weather` 필터 완료 — 3개 전부 state Success(Config entries 0·Lighting Info 2·Runtime Warning 1 Info 3), 리포트 카운터 `succeededWithWarnings` 1(Runtime)·failed 0, 실행 종료 코드 0. `Golmok.Weather.Lighting`의 `NightUnaffected` 시각은 `[Info] NightUnaffected at 05:35 (base lux 0.104167)`, 에셋 전 skip Info는 `Golmok.Weather.Runtime`의 `[Info] MPC_GolmokWeather missing - skipped`·`[Info] NS_GolmokRain missing - skipped` — 카드의 `skip Info로 Success가 기대`와 일치. §3 `Golmok.Save` 필터 완료 — `Golmok.Save.RoundTrip` state Success(Info 20줄에 weather rule 1·rule 0·unknown state·clamp·schedule 단계 전부 실행 = 날씨 단계 skip 아님, close 단계 Info 2줄), Warning 4건은 전부 z_synthetic_002 청크 2·콜리전 2 에셋 없음 경고. 리포트 카운터가 succeeded 0·`succeededWithWarnings` 1이라 실행 종료 코드는 1 — `test.sh`가 `succeeded == 0`을 실패로 취급하는 결함(J-36)이고 테스트 실행 실패는 아니므로 상태는 리포트 `index.json`의 Success로 적었다. `L_ZoneTest missing` skip은 관찰되지 않음 — J-12b 정상. 세 번째 명령(`Golmok.` 전체 39 + `--setup-dev-level`)은 카드 할 일에 없어서 실행 안 함. §1·§3 행의 결과 칸은 손대지 않았다. 근거: PR #—.
+
 성능 표(§10):
 
 | 레벨 | 조건 | Frame | Game | Draw | GPU | Niagara GPU | 입자 수 |
