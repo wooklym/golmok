@@ -47,6 +47,7 @@
 - **명령마다 로그+exit**: 명령마다 `> $E/<이름>.log 2>&1; echo $? > $E/<이름>.rc`, 돌린 명령 원문은 `$E/commands.txt`에 한 줄씩 더한다. 다음 실행이 덮어쓰는 결과물(`Saved/Automation/Report/index.json`, 에디터 `Golmok.log` 등)은 실행 직후 `$E`에 사본을 둔다(규칙 10).
 - **`test.sh` 종료 코드(2026-11-28 메모, J-36 [#154](https://github.com/wooklym/golmok/pull/154) · `8ba637c`)**: 경고 있는 성공만 있는 실행(예: `--filter Golmok.Zone.IndexParse`)이 종료 코드 1이던 옛 규칙은 J-36이 고쳤다. 지금은 보고서 `failed`가 0이고 `succeeded`+`succeededWithWarnings`가 1 이상이면 0이고, 요약 줄 끝에 `Succeeded with warnings: <수>`가 나온다. 그래도 종료 코드 0은 "실패 없이 끝났다"일 뿐이다: 테스트마다 **완료 / skip**은 지금처럼 보고서 `entries`의 skip Info 문구(`… missing - skipped` 등)와 상태 열로 판정한다(규칙 15, mac-setup §4 "기대 결과" 3). J-36 전에 쓴 과제 글·결과의 "종료 코드 1은 경고 있는 성공 때문"이라는 문장은 그때의 기록이다(J-17·J-20).
 - **배정 보류 표시**: 절 첫머리에 '배정 보류' 또는 '영록 보충이 남았다' 표시가 있는 과제는 시작하지 않고 다음 과제로 넘어가며 영록에게 한 줄로 알린다.
+- **CI 반복 측정 중 `gh run watch`의 일시 오류(2026-11-28, J-11 attempt 6에서 정함)**: `gh run watch`가 0이 아닌 코드로 끝났고 그 로그에 `HTTP 5`가 있으면 잡 실패가 아니라 GitHub API의 일시 오류다. 그 attempt의 기록 단계로 넘어가지 않고, 그 잡의 상태를 `gh api repos/wooklym/golmok/actions/runs/$RUN/attempts/$n/jobs`의 `.jobs[].status`로 30초마다 읽어 `completed`가 될 때까지 기다린다(`/usr/bin/timeout 1800`을 붙이고, 명령과 종료 코드를 `$E/wait-$n.log`에 남긴다. `RUN`·`n`·`W`·`E`는 그 호출 안에서 다시 정의한다). 그 뒤 기록 단계부터 이어 간다. 그 잡의 결론이 `success`가 아니면 멈추고 묻는다. 기록 단계가 이미 일찍 돌아 빈 줄이나 스터브 로그가 남았으면 그 파일들을 `-before-fix` 사본으로 보존하고 기록 명령을 다시 돌려 채운다(값을 손으로 적지 않는다).
 
 ### PR 본문 공통(모든 과제)
 
@@ -142,7 +143,7 @@ END {
 |---|---|---|---|
 | J-11 | CI 뷰어 `npm test` 잡(`viewer-smoke`, ubuntu-24.04 한 행) | `local/jaehwan-j11-viewer-ci`, [#159](https://github.com/wooklym/golmok/pull/159)(열림, head `c93474a`, 2026-11-28 12:20 KST 생성, +38 −1, 바뀐 파일 `.github/workflows/ci.yml`·`tools/viewer/README.md`). 12:21 KST `gh pr checks 159`: 두 번째 실행은 진행 중(tiles-validate·repo-check pass, 나머지 pending), 첫 실행은 `viewer-smoke (ubuntu-24.04)` 포함 모든 행 pass. PR 코멘트 없음(리뷰 전) | `.github/workflows/ci.yml`(훅 블록), `tools/viewer/README.md`(한 문장) |
 
-**다음**(2026-11-28 문서 7): J-11(진행 중, PR [#159](https://github.com/wooklym/golmok/pull/159)) → J-10 → J-21 → J-27 → J-19 → J-22 → J-30a → J-16(배정 보류: J-27 결과와 영록의 절 재작성 뒤 — 아래 J-16 절) → 남은 설계 선행 과제(J-24~J-26·J-28·J-29·J-30b·J-31a·J-31b·J-32·J-33). J-19·J-21·J-22는 설계가 확정됐고(Opus 2026-11-28, 아래 각 절) J-30a는 자리표시 분류 단계를 고쳐 배정할 수 있다. J-23·J-21·J-27·J-19·J-22는 모두 `$W`에서 GUI 잠금을 잡고 `test.sh`·`build.sh`·`package.sh`를 돌리므로 한 번에 하나씩, 앞 과제가 push돼 `$W`에 추적 파일 변경이 없을 때 배정한다(각 절 할 일 1이 막는다). J-19·J-22는 둘 다 `$W/build/Mac` 패키지를 새로 만든다 — 앞 과제의 패키지를 다시 쓰지 않는다(J-19가 먼저, J-22가 그 뒤에 같은 자리를 덮어쓴다). PR 본문·자리표시 분류·런북 칸 자기 검사·근거 표기는 모든 과제가 상시 규칙 "PR 본문 공통(모든 과제)"을 따른다(2026-11-28 문서 7).
+**다음**(2026-11-28 문서 7): J-11(진행 중, PR [#159](https://github.com/wooklym/golmok/pull/159)) → J-10 → J-21 → J-27 → J-19 → J-22 → J-30a → J-23(배정 보류: 결과 자리·커밋 2 명령 보충 뒤) → J-16(배정 보류: J-27 결과와 영록의 절 재작성 뒤 — 아래 J-16 절) → 남은 설계 선행 과제(J-24~J-26·J-28·J-29·J-30b·J-31a·J-31b·J-32·J-33). J-19·J-21·J-22는 설계가 확정됐고(Opus 2026-11-28, 아래 각 절) J-30a는 자리표시 분류 단계를 고쳐 배정할 수 있다. J-23·J-21·J-27·J-19·J-22는 모두 `$W`에서 GUI 잠금을 잡고 `test.sh`·`build.sh`·`package.sh`를 돌리므로 한 번에 하나씩, 앞 과제가 push돼 `$W`에 추적 파일 변경이 없을 때 배정한다(각 절 할 일 1이 막는다). J-19·J-22는 둘 다 `$W/build/Mac` 패키지를 새로 만든다 — 앞 과제의 패키지를 다시 쓰지 않는다(J-19가 먼저, J-22가 그 뒤에 같은 자리를 덮어쓴다). PR 본문·자리표시 분류·런북 칸 자기 검사·근거 표기는 모든 과제가 상시 규칙 "PR 본문 공통(모든 과제)"을 따른다(2026-11-28 문서 7).
 
 ## 백로그 (의존 순서)
 
