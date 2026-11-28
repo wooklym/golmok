@@ -162,6 +162,7 @@ CLAUDE.md에서 너에게 그대로 적용되지 않는 부분이 있다. "Work-
   - Mac(bash): `./tools/ue/add-mannequin.sh` → `./tools/ue/build.sh` → `./tools/ue/test.sh --setup-dev-level`(전체) 순으로 돌린다. 옵션과 `.ps1` 대응은 `docs/runbooks/mac-setup.md`를 본다. 아래 PowerShell 줄은 Windows용(이력)이다.
   - PowerShell에서 `.\tools\ue\add-mannequin.ps1` → `.\tools\ue\build.ps1` → `.\tools\ue\test.ps1 -SetupDevLevel`(전체) 순으로 돌린다. 필터를 줄 때도 `-SetupDevLevel`을 같이 준다(새 worktree에는 L_Dev가 없다): `.\tools\ue\test.ps1 -SetupDevLevel -Filter Golmok.Character`
   - 모든 테스트에 경고가 있으면 `test.ps1`은 `Succeeded: 0`을 찍고 예외를 던진다. 판정은 테스트별 `Success` 열과 `Saved/Automation/Report/index.json`으로 한다.
+  - Mac `test.sh`는 2026-11-28(J-36, `8ba637c`)부터 실패가 0이고 성공(경고 있는 성공 포함)이 1건 이상이면 종료 코드 0이다. 요약 줄에 `Succeeded with warnings:`가 찍힌다. skip 여부는 여전히 `index.json`의 메시지로 판정한다.
   - PC(지금은 소유자 Mac)가 아니면 UE 게이트를 돌리지 않는다. PR과 WP 문서에 `🟡 코드 완료·PC 검증 대기(V-xx)`로 적고 명령을 런북에 남긴다. **돌리지 않은 결과를 적지 않는다.**
 - **UE를 같이 쓰는 규칙**: 같은 PC에서 다른 Claude 세션이 UE를 돌릴 수 있다.
   - 에디터 GUI나 PIE를 띄우기 전에 잠금 파일을 확인한다. Mac은 `"$TMPDIR/claude/gui-foreground.lock"`, 옛 Windows PC는 `C:\Users\user\AppData\Local\Temp\claude\gui-foreground.lock`이다. 한 줄 형식은 `<세션> <목적> <ISO 시각>`이다. 20분이 안 된 기록이 있으면 기다린다. 쓰는 동안 네 줄로 갱신하고, 끝나면 지운다.
