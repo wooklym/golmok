@@ -338,6 +338,8 @@ Select-String "$env:TEMP\utoc.csv" -Pattern 'Golmok/Weather/(MPC_GolmokWeather|N
 | 19 | `GolmokWeatherSubsystem.cpp` | `OnWorldBeginPlay` → 액터 BeginPlay(컨트롤러 `FindOrSpawn`) → 첫 서브시스템 틱 순서(R112-U9) | 첫 틱이 컨트롤러 BeginPlay 뒤인지 | §4 첫 프레임 줄이 실패하면 `OnWorldBeginPlay` 끝에서 `World->OnActorSpawned` 1회 구독으로 시간대 액터를 잡는다 | |
 | 20 | `GolmokSaveSubsystem.cpp` `Restore` → `ResetRainFx` | basemap 위치 복원은 같은 호출 안에서 순간 이동한 뒤 곧바로 리셋한다. 이때 `APlayerCameraManager::GetCameraLocation()`이 아직 지난 프레임의 POV(옛 자리)일 수 있다[추정, 리뷰 후속 검증] | 빗줄기가 옛 자리에서 다시 시작해 다음 틱에 100 m 넘게 이동할 수 있다. 화면은 페이드 인 중이라 보이지 않을 가능성이 크다. R112 전 Rule 1 리셋도 같았다 | §9 basemap 줄에서 줄무늬나 성기게 시작하는 빗줄기(R113-3)가 보이면 `Restore`의 리셋을 `SetTimerForNextTick`으로 한 틱 미룬다(RoundTrip 횟수 단언도 한 틱 뒤로) | |
 
+Mac 부분 선행(J-21, 컴파일·심볼만, 2026-11-28, SHA 366e118, UE 5.8.4 CL 58902052): `GolmokWeatherRainFx.cpp`·`GolmokWeatherTest.cpp`를 touch한 증분 `build.sh`에서 두 파일 컴파일과 `libUnrealEditor-Golmok.dylib` 링크, `Result: Succeeded`, 컴파일 경고·오류 줄 0, 빌드 출력의 Niagara 줄 0. #1 `Niagara.uplugin`은 `"EnabledByDefault" : true`, `Golmok.uproject`는 Niagara 명시 항목. #2 `Niagara` 하나로 링크된다(`otool -L`의 Niagara 줄은 `@rpath/libUnrealEditor-Niagara.dylib` 하나, `Golmok.Build.cs`에 NiagaraCore 없음). #3·#17은 컴파일되고, #4·#15가 쓰는 API는 5.8.4 헤더에 있다 — 등록·렌더, `User.` 접두 필요 여부, 바인딩 단언 결과, 텔레포트 뒤 줄무늬는 [미확인]이다(PIE·자동화 몫). #1의 UBT 경고 문구 유무는 이 줄이 판정하지 않는다. 근거: J-21 PR.
+
 ## 13. 결과 기록
 
 | 항목 | 기대 | 결과/근거 |
