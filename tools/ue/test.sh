@@ -63,8 +63,9 @@ for test in report.get("tests") or []:
         event = entry.get("event") or {}
         print(f"    [{text(event.get('type'))}] {text(event.get('message'))}")
 succeeded = report.get("succeeded") or 0
+with_warnings = report.get("succeededWithWarnings") or 0  # J-36: "succeeded" counts only successes without a warning
 failed = report.get("failed") or 0
-print(f"Succeeded: {text(report.get('succeeded'))}  Failed: {text(report.get('failed'))}  Not run: {text(report.get('notRun'))}")
-sys.exit(3 if failed > 0 or succeeded == 0 else 0)
+print(f"Succeeded: {text(report.get('succeeded'))}  Failed: {text(report.get('failed'))}  Not run: {text(report.get('notRun'))}  Succeeded with warnings: {text(report.get('succeededWithWarnings'))}")
+sys.exit(3 if failed > 0 or succeeded + with_warnings == 0 else 0)
 PY
 if [ "$rc" -ne 0 ]; then golmok_die "Automation tests failed"; fi
