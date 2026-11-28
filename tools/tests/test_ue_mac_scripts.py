@@ -442,9 +442,9 @@ def test_package_argv_warning_and_failure(env):
     assert env.run("package.sh", "--bogus").returncode == 1
 
 
-def _index(succeeded: int, failed: int, not_run: int = 0) -> str:
+def _index(succeeded: int, failed: int, not_run: int = 0, with_warnings: int = 0) -> str:
     return json.dumps({
-        "succeeded": succeeded, "failed": failed, "notRun": not_run,
+        "succeeded": succeeded, "succeededWithWarnings": with_warnings, "failed": failed, "notRun": not_run,
         "tests": [
             {"state": "Success", "fullTestPath": "Golmok.Geo.Wgs84", "entries": []},
             {"state": "Fail", "fullTestPath": "Golmok.Zone.Load",
@@ -472,7 +472,7 @@ def test_test_runs_headless_and_prints_report(env):
         "Success    Golmok.Geo.Wgs84",
         "Fail       Golmok.Zone.Load",
         "    [Error] 골목 zone missing",
-        "Succeeded: 5  Failed: 0  Not run: 1",
+        "Succeeded: 5  Failed: 0  Not run: 1  Succeeded with warnings: 0",
     ]
     assert "noise" not in result.stdout
 
@@ -506,6 +506,20 @@ def test_test_exit_rules(env):
     assert missing.returncode == 1 and "No automation report at" in missing.stderr
     assert "Library/Logs/Unreal Engine/GolmokEditor/Golmok.log" in missing.stderr
     assert "Saved/Logs" not in missing.stderr
+
+
+@posix_only
+def test_test_exit_rules_with_warnings(env):
+    # J-36: the report's "succeeded" counts successes without a warning, "succeededWithWarnings" the
+    # others (UE AutomationControllerManager.cpp); a run whose only test warns still passes
+    only_warned = env.run("test.sh", FAKE_INDEX=_index(0, 0, with_warnings=1))
+    assert only_warned.returncode == 0, only_warned.stderr
+    assert "Succeeded: 0  Failed: 0  Not run: 0  Succeeded with warnings: 1" in only_warned.stdout
+    failed = env.run("test.sh", FAKE_INDEX=_index(0, 1, with_warnings=1))
+    assert failed.returncode == 1 and "Automation tests failed" in failed.stderr
+    assert "Succeeded: 0  Failed: 1  Not run: 0  Succeeded with warnings: 1" in failed.stdout
+    nothing = env.run("test.sh", FAKE_INDEX=_index(0, 0, not_run=2))
+    assert nothing.returncode == 1 and "Automation tests failed" in nothing.stderr
 
 
 @posix_only
