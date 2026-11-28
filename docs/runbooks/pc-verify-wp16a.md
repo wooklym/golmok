@@ -361,6 +361,8 @@ Select-String "$env:TEMP\utoc.csv" -Pattern 'Golmok/Weather/(MPC_GolmokWeather|N
 | 빗소리 | T24 레이어 있음 — 깨짐(클릭·급정지)만, 밸런스는 wp13 §9·C-08 | |
 | STATUS 판정 | 통과/부분/차단·남은 항목 | |
 
+Mac 부분 선행(J-20, 에셋 전, 합성 zone 있음(z_synthetic_002는 청크·콜리전 에셋 없음), SHA 5475c7a): §1 빌드 — 종료 코드 0, Result: Succeeded(업투데이트; 전면 재컴파일의 Niagara 경고 문구는 [미확인]). Weather.Config 완료. Weather.Lighting 완료 — [Info] NightUnaffected at 05:35 (base lux 0.104167). Weather.Runtime skip — MPC·NS 없음 skip Info 2줄(경고 1). Save.RoundTrip 완료 — 날씨 단계 실행, close 단계 Info 2줄(경고 4: z_synthetic_002 에셋 없음). Save 필터 실행의 종료 코드 1은 경고 있는 성공을 실패로 세는 test.sh 규칙 때문(J-36). 근거: PR #153.
+
 성능 표(§10):
 
 | 레벨 | 조건 | Frame | Game | Draw | GPU | Niagara GPU | 입자 수 |
