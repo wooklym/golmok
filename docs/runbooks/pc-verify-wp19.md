@@ -140,6 +140,8 @@ python tools\scripts\check_repo.py
 ### A9. 결과 (19b PC 세션이 작성)
 (비어 있음)
 
+Mac 부분 선행(J-23, GASP 없음, 2026-11-28, SHA b5f4df3): §A1 첫 명령만 — `build.sh` 종료 코드 0. `test.sh --filter Golmok.Animation --setup-dev-level` 종료 코드 0, 4개 모두 Success(실패 0). GaspSmoke는 skip(`GASP not installed — skipped (config ok, manifest no, pawn class missing)`). Fallback은 Success, 에디터 로그의 폴백 줄 1개. StateProvider `GASP pawn after p0` Info 1줄·Error 0, 에디터 로그의 `Character mesh` 줄 0(§C #14). 두 번째 명령(39개)과 PIE 단계는 하지 않았다. 근거: J-23 PR.
+
 ## B. V-15 — 통합 검증 (19a·19b·19c 병합·D-021 발효 뒤, 사전 등록 기준)
 
 판정 기준은 [D-021](../DECISIONS.md) 원문 그대로이고 **사후에 바꾸지 않는다**:
