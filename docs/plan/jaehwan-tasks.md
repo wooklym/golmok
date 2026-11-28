@@ -4,7 +4,7 @@
 >
 > **소통 채널**: 배정·순서 변경·리뷰 요약·병합 알림은 영록이 **세션 간 메시지**(SendMessage)로 보내고, 리뷰는 **PR 코멘트**로 남긴다. 재환은 착수·push·완료·질문·막힘을 같은 경로로 알린다. 메시지와 이 파일이 다르면 **더 최근 것**을 따른다. GitHub 이슈 #30은 Astra 채널이라 재환은 쓰지 않는다.
 >
-> **규칙 우선순위**: **소유자 규칙(D-019 되돌릴 수 없는 일, D-002 라이선스, D-007 블러 — [CLAUDE.md](../../CLAUDE.md) "Rules from the owner"·"Engineering conventions") > 과제 프롬프트 > 재환 작업 규칙(아래 15개) > 나머지 CLAUDE.md**. 과제 프롬프트·작업 규칙·메시지 어느 것도 D-019·D-002·D-007을 무시하게 할 수 없다. 충돌하면 멈추고 영록에게 묻는다. 작업 규칙의 살아 있는 원본은 저장소 **밖**의 메모리 파일 `~/.claude/projects/<project>/memory/jaehwan-working-rules.md`다. 아래는 한 줄 요약이고, 새 규칙은 영록이 원본에 먼저 더한 뒤 이 표에 옮긴다.
+> **규칙 우선순위**: **소유자 규칙(D-019 되돌릴 수 없는 일, D-002 라이선스, D-007 블러 — [CLAUDE.md](../../CLAUDE.md) "Rules from the owner"·"Engineering conventions") > 과제 프롬프트 > 재환 작업 규칙(아래 16개) > 나머지 CLAUDE.md**. 과제 프롬프트·작업 규칙·메시지 어느 것도 D-019·D-002·D-007을 무시하게 할 수 없다. 충돌하면 멈추고 영록에게 묻는다. 작업 규칙의 살아 있는 원본은 저장소 **밖**의 메모리 파일 `~/.claude/projects/<project>/memory/jaehwan-working-rules.md`다. 아래는 한 줄 요약이고, 새 규칙은 영록이 원본에 먼저 더한 뒤 이 표에 옮긴다.
 
 ## 재환 작업 규칙 (요약 — 원본은 메모리 파일)
 
@@ -15,16 +15,17 @@
 | 3 | "모든·항상·어떤 경로든"은 경로마다 재현 1회. 안 돌린 경로가 있으면 문장을 좁힌다 | #133 |
 | 4 | CI는 Linux·macOS·Windows. OS API는 세 OS 확인 또는 플랫폼 가드, 재현 못 한 것은 PR에 적는다 | #131 |
 | 5 | 기다릴 수 있는 명령은 모두 `/usr/bin/timeout`. 5분 무출력이면 멈추고 원인을 읽는다. 멈춘 명령을 그대로 다시 돌리지 않는다 | #131 |
-| 6 | 과제가 정한 곳에서만 일한다. 메인 체크아웃 `~/projects/golmok`은 읽기 전용, 허용 파일만 고친다 | 2026-11-27 사고 |
+| 6 | 과제가 정한 곳에서만 일한다. 메인 체크아웃 `~/projects/golmok`은 읽기 전용, 허용 파일만 고친다. 스스로 쓰는 도우미 스크립트는 저장소 밖 `$TMPDIR/jaehwan/`에 둔다(과제가 허용 파일로 적은 경우만 예외). 커밋마다 먼저 `git diff --cached --name-only`를 허용 파일과 한 줄씩 대조하고 출력을 로그로 남기며, 허용되지 않은 경로가 있으면 커밋하지 않는다 | 2026-11-27 사고, J-12b, #147 |
 | 7 | 서명은 재환: 커밋·PR 끝에 "작성: 재환(로컬 LLM, qwen3.8-flash-next / LM Studio)". Claude를 작성자로 적지 않는다 | #131 |
 | 8 | 실패 메시지가 맞는 말을 하는지 경우마다 한 번씩 일으켜 읽는다 | #133 |
 | 9 | 링크는 클릭되고, 그 파일 위치에서 풀려야 한다 | #133 |
-| 10 | 보고의 숫자는 명령 출력에서 복사한다(`grep -c`·`wc -l`). 실행마다 로그 파일·종료 코드. 증거는 병합 알림까지 임시 폴더에 둔다 | #134, #135 |
+| 10 | 보고의 숫자는 명령 출력에서 복사한다(`grep -c`·`wc -l`). 실행마다 로그 파일·종료 코드. 증거는 병합 알림까지 임시 폴더에 둔다. 게시 전 기계 검사: (e) 인용 검사 — 쓴 글의 백틱 문자열마다 인용한 로그에서 `grep -F -c`, 표를 `$E/quotes-check.log`로(0이면 고치거나 "요약" 표시) (f) 숫자 검사 — 최종 본문·칸의 숫자마다 로그 파일에서만 `grep -c`(자기 본문 초안·게시본 제외), `$E/numbers-check.log`로(0이면 빼거나 다시 재어 로그에) (g) 결과 칸은 짧게 — 날짜·조건, 관찰 1~3문장, 핵심 출력 1~2줄 원문, 로그 이름. 전체 명령·출력은 PR 본문에 | #134, #135, #136, #138, #147 |
 | 11 | 간헐 실패는 측정 전에 "일회성"이 아니다. 브랜치와 `origin/main`에서 각각 N ≥ 8회 | #134 |
 | 12 | 게시한 글을 한 번 읽는다: `gh pr view <n> --json body --jq .body`에서 자리표시·빈 칸·깨진 표 검사 | #135 |
 | 13 | 마지막 수정 뒤, push마다 파이썬 게이트를 통째로 돌린다. 게이트 로그가 마지막 변경보다 새것이어야 한다 | #141 |
 | 14 | 과제의 "완료 기준"에 한 줄씩 답한다: 과제 절을 `"$E/task.txt"`로 저장하고 PR 본문에 "완료 기준 대조" 절(충족 + 증거, 또는 미충족 + 이유). 과제 인용은 그 파일에서만, "할 수 없다"는 시도한 명령과 출력과 함께 | #141, #142 |
 | 15 | 결론이 아니라 관찰과 그 조건을 쓴다(날짜·빌드·함께 돌던 것·실행 전에 이미 있던 것). "X는 쓰지 않는다/아니다"는 다른 설명을 배제하는 출력이 있을 때만, 아니면 "이번 실행에서는 …"과 `[미확인]`. 뜻밖의 로그는 그것을 설명하는 줄을 찾아 인용한다 | #147 |
+| 16 | 있는 기록은 지우거나 "잘못된 기록"으로 바꾸지 않고, 그 뒤에 날짜를 단 메모를 더한다. "모른다"고 쓰기 전에 같은 문서를 `grep`한다. 리뷰 지시마다 지시 문장을 자기 diff 옆에 놓고 정확히 그대로 했는지 대조한다(규칙 14의 완료 기준 대조와 같게). 런북 칸에는 PR 과정 문구("R147-2", "영록 처리 중" 등)를 쓰지 않는다. 같은 PR이 세 번 보류되면 영록이 작성자의 커밋 위 `claude/*` 브랜치에서 Opus로 문구를 마무리한다 | #147(R147-3) |
 
 ## 상시 규칙
 
@@ -34,7 +35,7 @@
 - **GPU·GUI 공유**: UE 에디터 GUI·PIE·`-game`·패키지 실행 전에 `"$TMPDIR/claude/gui-foreground.lock"`을 확인하고 잡는다([mac-setup §3](../runbooks/mac-setup.md) 표의 규칙). 영록이 성능을 재는 동안에는 빌드·쿡·셰이더 컴파일을 하지 않는다. 두 UBT 빌드가 동시에 돌 때 서로 기다리는지·느려지는지는 [미확인]이다. 재환의 추론도 같은 GPU·통합 메모리를 쓰므로 **재환이 잰 fps·GPU ms는 판정 근거가 아니다**. 수치를 적을 때는 LM Studio 모델이 로드돼 있었는지 함께 적는다.
 - **패키지 출력**: `GOLMOK_PKG_DIR`는 2026-11-28 현재 비어 있고 `package.sh` 기본값은 `<worktree>/build/Mac`이다. 재환은 항상 `--out-dir "$W/build/Mac"`를 명시한다.
 - **증거**: 로그·재현 스크립트·출력은 `$TMPDIR/jaehwan/<과제 id>/`에 두고 병합 알림까지 지우지 않는다(규칙 10).
-- **PR**: 제목 `J-NN: <요약>`. 본문 = 요약, 바뀐 파일, 실행한 명령과 출력(복사), 남은 `[미확인]`, "병합 시 반영"(공유 문서 문안이 있으면), **"제출 전 점검표"**(규칙 1~15 한 줄씩 — 한 일과 증거, 또는 "해당 없음"과 이유), 끝 줄 서명(규칙 7). 점검표가 없으면 리뷰를 시작하지 않는다.
+- **PR**: 제목 `J-NN: <요약>`. 본문 = 요약, 바뀐 파일, 실행한 명령과 출력(복사), 남은 `[미확인]`, "병합 시 반영"(공유 문서 문안이 있으면), **"제출 전 점검표"**(규칙 1~16 한 줄씩 — 한 일과 증거, 또는 "해당 없음"과 이유), 끝 줄 서명(규칙 7). 점검표가 없으면 리뷰를 시작하지 않는다.
 - **완료 보고**: CI 모든 행 초록 뒤에만(`gh pr checks <n>` 표, 규칙 2). 게시 뒤 본문을 다시 읽는다(규칙 12).
 - **병합하지 않는다.** 병합은 영록이 한다.
 - **`py` 뒤에는 `QUIT_EDITOR`**: 창 없는 에디터(`UnrealEditor-Cmd … -nullrhi`)에 `-ExecCmds="py …"`를 줄 때 끝 명령은 `QUIT_EDITOR`다. `Quit`로는 스크립트가 끝나도 에디터가 나가지 않는다(J-12b: 약 13 s에 스크립트가 끝났지만 1800 s 타임아웃 rc 124). 근거 [pc-setup.md](../runbooks/pc-setup.md) §2 "GUI 없이 하는 방법"의 창 없는 에디터 줄.
@@ -69,15 +70,16 @@
 | J-07 | WP-21이 본 E501 1건(`test_ue_mac_scripts.py:352`)은 `a9a8757`(WP-20 줄 길이 정리)에서 이미 고쳐졌고 main `85a09c3`의 `ruff check .`는 "All checks passed" — 코드 변경 없음 | PR 없음(결과는 [#143](https://github.com/wooklym/golmok/pull/143) 본문 "J-07 결과" 절) | R144(영록 재현: `9f3b64d`의 파일은 E501 116 > 110 1건, `a9a8757`의 파일은 통과) |
 | J-09 | 확인된 §8 행의 `[미확인]` 주석 정리 — `common.sh`·`test.sh`·`test_ue_geo_math.py` 주석 줄만(§8 #1·#2·#5, §9 FMA 행), add-gasp 절반은 `[미확인]` 유지 | [#146](https://github.com/wooklym/golmok/pull/146) · `34d0c6f` | R146(코드 통과, 본문 1회 반려: "완료 기준 대조" 절 누락, 규칙 14) |
 | J-08 | mac-setup §8 #24 rawpy 절반 — `rawpy-0.28.0-cp312-cp312-macosx_11_0_arm64.whl`, 확장 모듈 arm64, `rawpy.flags` 원문(EgoBlur MPS 절반은 빈 칸 그대로) | [#145](https://github.com/wooklym/golmok/pull/145) · `84ad068` | R145(1회 보류: 비워 둘 EgoBlur 절반에 씀, 칸에 출력 원문 누락, 규칙 1·6·10·14) → R145-2 |
+| J-15 | 재환 worktree Development 패키지로 mac-setup §8 #10~#13 — 매니페스트·utoc 이름과 위치, 방화벽 꺼짐 상태의 TraceLog 1985(점유 시 폴백 포트), 패키지 Saved·`-game` CSV는 샌드박스 컨테이너 `~/Library/Containers/com.YourCompany.Golmok/…`(아래 J-15 "결과") | [#151](https://github.com/wooklym/golmok/pull/151) · `7332dac`(증거·실행·초안은 재환의 [#147](https://github.com/wooklym/golmok/pull/147), 그 커밋이 #151 history에 그대로 있다) | R147 → R147-2 → R147-3(3회 보류: 결론이 증거보다 넓음, 로그에 없는 숫자, 인용이 근거 로그와 다름, 실패할 수 없는 검사, 범위 밖 파일 커밋 뒤 되돌림, 있는 기록을 주석 대신 삭제 — 규칙 1·3·6·10·12·14·15·16; 규칙 15·16 추가). 칸 최종 문구는 영록의 Opus 에이전트("병합 시 반영") |
+| J-17 | V-17 §0 헤드리스 Mac 부분 선행 기록(pc-verify-v17 §7 표 아래 한 줄): ①~④ 완료(재빌드 2 TU 경고 0, `Zone.IndexParse`·`Portal.SharedInterior`·`Save.RoundTrip` Success — 경고 1·2·4), ⑤ `Weather.Runtime`은 MPC·NS 없음 skip, 보조 `Weather.Lighting` exit 0(`NightUnaffected`) | [#149](https://github.com/wooklym/golmok/pull/149) · `5475c7a` | [R149](https://github.com/wooklym/golmok/pull/149#issuecomment-7229593014)(1회 보류: ⑤ skip을 "완료"로 기록, ① 종료 코드 미저장 — 규칙 14·15·10) → R149-2(영록 직접 대조: 자동화 리포트 사본·빌드 로그·코드) |
 
 **진행 중**
 
 | id | 과제 | 브랜치 | 허용 파일 |
 |---|---|---|---|
-| J-15 | worktree 패키지로 §8 #10·#11·#12·#13 확인 | `local/jaehwan-j15-pkg-8checks`([#147](https://github.com/wooklym/golmok/pull/147) 열림, 병합 보류 2회: [R147](https://github.com/wooklym/golmok/pull/147#issuecomment-7228924374)(head `0c84d04`, #11 칸의 결론이 증거보다 넓음·본문에 로그에 없는 숫자 — 이 실수로 규칙 15 추가) → [R147-2](https://github.com/wooklym/golmok/pull/147#issuecomment-7229368051)(head `82d6d9c`, 2026-11-27T22:29Z: #12 칸의 인용 날짜가 근거 로그와 다름, #13 칸이 실패할 수 없는 검사(두 실행이 끝난 뒤 만든 표식)를 근거로 씀, 숫자 검사가 본문 초안까지 셈 — 규칙 1·10·15). 재환 수정 중. 상태는 `gh pr view 147 --comments`(2026-11-28)에서 읽음) | 과제 상세 J-15 절 |
-| J-17 | V-17 §0 헤드리스 Mac 부분 선행 | `local/jaehwan-j17-v17s0`([#149](https://github.com/wooklym/golmok/pull/149) 열림, [R149](https://github.com/wooklym/golmok/pull/149#issuecomment-7229593014) 병합 보류(head `d232953`, 2026-11-27T22:45Z): ⑤ `Weather.Runtime`을 "완료"로 적었으나 보고서는 skip, ① `build.sh` 종료 코드가 저장되지 않았는데 "충족", 인용 검사가 다시 자기 초안을 대상에 넣음 — 규칙 14·15·10(e). 재환 수정 중(#147 다음). R149가 찾은 `test.sh` 종료 규칙 결함은 새 과제 J-36. 상태는 `gh pr view 149 --comments`(2026-11-28)에서 읽음) | 과제 상세 J-17 절 |
+| J-20 | V-16 §1·§3 헤드리스 Mac 부분 선행(`Golmok.Weather`·`Golmok.Save`, 에셋 전 기준선) | origin에 아직 없음(2026-11-28 `git branch -r`) | 과제 상세 J-20 절 |
 
-**다음**: J-15·J-17(진행 중, 둘 다 병합 보류 — 재환 수정 중) → J-20 → J-36 → J-18 → J-35 → 그 뒤 남은 비설계 과제(J-16·J-19·J-21~J-23, 순서는 영록이 정한다) → J-11 → J-10(둘 다 설계 확정, Opus 2026-11-28) → 설계 선행 J-24~J-33.
+**다음**: J-20(진행 중) → J-36 → J-18 → J-35 → 그 뒤 남은 비설계 과제(J-16·J-19·J-21~J-23, 순서는 영록이 정한다. J-15가 끝나 J-16·J-19는 선행이 풀렸고, J-22는 J-20을 더 기다린다) → J-11 → J-10(둘 다 설계 확정, Opus 2026-11-28) → 설계 선행 J-24~J-33.
 
 ## 백로그 (의존 순서)
 
@@ -87,12 +89,9 @@
 |---|---|---|---|---|
 | J-10 | CI shellcheck 잡(공식 v0.11.0 고정·sha256, `--severity=warning`, 기존 결함은 표에 정한 줄별 지시문만 — 실행 줄 변경 없음, 같은 커밋 8/8 초록) | 없음(설계 메모 확정, Opus 2026-11-28) | S–M | 설계 확정(J-10 절) |
 | J-11 | CI 뷰어 `npm test` 잡(`viewer-smoke`, ubuntu-24.04 한 행 — Playwright 1.56.1은 `ubuntu-latest`(26.04) 미지원, `ci.yml` 훅 블록은 별도 커밋, 같은 커밋 8/8 초록) | 없음 | M | — (설계 확정, Opus 2026-11-28, 아래 J-11 절) |
-| J-15 | worktree 패키지로 §8 #10·#11(읽기)·#12·#13 확인 | J-12 | M | — |
 | J-16 | `_pure.py` Mac 경로 가정·`package.sh` 주석을 J-15 실측으로 정리 | J-15 | S–M | — |
-| J-17 | V-17 §0 헤드리스 Mac 부분 선행(GeoMath·Character 훅 컴파일·IndexParse·SharedInterior·Save.RoundTrip 닫기·Weather.Runtime) | J-12b | S | — |
 | J-18 | V-17 §3 Full Precision UV 헤드리스 + WP-06 `_import_moved` 정리 경고(mac-recon #23) | J-12b | M | **준비 메모** |
 | J-19 | V-17 §5 패키지 quinn 전환 로그 확인 | J-15 | S | — |
-| J-20 | V-16 §1·§3 헤드리스 Mac 부분 선행(`Golmok.Weather`·`Golmok.Save`, 에셋 전 기준선) | J-12b | S | — |
 | J-21 | WP-16a 불확실 API 표 §12의 컴파일·심볼 행 | J-12 | S | — |
 | J-22 | V-16 §11 Mac 패키지 명령 이식(에셋 전 기대 결과) | J-15, J-20 | M | — |
 | J-23 | 19b A1 ① 회귀 헤드리스(GASP 없이) | J-12 | S | — |
@@ -110,7 +109,7 @@
 | J-35 | add-gasp 편집기 가드의 남은 분기 스텁 사례(`$GaspProject` 일치·음성 2종, J-06 후속) | 없음(J-07은 코드 변경 없이 끝남) | S | — |
 | J-36 | `test.sh` 종료 규칙: 경고 있는 성공만 있는 실행도 통과(`failed` 0 · `succeeded`+`succeededWithWarnings` ≥ 1), 요약 줄에 경고 있는 성공 수, 옛 스크립트에서 실패하는 스텁 사례, 실제 `--filter Golmok.Zone.IndexParse` 전후(R149 발견) | 없음. J-35와 같은 테스트 파일(`tools/tests/test_ue_mac_scripts.py`)이라 둘을 동시에 열지 않는다 — **J-36 먼저**, J-35는 그 병합 뒤 | S | — (설계 확정, Opus 2026-11-28, 아래 J-36 절) |
 
-J-06·J-07·J-08·J-09·J-12·J-12b·J-13·J-14·J-34는 끝났고(위 "완료"), J-15·J-17은 진행 중이다(위 "진행 중"). J-36은 새 과제다(2026-11-28, R149 발견, 설계 확정). 아래 상세 절은 그대로 두고, 끝난 과제에는 "결과" 줄을 더한다.
+J-06·J-07·J-08·J-09·J-12·J-12b·J-13·J-14·J-15·J-17·J-34는 끝났고(위 "완료"), J-20은 진행 중이다(위 "진행 중"). J-36은 새 과제다(2026-11-28, R149 발견, 설계 확정). 아래 상세 절은 그대로 두고, 끝난 과제에는 "결과" 줄을 더한다.
 
 ### 과제 상세
 
@@ -366,6 +365,7 @@ J-06·J-07·J-08·J-09·J-12·J-12b·J-13·J-14·J-34는 끝났고(위 "완료")
 - **허용 파일**: mac-setup §8 #10~#13 "확인 결과" 칸.
 - **완료 기준**: 행마다 명령·출력 원문. 방화벽 창이 뜨면 누르지 않고 멈춰 영록에게 알린다. `build/`는 `$W` 안에만 생긴다(`git status` 깨끗).
 - **왜 재환 / 위험**: 재환은 이 Mac에서 패키지·CSV를 돌린 적이 있다. 위험: 2026-11-27 사고처럼 메인 체크아웃에서 돌리는 것(규칙 6) — 명령은 반드시 `cd $W`에서.
+- **결과(2026-11-28, [#151](https://github.com/wooklym/golmok/pull/151) · `7332dac`, 리뷰 R147 → R147-2 → R147-3)**: 증거·실행·초안은 재환의 [#147](https://github.com/wooklym/golmok/pull/147)(head `45bb451`)이다. 세 번 보류된 뒤 칸 4개의 최종 문구는 영록의 Opus 에이전트가 재환의 커밋 위 `claude/j15-cells`에서 썼다("병합 시 반영", 규칙 16). 재환 worktree의 Development 패키지 `build/Mac/Golmok.app`을 `-game -RenderOffScreen -ResX=1920 -ResY=1080 -csvCaptureFrames=200,300`으로 2회(06:30·07:01) 실행했다. 방화벽은 두 번 읽어 둘 다 꺼짐(`State = 0`)이었다. #10: `Golmok-Mac.utoc`·`global.utoc`·`Golmok-Mac.pak`은 `.app` 안 `Contents/UE/Golmok/Content/Paks/`에 있고, `Manifest_*_Mac.txt` 세 개는 패키지 폴더가 아니라 `unreal/Golmok/Saved/StagedBuilds/Mac/`에 있다. #11: 1회차는 실행 전부터 떠 있던 CrashReportClient가 1985를 잡고 있어 게임이 40252를, 2회차는 1985가 비어 있어 게임이 1985를 열었다. 대화상자는 관찰되지 않았다. 방화벽이 켜진 상태의 동작은 [미확인]이라 #11은 "부분"이다. #12·#13: 앱이 샌드박스로 서명돼 있어 Saved와 CSV는 `~/Library/Containers/com.YourCompany.Golmok/Data/Library/Application Support/Epic/Golmok/Saved/` 아래에 쓰였다. 적어 둔 후보 경로들에는 없었다(그 `find`의 명령 줄은 로그에 남지 않았다). 번들 id는 `com.YourCompany.Golmok`(엔진 기본값, 프로젝트 Config에 덮어쓰기 없음)이다. 다른 구성·조건에서의 위치와, 번들 id가 같은 다른 패키지가 컨테이너를 같이 쓰는지는 [미확인]이다. mac-setup §3·§4·§6·§9의 관련 문장에는 2026-11-28 메모를 더했다(재환 레인 문서 5). 선행이 풀린 과제: J-16·J-19. J-22는 J-20, J-27은 설계 메모를 더 기다린다.
 
 #### J-16 `_pure.py` Mac 경로 가정·`package.sh` 주석 정리
 - **출처**: `unreal/Golmok/Content/Python/golmok/_pure.py:1779`, `:1787`, `:1802`, `:1986`([미확인] Mac 경로 가정 — `UserSettingsDir`·`LaunchMac.cpp`), `tools/ue/package.sh:26`(방화벽 [미확인]), J-15 실측.
@@ -381,6 +381,7 @@ J-06·J-07·J-08·J-09·J-12·J-12b·J-13·J-14·J-34는 끝났고(위 "완료")
 - **완료 기준**: 기록은 `Mac 부분 선행(J-17, 합성 zone 있음/없음, SHA <짧은 SHA>)`로 시작하고 ①~⑤ 각각을 **완료 / skip / 실행 안 함** 중 하나로 적는다(명령별 종료 코드·상태·Info 줄 원문은 PR에). skip이면 통과라 쓰지 않는다.
 - **왜 재환 / 위험**: 로그 대조. 위험: skip을 통과로 읽는 것.
 - **정정**(정정 2026-11-28: 위 할 일 ⑤는 `NightUnaffected`를 `Golmok.Weather.Runtime` 아래에 두었는데, 영록의 문서 오류다(R149). `GolmokWeatherTest.cpp`에서 `NightUnaffected()`는 `FLightingScenario`(:544)의 한 단계로 :585에서만 불리고, 그 시나리오의 등록 이름은 `Golmok.Weather.Lighting`(:1335)이다. `Golmok.Weather.Runtime`(:1355, `FRuntimeScenario` :895)은 이 단계를 돌리지 않는다. 그래서 ⑤ `Weather.Runtime`은 MPC·NS가 없으면 skip Info 2줄로 Success(= skip)이고, `[Info] NightUnaffected at …` 줄은 `test.sh --filter Golmok.Weather.Lighting` 보조 실행에서 본다(R149가 정한 기록 형태). 재환이 이 문장으로 이미 작업했으므로 할 일 문장은 고치지 않고 여기 적는다. 같은 오류가 있던 [pc-verify-v17.md](../runbooks/pc-verify-v17.md) §0 문장은 2026-11-28에 고쳤다.)
+- **결과(2026-11-28, [#149](https://github.com/wooklym/golmok/pull/149) · `5475c7a`, 리뷰 R149 → R149-2)**: pc-verify-v17 §7 표 아래에 "Mac 부분 선행(J-17, 합성 zone 있음, SHA 84ad068)" 줄을 더했다. ①~④ 완료, ⑤ skip(`MPC_GolmokWeather missing - skipped`·`NS_GolmokRain missing - skipped`), `NightUnaffected`는 보조 실행 `Golmok.Weather.Lighting`(exit 0)에서 확인. ②~⑤ 필터 실행의 `test.sh` 종료 코드가 1이었던 것은 테스트 실패가 아니라 경고 있는 성공을 실패로 세는 종료 규칙 때문이다 — J-36이 고친다. 첫 제출은 ⑤를 "완료"로 적어 보류됐다(R149).
 
 #### J-18 V-17 §3 Full Precision UV 헤드리스 + `_import_moved` 정리 경고 — 준비 메모
 - **출처**: v17 §3(:40-44, 기대 로그 `zone_import: full precision UVs (LOD0) on 2/2 chunks (2 set, 0 already on)`, warnings 수 불변), [pc-verify-wp06.md](../runbooks/pc-verify-wp06.md) §2·§12 #41, STATUS WP-06 행 끝(Claude 레인 후속 5: `_import_moved` 스크래치 삭제 실패 시 `WARNING cleanup: could not delete … (runbook #8)` — 🟡 정상 경로 로그 불변), [mac-recon.md](../runbooks/mac-recon.md) 미확인 #23(`zone_import` Mac 실행).
@@ -609,7 +610,7 @@ print("sum", (d.get("succeeded") or 0) + (d.get("succeededWithWarnings") or 0))
   - (f) 런북: 할 일 6의 `grep -c` 두 개(`1`·`0`)와 numstat `1	1	docs/runbooks/mac-setup.md`.
   - (g) 게이트 `$E/gate.rc` `0`, `$E/mtime.log`에서 `gate.log`가 세 파일보다 새것. CI `gh pr checks <n>` 모든 행 pass 원문(규칙 2).
   - (h) `git -C "$W" status --porcelain` 빈 출력(push 뒤). 잠금: `$E/lock-release-a.rc`·`$E/lock-release-b.rc` 모두 `0`. 작성자: `author-c1.log`·`author-c2.log` 모두 `재환 <jaehwan.local@localhost>`.
-  - (i) PR 본문: "완료 기준 대조" 절과 점검표 1~15가 있다. `$E/quotes-missing.log` 빈 파일, `quotes-check.log`·`numbers-check.log`에 0 없음. 게시 뒤 다시 읽은 출력(규칙 12).
+  - (i) PR 본문: "완료 기준 대조" 절과 점검표 1~16이 있다(2026-11-28: 규칙 16 추가로 1~15 → 1~16). `$E/quotes-missing.log` 빈 파일, `quotes-check.log`·`numbers-check.log`에 0 없음. 게시 뒤 다시 읽은 출력(규칙 12).
 - **병합 시 반영(영록)**: STATUS 재환 절에 J-36 행. [AGENTS.md](../../AGENTS.md):164 끝에 "Mac `test.sh`는 J-36부터 경고 있는 성공도 성공으로 센다(`failed` 0이고 `succeeded`+`succeededWithWarnings` ≥ 1이면 종료 코드 0)" 한 문장을 더할지 영록이 판단한다(Astra 문서라 재환은 고치지 않는다). `test.ps1`·pc-verify-wp18a B4는 Windows 이력이라 그대로 둔다(설계 8). 이월 후보: 성공과 함께 `notRun`·`inProcess`가 남은 실행의 처리(설계 2).
 - **왜 재환 / 위험**: 바꿀 줄이 정확히 정해져 있고 전후가 스텁·실제 헤드리스 양쪽에서 명령으로 판정된다. 위험: ① 종료 코드 0을 "실행됐다"로 읽는 것 — `test.sh`의 0은 "`failed` 0이고 무엇이든 성공으로 끝났다"일 뿐이다. 경고 있는 성공에는 skip Info(`MPC_GolmokWeather missing - skipped` 등)나 `NOT EXECUTED` 경고로 끝난 테스트도 들어간다. 판정은 지금처럼 상태 열과 보고서 entries로 한다(mac-setup §4 "기대 결과" 3, 규칙 15). ② 새 사례가 옛 스크립트에서도 통과하는 빈 테스트 — 할 일 4의 실패 로그로 막는다. ③ `_index()` 기본값 변경으로 기존 사례의 의미가 바뀌는 것 — 새 키의 기본값 0은 옛·새 규칙 모두에서 종료 코드를 바꾸지 않고, (a)의 옛 스크립트 실패가 두 사례뿐인 것으로 확인한다. ④ J-35와 같은 테스트 파일이다 — 둘을 동시에 열지 않는다. **J-36이 먼저**다(백로그 순서 J-20 → J-36 → J-18 → J-35; J-35는 J-36 병합 뒤 `origin/main`에서 시작한다).
 - **dry-run 범위(Opus 2026-11-28)**: `origin/main` `cff4e92`의 `tools/` scratch 사본에서 설계 4·5를 그대로 적용해 확인한 것: 기준선 44 passed, 테스트만 바꾼 상태(옛 `test.sh`)에서 `-k test_test_exit_rules_with_warnings` → `1 failed, 44 deselected`(`assert 1 == 0` 1줄, FAILED 1줄), 파일 전체 → `2 failed, 43 passed`(할 일 4의 두 이름), `test.sh`까지 바꾼 뒤 → `45 passed`, `ruff check`·`ruff format --check`(테스트 파일) 통과, `bash -n` 통과, `git diff -U0`의 `+`/`-` 줄이 두 펜스와 같고 테스트 파일의 빈 `+` 줄은 2. 새·옛 Python 블록을 실제 보고서 사본에 직접 돌린 결과: J-17 `item1b-index.json`(0/1) 옛 3 → 새 0, J-12 사본(22/17) 둘 다 0, `notRun` 3만 있는 가짜 보고서 둘 다 3. 카운트 스크립트는 `item1b-index.json`에서 펜스 `j36-counts`와 같은 8줄을 냈다. dry-run하지 못한 것: 실제 UE 실행(할 일 3·7), 재환 worktree에서의 pytest 수(N), `gh` 명령, 인용·숫자 검사 파이프(본문이 없어서).
