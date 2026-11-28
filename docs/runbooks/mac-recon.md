@@ -93,6 +93,7 @@ colmap model_analyzer --path "$R/sparse/0"  # 등록 장수·점 수·재투영 
 **정합(미터·ENU) — 메시·splat보다 먼저, 희소 모델에서 한 번**
 - COLMAP 좌표의 스케일·방향은 임의다. GPS(EXIF)나 GCP로 `colmap model_aligner`를 돌려 희소 모델을 미터·ENU로 옮긴다. 옵션은 `colmap model_aligner -h`로 확인한다 [미확인: 끝까지 해 보지 않음]. 목표는 zone 원점을 원점으로 하는 동·북·위 m(recon-postprocess §2 "B. 로컬 좌표 그대로")다.
 - 보조 확인은 `golmok-align run --zone "$Z" --basemap ~/golmok_basemap/yeonnam --gps "$CAP/photos_blurred/_golmok/gps_priors.csv" --ground`(리포트만, [align.md](align.md))다.
+- 2026-11-28 메모(J-30a, 공개 Tyrol 드론 76장 CC BY 4.0, 블러 없음 — §3 스모크와 같은 공개 데이터, 품질 판정 아님): COLMAP 4.2.1 `feature_extractor`(OPENCV, `single_camera 1`, `max_image_size 3200`) → `exhaustive_matcher` → `mapper` → `model_aligner --ref_images_path ref_gps.txt --ref_is_gps 1 --alignment_type enu --alignment_max_error 3`이 끝까지 돌았다. `ref_gps.txt`는 EXIF GPS(`이름 위도 경도 고도`, 이름순)이고, 4.2.1에는 `--robust_alignment`가 없으며 `--alignment_max_error`는 0보다 커야 하는 RANSAC 임계값(m)이다. ENU 원점은 참조 파일 첫 줄인 `DJI_0352.JPG`의 EXIF GPS다. 등록 76/76, 카메라 중심 ↔ EXIF GPS ENU 거리 중앙값 1.212 m · p90 1.680 m · 최대 2.180 m(COLMAP 원문 `=> Alignment error: 1.143039 (mean), 1.211714 (median)`), 축척 32.6063, 카메라 평균 높이가 희소 점 중앙값보다 60.95 m 위(+Z가 위). 정합 모델 → `image_undistorter` → Brush 3,000스텝(`--max-resolution 1600`) splat 193066개에서 가장 가까운 정합 SfM 점까지 중앙값 1.082 m · p90 7.315 m(정합 전 모델 점과는 중앙값 94.437 m). EXIF 고도는 1 m 단위이고 기준면(타원체고인지 해발인지)은 [미확인]이다. 원점도 같은 EXIF 고도라 공통 오프셋은 상대 ENU에서 거의 지워진다. 그래서 이 결과는 "EXIF GPS ENU에 정합, 잔차 중앙값 1.212 m"이지 측량 정확도가 아니다. zone 원점으로 옮기기와 Object Capture 메시의 같은 좌표 변환(J-30b)은 하지 않았다. 근거: J-30a PR.
 
 **왜곡 제거 (Brush 입력)**
 ```bash
@@ -227,7 +228,7 @@ golmok-zone validate "$Z/manifest.json" --check-files --strict
 | 2 | `golmok-frames`·`golmok-exif`를 conda-forge ffmpeg·exiftool로 | 버전만 확인 | C-01 리허설 영상 1개 | |
 | 3 | 1,300장 매칭·매핑 시간과 메모리 | §5 추정 | C-02 첫 실행 `/usr/bin/time -l` | |
 | 4 | `spatial_matcher`가 블러 결과의 EXIF GPS를 읽는지 | 블러가 EXIF를 복사(exiftool) | 리허설 사진으로 실행 | |
-| 5 | `colmap model_aligner` 미터·ENU 정합(옵션·결과) | 끝까지 해 보지 않음 | GPS 있는 리허설 → zone-local 범위 확인 | |
+| 5 | `colmap model_aligner` 미터·ENU 정합(옵션·결과) | 끝까지 해 보지 않음 | GPS 있는 리허설 → zone-local 범위 확인 | 2026-11-28(J-30a, 공개 Tyrol 76장, 품질 판정 아님): `--ref_images_path`·`--ref_is_gps 1`·`--alignment_type enu`·`--alignment_max_error 3`으로 정합, 등록 76/76, 카메라 중심 잔차 중앙값 1.212 m · p90 1.680 m · 최대 2.180 m, splat → SfM 중앙값 1.082 m. `=> Alignment error: 1.143039 (mean), 1.211714 (median)`. 리허설 사진·zone-local 범위는 남음. M3 "정합" 메모. 근거: J-30a PR. |
 | 6 | objcap 메시 → zone-local 변환 | 저장소 도구 없음(`reproject`는 EPSG만) | 유사변환 단계 설계(WP-21 후속) | |
 | 7 | `golmok-objcap colmap` 경로(track 없는 점·왜곡·정렬) | Buddha 포즈 일치·투영 96.9 % | Brush 학습 → 메시와 겹침 확인 | |
 | 8 | Object Capture 골목 촬영(안에서 바깥) 동작 | 물체 데이터만 | C-02 | |
