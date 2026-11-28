@@ -245,7 +245,7 @@ golmok-zone validate "$Z/manifest.json" --check-files --strict
 | 20 | Cesium 정적 링크 서드파티(abseil·draco·spz·libwebp·s2·blend2d·asmjit·libjpeg-turbo·ktx·zstd·sqlite·tidy 등) 개별 LICENSE 원문 | permissive로 기억, 파일 단위 미검증 | 배포 전 NOTICE 작성 때 | |
 | 21 | Brush 러스트 크레이트 전체 감사 | `deny.toml` 허용 목록만 확인 | `cargo deny` 또는 수동 | |
 | 22 | COLMAP `colmap gui`(Qt6) macOS 27에서 열림 | 명령은 있음 | 실행 1회(선택) | |
-| 23 | `zone_import` Mac 실행 | V-19 전 | V-19 뒤 | |
+| 23 | `zone_import` Mac 실행 | V-19 전 | V-19 뒤 | 2026-11-28 J-18 헤드리스 성공(`-nullrhi`+`-ExecCmds`, 합성 스캔 존): `2/2 chunks (2 set, 0 already on)`·`0 warnings`·`zi.run` 3.93 s — v17 §7 §3 행·PR 본문 `ue-abs.log` |
 | 24 | Brush 다음 릴리스의 CLI 플래그 변화 | v0.3.0(2025-09) 고정 | 업그레이드 때 `--help` | |
 
 ## 7. 결과 (V-05 Mac 세션이 작성)
